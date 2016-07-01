@@ -1,0 +1,164 @@
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <script src="NameSpace.js" type="text/javascript" ></script>
+  <script src="String.js" type="text/javascript"></script>
+  <script src="Maths.js" type="text/javascript"></script>
+  <script src="Maths.Coordinate.js" type="text/javascript"></script>
+  <script src="Astronomy.js" type="text/javascript"></script>
+  <script src="Astronomy.AxialPrecession.js" type="text/javascript"></script>
+  <script src="Astronomy.Nutation.js" type="text/javascript"></script>
+  <script src="Astronomy.Coordinate.js" type="text/javascript"></script>
+  <script src="Test.js" type="text/javascript"></script>
+</head>
+<body>
+  <script>
+      with(Calendar){
+        Test.browser=window;
+        Test.console=console;
+        Test.println('模块测试',"h3");
+        Test.println("Maths模块","h4");
+        Test.test(
+          "Maths.normalizeToRangePlusMinusPi(13.2π)",
+          Maths.normalizeToRangePlusMinusPi(13.2*Maths.Pi),
+          -0.8*Maths.Pi,
+          10e-12,
+          "10e-12"
+        ).test(
+          "Maths.normalizeToRangeZeroDoublePi(13.2π)",
+          Maths.normalizeToRangeZeroDoublePi(13.2*Maths.Pi),
+          1.2*Maths.Pi,
+          10e-12,
+          "10e-12"
+        ).test(
+          "Maths.parseAngle(\"7h 45m 18.946s\")",
+          Maths.parseAngle("7h 45m 18.946s"),
+          (7*3600+45*60+18.946)/180*Maths.Pi/3600*15,
+          10e-12,
+          "10e-12"
+        );
+        Test.println("Maths.Coordinate模块","h4");
+        Test.println("","hr");
+        Test.println("在球面坐标系，创建点(1,π,2π/3):");
+        var point=new Maths.Coordinate.Sphere(1,Math.PI,2*Math.PI/3);
+        Test.test(
+          "Maths.Coordinate.Sphere(1,π,2π/3)",
+          point,
+          "r=1, θ="+Math.PI+", φ="+2*Math.PI/3,
+          10e-12,
+          "10e-12",
+          function(){
+            return Test.checkNumber(point.r,1,10e-12) && Test.checkNumber(point.theta, Math.PI,10e-12) && Test.checkNumber(point.phi,2*Math.PI/3,10e-12);
+        });
+        Test.println("","hr");
+        Test.println("球面坐标(1,π,2π/3)转换为直角坐标：");
+        var p=point.toRectangular();
+        Test.test(
+          "Maths.Coordinate.Sphere.toRectangular()",
+          p,
+          "x=0, y=0, z=-1",
+          10e-12,
+          "10e-12",
+          function(){
+            return Test.checkNumber(p.x,0,10e-12) && Test.checkNumber(p.y,0,10e-12) && Test.checkNumber(p.z,-1,10e-12);
+        });
+        Test.println("","hr");
+        Test.println("已知球面坐标(1,π,2π/3)。按对应的直角坐标系下矢量(-1,0,-1)平移<b>坐标系</b>，然后将<b>坐标系</b>绕Z轴(0,0,1)逆时针旋转π/4，求新坐标")
+        Test.println("","hr");
+        Test.println("单个点采用链式写法，依次变换。");
+        var p=point.translate(new Maths.Vector3(-1,0,-1)).rotateZ(Math.PI/4).transform();
+        Test.test(
+          "Maths.Coordinate.Sphere.translate(Maths.Vector3(-1,0,1)).rotateZ(π/4).transform()",
+          p,
+          "r=1, θ="+Math.PI/2+", φ="+(7*Math.PI/4),
+          10e-12,
+          "10e-12",
+          function(){
+            return Test.checkNumber(p.r,1,10e-12) && Test.checkNumber(p.theta,Math.PI/2,10e-12) && Test.checkNumber(p.phi,7*Math.PI/4,10e-12);
+        });
+        Test.println("","hr");
+        Test.println("多个点采用TransformBuilder写法。先将多次变换合成一次变换，然后对每个点做一次变换即可。");
+        var b=new Maths.Coordinate.Rectangular.TransformBuilder();
+        b.add(new Maths.Coordinate.Rectangular.Translation(new Maths.Vector3(-1,0,-1)))
+        .add(new Maths.Coordinate.Rectangular.Rotation(Math.PI/4,new Maths.Vector3(0,0,1)));
+        var t=b.build();
+        var p=point.transform(t).transform();
+        Test.test(
+          "Maths.Coordinate.Rectangular.TransformBuilder",
+          p,
+          "r=1, θ="+Math.PI/2+", φ="+7*Math.PI/4,
+          10e-12,
+          "10e-12",
+          function(){
+            return Test.checkNumber(p.r,1,10e-12) && Test.checkNumber(p.theta,Math.PI/2,10e-12) && Test.checkNumber(p.phi,7*Math.PI/4,10e-12);
+        });
+        Test.println("","hr");
+        Test.println("计算(1,π/6,0)和(1,π/6,π)的夹角：")
+        var p1=new Maths.Coordinate.Sphere(1,Math.PI/6,0);
+        var p2=new Maths.Coordinate.Sphere(1,Math.PI/6,Math.PI);
+        var res=p1.includedAngle(p2);
+        Test.test(
+          "Maths.Coordinate.Sphere.includedAngle",
+          res,
+          "π/3="+Math.PI/3,
+          10e-12,
+          "10e-12",
+          function(){
+            return Test.checkNumber(res,Math.PI/3,10e-12);
+        });
+        Test.println("","hr");
+        Test.println("计算(1,0,0)和(1,π/10000,π)的夹角：")
+        var p1=new Maths.Coordinate.Sphere(1,0,0);
+        var p2=new Maths.Coordinate.Sphere(1,Math.PI/10000,Math.PI);
+        var res=p1.includedAngle(p2);
+        Test.test(
+          "Maths.Coordinate.Sphere.includedAngle",
+          res,
+          "π/10000="+Math.PI/10000,
+          10e-12,
+          "10e-12",
+          function(){
+            return Test.checkNumber(res,Math.PI/10000,10e-12);
+        });
+        Test.println("Astronomy.Coordinate模块","h4");
+        Test.println("","hr");
+        Test.println("已知恒星Pollux(β Gem)的赤道坐标是：α2000 = 7h 45m 18s.946， δ2000 = +28.026183°。黄赤交角为ε=23.4392911°。<br/>求黄道坐标:[《天文算法》第12章例题]");
+        var p=new Astronomy.Coordinate.Equator(Maths.parseAngle("7h 45m 18s.946"),Maths.parseAngle("+28.026183°"));
+        var p1=p.toEcliptic(Maths.parseAngle("23.4392911°"));
+        var err=Maths.parseAngle("0.01\"");
+        Test.test(
+          "Astronomy.Coordinate.Equator.toEcliptic",
+          "λ="+Maths.formatRadian(p1.longitude,"d",6)+", β="+Maths.formatRadian(p1.latitude,"d",6),
+          "λ=113°.215630，β = +6°.684170",
+          err,
+          "0.01\"",
+          function(){
+            return Test.checkNumber(Maths.parseAngle("113.215630°"),p1.longitude,err)
+            && Test.checkNumber(Maths.parseAngle("+6.684170°"),p1.latitude,err);
+          }
+        );
+        Test.println("","hr");
+        Test.println("恒星ζPersei 在J2000.0 的历元平赤道坐标为：αo = 2h 44m 11s.986 δo = +49°13′42\".48  <br/> 该坐标中，它每年的自行速度是：+0s.03425 (赤经)-0\".0895 (赤纬)<br/>把该坐标转到2028 年11 月13.19 日TD 历元平坐标中。[《天文算法》第20章例题。基于IAU1976岁差模型]");
+        var start=2451545.0;
+        var end=2462088.69;
+        var t=(end-start)/36525;
+        var alpha=Maths.parseAngle("2h 44m 11s.986")+Maths.parseAngle("+0s.03425")*(end-start)/365.25;
+        var delta=Maths.parseAngle("+49°13′42\".48")+Maths.parseAngle("-0\".0895")*(end-start)/365.25;
+
+        var p=new Astronomy.Coordinate.Equator(alpha,delta);
+        var p1= p.toMeanDateEqutator(t,"IAU1976");
+        Test.test(
+          "Astronomy.Coordinate.Equator.toMeanDateEqutator",
+          "α="+Maths.formatRadian(p1.rightAscension,"hms",3)+", δ="+Maths.formatRadian(p1.declination,"dms"),
+          "α = +41°.547214 = 2h 46m 11s.331，δ = +49°.348483 = +49°20′54\".54",
+          err,
+          "0.01\"",
+          function(){
+            return Test.checkNumber(Maths.parseAngle("+41°.547214"),p1.rightAscension,err)
+            && Test.checkNumber(Maths.parseAngle("+49°.348483"),p1.declination,err);
+          }
+        );
+      }
+  </script>
+</body>
+</html>
