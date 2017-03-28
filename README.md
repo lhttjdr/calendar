@@ -66,6 +66,9 @@ In precise timekeeping, ΔT (Delta T, delta-T, deltaT, or DT) is the time differ
 
 11. Chinese lunar calendar system
 
+12. More
+    - eclipse
+   
 
 ## TODO
 ### Position of the Sun
@@ -81,7 +84,7 @@ None
 ### Precession and nutation
 IAU 2006
 
-### ΔT: Polynomial expressions published by NASA
+### ΔT:
 None
 
 ### Atmospheric refraction
