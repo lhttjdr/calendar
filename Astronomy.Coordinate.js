@@ -170,5 +170,4 @@
   Coordinate.Horizon.prototype.toEquator = function(longitude, latitude, GST) {
     return this.toHourAngle(latitude).toEquator(longitude, GST);
   };
-
 })();
