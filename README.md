@@ -33,6 +33,9 @@ In precise timekeeping, ΔT (Delta T, delta-T, deltaT, or DT) is the time differ
 **It will not be upgraded to ES6 until the first version is accomplished.**
 0. **[Finished]** Basic mathematical tools
    - degree (degree, minute, second) ↔ radian (real number) ↔ celestial coordinate (hour, minute, second)
+   - 3d Vector operations
+   - Quaternion (for 3d rotation)
+   - Dual quaternion (for 3d transition & rotation)
 1. **[Finished]** 3d mathematical coordinate system
    - cartesian coordinate system
    - spherical coordinate system
@@ -50,7 +53,10 @@ In precise timekeeping, ΔT (Delta T, delta-T, deltaT, or DT) is the time differ
 4. **[Finished]** Nutation
    - IAU 2000B
 5. **[Finished]** Atmospheric refraction
-   - Bennett, apparent altitude → true altitude
+   - Bennett, low precision, apparent altitude → true altitude
+   - Meeus, 1999, highly accurate in 15~90°, apparent altitude → true altitude
+   - Smart, 1980, highly accurate in 15~90°, apparent altitude → true altitude
+   - 0~15°, Explanatory Supplement to the Astronomical Almanac
    - Sæmundsson, true altitude → apparent altitude
 6. Position of the Sun
    - VSOP87
