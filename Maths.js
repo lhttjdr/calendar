@@ -314,7 +314,7 @@
   // format: 'hms' for hour-angle, and 'dms' for degree
   // for degree, if not contants the 'd', it should be started with '_'.
   Maths.Angle.prototype.toString = function(format, fixed) {
-    var sign = (dh < 0 || m < 0 || s < 0) ? '-' : '+';
+    var sign = (this.dh < 0 || this.m < 0 || this.s < 0) ? '-' : '+';
     format = format || "dms";
     fixed = fixed || 2;
     if (false == /^[h[d_]]?m?s?$/.test(format)) {
@@ -324,9 +324,9 @@
     if (format[0] == 'd' || format[0] == '_') {
       symbol = "\u00b0\u2032\u2033";
     }
-    var dh = this.dh;
-    var m = this.m;
-    var s = this.s;
+    var dh = Math.abs(this.dh);
+    var m = Math.abs(this.m);
+    var s = Math.abs(this.s);
     if (format == "d" || format == "h") {
       return String.sprintf(sign + "%." + fixed + "f" + symbol[0], dh +
         m /
