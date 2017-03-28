@@ -47,12 +47,13 @@ Sæmundsson, Þorsteinn (1986). "Astronomical Refraction". Sky and Telescope. 72
 4. **[Finished]** Nutation
 
 5. **[Finished]** Atmospheric refraction
-
+   - Bennett, apparent altitude → true altitude
+   - Sæmundsson, true altitude → apparent altitude
 6. Position of Sun
-  - VSOP87
+   - VSOP87
   
 7. Position of Moon
-  - ELP/MPP02
+   - ELP/MPP02
 
 8. ΔT
 
