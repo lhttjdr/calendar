@@ -6,6 +6,7 @@
   Maths.DoublePi = 2 * Math.PI;
   Maths.HalfPi = 0.5 * Math.PI;
   Maths.DegreePerRadian = 180 / Math.PI;
+  Maths.MinutePerRadian = 180 * 60 / Math.PI;
   Maths.SecondPerRadian = 180 * 3600 / Math.PI;
   Maths.int2 = Math.floor;
   Maths.mod2 = function(a, b) {

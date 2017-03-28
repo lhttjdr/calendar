@@ -9,6 +9,7 @@
   <script src="Astronomy.AxialPrecession.js" type="text/javascript"></script>
   <script src="Astronomy.Nutation.js" type="text/javascript"></script>
   <script src="Astronomy.Coordinate.js" type="text/javascript"></script>
+  <script src="Astronomy.Atmosphere.js" type="text/javascript"></script>
   <script src="Test.js" type="text/javascript"></script>
 </head>
 <body>
@@ -158,6 +159,24 @@
             && Test.checkNumber(Maths.parseAngle("+49°.348483"),p1.declination,err);
           }
         );
+
+        Test.println("","hr");
+        Test.println("表面光滑的太阳圆盘下边沿视纬度是 30′，求下边沿真地平纬度。[《天文算法》第15章例题。节选]");
+
+        var p=Maths.parseAngle("30'");
+        var R=Atomsphere.Refraction(p);
+        var err=Maths.parseAngle("0.015'");
+        Test.test(
+          "Astronomy.Atmosphere.Refraction",
+          "Apparent altitude in Horizontal Coordinate System="+Maths.formatRadian(p+R,'_m'),
+          "1'.246",
+          err,
+          "0.015'",
+          function(){
+            return Test.checkNumber(Maths.parseAngle("1'.246"),p+R,err);
+          }
+        )
+        //console.log(Maths.formatRadian(R,"_m"));
       }
   </script>
 </body>
