@@ -7,7 +7,7 @@ A lunar month is the time between two successive syzygies. In Chinese lunar cale
 ### Position of the Sun: VSOP87
 The semi-analytic planetary theory VSOP87 (French: Variations Séculaires des Orbites Planétaires, abbreviated as VSOP) was developed by the scientists at the Bureau des Longitudes in Paris, France.
 
-### Position of Moon: ELP/MPP02
+### Position of the Moon: ELP/MPP02
 Éphéméride Lunaire Parisienne is a lunar theory developed by Jean Chapront, Michelle Chapront-Touzé, and others at the Bureau des Longitudes in the 1970s to 1990s.
 - ELP 2000-82 (Chapront-Touze, Chapront, 1983), 
 - ELP 2000-85 (Chapront-Touze, Chapront, 1988),
@@ -52,10 +52,10 @@ In precise timekeeping, ΔT (Delta T, delta-T, deltaT, or DT) is the time differ
 5. **[Finished]** Atmospheric refraction
    - Bennett, apparent altitude → true altitude
    - Sæmundsson, true altitude → apparent altitude
-6. Position of Sun
+6. Position of the Sun
    - VSOP87
   
-7. Position of Moon
+7. Position of the Moon
    - ELP/MPP02
 
 8. ΔT
@@ -75,7 +75,7 @@ Change to models of the Solar System produced at the Jet Propulsion Laboratory i
  - DE430: 2015~current
  Note: The full name is Jet Propulsion Laboratory Development Ephemeris (followed by a number), whose abbreviation is JPL DE(number), or just DE(number).
 
-### Position of Moon
+### Position of the Moon
 None
 
 ### Precession and nutation
