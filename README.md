@@ -12,6 +12,7 @@ The semi-analytic planetary theory VSOP87 (French: Variations Séculaires des Or
 - ELP 2000-82 (Chapront-Touze, Chapront, 1983), 
 - ELP 2000-85 (Chapront-Touze, Chapront, 1988),
 - ELP 2000-96, version used for analysing Lunar Laser Ranging (LLR).
+
 It is not sufficiently accurate to predict the Moon's position. An attempt was made to improve the planetary terms with the ELP/MPP02 lunar theory (Chapront, Francou, 2003), which is a semi-analytical solution for the 
 orbital motion of the Moon. The main differences from ELP2000-82B is the use of the new planetary perturbations MPP01 (Bidart, 2000) and the contribution 
 of the LLR observations provided since 1970.
@@ -25,11 +26,13 @@ IAU(International Astronomical Union) precession-nutation model/theory.
 In precise timekeeping, ΔT (Delta T, delta-T, deltaT, or DT) is the time difference obtained by subtracting Universal Time (UT) from Terrestrial Time (TT): ΔT = TT − UT.
 
 ### Atmospheric refraction
-Bennett, G.G. (1982). "The Calculation of Astronomical Refraction in Marine Navigation". Journal of Navigation. 35: 255–259
-Sæmundsson, Þorsteinn (1986). "Astronomical Refraction". Sky and Telescope. 72: 70.
+- Bennett, G.G. (1982). "The Calculation of Astronomical Refraction in Marine Navigation". Journal of Navigation. 35: 255–259
+- Sæmundsson, Þorsteinn (1986). "Astronomical Refraction". Sky and Telescope. 72: 70.
 
 ## Schedule
 **It will not be upgraded to ES6 until the first version is accomplished.**
+0. **[Finished]** Basic mathematical tools
+   - degree (degree, minute, second) ↔ radian (real number) ↔ celestial coordinate (hour, minute, second)
 1. **[Finished]** 3d mathematical coordinate system
    - cartesian coordinate system
    - spherical coordinate system
@@ -45,7 +48,7 @@ Sæmundsson, Þorsteinn (1986). "Astronomical Refraction". Sky and Telescope. 72
    - IAU2000
    - P03
 4. **[Finished]** Nutation
-
+   - IAU 2000B
 5. **[Finished]** Atmospheric refraction
    - Bennett, apparent altitude → true altitude
    - Sæmundsson, true altitude → apparent altitude
