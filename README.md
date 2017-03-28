@@ -28,6 +28,39 @@ In precise timekeeping, ΔT (Delta T, delta-T, deltaT, or DT) is the time differ
 Bennett, G.G. (1982). "The Calculation of Astronomical Refraction in Marine Navigation". Journal of Navigation. 35: 255–259
 Sæmundsson, Þorsteinn (1986). "Astronomical Refraction". Sky and Telescope. 72: 70.
 
+## Schedule
+**It will not be upgraded to ES6 until the first version is accomplished.**
+1. [Finished] 3d mathematical coordinate system
+   - cartesian coordinate system
+   - spherical coordinate system
+   - cartesian ↔ spherical
+2. [Finished] Celestial coordinate system
+   - Equatorial system (J2000)
+   - Ecliptic system
+   - Horizontal system
+   - Equatorial ↔ ecliptic
+   - Equatorial ↔ horizontal
+3. Procession
+
+4. Nutation
+
+5. Position of Sun
+  - VSOP87
+  
+6. Position of Moon
+  - ELP/MPP02
+
+7. ΔT
+
+8. Atmospheric refraction
+
+9. Aberration of light
+
+10. Syzygies of new moon
+
+11. Chinese lunar calendar system
+
+
 ## TODO
 ### Position of the Sun
 Change to models of the Solar System produced at the Jet Propulsion Laboratory in Pasadena, California.
