@@ -26,54 +26,54 @@ IAU(International Astronomical Union) precession-nutation model/theory.
 In precise timekeeping, ΔT (Delta T, delta-T, deltaT, or DT) is the time difference obtained by subtracting Universal Time (UT) from Terrestrial Time (TT): ΔT = TT − UT.
 
 ### Atmospheric refraction
-  -   Bennett, G.G. (1982). "The Calculation of Astronomical Refraction in Marine Navigation". Journal of Navigation. 35: 255–259
+  - Bennett, G.G. (1982). "The Calculation of Astronomical Refraction in Marine Navigation". Journal of Navigation. 35: 255–259
   - Sæmundsson, Þorsteinn (1986). "Astronomical Refraction". Sky and Telescope. 72: 70.
 
 ## Schedule
 **It will not be upgraded to ES6 until the first version is accomplished.**
 
-0. **[Finished]** Basic mathematical tools
-   - degree (degree, minute, second) ↔ radian (real number) ↔ celestial coordinate (hour, minute, second)
-   - 3d Vector operations
-   - Quaternion (for 3d rotation)
-   - Dual quaternion (for 3d transition & rotation)
-1. **[Finished]** 3d mathematical coordinate system
+1. **[Finished]** Basic mathematical tools
+   - degree (degree, minute, second) ↔ radian (real number) ↔ celestial coordinate (hour, minute, second)
+   -   3d Vector operations
+   -   Quaternion (for 3d rotation)
+   -   Dual quaternion (for 3d transition & rotation)
+2. **[Finished]** 3d mathematical coordinate system
    -   cartesian coordinate system
    -   spherical coordinate system
    -   cartesian ↔ spherical
-2. **[Finished]** Celestial coordinate system
+3. **[Finished]** Celestial coordinate system
    -   Equatorial system (J2000)
    -   Ecliptic system
    -   Horizontal system
    -   Equatorial ↔ ecliptic
    -   Equatorial ↔ horizontal
-3. **[Finished]** Procession
+4. **[Finished]** Procession
    -   IAU1976
    -   IAU2000
    -   P03
-4. **[Finished]** Nutation
+5. **[Finished]** Nutation
    - IAU 2000B
-5. **[Finished]** Atmospheric refraction
+6. **[Finished]** Atmospheric refraction
      - Bennett, low precision, apparent altitude → true altitude
      - Meeus, 1999, highly accurate in 15~90°, apparent altitude → true altitude
      - Smart, 1980, highly accurate in 15~90°, apparent altitude → true altitude
      - 0~15°, Explanatory Supplement to the Astronomical Almanac
      - Sæmundsson, true altitude → apparent altitude
-6. Position of the Sun
+7. Position of the Sun
    - VSOP87
 
-7. Position of the Moon
+8. Position of the Moon
    - ELP/MPP02
 
-8. ΔT
+9. ΔT
 
-9. Aberration of light
+10. Aberration of light
 
-10. Syzygies of new moon
+11. Syzygies of new moon
 
-11. Chinese lunar calendar system
+12. Chinese lunar calendar system
 
-12. More
+13. More
     - eclipse
 
 
