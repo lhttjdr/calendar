@@ -30,29 +30,31 @@ Sæmundsson, Þorsteinn (1986). "Astronomical Refraction". Sky and Telescope. 72
 
 ## Schedule
 **It will not be upgraded to ES6 until the first version is accomplished.**
-1. [Finished] 3d mathematical coordinate system
+1. **[Finished]** 3d mathematical coordinate system
    - cartesian coordinate system
    - spherical coordinate system
    - cartesian ↔ spherical
-2. [Finished] Celestial coordinate system
+2. **[Finished]** Celestial coordinate system
    - Equatorial system (J2000)
    - Ecliptic system
    - Horizontal system
    - Equatorial ↔ ecliptic
    - Equatorial ↔ horizontal
-3. Procession
+3. **[Finished]** Procession
+   - IAU1976
+   - IAU2000
+   - P03
+4. **[Finished]** Nutation
 
-4. Nutation
+5. **[Finished]** Atmospheric refraction
 
-5. Position of Sun
+6. Position of Sun
   - VSOP87
   
-6. Position of Moon
+7. Position of Moon
   - ELP/MPP02
 
-7. ΔT
-
-8. Atmospheric refraction
+8. ΔT
 
 9. Aberration of light
 
