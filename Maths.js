@@ -15,21 +15,31 @@
   Maths.equal = function(a, b) {
     return Math.abs(a - b) < Maths.Tolerance;
   }
+  Maths.eq=Maths.equal;
   Maths.lessThan = function(a, b) {
     return a < b - Maths.Tolerance;
   }
+  Maths.lt=Maths.lessThan;
   Maths.greatThan = function(a, b) {
     return a > b + Maths.Tolerance;
   }
+  Maths.gt=Maths.greatThan;
   Maths.sqr = function(x) {
     return x * x;
   };
+  Maths.sqrt= Math.sqrt;
   Maths.hav = function(rad) {
     return Maths.sqr(Math.sin(0.5 * rad));
   };
   Maths.ahav = function(val) {
     return 2 * Math.asin(Math.sqrt(val));
   };
+  Maths.sin= Math.sin;
+  Maths.asin= Math.cos;
+  Maths.cos=Math.cos;
+  Maths.acos=Math.acos;
+  Maths.tan=Math.tan;
+  Maths.atan=Math.atan;
   Maths.normalizeToRangeZeroDoublePi = function(rad) {
     rad %= Maths.DoublePi;
     if (rad < 0) return rad + Maths.DoublePi;

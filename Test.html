@@ -10,6 +10,8 @@
   <script src="Astronomy.Nutation.js" type="text/javascript"></script>
   <script src="Astronomy.Coordinate.js" type="text/javascript"></script>
   <script src="Astronomy.Atmosphere.js" type="text/javascript"></script>
+  <script src="Astronomy.Constant.js" type="text/javascript"></script>
+  <script src="Astronomy.Parallax.js" type="text/javascript"></script>
   <script src="Test.js" type="text/javascript"></script>
 </head>
 <body>
@@ -175,8 +177,28 @@
           function(){
             return Test.checkNumber(Maths.parseAngle("1'.246"),p+R,err);
           }
-        )
-        //console.log(Maths.formatRadian(R,"_m"));
+        );
+
+        Test.println("","hr");
+        Test.println("试计算2003 年 8 月 28 日 3h 17m 00s UT 时火星的赤经赤纬。");
+        Test.println("由星历表，该时刻火星的赤经22h38m07s.25，赤纬-15°46'15\".9，距离0.37276AU。")
+        Test.println("Palomar观测站位于西经+7h47m27s, 纬度+33°21′22\"，海拔高度1706米。")
+        Test.println("该时刻的格林尼治恒星时+1h40m45s。[《天文算法》第10章，第39章例题。书上计算时角时仅保留了整数秒，所以程序在检验精度时误差允许1\"]");
+        var p=new Astronomy.Coordinate.Equator(Maths.parseAngle("22h38m07s.25"),Maths.parseAngle("-15°46'15\".9"),0.37276*Astronomy.Constant.AU);
+        var H=Maths.parseAngle("+1h40m45s")-Maths.parseAngle("+7h47m27s")-p.rightAscension;
+        var p1=Astronomy.Parallax.correction(p,H,Maths.parseAngle("+33°21′22\""),1706);
+        var err=Maths.parseAngle("1\"");
+        Test.test(
+          "Astronomy.Atmosphere.Parallax.correction",
+          "α="+Maths.formatRadian(p1.rightAscension,"hms",3)+", δ="+Maths.formatRadian(p1.declination,"dms",3),
+          "α=22h38m08s.54, δ=-15°46'30\".0",
+          err,
+          "1\"",
+          function(){
+             return Test.checkNumber(Maths.parseAngle("22h38m08s.54"),p1.rightAscension,err)
+             && Test.checkNumber(Maths.parseAngle("-15°46'30\".0"),p1.declination,err);
+          }
+        );
       }
   </script>
 </body>
