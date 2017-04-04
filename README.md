@@ -37,7 +37,7 @@ In precise timekeeping, ΔT (Delta T, delta-T, deltaT, or DT) is the time differ
 
 ## Schedule
 
-**It will not be upgraded to ES6 until the first version is accomplished.**
+** Not until all codes are upgraded to ES6, will I continue to add new features. **
 
 1. **[Finished]** Basic mathematical tools
 
