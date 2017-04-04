@@ -4,7 +4,7 @@ const Vector = require('../lib/math/vector.js');
 //const Angle = require('../lib/math/angle.js');
 
 {
-    console.log("Test Decimal");
+    console.log("===============Test Decimal=================");
     // (*->Decimal) -> IO
     const show= func => std.compose(console.log, Decimal.toString, func);
     // (*->Decimal) -> Decimal -> IO
@@ -23,7 +23,7 @@ const Vector = require('../lib/math/vector.js');
     log(Decimal.toFixed)(45.346, 2);
 }
 {
-  console.log("Test Vector");
+  console.log("================Test Vector===================");
   // (*->Vector) -> IO
   const show= func => std.compose(console.log, Vector.toString, func);
   // (*->Vector) -> Vector -> IO

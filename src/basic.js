@@ -12,7 +12,6 @@ export const uncurry = f => (...args) => args.reduce(
    : g), f
 );
 
-
 const check_builtin_type= typename => x =>{
   if (typeof x === typename) return x;
   throw new TypeError("Except a "+typename+"!");
