@@ -51,4 +51,4 @@ export const eq = equals;
 // Vector->Boolean
 export const isZero = u => vector(u).every(x => Decimal.eq(x, 0));
 // Vector->String
-export const toString = u => "(" + vector(u).map(x => Decimal.toString(x)).join(",") + ")";
+export const show = u => "(" + vector(u).map(x => Decimal.show(x)).join(",") + ")";

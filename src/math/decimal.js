@@ -1,4 +1,3 @@
-"use strict";
 import * as std from '../basic.js';
 
 // Decimal = String | Number
@@ -44,4 +43,4 @@ export const toFixed = std.uncurry(a => b => std.str(decimal(a).toFixed(std.num(
 // Decimal->Number->Decimal
 export const toDecimalPosition = std.uncurry(a => b => decimal(toFixed(a, b)));
 // Decimal->String
-export const toString = a => std.str(decimal(a).toString());
+export const show = a => std.str(decimal(a).toString());
