@@ -5,6 +5,7 @@
   "main": "calendar.js",
   "scripts": {
     "build": "babel src -d lib",
+    "clean": "rm -rf lib",
     "test": "node ./test/test.js"
   },
   "repository": {

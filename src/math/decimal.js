@@ -1,4 +1,5 @@
-import * from '../basic.js';
+"use strict";
+import * as std from '../basic.js';
 
 // Decimal = String | Number
 export const decimal = x => {
@@ -7,12 +8,12 @@ export const decimal = x => {
     throw new TypeError("Except a decimal number!");
 };
 // Decimal->Decimal->Decimal
-export const plus = uncurry(a => b => decimal(decimal(a) + decimal(b)));
-export const minus = uncurry(a => b => decimal(decimal(a) - decimal(b)));
-export const mult = uncurry(a => b => decimal(decimal(a) * decimal(b)));
-export const div = uncurry(a => b => decimal(decimal(a) / decimal(b)));
-export const mod = uncurry(a => b => decimal(decimal(a) % decimal(b)));
-export const atan2 = uncurry(a => b => decimal(Math.atan2(decimal(a), decimal(b))));
+export const plus = std.uncurry(a => b => decimal(decimal(a) + decimal(b)));
+export const minus = std.uncurry(a => b => decimal(decimal(a) - decimal(b)));
+export const mult = std.uncurry(a => b => decimal(decimal(a) * decimal(b)));
+export const div = std.uncurry(a => b => decimal(decimal(a) / decimal(b)));
+export const mod = std.uncurry(a => b => decimal(decimal(a) % decimal(b)));
+export const atan2 = std.uncurry(a => b => decimal(Math.atan2(decimal(a), decimal(b))));
 // Decimal->Decimal
 export const neg = a => decimal(-decimal(a));
 export const sqrt = a => decimal(Math.sqrt(decimal(a)));
@@ -26,21 +27,21 @@ export const hav = a=> decimal(Math.sqrt(Math.sin(0.5*decimal(a))));
 export const ahav = a=> decimal(2* Math.asin(Math.sqrt(decimal(a))));
 export const floor = a=> decimal(Math.floor(decimal(a)));
 // Decimal->Decimal->Boolean
-export const eq = uncurry(a => b => bool(decimal(a) === decimal(b)));
-export const lt = uncurry(a => b => bool(decimal(a) < decimal(b)));
-export const gt = uncurry(a => b => bool(decimal(a) > decimal(b)));
-export const lte = uncurry(a => b => bool(decimal(a) <= decimal(b)));
-export const gte = uncurry(a => b => bool(decimal(a) >= decimal(b)));
-export const neq = uncurry(a => b => bool(decimal(a) !== decimal(b)));
+export const eq = std.uncurry(a => b => std.bool(decimal(a) === decimal(b)));
+export const lt = std.uncurry(a => b => std.bool(decimal(a) < decimal(b)));
+export const gt = std.uncurry(a => b => std.bool(decimal(a) > decimal(b)));
+export const lte = std.uncurry(a => b => std.bool(decimal(a) <= decimal(b)));
+export const gte = std.uncurry(a => b => std.bool(decimal(a) >= decimal(b)));
+export const neq = std.uncurry(a => b => std.bool(decimal(a) !== decimal(b)));
 // Decimal-> Number
-export const sgn = a => num(Math.sign(decimal(a)));
+export const sgn = a => std.num(Math.sign(decimal(a)));
 // Decimal->Boolean
 export const isPos = a => gt(a, 0);
 export const isNeg = a => lt(a, 0);
 export const isZero = a => eq(a, 0);
 // Decimal->Number->String
-export const toFixed = uncurry(a => b => str(decimal(a).toFixed(num(b))));
+export const toFixed = std.uncurry(a => b => std.str(decimal(a).toFixed(std.num(b))));
 // Decimal->Number->Decimal
-export const toDecimalPosition = uncurry(a => b => decimal(toFixed(a, b)));
+export const toDecimalPosition = std.uncurry(a => b => decimal(toFixed(a, b)));
 // Decimal->String
-export const toString = a => str(decimal(a).toString());
+export const toString = a => std.str(decimal(a).toString());
