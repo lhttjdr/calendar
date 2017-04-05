@@ -21,6 +21,7 @@ export const atan2 = std.uncurry(a => b => decimal(DecimalJS.atan2(decimal(a), d
 // Decimal->Decimal
 export const neg = a => decimal(decimal(a).negated());
 export const sqr = a => mult(a,a);
+export const cube = a => mult(a, sqr(a));
 export const sqrt = a => decimal(DecimalJS.sqrt(decimal(a)));
 export const sin = a => decimal(DecimalJS.sin(decimal(a)));
 export const cos = a => decimal(DecimalJS.cos(decimal(a)));

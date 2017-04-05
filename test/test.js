@@ -3,6 +3,8 @@ const Decimal = require('../lib/math/decimal.hp.js');
 const Vector = require('../lib/math/vector.js');
 const Angle = require('../lib/math/angle.js');
 const Quaternion = require('../lib/math/quaternion.js');
+const DualNumber =require('../lib/math/dual-number.js');
+const DualQuaternion =require('../lib/math/dual-quaternion.js');
 {
     console.log("===============Test Decimal=================");
     // (*->Decimal) -> IO
@@ -12,7 +14,7 @@ const Quaternion = require('../lib/math/quaternion.js');
     // (*->String) -> IO
     const log= func => std.compose(console.log, func);
 
-    show(Decimal.mult)(587569,"23489679082349798798676876576");
+    show(Decimal.mult)(587569,"23489679082349798798676876576E-12");
     assert_same(Decimal.mult)(30)(5,6);
     assert_same(Decimal.plus, 61.5)(5.5, "56");
     show(Decimal.plus)("23.4", "56");
@@ -61,13 +63,44 @@ const Quaternion = require('../lib/math/quaternion.js');
   // (*->Quaternion) -> IO
   const show= func => std.compose(console.log, Quaternion.show, func);
   // (*->Quaternion) -> Quaternion -> IO
-  // const assert_same = std.uncurry(func => ans => std.compose(console.log, Angle.eq(ans), func));
+  const assert_same = std.uncurry(func => ans => std.compose(console.log, Quaternion.eq(ans), func));
   // (*->String) -> IO
   const log= func => std.compose(console.log, func);
   show(Quaternion.quaternion)("234",["34.34",234,23e-1]);
-  let p=Quaternion.quaternion("234",["34.34",234,23e-1]), q=Quaternion.quaternion("-23",["2.45",23.4,23e2]);
+  let p=Quaternion.quaternion("1",["2",3,4e-1]), q=Quaternion.quaternion(-2,["2.45",23.4,23e2]);
   show(Quaternion.plus)(p,q);
+  assert_same(Quaternion.plus)(Quaternion.quaternion(-1,[4.45,26.4,2300.4]))(p,q);
   show(Quaternion.grossman)(p,q);
   show(Quaternion.even)(p,q);
   show(Quaternion.inverse)(p);
+}
+{
+  console.log("================Test Dual Number===================");
+  // (*->Quaternion) -> IO
+  const show= func => std.compose(console.log, DualNumber.show, func);
+  // (*->Quaternion) -> Quaternion -> IO
+  const assert_same = std.uncurry(func => ans => std.compose(console.log, DualNumber.eq(ans), func));
+  // (*->String) -> IO
+  const log= func => std.compose(console.log, func);
+  show(DualNumber.dualnumber)(234,"2.23");
+  let p=DualNumber.dualnumber(23,5) ,q =DualNumber.dualnumber(-3,"34.4");
+  assert_same(DualNumber.plus)(DualNumber.dualnumber(20,39.4))(p,q);
+  show(DualNumber.mult)(p,q);
+  show(DualNumber.sqrt)(p);
+}
+{
+  console.log("================Test Dual Quaternion===================");
+  // (*->Quaternion) -> IO
+  const show= func => std.compose(console.log, DualQuaternion.show, func);
+  // (*->Quaternion) -> Quaternion -> IO
+  const assert_same = std.uncurry(func => ans => std.compose(console.log, DualQuaternion.eq(ans), func));
+  // (*->String) -> IO
+  const log= func => std.compose(console.log, func);
+
+  let p=Quaternion.quaternion("1",["2",3,4e-1]), q=Quaternion.quaternion(-2,["2.45",23.4,23e2]);
+  show(DualQuaternion.dualquaternion)(p,q);
+  let dq=DualQuaternion.dualquaternion(p,q), dp=dq=DualQuaternion.dualquaternion(q, p);
+  //assert_same(DualNumber.plus)(DualNumber.dualnumber(20,39.4))(p,q);
+  show(DualQuaternion.mult)(dp, dq);
+  show(DualQuaternion.normalize)(dp);
 }
