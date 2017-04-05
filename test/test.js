@@ -5,6 +5,7 @@ const Angle = require('../lib/math/angle.js');
 const Quaternion = require('../lib/math/quaternion.js');
 const DualNumber =require('../lib/math/dual-number.js');
 const DualQuaternion =require('../lib/math/dual-quaternion.js');
+const Polynomial =require('../lib/math/polynomial.js');
 {
     console.log("===============Test Decimal=================");
     // (*->Decimal) -> IO
@@ -36,6 +37,7 @@ const DualQuaternion =require('../lib/math/dual-quaternion.js');
 
   show(Vector.plus)([4,"6",3e2], ["234","234","563"]);
   show(Vector.vector)([7,"8.45",9]);
+  show(Vector.vector)(7,"8.45",9);
   log(Vector.show)([7,"34.6",9]);
   assert_same(Vector.cross)([0,-1,0])([0,0,1], ["-1",0,0]);
 }
@@ -103,4 +105,17 @@ const DualQuaternion =require('../lib/math/dual-quaternion.js');
   //assert_same(DualNumber.plus)(DualNumber.dualnumber(20,39.4))(p,q);
   show(DualQuaternion.mult)(dp, dq);
   show(DualQuaternion.normalize)(dp);
+}
+{
+  console.log("================Test Polynomial===================");
+  const show= func => std.compose(console.log, Polynomial.show, func);
+  const log= func => std.compose(console.log, func);
+
+  let poly=Polynomial.polynomial(1,2,3,-4,5,-6,7);
+  log(Polynomial.show)(poly);
+  show(Polynomial.derivative)(poly);
+  console.log(Decimal.show(Polynomial.value(poly,5)));
+  console.log(Decimal.show(Polynomial.value(poly,1)));
+  console.log(Decimal.show(Polynomial.valueOfLimitedItems(poly,2, 3)));
+  console.log(Decimal.show(Polynomial.value(poly,5)));
 }

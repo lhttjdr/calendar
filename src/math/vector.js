@@ -3,10 +3,12 @@ import * as Decimal from './decimal.hp.js';
 const decimal = Decimal.decimal;
 
 // Vector = [Decimal]
-export const vector = v => {
-    if (!Array.isArray(v))
-        throw new TypeError("Except a vector!");
-    return v.map(x => decimal(x));
+export const vector = (...args) => {
+    if (args.length===1) {
+      if(Array.isArray(args[0])) return args[0].map(x=> decimal(x));
+      else throw new TypeError("Except a vector!");
+    }
+    return args.map(x => decimal(x));
 }
 const dimension_check = (u, v) => {
     if (u.length === v.length)
