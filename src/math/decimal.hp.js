@@ -20,6 +20,7 @@ export const mod = std.uncurry(a => b => decimal(decimal(a).mod(decimal(b))));
 export const atan2 = std.uncurry(a => b => decimal(DecimalJS.atan2(decimal(a), decimal(b))));
 // Decimal->Decimal
 export const neg = a => decimal(decimal(a).negated());
+export const sqr = a => mult(a,a);
 export const sqrt = a => decimal(DecimalJS.sqrt(decimal(a)));
 export const sin = a => decimal(DecimalJS.sin(decimal(a)));
 export const cos = a => decimal(DecimalJS.cos(decimal(a)));
@@ -27,6 +28,8 @@ export const tan = a => decimal(DecimalJS.tan(decimal(a)));
 export const asin = a => decimal(DecimalJS.asin(decimal(a)));
 export const acos = a => decimal(DecimalJS.acos(decimal(a)));
 export const atan = a => decimal(DecimalJS.atan(decimal(a)));
+export const hav = a=> decimal(DecimalJS.sqrt(DecimalJS.sin(DecimalJS.mul(0.5,decimal(a)))));
+export const ahav = a=> decimal(DecimalJS.mul(2,DecimalJS.asin(DecimalJS.sqrt(decimal(a)))));
 export const floor = a=> decimal(DecimalJS.floor(decimal(a)));
 // Decimal->Decimal->Boolean
 export const eq = std.uncurry(a => b => std.bool(decimal(a).eq(decimal(b))));
