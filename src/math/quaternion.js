@@ -110,6 +110,11 @@ export const inverse = q=> {
   if (Decimal.isZero(n)) throw new Error("No inverse of ZERO quaternion!");
   return div(conjugate(q), Decimal.sqr(n));
 }
+export const eq= std.uncurry(p=>q=>{
+  p=quaternion(p), q=quaternion(q);
+  return Decimal.eq(p.scalar, q.scalar) && Vector.eq(p.vector, q.vector);
+});
+export const neq= std.uncurry(p=> q=> !eq(p, q));
 
 export const show = q => {
   q=quaternion(q);

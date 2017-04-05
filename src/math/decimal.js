@@ -16,6 +16,7 @@ export const atan2 = std.uncurry(a => b => decimal(Math.atan2(decimal(a), decima
 // Decimal->Decimal
 export const neg = a => decimal(-decimal(a));
 export const sqr = a => mult(a,a);
+export const cube = a => mult(a, sqr(a));
 export const sqrt = a => decimal(Math.sqrt(decimal(a)));
 export const sin = a => decimal(Math.sin(decimal(a)));
 export const cos = a => decimal(Math.cos(decimal(a)));

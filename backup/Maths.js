@@ -107,7 +107,7 @@
     return a.dot(b.cross(c));
   };
   Maths.Vector3.Zero = new Maths.Vector3(0, 0, 0);
-  */
+
   ////////////////////////////////////////////////////////
   // Quaternion in R4
   // -- combine a real number with a 3d-vector
@@ -180,6 +180,7 @@
     }
     return this.conjugate().scale(1.0 / (norm * norm));
   };
+  */
   //////////////////////////////////////////////////////
   // a+eb， where e*e=0
   Maths.DualNumber = function(a, b) {
