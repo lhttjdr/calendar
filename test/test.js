@@ -2,7 +2,7 @@ const std=require('../lib/basic.js');
 const Decimal = require('../lib/math/decimal.hp.js');
 const Vector = require('../lib/math/vector.js');
 const Angle = require('../lib/math/angle.js');
-
+const Quaternion = require('../lib/math/quaternion.js');
 {
     console.log("===============Test Decimal=================");
     // (*->Decimal) -> IO
@@ -20,6 +20,7 @@ const Angle = require('../lib/math/angle.js');
     show(Decimal.plus)("2e3", 56e2);
     log(Decimal.sgn)("-35.3");
     show(Decimal.floor)("2452345.4535");
+    show(Decimal.hav)("2313.23423");
     log(Decimal.toFixed)(45.346, 2);
 }
 {
@@ -54,4 +55,19 @@ const Angle = require('../lib/math/angle.js');
    log(Angle.format)(3.1415926535,"ms",4);
    log(Angle.format)(3.1415926535,"H",4);
    log(Angle.format)(Angle.plus("234h23m45s","1h22m32s.5"),"HMS",3);
+}
+{
+  console.log("================Test Quaternion===================");
+  // (*->Quaternion) -> IO
+  const show= func => std.compose(console.log, Quaternion.show, func);
+  // (*->Quaternion) -> Quaternion -> IO
+  // const assert_same = std.uncurry(func => ans => std.compose(console.log, Angle.eq(ans), func));
+  // (*->String) -> IO
+  const log= func => std.compose(console.log, func);
+  show(Quaternion.quaternion)("234",["34.34",234,23e-1]);
+  let p=Quaternion.quaternion("234",["34.34",234,23e-1]), q=Quaternion.quaternion("-23",["2.45",23.4,23e2]);
+  show(Quaternion.plus)(p,q);
+  show(Quaternion.grossman)(p,q);
+  show(Quaternion.even)(p,q);
+  show(Quaternion.inverse)(p);
 }

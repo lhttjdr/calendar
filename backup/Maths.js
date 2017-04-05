@@ -1,4 +1,5 @@
 (function() {
+  /*
   var Maths = Calendar.createNS("Calendar.Maths");
   var String = Calendar.importNS("Calendar.String");
   Maths.Tolerance = 1e-12;
@@ -106,6 +107,7 @@
     return a.dot(b.cross(c));
   };
   Maths.Vector3.Zero = new Maths.Vector3(0, 0, 0);
+  */
   ////////////////////////////////////////////////////////
   // Quaternion in R4
   // -- combine a real number with a 3d-vector
