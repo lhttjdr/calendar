@@ -4,79 +4,77 @@ const decimal = Decimal.decimal;
 
 export const PI = Decimal.acos(-1);
 export const DoublePi = Decimal.plus(PI, PI);
+export const HalfPi = Decimal.mult(PI, 0.5);
 
 const SecondPerRadian = Decimal.div(180 * 60 * 60, PI);
 const MinutePerRadian = Decimal.div(180 * 60, PI);
 const DegreePerRadian = Decimal.div(180, PI);
 
+// Char -> Boolean
 const isHA = x => x === 'h' || x === 'h' || x === 's';
 const isH = x => x === 'h' || x === '°' || x === '\u00b0';
 const isM = x => x === 'm' || x === '\'' || x === '\u2032';
 const isS = x => x === 's' || x === '"' || x === '\u2033';
 
-const patterns = [
-    [ // 0           1         2 3                                4                 5
-        new RegExp(/^([+-]?)(([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?)([hms°'"\u00b0\u2032\u2033])$/, "iu"),
-        g => [g[1] !== '-', [isH(g[5]) ? g[2] : 0, isM(g[5]) ? g[2] : 0, isS(g[5]) ? g[2] : 0], isHA(g[5])]
-    ],
-    [ // 0           1      2       3                           4
-        new RegExp(/^([+-]?)([0-9]+)([hms°'"\u00b0\u2032\u2033])(\.[0-9]+)$/, "iu"),
-        g => [g[1] !== '-', [isH(g[3]) ? g[2] + g[4] : 0, isM(g[3]) ? g[2] + g[4] : 0, isS(g[3]) ? g[2] + g[4] : 0], isHA(g[3])]
-    ],
-    [ // 0           1      2 3                               4                  5           6           7           8
-        new RegExp(/^([+-]?)(([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?)([h°\u00b0])([0-5]?[0-9](\.[0-9]+)?)([m'\u2032])$/, "iu"),
-        g => [g[1] !== '-', [g[2], g[6], 0], isHA(g[5])]
-    ],
-    [ // 0           1      2 3                               4                  5           6            7           8
-        new RegExp(/^([+-]?)(([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?)([h°\u00b0])([0-5]?[0-9])([m'\u2032])(\.[0-9]+)?$/, "iu"),
-        g => [g[1] !== '-', [g[2], g[6] + g[8], 0], isHA(g[5])]
-    ],
-    [ // 0           1      2 3                               4                  5           6           7           8
-        new RegExp(/^([+-]?)(([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?)([m'\u2032])([0-5]?[0-9](\.[0-9]+)?)([s"\u2033])$/, "iu"),
-        g => [g[1] !== '-', [0, g[2], g[6]], isHA(g[5])]
-    ],
-    [ // 0           1      2 3                               4                  5           6            7           8
-        new RegExp(/^([+-]?)(([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?)([m'\u2032])([0-5]?[0-9])([s"\u2033])(\.[0-9]+)?$/, "iu"),
-        g => [g[1] !== '-', [0, g[2], g[6] + g[8]], isHA(g[5])]
-    ],
-    [ // 0           1      2 3                               4                  5           6            7           8           9
-        new RegExp(/^([+-]?)(([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?)([h°\u00b0])([0-5]?[0-9])([m'\u2032])([0-5]?[0-9](\.[0-9]+)?)[s"\u2033]$/, "iu"),
-        g => [g[1] !== '-', [g[2], g[6], g[8]], isHA(g[5])]
-    ],
-    [ // 0           1      2 3                               4                  5           6            7           8                      9
-        new RegExp(/^([+-]?)(([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?)([h°\u00b0])([0-5]?[0-9])([m'\u2032])([0-5]?[0-9])[s"\u2033](\.[0-9]+)?$/, "iu"),
-        g => [g[1] !== '-', [g[2], g[6], g[8] + g[9]], isHA(g[5])]
-    ]
+// data dhms = {dh:: Decimal, m:: Decimal, s::Decimal}
+// dh-- degree/ hour, m--minitue, s: second
+const DHMS = (dh, m, s) => {
+    dh = decimal(dh),
+        m = decimal(m),
+        s = decimal(s);
+    if (m.gte(60) || s.gte(60))
+        throw new Error("Illegal Angle!");
+    return { dh: dh, m: m, s: s };
+};
+// data matched = {neg:: Boolean, dhms:: dhms, dh:: Boolean}
+// neg: is negative, dhms: see dhms definition, dh:
+const matched = (neg, dhms, ha) => ({ neg: neg, dhms: dhms, ha: ha });
+const matcher = (re, parser) => ({ regexp: re, parser: parser });
+// const data
+const matchers = [
+    matcher(new RegExp(/^([+-]?)(([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?)([hms°'"\u00b0\u2032\u2033])$/, "iu"), g => matched(g[1] !== '-', DHMS(isH(g[5]) ? g[2] : 0, isM(g[5]) ? g[2] : 0, isS(g[5]) ? g[2] : 0), isHA(g[5]))),
+    matcher(new RegExp(/^([+-]?)([0-9]+)([hms°'"\u00b0\u2032\u2033])(\.[0-9]+)$/, "iu"), g => matched(g[1] !== '-', DHMS(isH(g[3]) ? g[2] + g[4] : 0, isM(g[3]) ? g[2] + g[4] : 0, isS(g[3]) ? g[2] + g[4] : 0), isHA(g[3]))),
+    matcher(new RegExp(/^([+-]?)(([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?)([h°\u00b0])([0-5]?[0-9](\.[0-9]+)?)([m'\u2032])$/, "iu"), g => matched(g[1] !== '-', DHMS(g[2], g[6], 0), isHA(g[5]))),
+    matcher(new RegExp(/^([+-]?)(([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?)([h°\u00b0])([0-5]?[0-9])([m'\u2032])(\.[0-9]+)?$/, "iu"), g => matched(g[1] !== '-', DHMS(g[2], g[6] + g[8], 0), isHA(g[5]))),
+    matcher(new RegExp(/^([+-]?)(([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?)([m'\u2032])([0-5]?[0-9](\.[0-9]+)?)([s"\u2033])$/, "iu"), g => matched(g[1] !== '-', DHMS(0, g[2], g[6]), isHA(g[5]))),
+    matcher(new RegExp(/^([+-]?)(([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?)([m'\u2032])([0-5]?[0-9])([s"\u2033])(\.[0-9]+)?$/, "iu"), g => matched(g[1] !== '-', DHMS(0, g[2], g[6] + g[8]), isHA(g[5]))),
+    matcher(new RegExp(/^([+-]?)(([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?)([h°\u00b0])([0-5]?[0-9])([m'\u2032])([0-5]?[0-9](\.[0-9]+)?)[s"\u2033]$/, "iu"), g => matched(g[1] !== '-', DHMS(g[2], g[6], g[8]), isHA(g[5]))),
+    matcher(new RegExp(/^([+-]?)(([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?)([h°\u00b0])([0-5]?[0-9])([m'\u2032])([0-5]?[0-9])[s"\u2033](\.[0-9]+)?$/, "iu"), g => matched(g[1] !== '-', DHMS(g[2], g[6], g[8] + g[9]), isHA(g[5])))
 ];
-// String -> (Boolean,(Decimal,Decimal,Decimal),Boolean)
+// String -> matched
 const match = s => {
-    for (let p of patterns) {
-        let groups = p[0].exec(s);
-        if (groups) return p[1](groups);
+    for (let m of matchers) {
+        let groups = m.regexp.exec(s);
+        if (groups) {
+            return m.parser(groups);
+        }
     }
     throw new Error("Parse Error!");
 }
+// Decimal->Decimal
 export const sec2rad = s => Decimal.div(s, SecondPerRadian);
-const ha2rad = std.uncurry(a => ha => ha ? Decimal.mult(a, 15) : a);
-const zip_sec = arr_hms => Decimal.plus(Decimal.plus(Decimal.mult(decimal(arr_hms[0]), 3600), Decimal.mult(decimal(arr_hms[1]), 60)), decimal(arr_hms[2]));
+const arcsec = std.uncurry(a => ha => ha ? Decimal.mult(a, 15) : a);
+const dhms2sec = dhms => Decimal.plus(Decimal.plus(Decimal.mult(dhms.dh, 3600), Decimal.mult(dhms.m, 60)), dhms.s);
 const sign = std.uncurry(a => sgn => sgn ? a : Decimal.neg(a));
+const mathced2rad = m => sign(sec2rad(arcsec(dhms2sec(m.dhms), m.ha)), m.neg);
 // String -> Angle
-export const parse = s => {
-    let grps = match(s.replace(/\s+/g, ''));
-    return angle(sign(ha2rad(sec2rad(zip_sec(grps[1])), grps[2]), grps[0]));
-}
+export const parse = s => angle(mathced2rad(match(s.replace(/\s+/g, ''))));
 // Angle = Decimal | String
-export const angle = x => typeof x === "string"? parse(x) : decimal(x);
+export const angle = x => typeof x === "string" ? parse(x) : decimal(x);
 // dms | HMS,  case sensitive
 const sym = fmt => /^H?M?S?$/.test(fmt) ? "hms" : "\u00b0\u2032\u2033";
+// String -> Boolean
+const isHMS = fmt => /^H?M?S?$/.test(format);
+
 // Decimal -> Boolean -> [Decimal]
-const rad2hdms = std.uncurry(rad => isHMS =>{
+const rad2hdms = std.uncurry(rad => isHMS => {
     let res = [];
-    res[0] = Decimal.div(Decimal.mult(rad, isHMS? 12: 180), PI); // s
+    res[0] = Decimal.div(Decimal.mult(rad, isHMS ? 12 : 180), PI); // s
     res[1] = Decimal.mult(res[0], 60); // m
     res[2] = Decimal.mult(res[1], 60); // s
     return res;
 });
+
 // [Decimal] -> [Decimal]
 const carry_out = arr => {
     for (let i = arr.length; i-- > 1;) {
@@ -89,28 +87,44 @@ const carry_out = arr => {
     }
     return arr;
 }
+
 // Decimal->String->Number->String
-const rad2str = std.uncurry(radian=> format=> fixed=> {
-    if (false == /^(H?M?S?)|(d?m?s?)$/.test(format)) {
+const rad2str = std.uncurry(radian => format => fixed => {
+    if (false == /^(H?M?S?)|(d?m?s?)$/.test(format))
         throw new Error("Illegal format!");
-    }
     let symbol = sym(format);
     let sign = "+";
-    if (Decimal.isNeg(radian)) sign = "-", radian = Decimal.neg(radian);
+    if (Decimal.isNeg(radian))
+        sign = "-",
+        radian = Decimal.neg(radian);
     let parts = rad2hdms(radian)(/^H?M?S?$/.test(format));
-    if (format === "H" || format === "d") return sign + Decimal.toFixed(parts[0], fixed) + symbol[0];
-    else if (format === "M" || format === "m") return sign + Decimal.toFixed(parts[1], fixed) + symbol[1];
-    else if (format === "S" || format === "s") return sign + Decimal.toFixed(parts[3], fixed) + symbol[2];
+    if (format === "H" || format === "d")
+        return sign + Decimal.toFixed(parts[0], fixed) + symbol[0];
+    else if (format === "M" || format === "m")
+        return sign + Decimal.toFixed(parts[1], fixed) + symbol[1];
+    else if (format === "S" || format === "s")
+        return sign + Decimal.toFixed(parts[3], fixed) + symbol[2];
     else if (format === "HM" || format === "dm") {
-        let hm = carry_out([Decimal.floor(parts[0]), Decimal.toDecimalPosition(Decimal.mod(parts[1], 60), fixed)]);
+        let hm = carry_out([
+            Decimal.floor(parts[0]),
+            Decimal.toDecimalPosition(Decimal.mod(parts[1], 60), fixed)
+        ]);
         return sign + Decimal.toFixed(hm[0], 0) + symbol[0] + Decimal.toFixed(hm[1], fixed) + symbol[1];
     } else if (format === "MS" || format === "ms") {
-        let ms = carry_out([Decimal.floor(parts[1]), Decimal.toDecimalPosition(Decimal.mod(parts[2], 60), fixed)]);
+        let ms = carry_out([
+            Decimal.floor(parts[1]),
+            Decimal.toDecimalPosition(Decimal.mod(parts[2], 60), fixed)
+        ]);
         return sign + Decimal.toFixed(ms[0], 0) + symbol[1] + Decimal.toFixed(ms[1], fixed) + symbol[2];
     } else if (format === "HMS" || format === "dms") {
-        let hms = carry_out([Decimal.floor(parts[0]), Decimal.floor(Decimal.mod(parts[1], 60)), Decimal.toDecimalPosition(Decimal.mod(parts[2], 60), fixed)]);
+        let hms = carry_out([
+            Decimal.floor(parts[0]),
+            Decimal.floor(Decimal.mod(parts[1], 60)),
+            Decimal.toDecimalPosition(Decimal.mod(parts[2], 60), fixed)
+        ]);
         return sign + Decimal.toFixed(hms[0], 0) + symbol[0] + Decimal.toFixed(hms[1], 0) + symbol[1] + Decimal.toFixed(hms[2], fixed) + symbol[2];
-    } else throw new Error("Illegal format!");
+    } else
+        throw new Error("Illegal format!");
 });
 // Angle -> Angle -> Angle
 export const plus = std.uncurry(a => b => angle(Decimal.plus(angle(a), angle(b))));
@@ -121,24 +135,28 @@ export const div = std.uncurry(a => b => angle(Decimal.div(angle(a), decimal(b))
 // Angle -> Angle
 export const toZeroDoublePi = a => {
     a = Decimal.mod(angle(a), DoublePi);
-    if (Decimal.isNeg(a)) return angle(Decimal.plus(a, DoublePi));
+    if (Decimal.isNeg(a))
+        return angle(Decimal.plus(a, DoublePi));
     return angle(a);
 };
 export const toPlusMinusPi = a => {
     a = Decimal.mod(angle(a), DoublePi);
-    if (Decimal.lte(a, Decimal.neg(PI))) return angle(Decimal.plus(a, DoublePi));
-    if (Decimal.gt(a, PI)) return angle(Decimal.minus(a, DoublePi));
+    if (Decimal.lte(a, Decimal.neg(PI)))
+        return angle(Decimal.plus(a, DoublePi));
+    if (Decimal.gt(a, PI))
+        return angle(Decimal.minus(a, DoublePi));
     return angle(a);
 };
+export const neg = a => angle(Decimal.neg(angle(a)));
 // Angle-> String-> Number -> String
 export const format = std.uncurry(a => fmt => dp => rad2str(a, fmt, dp));
 // String -> Angle
 export const show = a => rad2str(a, "dms", 2);
 
 // Angle->Angle->Boolean
-export const eq = std.uncurry(a => b => Decimal.eq(angle(a), angle(b)));
-export const lt = std.uncurry(a => b => Decimal.lt(angle(a),angle(b)));
-export const gt = std.uncurry(a => b => Decimal.gt(angle(a),angle(b)));
-export const lte = std.uncurry(a => b => Decimal.lte(angle(a),angle(b)));
-export const gte = std.uncurry(a => b => Decimal.gte(angle(a),angle(b)));
-export const neq = std.uncurry(a => b => Decimal.neq(angle(a),angle(b)));
+export const eq = std.uncurry(a => b => Decimal.eq(toZeroDoublePi(a), toZeroDoublePi(b)));
+export const lt = std.uncurry(a => b => Decimal.lt(toZeroDoublePi(a), toZeroDoublePi(b)));
+export const gt = std.uncurry(a => b => Decimal.gt(toZeroDoublePi(a), toZeroDoublePi(b)));
+export const lte = std.uncurry(a => b => Decimal.lte(toZeroDoublePi(a), toZeroDoublePi(b)));
+export const gte = std.uncurry(a => b => Decimal.gte(toZeroDoublePi(a), toZeroDoublePi(b)));
+export const neq = std.uncurry(a => b => Decimal.neq(toZeroDoublePi(a), toZeroDoublePi(b)));
