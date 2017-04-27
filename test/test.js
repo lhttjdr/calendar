@@ -13,6 +13,14 @@ const Celestial = require('../lib/astronomy/coordinate');
 const Precession = require('../lib/astronomy/axial-precession');
 const Nutaion = require('../lib/astronomy/nutation');
 
+const Expression = require('../lib/math/expression.js');
+
+console.log(std.zipWith((a, b, c) => a * b + c, [1, 2], [3, 4], [5, 6]));
+console.log(std.omap({a:4,b:5},(x)=>2*x));
+console.log(std.ozip({a:4,b:7},{a:6,b:1},{a:1,b:7}));
+
+console.log(std.ozipWith((a, b, c) => a * b + c, {a:4,b:7},{a:6,b:1},{a:1,b:7}));
+
 {
     console.log("===============Test Decimal=================");
     // (*->Decimal) -> IO
@@ -157,3 +165,11 @@ console.log(Angle.show(Precession.P03.epsilon(2)));
 console.log(Angle.show(Precession.IAU1976.epsilon(2)));
 console.log(Angle.show(Precession.IAU2000.epsilon(2)));
 console.log(Angle.show(Nutaion.IAU2000B.nutaion(2).epsilon));
+
+const expr = Expression.expression("lsn*1e-7+pn*1e-6");
+//console.log(JSON.stringify(expr,null,4));
+
+const expr1=Expression.expression("(2^2*3+4/5*sin(pi/6)*x)(3)");
+
+const expr2=Expression.expression("max(2^2,5,floor(12.3))+min(sin(pi),ceil(-1.2))");
+console.log(Decimal.show(Expression.evaluate(expr2)));

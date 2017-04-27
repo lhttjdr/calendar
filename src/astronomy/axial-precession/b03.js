@@ -20,8 +20,8 @@ const B03 = {
     "zeta": "2.72767, 2306.080472, 0.3023262, 0.01801752, -0.000005708, -3.040e-7, -1.3e-10, 0.0",
     "z": "-2.72767, 2306.076070, 1.0956768, 0.01826676, -0.000028276, -2.486e-7, -5.0e-11, 0.0"
 };
-
-const calculate = (p, t) => Angle.sec2rad(Polynomial.value(polynomial(B03[p].split(",").map(x => decimal(x))), t));
+const array=s=>s.replace(/\s+/g,"").split(",").map(x=>decimal(x));
+const calculate = (p, t) => Angle.sec2rad(Polynomial.value(polynomial(array(B03[p])), t));
 
 export const psi = t => calculate("psi", t);
 export const omega = t => calculate("omega", t);

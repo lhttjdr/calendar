@@ -2,7 +2,7 @@ import * as std from '../basic.js';
 import * as Decimal from './decimal.hp.js';
 const decimal = Decimal.decimal;
 
-export const PI = Decimal.acos(-1);
+export const PI = Decimal.PI;
 export const DoublePi = Decimal.plus(PI, PI);
 export const HalfPi = Decimal.mult(PI, 0.5);
 
