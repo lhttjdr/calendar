@@ -1,5 +1,5 @@
 import * as std from '../basic.js';
-const DecimalJS = require('decimal.js');
+import * as DecimalJS from'decimal.js';
 
 const decjs = d => {
     if (typeof d instanceof DecimalJS) return d;

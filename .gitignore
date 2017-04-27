@@ -1,4 +1,5 @@
 /lib/
 /notes/
 /node_modules/
+/*.backup/
 npm-debug.log
