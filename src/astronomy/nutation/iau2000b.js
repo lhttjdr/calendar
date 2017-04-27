@@ -1,8 +1,12 @@
+import * as std from '../../basic.js';
 import * as Decimal from '../../math/decimal.hp.js';
+import * as Expression from '../../math/expression.js';
 import * as Angle from '../../math/angle.js';
 import * as Polynomial from '../../math/polynomial.js';
 
 const decimal = Decimal.decimal;
+const expression = Expression.expression;
+const evaluate = Expression.evaluate;
 const angle = Angle.angle;
 const polynomial = Polynomial.polynomial;
 
@@ -115,30 +119,46 @@ const IAU2000B = {
     }
 };
 
-// (A+Ap*t)*sin(fi)+App*cos(fi)
-const luni_solar_longitude = (A, Ap, App, t, fi) => Decimal.plus(Decimal.mult(Decimal.plus(A, Decimal.mult(Ap, t)), Decimal.sin(fi)), Decimal.mult(App, Decimal.cos(fi)));
-// (B+Bp*t)*cos(fi)+Bpp*sin(fi)
-const luni_solar_obliquity = (B, Bp, Bpp, t, fi) => Decimal.plus(Decimal.mult(Decimal.plus(B, Decimal.mult(Bp, t)), Decimal.cos(fi)), Decimal.mult(Bpp, Decimal.sin(fi)));
-//
-const argument = (l, lp, F, D, Omega, coefficients) => Decimal.sum(Decimal.mult(l, coefficients[0]), Decimal.mult(lp, coefficients[1]), Decimal.mult(F, coefficients[2]), Decimal.mult(D, coefficients[3]), Decimal.mult(Omega, coefficients[4]));
-//
-const fundamental_arguments = (name, t) => Polynomial.value(IAU2000B.fundamental_arguments[name].replace(/s+/g, "").split(","), t);
+const array = s => s.replace(/\s+/g, "").split(",").map(x => decimal(x));
+const luni_solar_longitude = expression("(A+Ap*t)*sin(fi)+App*cos(fi)");
+const luni_solar_obliquity = expression("(B+Bp*t)*cos(fi)+Bpp*sin(fi)");
+const argument = expression("c1*l+c2*lp+c3*F+c4*D+c5*Omega");
+const fundamental_arguments = t => s => Polynomial.value(array(s), t);
 
 export const nutaion = t => {
     t = decimal(t);
-    let l = fundamental_arguments("l", t);
-    let lp = fundamental_arguments("lp", t);
-    let F = fundamental_arguments("F", t);
-    let D = fundamental_arguments("D", t);
-    let Omega = fundamental_arguments("Omega", t);
-    let terms = IAU2000B.luni_solar_nutation.map(x => {
-        x = x.replace(/s+/g, "").split(",").map(y => decimal(y));
-        let fi = argument(l, lp, F, D, Omega, x.slice(0, 5));
-        return [luni_solar_longitude(x[5], x[6], x[7], t, fi), luni_solar_obliquity(x[8], x[9], x[10], t, fi)];
-    });
-    let luni_solar_nutation = terms.reduce((lsn, x) => [Decimal.plus(lsn[0], x[0]), Decimal.plus(lsn[1], x[1])]);
-    return {
-        "psi": Angle.sec2rad(Decimal.plus(Decimal.mult(luni_solar_nutation[0], 1e-7), Decimal.mult(IAU2000B.planetary_nutation["psi"], 1e-6))),
-        "epsilon": Angle.sec2rad(Decimal.plus(Decimal.mult(luni_solar_nutation[1], 1e-7), Decimal.mult(IAU2000B.planetary_nutation["epsilon"], 1e-6)))
-    };
+    let f = std.omap(IAU2000B.fundamental_arguments, fundamental_arguments(t));
+    let luni_solar_nutation = std.omap(std.ozip(...IAU2000B.luni_solar_nutation.map(x => {
+        x = array(x);
+        let fi = evaluate(argument, {
+            l: f.l,
+            lp: f.lp,
+            F: f.F,
+            D: f.D,
+            Omega: f.Omega,
+            c1: x[0],
+            c2: x[1],
+            c3: x[2],
+            c4: x[3],
+            c5: x[4]
+        });
+        return {
+            psi: evaluate(luni_solar_longitude, {
+                A: x[5],
+                Ap: x[6],
+                App: x[7],
+                t: t,
+                fi: fi
+            }),
+            epsilon: evaluate(luni_solar_obliquity, {
+                B: x[8],
+                Bp: x[9],
+                Bpp: x[10],
+                t: t,
+                fi: fi
+            })
+        };
+    })), Decimal.sum);
+    return std.ozipWith(std.compose(Angle.sec2rad,Decimal.sum), std.omap(luni_solar_nutation, x => Decimal.mult(x, 1e-7)),
+        std.omap(IAU2000B.planetary_nutation, x => Decimal.mult(x, 1e-6)));
 };

@@ -2,6 +2,7 @@
 // a+eb， where e*e=0
 import * as std from '../basic.js';
 import * as Decimal from './decimal.hp.js';
+import * as Expression from './expression.js';
 const decimal = Decimal.decimal;
 
 export const dualnumber = (...args) => {
@@ -24,7 +25,7 @@ export const plus = std.uncurry(a => b => {
     a = dualnumber(a),
         b = dualnumber(b);
     return dualnumber(Decimal.plus(a.real, b.real), Decimal.plus(a.dual, b.dual));
-})
+});
 export const scale = std.uncurry(a => r => {
     a = dualnumber(a),
         r = decimal(r);

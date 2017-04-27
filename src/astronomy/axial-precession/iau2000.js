@@ -19,7 +19,8 @@ const IAU2000 = {
     "z": "-2.5976176, 2306.0803226, +1.0947790, +0.0182273, +0.0000470, -0.0000003"
 };
 
-const calculate = (p, t) => Angle.sec2rad(Polynomial.value(polynomial(IAU2000[p].split(",").map(x => decimal(x))), t));
+const array=s=>s.replace(/\s+/g,"").split(",").map(x=>decimal(x));
+const calculate = (p, t) => Angle.sec2rad(Polynomial.value(polynomial(array(IAU2000[p])), t));
 
 export const psi = t => calculate("psi", t);
 export const omega = t => calculate("omega", t);

@@ -5,9 +5,16 @@ export const compose = (...fns) => pipe(...fns.reverse());
 export const curry = (f, ...args) => args.length >= f.length ? f(...args) : (...next) => curry(f, ...args, ...next);
 export const uncurry = f => (...args) => args.reduce((g, x) => (g = g(x), typeof g === "function" && g.length === 1 ? uncurry(g) : g), f);
 
+export const zip = (arr, ...arrs) => arr.map((val, i) => arrs.reduce((a, arr) => [...a, arr[i]], [val]));
+export const zipWith = (zipper, arr, ...arrs) => arr.map((val, i) => zipper(...arrs.reduce((a, arr) => [...a, arr[i]], [val])));
+
+export const omap = (o, f) => Object.assign(...Object.keys(o).map(k => ({ [k]: f(o[k]) })));
+// NOTE:: ES7 version, Object.assign(...Object.entries(obj).map(([k, v]) => ({[k]: v * v})));
+export const ozip=(obj, ...objs)=>Object.assign(...Object.keys(obj).map(k=>({[k]: [obj[k]].concat(objs.map(o=>o[k]))})));
+export const ozipWith=(zipper,obj, ...objs)=>Object.assign(...Object.keys(obj).map(k=>({[k]: zipper(...[obj[k]].concat(objs.map(o=>o[k])))})));
+
 const check_builtin_type = typename => x => {
-    if (typeof x === typename)
-        return x;
+    if (typeof x === typename) return x;
     throw new TypeError("Except a " + typename + "!");
 }
 
