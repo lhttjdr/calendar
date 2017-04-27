@@ -1,4 +1,5 @@
 /notes/
 /node_modules/
 /*.backup/
+/mochawesome-report/
 npm-debug.log
