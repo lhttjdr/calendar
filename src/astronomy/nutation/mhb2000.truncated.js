@@ -1,5 +1,5 @@
 import * as std from '../../basic.js';
-import * as Decimal from '../../math/decimal.hp.js';
+import * as Decimal from '../../math/decimal';
 import * as Expression from '../../math/expression.js';
 import * as Angle from '../../math/angle.js';
 import * as Polynomial from '../../math/polynomial.js';
@@ -11,7 +11,7 @@ const angle = Angle.angle;
 const polynomial = Polynomial.polynomial;
 
 // ftp://maia.usno.navy.mil/conventions/archive/2003/chapter5/NU2000B.f
-const IAU2000B = {
+const MHB2000 = {
     "fundamental_arguments": { // arcseconds
         //mean anomaly of the moon, zh-cn:月球平近点角
         "l": "485868.249036, 1717915923.2178, 31.8792, 0.051635, -0.00024470",
@@ -127,8 +127,8 @@ const fundamental_arguments = t => s => Polynomial.value(array(s), t);
 
 export const nutaion = t => {
     t = decimal(t);
-    let f = std.omap(IAU2000B.fundamental_arguments, fundamental_arguments(t));
-    let luni_solar_nutation = std.omap(std.ozip(...IAU2000B.luni_solar_nutation.map(x => {
+    let f = std.omap(MHB2000.fundamental_arguments, fundamental_arguments(t));
+    let luni_solar_nutation = std.omap(std.ozip(...MHB2000.luni_solar_nutation.map(x => {
         x = array(x);
         let fi = evaluate(argument, {
             l: f.l,
@@ -160,5 +160,5 @@ export const nutaion = t => {
         };
     })), Decimal.sum);
     return std.ozipWith(std.compose(Angle.sec2rad,Decimal.sum), std.omap(luni_solar_nutation, x => Decimal.mult(x, 1e-7)),
-        std.omap(IAU2000B.planetary_nutation, x => Decimal.mult(x, 1e-6)));
+        std.omap(MHB2000.planetary_nutation, x => Decimal.mult(x, 1e-6)));
 };

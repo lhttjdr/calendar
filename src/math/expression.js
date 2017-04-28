@@ -1,5 +1,5 @@
 import * as std from '../basic.js';
-import * as Decimal from './decimal.hp.js';
+import * as Decimal from './decimal';
 
 const decimal = Decimal.decimal;
 
@@ -147,7 +147,7 @@ export const expression = s => {
     let tokens = lex(s);
     return parse(tokens);
 };
-export const evaluate = (parseTree, extern_variables) => {
+export const evaluate = (parseTree, extern_variables, extern_functions) => {
     const operators = {
         "+": (a, b) => Decimal.plus(a, b),
         "-": (a, b) => typeof b === "undefined" ? Decimal.neg(a) : Decimal.minus(a, b),
@@ -160,10 +160,10 @@ export const evaluate = (parseTree, extern_variables) => {
         pi: Decimal.PI,
         e: Decimal.E
     },extern_variables);
-    let functions = {
+    let functions = Object.assign({
         sin: Decimal.sin,
         cos: Decimal.cos,
-        tan: Decimal.cos,
+        tan: Decimal.tan,
         asin: Decimal.asin,
         acos: Decimal.acos,
         atan: Decimal.atan,
@@ -177,7 +177,7 @@ export const evaluate = (parseTree, extern_variables) => {
         max: Decimal.max,
         min: Decimal.min,
         //random: Math.random
-    };
+    },extern_functions);
     let args = {};
     const parseNode = function(node) {
         if (node.type === "number") return decimal(node.value);

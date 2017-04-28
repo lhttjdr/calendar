@@ -1,4 +1,4 @@
-import * as Decimal from '../../math/decimal.hp.js';
+import * as Decimal from '../../math/decimal';
 import * as Angle from '../../math/angle.js';
 import * as Polynomial from '../../math/polynomial.js';
 
@@ -6,7 +6,8 @@ const decimal = Decimal.decimal;
 const angle = Angle.angle;
 const polynomial = Polynomial.polynomial;
 
-const IAU1976 = {
+// Lieske, J. H., Lederle, T., Fricke, W., & Morando, B. 1977, A&A, 58, 1
+const L77 = {
     "psi": "0, 5038.7784, -1.07259, -0.001147", //赤道岁差、日月岁差，J2000黄道上的岁差，Date平赤道与J2000赤道的角距离
     "omega": "84381.448, 0, +0.05127, -0.007726", //J2000黄道与Date平赤道的夹角
     "P": "0, +4.1976, +0.19447, -0.000179", //Date平赤道坐标系天北极在J2000赤道坐标系中的赤纬
@@ -20,7 +21,7 @@ const IAU1976 = {
 };
 
 const array=s=>s.replace(/\s+/g,"").split(",").map(x=>decimal(x));
-const calculate = (p, t) => Angle.sec2rad(Polynomial.value(polynomial(array(IAU1976[p])), t));
+const calculate = (p, t) => Angle.sec2rad(Polynomial.value(polynomial(array(L77[p])), t));
 
 export const psi = t => calculate("psi", t);
 export const omega = t => calculate("omega", t);

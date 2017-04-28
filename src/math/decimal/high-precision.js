@@ -1,5 +1,6 @@
-import * as std from '../basic.js';
-import * as DecimalJS from'decimal.js';
+import * as std from '../../basic.js';
+import {Decimal as DecimalJS} from 'decimal.js';
+DecimalJS.set({ precision: 25 });
 
 const decjs = d => {
     if (typeof d instanceof DecimalJS) return d;
@@ -56,6 +57,7 @@ export const sgn = a => std.num(DecimalJS.sign(decimal(a)));
 export const isPos = a => gt(a, 0);
 export const isNeg = a => lt(a, 0);
 export const isZero = a => eq(a, 0);
+export const isInteger= a=> decimal(a).isInteger();
 // Decimal->Number->String
 export const toFixed = std.uncurry(a => b => std.str(decimal(a).toFixed(std.num(b))));
 // Decimal->Number->Decimal
@@ -79,3 +81,4 @@ export const min= (...args)=>decimal(DecimalJS.min(...args.map(x=>decimal(x))));
 // *->Decimal
 export const PI = acos(-1);
 export const E= exp(1);
+export const EPS=decimal("1e-20");

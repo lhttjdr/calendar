@@ -2,7 +2,7 @@
 // DualQuaternion, combine dual number with quaternion
 // -- p + eq, where p,q is Quaternion and e*e=0
 import * as std from '../basic.js';
-import * as Decimal from './decimal.hp.js';
+import * as Decimal from './decimal';
 import * as DualNumber from './dual-number.js';
 import * as Quaternion from './quaternion.js';
 const decimal = Decimal.decimal;

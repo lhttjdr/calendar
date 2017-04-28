@@ -1,5 +1,5 @@
 import * as std from '../basic.js';
-import * as Decimal from './decimal.hp.js';
+import * as Decimal from './decimal';
 const decimal = Decimal.decimal;
 
 // Vector = [Decimal]

@@ -1,4 +1,4 @@
-import * as std from '../basic.js';
+import * as std from '../../basic.js';
 
 // Decimal = String | Number
 export const decimal = x => {

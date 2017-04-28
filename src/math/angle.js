@@ -1,14 +1,27 @@
 import * as std from '../basic.js';
-import * as Decimal from './decimal.hp.js';
+import * as Decimal from './decimal';
 const decimal = Decimal.decimal;
 
 export const PI = Decimal.PI;
 export const DoublePi = Decimal.plus(PI, PI);
 export const HalfPi = Decimal.mult(PI, 0.5);
 
-const SecondPerRadian = Decimal.div(180 * 60 * 60, PI);
-const MinutePerRadian = Decimal.div(180 * 60, PI);
-const DegreePerRadian = Decimal.div(180, PI);
+export const DegreePerRadian = Decimal.div(180, PI);
+export const MinutePerRadian = Decimal.mult(DegreePerRadian, 60);
+export const SecondPerRadian = Decimal.mult(MinutePerRadian, 60);
+
+export const deg2rad= d=> Decimal.div(decimal(d),DegreePerRadian);
+export const deg2min= d=> Decimal.mult(decimal(d),60); 
+export const deg2sec= d=> Decimal.mult(decimal(d),60*60);
+export const min2rad= m=> Decimal.div(decimal(m),MinutePerRadian);
+export const min2deg= m=> Decimal.div(decimal(m),60);
+export const min2sec= m=> Decimal.mult(decimal(m),60);
+export const sec2rad= s=> Decimal.div(decimal(s),SecondPerRadian);
+export const sec2deg= s=> Decimal.div(decimal(s),60*60); 
+export const sec2min= s=> Decimal.div(decimal(s),60);
+export const rad2deg= r=> Decimal.mult(decimal(r),DegreePerRadian);
+export const rad2min= r=> Decimal.mult(decimal(r),MinutePerRadian); 
+export const rad2sec= r=> Decimal.mult(decimal(r),SecondPerRadian);
 
 // Char -> Boolean
 const isHA = x => x === 'h' || x === 'h' || x === 's';
@@ -19,12 +32,49 @@ const isS = x => x === 's' || x === '"' || x === '\u2033';
 // data dhms = {dh:: Decimal, m:: Decimal, s::Decimal}
 // dh-- degree/ hour, m--minitue, s: second
 const DHMS = (dh, m, s) => {
-    dh = decimal(dh),
-        m = decimal(m),
-        s = decimal(s);
-    if (m.gte(60) || s.gte(60))
-        throw new Error("Illegal Angle!");
-    return { dh: dh, m: m, s: s };
+    if(dh===null){
+        if(m===null){
+            if(s===null){
+                throw new Error("Impossible place!");
+            }else{
+                return { dh: decimal(0), m: decimal(0), s: decimal(s) };
+            }
+        }else{
+            if(s===null){
+                return { dh: decimal(0), m: decimal(m), s: decimal(0) };
+            }else{
+                m=decimal(m);
+                s=decimal(s);
+                if(Decimal.isInteger(m) && Decimal.gte(s,0) && Decimal.lt(s,60)){
+                    return { dh: decimal(0), m: decimal(m), s: decimal(s) };
+                }
+            }
+        }
+    }else{
+        if(m===null){
+            if(s===null){
+                return { dh: decimal(dh), m: decimal(0), s: decimal(0) };
+            }else{
+                throw new Error("Impossible place!");
+            }
+        }else{
+            if(s===null){
+                dh=decimal(dh);
+                m=decimal(m);
+                if(Decimal.isInteger(dh) && Decimal.gte(m,0) && Decimal.lt(m,60)){
+                    return { dh: decimal(dh), m: decimal(m), s: decimal(0) };
+                }
+            }else{
+                dh=decimal(dh);
+                m=decimal(m);
+                s=decimal(s);
+                if(Decimal.isInteger(dh) && Decimal.gte(m,0) && Decimal.lt(m,60)&& Decimal.gte(s,0) && Decimal.lt(s,60)){
+                    return { dh: decimal(dh), m: decimal(m), s: decimal(s) };
+                }
+            }
+        }
+    }
+    throw new Error("Illegal Angle!");
 };
 // data matched = {neg:: Boolean, dhms:: dhms, dh:: Boolean}
 // neg: is negative, dhms: see dhms definition, dh:
@@ -32,12 +82,12 @@ const matched = (neg, dhms, ha) => ({ neg: neg, dhms: dhms, ha: ha });
 const matcher = (re, parser) => ({ regexp: re, parser: parser });
 // const data
 const matchers = [
-    matcher(new RegExp(/^([+-]?)(([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?)([hms°'"\u00b0\u2032\u2033])$/, "iu"), g => matched(g[1] !== '-', DHMS(isH(g[5]) ? g[2] : 0, isM(g[5]) ? g[2] : 0, isS(g[5]) ? g[2] : 0), isHA(g[5]))),
-    matcher(new RegExp(/^([+-]?)([0-9]+)([hms°'"\u00b0\u2032\u2033])(\.[0-9]+)$/, "iu"), g => matched(g[1] !== '-', DHMS(isH(g[3]) ? g[2] + g[4] : 0, isM(g[3]) ? g[2] + g[4] : 0, isS(g[3]) ? g[2] + g[4] : 0), isHA(g[3]))),
-    matcher(new RegExp(/^([+-]?)(([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?)([h°\u00b0])([0-5]?[0-9](\.[0-9]+)?)([m'\u2032])$/, "iu"), g => matched(g[1] !== '-', DHMS(g[2], g[6], 0), isHA(g[5]))),
-    matcher(new RegExp(/^([+-]?)(([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?)([h°\u00b0])([0-5]?[0-9])([m'\u2032])(\.[0-9]+)?$/, "iu"), g => matched(g[1] !== '-', DHMS(g[2], g[6] + g[8], 0), isHA(g[5]))),
-    matcher(new RegExp(/^([+-]?)(([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?)([m'\u2032])([0-5]?[0-9](\.[0-9]+)?)([s"\u2033])$/, "iu"), g => matched(g[1] !== '-', DHMS(0, g[2], g[6]), isHA(g[5]))),
-    matcher(new RegExp(/^([+-]?)(([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?)([m'\u2032])([0-5]?[0-9])([s"\u2033])(\.[0-9]+)?$/, "iu"), g => matched(g[1] !== '-', DHMS(0, g[2], g[6] + g[8]), isHA(g[5]))),
+    matcher(new RegExp(/^([+-]?)(([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?)([hms°'"\u00b0\u2032\u2033])$/, "iu"), g => matched(g[1] !== '-', DHMS(isH(g[5]) ? g[2] : null, isM(g[5]) ? g[2] : null, isS(g[5]) ? g[2] : null), isHA(g[5]))),
+    matcher(new RegExp(/^([+-]?)([0-9]+)([hms°'"\u00b0\u2032\u2033])(\.[0-9]+)$/, "iu"), g => matched(g[1] !== '-', DHMS(isH(g[3]) ? g[2] + g[4] : null, isM(g[3]) ? g[2] + g[4] : null, isS(g[3]) ? g[2] + g[4] : null), isHA(g[3]))),
+    matcher(new RegExp(/^([+-]?)(([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?)([h°\u00b0])([0-5]?[0-9](\.[0-9]+)?)([m'\u2032])$/, "iu"), g => matched(g[1] !== '-', DHMS(g[2], g[6], null), isHA(g[5]))),
+    matcher(new RegExp(/^([+-]?)(([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?)([h°\u00b0])([0-5]?[0-9])([m'\u2032])(\.[0-9]+)?$/, "iu"), g => matched(g[1] !== '-', DHMS(g[2], g[6] + g[8], null), isHA(g[5]))),
+    matcher(new RegExp(/^([+-]?)(([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?)([m'\u2032])([0-5]?[0-9](\.[0-9]+)?)([s"\u2033])$/, "iu"), g => matched(g[1] !== '-', DHMS(null, g[2], g[6]), isHA(g[5]))),
+    matcher(new RegExp(/^([+-]?)(([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?)([m'\u2032])([0-5]?[0-9])([s"\u2033])(\.[0-9]+)?$/, "iu"), g => matched(g[1] !== '-', DHMS(null, g[2], g[6] + g[8]), isHA(g[5]))),
     matcher(new RegExp(/^([+-]?)(([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?)([h°\u00b0])([0-5]?[0-9])([m'\u2032])([0-5]?[0-9](\.[0-9]+)?)[s"\u2033]$/, "iu"), g => matched(g[1] !== '-', DHMS(g[2], g[6], g[8]), isHA(g[5]))),
     matcher(new RegExp(/^([+-]?)(([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?)([h°\u00b0])([0-5]?[0-9])([m'\u2032])([0-5]?[0-9])[s"\u2033](\.[0-9]+)?$/, "iu"), g => matched(g[1] !== '-', DHMS(g[2], g[6], g[8] + g[9]), isHA(g[5])))
 ];
@@ -52,7 +102,6 @@ const match = s => {
     throw new Error("Parse Error!");
 }
 // Decimal->Decimal
-export const sec2rad = s => Decimal.div(s, SecondPerRadian);
 const arcsec = std.uncurry(a => ha => ha ? Decimal.mult(a, 15) : a);
 const dhms2sec = dhms => Decimal.plus(Decimal.plus(Decimal.mult(dhms.dh, 3600), Decimal.mult(dhms.m, 60)), dhms.s);
 const sign = std.uncurry(a => sgn => sgn ? a : Decimal.neg(a));
@@ -69,7 +118,7 @@ const isHMS = fmt => /^H?M?S?$/.test(format);
 // Decimal -> Boolean -> [Decimal]
 const rad2hdms = std.uncurry(rad => isHMS => {
     let res = [];
-    res[0] = Decimal.div(Decimal.mult(rad, isHMS ? 12 : 180), PI); // s
+    res[0] = Decimal.div(Decimal.mult(rad, isHMS ? 12 : 180), PI); // hour, degree
     res[1] = Decimal.mult(res[0], 60); // m
     res[2] = Decimal.mult(res[1], 60); // s
     return res;
@@ -103,7 +152,7 @@ const rad2str = std.uncurry(radian => format => fixed => {
     else if (format === "M" || format === "m")
         return sign + Decimal.toFixed(parts[1], fixed) + symbol[1];
     else if (format === "S" || format === "s")
-        return sign + Decimal.toFixed(parts[3], fixed) + symbol[2];
+        return sign + Decimal.toFixed(parts[2], fixed) + symbol[2];
     else if (format === "HM" || format === "dm") {
         let hm = carry_out([
             Decimal.floor(parts[0]),

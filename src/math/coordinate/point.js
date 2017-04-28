@@ -1,4 +1,4 @@
-import * as Decimal from '../decimal.hp.js';
+import * as Decimal from '../decimal';
 import * as Angle from '../angle.js';
 const decimal = Decimal.decimal;
 const angle = Angle.angle;
