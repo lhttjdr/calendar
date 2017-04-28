@@ -1,6 +1,6 @@
 import * as std from '../../basic.js';
 import * as Angle from '../../math/angle.js';
-import * as Decimal from '../../math/decimal.hp.js';
+import * as Decimal from '../../math/decimal';
 const decimal = Decimal.decimal;
 const angle = Angle.angle;
 //////////////////////////////////////////////////////

@@ -1,4 +1,4 @@
-import * as Decimal from '../decimal.hp.js';
+import * as Decimal from '../decimal';
 import * as Angle from '../angle.js';
 import * as Vector from '../vector.js';
 import * as Quaternion from '../quaternion.js';

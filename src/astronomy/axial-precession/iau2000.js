@@ -1,4 +1,4 @@
-import * as Decimal from '../../math/decimal.hp.js';
+import * as Decimal from '../../math/decimal';
 import * as Angle from '../../math/angle.js';
 import * as Polynomial from '../../math/polynomial.js';
 
@@ -6,6 +6,9 @@ const decimal = Decimal.decimal;
 const angle = Angle.angle;
 const polynomial = Polynomial.polynomial;
 
+// IAU 1976 ecliptic precession (Lieske et al. 1977, A&A, 58, 1) 
+// and the precession part of the IAU 2000A equator adopted by IAU 2000 Resolution B1.6
+// (Mathews et al. 2002, J. Geophys. Res., 107, B4, 10.1029/2001JB000390)
 const IAU2000 = {
     "psi": "0, 5038.478750, -1.07259, -0.001147",
     "omega": "84381.448, -0.025240, +0.05127, -0.007726",

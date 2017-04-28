@@ -1,4 +1,4 @@
-import * as Decimal from '../../math/decimal.hp.js';
+import * as Decimal from '../../math/decimal';
 import * as Angle from '../../math/angle.js';
 import * as Polynomial from '../../math/polynomial.js';
 
@@ -6,6 +6,7 @@ const decimal = Decimal.decimal;
 const angle = Angle.angle;
 const polynomial = Polynomial.polynomial;
 
+// Bretagnon, P., Fienga, A., & Simon, J.-L. 2003, A&A, 400, 785
 const B03 = {
     "psi": "0.0, 5038.478750, -1.0719530, -0.00114366, 0.000132832, -9.40e-8, -3.50e-9, 1.7e-10",
     "omega": "84381.40880, -0.026501, 0.0512769, -0.00772723, -0.000000492, 3.329e-7, -3.1e-10, -6.0e-11",

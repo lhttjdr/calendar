@@ -1,8 +1,7 @@
 //////////////////////////////////////////////////////
 // a+eb， where e*e=0
 import * as std from '../basic.js';
-import * as Decimal from './decimal.hp.js';
-import * as Expression from './expression.js';
+import * as Decimal from './decimal';
 const decimal = Decimal.decimal;
 
 export const dualnumber = (...args) => {
