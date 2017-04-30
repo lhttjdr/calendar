@@ -5,7 +5,7 @@
   "main": "calendar.js",
   "scripts": {
     "build": "webpack",
-    "test": "mocha ./test"
+    "test": "pulp test"
   },
   "repository": {
     "type": "git",
@@ -26,14 +26,10 @@
     "decimal.js": "^7.1.1"
   },
   "devDependencies": {
-    "babel-cli": "^6.24.0",
-    "babel-core": "^6.24.1",
-    "babel-loader": "^7.0.0",
-    "babel-plugin-transform-es2015-modules-commonjs": "^6.24.1",
-    "babel-preset-es2015": "^6.24.1",
-    "chai": "^3.5.0",
-    "mocha": "^3.3.0",
-    "mochawesome": "^2.1.0",
+    "bower": "^1.8.0",
+    "pulp": "^11.0.0",
+    "purescript": "^0.11.4",
+    "purs-loader": "^3.0.0",
     "webpack": "^2.4.1"
   }
 }

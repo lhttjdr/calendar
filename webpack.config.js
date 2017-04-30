@@ -1,7 +1,7 @@
 module.exports = {
   context: __dirname + '/src',
   entry: {
-    'calendar': './calendar.js',
+    'calendar': './Main.purs',
   },
   output: {
     path: __dirname + '/dist',
@@ -9,14 +9,15 @@ module.exports = {
   },
   module: {
     loaders: [
-      { 
-        test: /\.js$/, 
-        exclude: /node_modules/, 
-        loader: "babel-loader", 
-        query:{
-          presets: ['es2015']
-        }
+    {
+      test: /\.purs$/,
+      loader: 'purs-loader',
+      exclude: /node_modules/,
+      query: {
+        psc: 'psa',
+        src: ['bower_components/purescript-*/src/**/*.purs', 'src/**/*.purs']
       }
+    }
     ]
   }
 };

@@ -1,5 +1,7 @@
-/notes/
-/mochawesome-report/
+/bower_components/
 /node_modules/
-/*.backup/
-npm-debug.log
+/.pulp-cache/
+/output/
+/generated-docs/
+/.psc*
+/.psa*
