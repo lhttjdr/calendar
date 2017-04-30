@@ -23,7 +23,9 @@
   },
   "homepage": "https://github.com/lhttjdr/calendar#readme",
   "dependencies": {
-    "decimal.js": "^7.1.1"
+    "brfs": "^1.4.3",
+    "decimal.js": "^7.1.1",
+    "transform-loader": "^0.2.4"
   },
   "devDependencies": {
     "babel-cli": "^6.24.0",
@@ -34,6 +36,7 @@
     "chai": "^3.5.0",
     "mocha": "^3.3.0",
     "mochawesome": "^2.1.0",
+    "raw-loader": "^0.5.1",
     "webpack": "^2.4.1"
   }
 }
