@@ -4,7 +4,8 @@
   "description": "Chinese lunar calendar based on astronomy",
   "main": "calendar.js",
   "scripts": {
-    "build": "webpack",
+    "pack": "webpack",
+    "build": "pulp build",
     "test": "pulp test"
   },
   "repository": {
