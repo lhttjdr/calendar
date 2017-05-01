@@ -1,8 +1,10 @@
 import * as fs from 'fs';
 import * as path from "path";
-import * as Decimal from '../../../../math/decimal';
-import * as Expression from '../../../../math/expression';
-import * as std from '../../../../basic';
+import * as Decimal from '../../../math/decimal';
+import * as Expression from '../../../math/expression';
+import * as std from '../../../basic';
+import {precision} from './precision';
+import * as Common from './common';
 
 const decimal=Decimal.decimal;
 const expression=Expression.expression;
@@ -11,8 +13,8 @@ const int=parseInt;
 
 const chunk=(s, size)=> {
     let groups = [];
-    for (let i = 0; i < arr.length; i += size) {
-        groups.push(arr.slice(i, i + size));
+    for (let i = 0; i < s.length; i += size) {
+        groups.push(s.slice(i, i + size));
     }
     return groups;
 };
@@ -59,7 +61,7 @@ const chunk=(s, size)=> {
  */
 const head=s=>{
     //17x,i1,4x,a7,12x,i1,17x,i1,i7 長度不小於67 實際長度與TermRecord一致
-    if(s.length<67) throw new Error("Invalid block descriptor!");
+    if(s.length<67) throw new Error("Invalid block descriptor! "+s);
     return {
         vsopVersion: int(s.substr(17,1)), //VSOP87文件版本
         astroObjectName: s.substr(22,7), //星體對象名 開始於1
@@ -112,7 +114,7 @@ The codes of the bodies are :
  */
 const term=s=>{
     //1x,4i1,i5,12i3,f15.11,2f18.11,f14.11,f20.11 長度等於131 或者132(+\r) 或者133(+\r\n)
-    if(s.length<131) throw Error("invalid lenght of term!");
+    if(s.length<131) throw Error("invalid lenght of term! "+s);
     return {
         vsopVersion : int(s.substr(1,1)),
         astroObject : int(s.substr(2,1)),
@@ -120,7 +122,7 @@ const term=s=>{
         alphaT : int(s.substr(4,1)),
 
         termIndex : int(s.substr(5,5)),
-        coefficients: chunk(s.slice(10,12*3),3).map(x=>decimal(x)),
+        coefficients: chunk(s.substr(10,12*3),3).map(x=>decimal(x)),
 
         amplitudeS : decimal(s.substr(46,15)),
         amplitudeK : decimal(s.substr(61,18)),
@@ -130,11 +132,39 @@ const term=s=>{
     };
 };
 
-const ParseFile=(vsopFile, vsopFileVersion, vsopObject, precision, tjySpan)=>{
-    //, out string description, out List<int> alphaTs, out List<int> coords, out List<double[]> amplitudeAs, out List<double[]> phaseBs, out List<double[]> frequencyCs)
-    let success = true;
-    let error = "";
-    //定義傳出數組
+export const validate=(vsopFile)=>{
+    let text = fs.readFileSync(path.join(__dirname, "data/"+vsopFile),'ascii');
+    let lines= text.split();
+    let header_record=head(lines[0]);
+    let term_record=term(lines[1]);
+    if(term_record.vsopVersion===header_record.vsopVersion){
+        return {
+            vsopVersion:term_record.vsopVersion,
+            vsopObject:term_record.astroObject
+        }
+    }
+}
+
+export const parse=(vsopFile, vsopFileVersion, vsopObject, prec, t)=>{
+    t=t||10;
+    let span = Common.span(vsopObject, vsopFileVersion); //精度時間範圍
+    if (Decimal.lt(t, span)) span = t; //如果需要的精度時間範圍比行星的標準精度時間範圍小 則意味著或許可以截掉更多的項 
+    
+    let truncate=null, coordUnitIsAU;
+    if (prec) {
+        // 現在 0<span=Min(輸入精度時間範圍,標準精度時間範圍), 
+        // precision將在EvalPrecision中被規範為[MinPrecision MaxPrecision]之間
+        truncate = precision(vsopObject, vsopFileVersion, prec, span);
+        if (truncate.truncate) {
+                coordUnitIsAU=Common.coordinate(vsopFileVersion);
+        }
+    }    
+
+    let text = fs.readFileSync(path.join(__dirname, "data/"+vsopFile),'ascii');
+    let lines= text.split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/);
+
+    let description=null;
+
     let aTs = [];
     let cods = [];
 
@@ -142,126 +172,47 @@ const ParseFile=(vsopFile, vsopFileVersion, vsopObject, precision, tjySpan)=>{
     let phBs = [];
     let freqCs = [];
 
-    //定義兩個截斷閥值數組 數組下標為 [階]
-    let radPrec = new Array(Core.alphaMAX + 1).fill();
-    let auPrec = new Array(Core.alphaMAX + 1).fill();
-    //定義一個控制數組 用於記錄當前文件每個坐標分量對應rad還是對應au
-    let coordUnitIsAU = new Array(Core.coordMAX).fill(); //false表示rad true表示au
-    //另外兩個與截斷有關的變量
-    let needTruncate = false; //是否需要截斷
-    let span = BodyObject.GetObjecttjySpan(vsopObject, vsopFileVersion); //精度時間範圍
-    if (tjySpan < span) span = tjySpan; //如果需要的精度時間範圍比行星的標準精度時間範圍小 則意味著或許可以截掉更多的項 
-    //預處理 
-    if (precision > 0) {
-        //首先 生成截斷閥值數組
-        //現在 0<span=Min(輸入精度時間範圍,標準精度時間範圍), precision將在EvalPrecision中被規範為[MinPrecision MaxPrecision]之間
-        needTruncate = EvalPrecision(vsopObject, vsopFileVersion, precision, span, out radPrec, out auPrec);
-        //然後 根據VSOP文件版本所對應的坐標系生成相應的控制數組 以便判斷某坐標分量應採用rad截斷還是au截斷
-        if (needTruncate) {
-            switch (Version.GetVersionCoordSystem(vsopFileVersion)){
-                case Version.CoordSystem.cartesian: //直角坐標 au au au
-                    coordUnitIsAU[0] = true; //x
-                    coordUnitIsAU[1] = true; //y
-                    coordUnitIsAU[2] = true; //z
-                    break;
-                case Version.CoordSystem.spherical: //球面坐標 rad rad au
-                    coordUnitIsAU[0] = false; //λ
-                    coordUnitIsAU[1] = false; //β
-                    coordUnitIsAU[2] = true; //δ 單位是au
-                    break;
-                default: //橢圓坐標 au rad rad rad rad rad
-                    coordUnitIsAU.fill(false);
-                    coordUnitIsAU[0] = true; //橢圓坐標的半長軸  單位是au
-            }
-        }
-    }
-    //定義兩個對象變量
-//    HeaderRecord header = new HeaderRecord();
-//    TermRecord term = new TermRecord();
+    let blocks=[];
 
-    //文件對象
-    reader = fs.readFileSync(path.join(__dirname, "data/"+vsopFile),'ascii');
+    let i=0;
+    while (true) {
+        if (i < lines.length) {// not EOF
+            if(lines[i].length===0) break;
 
-    //開始解析VSOP文件
-    while (success) {
-        headerString = reader.ReadLine(); //讀入塊頭
-        if (headerString != null) {//null意味著文件尾
-            if (header.Parse(headerString)){ //如果塊頭解析正常
-                //定義臨時數組
-                let A = new Array(header.termsCount);
-                let B = new Array(header.termsCount);
-                let C = new Array(header.termsCount);
+            let header=head(lines[i++]);
 
-                let nTermCount = 0; //計數 截斷后的項式數量
-                for (let n = 0; n < header.termsCount; n++){ //依次讀入塊内所有項式
-                    let termString = reader.ReadLine(); //讀入一行項式
-                    if (term.Parse(termString)) { //如果項式解析正常
-                        if (term.termIndex == (n + 1) && term.coordinateIndex == header.coordinateIndex && term.alphaT == header.alphaT && term.vsopVersion == header.vsopVersion) {//校驗 其中第一個校驗項是比對termIndex
-                            if (needTruncate){
-                                let valve = (coordUnitIsAU[term.coordinateIndex - 1] ? auPrec[term.alphaT] : radPrec[term.alphaT]); //根據坐標分量的單位設置閥值 coordinateIndex 1開始 -1轉換為0開始
-                                if (term.amplitudeA < valve && term.amplitudeA > -valve) continue; //|A|<Prec, 沒有通過閥值檢驗 忽略掉該項 繼續到下一個n
-                            }
-                            //如果通過了閥值檢驗 挑出 A B C 其它忽略
-                            A[nTermCount] = term.amplitudeA;
-                            B[nTermCount] = term.phaseB;
-                            C[nTermCount] = term.frequencyC;
-                            
-                            nTermCount++;
-                        } else {
-                            success = false;
-                            error = "數據校驗錯誤 行" + termString;
-                            break;
-                        }
-                    } else {
-                        success = false;
-                        error = "項式解析錯誤 行" + termString;
-                        break;
-                    }
-                }
-                if (success){ //如果循環段正常完成
-                    //記錄塊頭信息
-                    aTs.push(header.alphaT);
-                    cods.push(header.coordinateIndex); //1開始的坐標分量序號
-                    //記錄項式組
-                    if (needTruncate) {
-                        //nTermCount為截斷后的項式數量
-                        ampAs.push(A.slice(0,nTermCount));
-                        phBs.push(B.slice(0,nTermCount));
-                        freqCs.push(C.slice(0,nTermCount));
-                    } else {
-                        ampAs.Add(A);
-                        phBs.Add(B);
-                        freqCs.Add(C);
-                    }
-                 } else {
-                    //有錯誤發生 跳出while
-                    break;
+            if(description===null) description=["VSOP version ", header.vsopVersion, " * ", header.astroObjectName, " => ", header.description].join();
+
+            if(i+header.termsCount>= lines.length) throw new Error("Block size error.");
+            let block=lines.slice(i, i + header.termsCount).map(line=>term(line));
+
+            i+=header.termsCount;
+
+            if(!block.every((term,n)=>term.termIndex === (n + 1) &&
+                 term.coordinateIndex === header.coordinateIndex &&
+                 term.alphaT === header.alphaT &&
+                 term.vsopVersion === header.vsopVersion)){
+                    throw new Error("Verification error");
                  }
-            } else {
-                success = false;
-                error = "塊頭解析錯誤 行" + headerString;
-                break;
+            if (truncate!==null && truncate.truncate) {
+                block=block.filter(term=>Decimal.gte(Decimal.abs(term.amplitudeA, truncate.p[coordUnitIsAU[term.coordinateIndex-1]])));
             }
-        } else {
-            //文件讀入完畢
-            break;
+            blocks.push({
+                alphaTs : header.alphaT,
+                coords : header.coordinateIndex, //1開始的坐標分量序號
+                terms : block.map(t=>({
+                    amplitudeAs : t.amplitudeA,
+                    phaseBs : t.phaseB,
+                    frequencyCs : t.frequencyC
+                }))
+            });
         }
     }
-
-    if (success && ampAs.Count == 0) { //如果解析正常但項數為0 （全部被截斷了）
-        success = false;
-        error = "無内容";
+    if (blocks.length === 0) {
+        throw new Error("No terms for given precision.");
     }
-
-    if (!success)  throw new Error(error);
-
-    //傳出值
     return {
-        description : "VSOP version " + header.vsopVersion + " * " + header.astroObjectName + " => " + header.description, //一個文件中所有description都一樣 直接拼接起來傳出
-        alphaTs : aTs,
-        coords : cods,
-        amplitudeAs : ampAs,
-        phaseBs : phBs,
-        frequencyCs : freqCs
-    }
-}
+        description : description,
+        blocks: blocks
+    };
+};
