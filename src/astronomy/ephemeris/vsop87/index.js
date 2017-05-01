@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from "path";
-import { parse } from "./parse";
+import { validate,parse } from "./parse";
 import * as Decimal from '../../../math/decimal';
 import * as Angle from '../../../math/angle';
 import * as Constant from '../../constant';
@@ -81,7 +81,8 @@ import * as Constant from '../../constant';
 */
 
 export const earth_heliocentric_spherical_J2000=(JD, position, velocity, precision, span)=>{
-      const VSOP87B_Earth = parse("VSOP87B.ear", 2, 3, precision, span);
+      const VSOP87=validate("VSOP87B.ear");
+      const VSOP87B_Earth = parse("VSOP87B.ear", VSOP87.vsopObject, VSOP87.vsopVersion, precision, span);
       console.log(Decimal.show(Decimal.sum(VSOP87B_Earth.blocks.map(b=>b.terms.length)))+" terms");
       const pv=calculate(VSOP87B_Earth, JD, position, velocity);
       if(position){
