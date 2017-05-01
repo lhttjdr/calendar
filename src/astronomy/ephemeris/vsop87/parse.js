@@ -134,7 +134,7 @@ const term=s=>{
 
 export const validate=(vsopFile)=>{
     let text = fs.readFileSync(path.join(__dirname, "data/"+vsopFile),'ascii');
-    let lines= text.split();
+    let lines= text.split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/);
     let header_record=head(lines[0]);
     let term_record=term(lines[1]);
     if(term_record.vsopVersion===header_record.vsopVersion){
@@ -143,6 +143,7 @@ export const validate=(vsopFile)=>{
             vsopObject:term_record.astroObject
         }
     }
+    throw new Error("Invalid VSOP87 data file!");
 }
 
 export const parse=(vsopFile, vsopFileVersion, vsopObject, prec, t)=>{
@@ -158,8 +159,7 @@ export const parse=(vsopFile, vsopFileVersion, vsopObject, prec, t)=>{
         if (truncate.truncate) {
                 coordUnitIsAU=Common.coordinate(vsopFileVersion);
         }
-    }    
-
+    }
     let text = fs.readFileSync(path.join(__dirname, "data/"+vsopFile),'ascii');
     let lines= text.split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/);
 
@@ -195,7 +195,10 @@ export const parse=(vsopFile, vsopFileVersion, vsopObject, prec, t)=>{
                     throw new Error("Verification error");
                  }
             if (truncate!==null && truncate.truncate) {
-                block=block.filter(term=>Decimal.gte(Decimal.abs(term.amplitudeA, truncate.p[coordUnitIsAU[term.coordinateIndex-1]])));
+                block=block.filter(term=>{
+                    let threshold=truncate.p[coordUnitIsAU[term.coordinateIndex-1]][term.alphaT];
+                    return Decimal.gte(Decimal.abs(term.amplitudeA), threshold);
+                });
             }
             blocks.push({
                 alphaTs : header.alphaT,
