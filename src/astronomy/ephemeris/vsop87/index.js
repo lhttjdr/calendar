@@ -1,5 +1,9 @@
 import * as fs from 'fs';
 import * as path from "path";
+import { parse } from "./parse";
+import * as Decimal from '../../../math/decimal';
+import * as Angle from '../../../math/angle';
+import * as Constant from '../../constant';
 
 /* workflow
  * data file---> parse ---> calculate
@@ -50,28 +54,76 @@ import * as path from "path";
  * 對單位的轉換應該在caller内完成 典型的做法是對速度/365250 轉換到/天 對球面坐標的lb值%2π乃至進一步做象限變換
  * 
  */
- /* Definition of versions. 版本说明           
-    0: VSOP87 (initial solution).
-       elliptic coordinates
-       dynamical equinox and ecliptic J2000.
-    1: VSOP87A.
-       rectangular coordinates
-       heliocentric positions and velocities
-       dynamical equinox and ecliptic J2000.
-    2: VSOP87B.
-       spherical coordinates
-       heliocentric positions and velocities
-       dynamical equinox and ecliptic J2000.
-    3: VSOP87C.
-       rectangular coordinates
-       heliocentric positions and velocities
-       dynamical equinox and ecliptic of the date.
-    4: VSOP87D.
-       spherical coordinates
-       heliocentric positions and velocities
-       dynamical equinox and ecliptic of the date.
-    5: VSOP87E.
-       rectangular coordinates
-       barycentric positions and velocities
-       dynamical equinox and ecliptic J2000.
- */
+/* Definition of versions. 版本说明           
+   0: VSOP87 (initial solution).
+      elliptic coordinates
+      dynamical equinox and ecliptic J2000.
+   1: VSOP87A.
+      rectangular coordinates
+      heliocentric positions and velocities
+      dynamical equinox and ecliptic J2000.
+   2: VSOP87B.
+      spherical coordinates
+      heliocentric positions and velocities
+      dynamical equinox and ecliptic J2000.
+   3: VSOP87C.
+      rectangular coordinates
+      heliocentric positions and velocities
+      dynamical equinox and ecliptic of the date.
+   4: VSOP87D.
+      spherical coordinates
+      heliocentric positions and velocities
+      dynamical equinox and ecliptic of the date.
+   5: VSOP87E.
+      rectangular coordinates
+      barycentric positions and velocities
+      dynamical equinox and ecliptic J2000.
+*/
+
+export const earth_heliocentric_spherical_J2000=(JD, position, velocity, precision, span)=>{
+      const VSOP87B_Earth = parse("VSOP87B.ear", 2, 3, precision, span);
+      console.log(Decimal.show(Decimal.sum(VSOP87B_Earth.blocks.map(b=>b.terms.length)))+" terms");
+      const pv=calculate(VSOP87B_Earth, JD, position, velocity);
+      if(position){
+            pv[0]=Angle.toPlusMinusPi(pv[0]);
+            pv[1]=Angle.toZeroDoublePi(pv[1]);
+      }
+      return pv;
+};
+
+const calculate = (VSOP87, JD, position, velocity) => {
+    let result = new Array(6).fill(0); //返回值 012P 345V 或者橢圓坐標
+
+    let T = Decimal.div(Decimal.minus(JD, Constant.J2000), 365250.0); //1000 Julian Year since J2000
+
+    //P(T) = ∑(α=0,5)∑(i=0,n)[AiT^α*Cos(Bi+CiT)]
+    //V(T) = ∑(α=0,5)∑(i=0,n)[αAiT^(α-1)*Cos(Bi+CiT)-CiAiT^α*Sin(Bi+CiT)]
+    //公式中 α=alphaT n=termsCount A=amplitudeA B=phaseB C=frequencyC
+    let TpowAlpha = [...new Array(6).fill().keys()].map(i => Decimal.pow(T, i));
+
+    for (let block of VSOP87.blocks) {
+        let coordIdx = block.coords; // start from 1
+        let a = block.alphaTs;
+        for (let term of block.terms) {
+            let Ai = term.amplitudeAs;
+            let Bi = term.phaseBs;
+            let Ci = term.frequencyCs;
+
+            let Bi_CiT = Decimal.plus(Bi, Decimal.mult(Ci, T));
+            let cos_Bi_CiT = Decimal.cos(Bi_CiT);
+
+            //main 版本coordIdx定義域[0,5] ABCDE版本coordIdx定義域[0,2] 亦即 如果版本是main 則開關一定要設定為10
+            if (position) {
+                result[coordIdx] = Decimal.plus(result[coordIdx], Decimal.mult(Decimal.mult(Ai, TpowAlpha[a]), cos_Bi_CiT));
+            }
+            if (velocity) {
+                result[coordIdx + 3] = Decimal.plus(result[coordIdx + 3], (a == 0 ? 0 :
+                    Decimal.minus(
+                        Decimal.mult(a, Decimal.mult(Ai, Decimal.mult(TpowAlpha[a - 1], cos_Bi_CiT))),
+                        Decimal.mult(Ci, Decimal.mult(Ai, Decimal.mult(TpowAlpha[a], Decimal.sin(Bi_CiT))))
+                    )));
+            }
+        }
+    }
+    return result;
+}

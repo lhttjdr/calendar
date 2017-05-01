@@ -1,5 +1,5 @@
-import * as std from '../../../../basic';
-import * as Decimal from '../../../../math/decimal';
+import * as std from '../../../basic';
+import * as Decimal from '../../../math/decimal';
 
 const decimal=Decimal.decimal;
 
@@ -40,3 +40,12 @@ export const eps=(idx, ver)=>decimal(celestial_objects[index(idx,ver)].eps);
 export const semimajor_axis=(idx, ver)=>decimal(celestial_objects[index(idx,ver)].semimajor_axis);
 // span of ±thousand years with controllable errors（since J2000）,误差可控的时间范围，±千年數（自J2000）
 export const span=(idx,ver)=>celestial_objects[index(idx,ver)].semimajor_axis;
+
+const coordinates=["elliptic","descartes","spherical","descartes","spherical","descartes"];
+// VSOP87, start from 1
+const components={
+    "elliptic":["au","rad","rad","rad","rad","rad"], // semi-major axis : au
+    "descartes":["au","au","au"], // x, y, z
+    "spherical":["rad","rad","au"] // λ, β, δ
+};
+export const coordinate=(ver)=>components[coordinates[ver]];
