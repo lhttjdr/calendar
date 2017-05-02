@@ -80,17 +80,25 @@ import * as Constant from '../../constant';
       dynamical equinox and ecliptic J2000.
 */
 
-export const earth_heliocentric_spherical_J2000=(JD, position, velocity, precision, span)=>{
+export const earth_heliocentric_spherical_J2000=(precision, span)=>{
       const VSOP87=validate("VSOP87B.ear");
       const VSOP87B_Earth = parse("VSOP87B.ear", VSOP87.vsopObject, VSOP87.vsopVersion, precision, span);
       console.log(Decimal.show(Decimal.sum(VSOP87B_Earth.blocks.map(b=>b.terms.length)))+" terms");
-      const pv=calculate(VSOP87B_Earth, JD, position, velocity);
-      if(position){
-            pv[0]=Angle.toPlusMinusPi(pv[0]);
-            pv[1]=Angle.toZeroDoublePi(pv[1]);
-      }
-      return pv;
+      return VSOP87B_Earth;
 };
+
+export const position=(vsop,JD)=>{
+      const p=calculate(vsop, JD, true, false);
+      p[0]=Angle.toZeroDoublePi(p[0]);
+      p[1]=Angle.toPlusMinusPi(p[1]);
+      return p.map(x=>Decimal.toDecimalPosition(x,10));
+}
+
+export const velocity=(vsop,JD)=>{
+      const v=calculate(vsop, JD, false, true);
+      // thousand julian years (tjy) ==> day (d)
+      return v.slice(3).map(x=>Decimal.toDecimalPosition(Decimal.div(x,365250),10));
+}
 
 const calculate = (VSOP87, JD, position, velocity) => {
     let result = new Array(6).fill(0); //返回值 012P 345V 或者橢圓坐標
@@ -103,7 +111,7 @@ const calculate = (VSOP87, JD, position, velocity) => {
     let TpowAlpha = [...new Array(6).fill().keys()].map(i => Decimal.pow(T, i));
 
     for (let block of VSOP87.blocks) {
-        let coordIdx = block.coords; // start from 1
+        let coordIdx = block.coords-1; // coords start from 1, but result start from 0
         let a = block.alphaTs;
         for (let term of block.terms) {
             let Ai = term.amplitudeAs;
@@ -118,11 +126,11 @@ const calculate = (VSOP87, JD, position, velocity) => {
                 result[coordIdx] = Decimal.plus(result[coordIdx], Decimal.mult(Decimal.mult(Ai, TpowAlpha[a]), cos_Bi_CiT));
             }
             if (velocity) {
-                result[coordIdx + 3] = Decimal.plus(result[coordIdx + 3], (a == 0 ? 0 :
+                result[coordIdx + 3] = Decimal.plus(result[coordIdx + 3], 
                     Decimal.minus(
-                        Decimal.mult(a, Decimal.mult(Ai, Decimal.mult(TpowAlpha[a - 1], cos_Bi_CiT))),
+                        (a === 0 ? 0 : Decimal.mult(a, Decimal.mult(Ai, Decimal.mult(TpowAlpha[a - 1], cos_Bi_CiT)))),
                         Decimal.mult(Ci, Decimal.mult(Ai, Decimal.mult(TpowAlpha[a], Decimal.sin(Bi_CiT))))
-                    )));
+                    ));
             }
         }
     }
