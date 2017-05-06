@@ -20,13 +20,13 @@ const dimension_check = (u, v) => {
 // Vector->Number
 export const dimension = u => u.length;
 // Vector -> Vector ->Vector
-export const plus = std.uncurry(u => v => dimension_check(u, v) && u.map((u, i) => Decimal.plus(u, v[i])));
-export const minus = std.uncurry(u => v => dimension_check(u, v) && u.map((u, i) => Decimal.minus(u, v[i])));
+export const plus = std.uncurry(u => v => dimension_check(u, v) && u.map((x, i) => Decimal.plus(x, v[i])));
+export const minus = std.uncurry(u => v => dimension_check(u, v) && u.map((x, i) => Decimal.minus(x, v[i])));
 // Vector->Vector
 export const neg = u => vector(u).map(x => Decimal.neg(x));
 // Vector -> Decimal -> Vector
-export const mult = std.uncurry(u => v => decimal(v) && u.map((u) => Decimal.mult(u, v)));
-export const div = std.uncurry(u => v => decimal(v) && u.map((u) => Decimal.div(u, v)));
+export const mult = std.uncurry(u => v => decimal(v) && u.map(x => Decimal.mult(x, v)));
+export const div = std.uncurry(u => v => decimal(v) && u.map(x => Decimal.div(x, v)));
 // Vector -> Vector -> Decimal
 export const dot = std.uncurry(u => v => dimension_check(u, v) && u.reduce((sum, x, i) => Decimal.plus(sum, Decimal.mult(x, v[i])), 0));
 // Vector->Decimal | Vector
