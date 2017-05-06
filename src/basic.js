@@ -8,10 +8,26 @@ export const uncurry = f => (...args) => args.reduce((g, x) => (g = g(x), typeof
 export const zip = (arr, ...arrs) => arr.map((val, i) => arrs.reduce((a, arr) => [...a, arr[i]], [val]));
 export const zipWith = (zipper, arr, ...arrs) => arr.map((val, i) => zipper(...arrs.reduce((a, arr) => [...a, arr[i]], [val])));
 
-export const omap = (o, f) => Object.assign(...Object.keys(o).map(k => ({ [k]: f(o[k]) })));
+export const omap = (o, f) => Object.assign(...Object.keys(o).map(k => ({
+    [k]: f(o[k])
+})));
 // NOTE:: ES7 version, Object.assign(...Object.entries(obj).map(([k, v]) => ({[k]: v * v})));
-export const ozip=(obj, ...objs)=>Object.assign(...Object.keys(obj).map(k=>({[k]: [obj[k]].concat(objs.map(o=>o[k]))})));
-export const ozipWith=(zipper,obj, ...objs)=>Object.assign(...Object.keys(obj).map(k=>({[k]: zipper(...[obj[k]].concat(objs.map(o=>o[k])))})));
+export const ozip = (obj, ...objs) => Object.assign(...Object.keys(obj).map(k => ({
+    [k]: [obj[k]].concat(objs.map(o => o[k]))
+})));
+export const ozipWith = (zipper, obj, ...objs) => Object.assign(...Object.keys(obj).map(k => ({
+    [k]: zipper(...[obj[k]].concat(objs.map(o => o[k])))
+})));
+
+
+export const memoize = fn => {
+    let cache = {};
+    return (...args) => {
+        let stringifiedArgs = JSON.stringify(args);
+        let result = cache[stringifiedArgs] = cache[stringifiedArgs] || fn(...args);
+        return result;
+    };
+};
 
 const check_builtin_type = typename => x => {
     if (typeof x === typename) return x;

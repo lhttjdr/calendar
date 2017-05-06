@@ -142,11 +142,11 @@ let parse = tokens => {
     }
     return parseTree;
 };
-export const expression = s => {
+export const expression = std.memoize(s => {
     s = std.str(s);
     let tokens = lex(s);
     return parse(tokens);
-};
+});
 export const evaluate = (parseTree, extern_variables, extern_functions) => {
     const operators = {
         "+": (a, b) => Decimal.plus(a, b),
@@ -159,7 +159,7 @@ export const evaluate = (parseTree, extern_variables, extern_functions) => {
     let variables = Object.assign({
         pi: Decimal.PI,
         e: Decimal.E
-    },extern_variables);
+    }, extern_variables);
     let functions = Object.assign({
         sin: Decimal.sin,
         cos: Decimal.cos,
@@ -177,7 +177,7 @@ export const evaluate = (parseTree, extern_variables, extern_functions) => {
         max: Decimal.max,
         min: Decimal.min,
         //random: Math.random
-    },extern_functions);
+    }, extern_functions);
     let args = {};
     const parseNode = function(node) {
         if (node.type === "number") return decimal(node.value);
@@ -191,7 +191,7 @@ export const evaluate = (parseTree, extern_variables, extern_functions) => {
         } else if (node.type === "assign") {
             variables[node.name] = parseNode(node.value);
         } else if (node.type === "call") {
-            let args=[];
+            let args = [];
             for (let i = 0; i < node.args.length; i++) args[i] = parseNode(node.args[i]);
             return functions[node.name].apply(null, args);
         } else if (node.type === "function") {
@@ -210,6 +210,6 @@ export const evaluate = (parseTree, extern_variables, extern_functions) => {
         let value = parseNode(parseTree[i]);
         if (typeof value !== "undefined") output.push(value);
     }
-    if(output.length===1) return output[0];
+    if (output.length === 1) return output[0];
     return output;
 };
