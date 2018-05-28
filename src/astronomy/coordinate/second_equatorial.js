@@ -4,8 +4,8 @@ import * as Point from './point.js';
 const decimal = Decimal.decimal;
 const angle = Angle.angle;
 
-// the first equatorial coordinate system, HA-dec. system.
-// zh-cn: 第一赤道坐标系，时角坐标系
+// the second equatorial coordinate system
+// zh-cn: 第二赤道坐标系
 export const equatorial = Point.second_equatorial;
 
 export const show = p => {

@@ -4,8 +4,8 @@ import * as Point from './point.js';
 const decimal = Decimal.decimal;
 const angle = Angle.angle;
 
-// ecliptic coordinate system
-// zh-cn: 黄道坐标系
+// horizontal coordinate system
+// zh-cn: 地平坐标系
 export const horizontal = Point.horizontal;
 
 export const show = p => {
