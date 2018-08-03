@@ -14,15 +14,13 @@ module.exports = {
             loader: "babel-loader",
             query: {
                 presets: ['es2015'],
-                stage: 0,
                 retainLines: true,
                 cacheDirectory: true
             }
         }, {
             test: /\.js$/,
             exclude: /(node_modules|bower_components)/,
-            loader: 'transform/cacheable?brfs',
-            cacheable: true
+            loader: 'transform-loader?brfs'
         }]
     }
 };
