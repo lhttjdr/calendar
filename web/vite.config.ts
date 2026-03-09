@@ -7,6 +7,9 @@ const base = process.env.VITE_BASE ?? '/'
 export default defineConfig({
   base,
   plugins: [react()],
+  worker: {
+    format: 'es',
+  },
   server: {
     fs: {
       allow: ['..'],
