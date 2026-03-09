@@ -1,5 +1,42 @@
-/notes/
-/mochawesome-report/
-/node_modules/
-/*.backup/
-npm-debug.log
+# 构建产物
+/target/
+/project/target/
+/project/project/target/
+**/target/
+# Bloop / Metals / BSP
+.bloop/
+.metals/
+.bsp/
+
+
+data/**/*.bin
+data/**/*.br
+data/elpmpp02/elpmpp02_exe
+
+# JVM 构建产物
+*.class
+*.log
+*.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 备份与临时
+*.backup
+*.bak
+*.tmp
+node_modules
+
+.cursor
+.cursorignore
+
+.venv
+.vscode

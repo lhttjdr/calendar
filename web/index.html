@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>" />
+    <title>Lunar Calendar</title>
+    <style>
+      html, body { overflow-x: visible; }
+      #root { overflow: visible; }
+      /* TimePicker 下拉：rc-trigger 可能把宽度设为触发器宽度，强制整条链路足够宽 */
+      body > div[class*="trigger-popup"],
+      body > div[class*="picker-dropdown"],
+      .ant-picker-dropdown,
+      .time-picker-popup-full { min-width: 320px !important; width: 320px !important; max-width: none !important; overflow: visible !important; box-sizing: border-box !important; }
+      .ant-picker-dropdown .ant-picker-panel-container,
+      .time-picker-popup-full .ant-picker-panel-container { overflow: visible !important; min-width: 320px !important; width: 320px !important; }
+      .ant-picker-dropdown .ant-picker-time-panel-container,
+      .time-picker-popup-full .ant-picker-time-panel-container { width: 100% !important; overflow: visible !important; }
+      .ant-picker-dropdown .ant-picker-time-panel,
+      .time-picker-popup-full .ant-picker-time-panel { width: auto !important; min-width: 280px !important; }
+      .ant-picker-dropdown .ant-picker-content,
+      .time-picker-popup-full .ant-picker-content { display: flex !important; width: 100% !important; flex: 1 1 auto !important; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,93 @@
+# 构建 Web 前端并部署到 GitHub Pages
+# 仓库需在 Settings → Pages → Build and deployment 中选择 "GitHub Actions"
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+
+      - name: Setup Rust and wasm-pack
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Cache Rust target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: ${{ runner.os }}-pages-${{ hashFiles('rust/Cargo.lock', 'rust/**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pages-
+
+      - name: Build WASM (wasm-lib)
+        working-directory: rust/wasm-lib
+        run: wasm-pack build --release --target web
+
+      - name: Build WASM (wasm-lib-f64)
+        working-directory: rust/wasm-lib-f64
+        run: wasm-pack build --release --target web
+
+      # 历表：由原始文件生成 .bin，再压成 .bin.br，供前端零解析/Brotli 加载
+      - name: Generate ephemeris .bin
+        run: ./scripts/gen_ephemeris_bin.sh
+
+      - name: Compress ephemeris .bin to .br
+        run: node scripts/compress_ephemeris_brotli.mjs
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Copy ephemeris data (raw + .bin + .br)
+        working-directory: web
+        run: npm run copy-data
+
+      - name: Build web (Vite)
+        working-directory: web
+        env:
+          # 项目站地址为 https://<user>.github.io/<repo>/
+          VITE_BASE: /${{ github.event.repository.name }}/
+        run: npm run build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4

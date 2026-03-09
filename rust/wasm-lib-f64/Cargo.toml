@@ -1,0 +1,23 @@
+[package]
+name = "lunar-wasm-f64"
+version = "0.1.0"
+edition = "2021"
+description = "浏览器端 lunar 库（Real=f64 后端，体积更小、速度更快）"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Real 用 f64 替代 twofloat，WASM 体积更小、运行更快
+lunar-core = { path = "../core", default-features = false, features = ["real-f64"] }
+once_cell = "1.19"
+wasm-bindgen = "0.2"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"

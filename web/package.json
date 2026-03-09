@@ -1,0 +1,31 @@
+{
+  "name": "lunar-calendar-web",
+  "type": "module",
+  "scripts": {
+    "dev": "vite  --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview",
+    "copy-data": "mkdir -p public/data/vsop87 public/data/elpmpp02 && (cp ../../data/vsop87/VSOP87B.ear public/data/vsop87/ 2>/dev/null || true) && (cp ../../data/vsop87/VSOP87B.ear.bin public/data/vsop87/ 2>/dev/null || true) && (cp ../../data/vsop87/VSOP87B.ear.bin.br public/data/vsop87/ 2>/dev/null || true) && for f in ELP_MAIN.S1 ELP_MAIN.S2 ELP_MAIN.S3 ELP_PERT.S1 ELP_PERT.S2 ELP_PERT.S3; do cp ../../data/elpmpp02/$f public/data/elpmpp02/ 2>/dev/null || true; cp ../../data/elpmpp02/$f.bin public/data/elpmpp02/ 2>/dev/null || true; cp ../../data/elpmpp02/$f.bin.br public/data/elpmpp02/ 2>/dev/null || true; done",
+    "refresh-wasm": "cd ../rust/wasm-lib && wasm-pack build --target web && cd ../../web && rm -rf node_modules/.vite node_modules/lunar-wasm"
+  },
+  "dependencies": {
+    "@xyflow/react": "^12.3.0",
+    "antd": "^5.22.0",
+    "dagre": "^0.8.5",
+    "dayjs": "^1.11.19",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  },
+  "devDependencies": {
+    "@types/dagre": "^0.7.52",
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18",
+    "@vitejs/plugin-react": "^4.2.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.10"
+  },
+  "optionalDependencies": {
+    "lunar-wasm": "file:../rust/wasm-lib/pkg",
+    "lunar-wasm-f64": "file:../rust/wasm-lib-f64/pkg"
+  }
+}

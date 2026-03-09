@@ -1,0 +1,24 @@
+[package]
+name = "lunar-wasm"
+version = "0.1.0"
+edition = "2021"
+description = "浏览器端 lunar 库（wasm-pack 构建）"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# 仅启用 twofloat，不启用 python-test，避免 wasm 交叉编译时拉入 pyo3
+lunar-core = { path = "../core", default-features = false, features = ["twofloat"] }
+once_cell = "1.19"
+wasm-bindgen = "0.2"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[profile.release]
+# 最小化 WASM 体积与跨边界开销：体积优化 + 单编译单元以加深优化
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"

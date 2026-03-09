@@ -1,0 +1,73 @@
+# 覆盖率：cargo-llvm-cov 生成 lcov（供 Codecov/CI）与 HTML（供人工查看、Artifact 下载）
+name: Coverage
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: ${{ runner.os }}-cov-${{ hashFiles('rust/Cargo.lock', 'rust/core/Cargo.toml', 'rust/wasm-lib/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cov-
+
+      # lunar-core 默认启用 python-test，需 Python + jplephem 才能跑全量测试
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install jplephem for DE406 comparison tests
+        run: pip install jplephem
+
+      - name: Set PYO3 and lib path for coverage run
+        run: |
+          echo "PYO3_PYTHON=$(which python3)" >> $GITHUB_ENV
+          echo "PYTHONHOME=$(python3 -c 'import sys; print(sys.base_prefix)')" >> $GITHUB_ENV
+          echo "PYTHONPATH=$(python3 -c 'import site; print(site.getsitepackages()[0])')" >> $GITHUB_ENV
+          # Ubuntu 上 libpython 多在系统路径，若链接失败可取消下一行注释并改用对应 LIBDIR
+          # echo "LD_LIBRARY_PATH=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR') or '')")" >> $GITHUB_ENV
+
+      - name: Generate coverage (lcov + HTML)
+        working-directory: rust
+        run: |
+          cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+          cargo llvm-cov report --html --output-dir target/llvm-cov/html
+
+      - name: Upload lcov to Codecov (optional)
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: rust/lcov.info
+          fail_ci_if_error: false
+          verbose: true
+
+      - name: Upload HTML coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: rust/target/llvm-cov/html/
