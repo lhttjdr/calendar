@@ -544,62 +544,65 @@ function App() {
           {/* 左侧：单日信息（合并）。LiveTimeProvider 使实时模式下时钟与时宪历共用同一时间源 */}
           <LiveTimeProvider enabled={isLiveMode}>
           <Flex vertical gap={12} style={{ width: 260, flexShrink: 0, overflow: 'visible' }}>
-            <Card size="small" style={{ width: '100%', overflow: 'visible' }} styles={{ body: { overflow: 'visible' } }}>
-              <Text type="secondary" style={{ fontSize: 11 }}>公历</Text>
-              {/* 二合一：实时=电子钟跳动，选中=下拉列表 */}
-              <div style={{ marginBottom: 12, marginTop: 4 }}>
-                <Text type="secondary" style={{ fontSize: 11 }}>{isLiveMode ? '实时' : '选中'}</Text>
-                {isLiveMode ? (
-                  <div style={{ fontSize: 15, letterSpacing: 1, marginTop: 4 }}>
-                    <LiveClock timeZone={timeZone} />
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', marginTop: 4 }}>{clockStr}</div>
+            <Card size="small" style={{ width: '100%', overflow: 'visible' }} styles={{ body: { padding: 0, overflow: 'visible' } }}>
+              {/* 顶部：年月条（撕页日历式） */}
+              <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(0,0,0,0.06)', textAlign: 'center' }}>
+                <Text type="secondary" style={{ fontSize: 11 }}>{year}年{month}月</Text>
+                {selectedLunarSlot != null && (
+                  <Text type="secondary" style={{ fontSize: 11, marginLeft: 8 }}>
+                    {selectedLunarSlot.isLeapMonth ? '闰' : ''}{LUNAR_MONTH_NAMES[selectedLunarSlot.lunarMonth - 1]}{selectedLunarSlot.daysInMonth === 30 ? '大' : '小'}
+                  </Text>
                 )}
               </div>
-              {/* 公历补充：星期、第几天周；返回当前时刻用右侧「今天」按钮 */}
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ marginTop: 0 }}>
-                  <Text type="secondary" style={{ fontSize: 12 }}>星期{WEEKDAY_NAMES[weekdayIndex]}</Text>
-                  <div style={{ marginTop: 2 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>第{dayOfYear}天，第{weekOfYear}周</Text>
-                  </div>
-                  {isSelectedToday && isLiveMode && <Tag color="blue" style={{ marginTop: 6 }}>今天</Tag>}
+              {/* 中央：大号日期（视觉焦点） */}
+              <div style={{ padding: '16px 12px 8px', textAlign: 'center' }}>
+                <div style={{ fontSize: 48, fontWeight: 700, lineHeight: 1, color: 'rgba(0,0,0,0.88)', fontVariantNumeric: 'tabular-nums' }}>
+                  {sel.day}
                 </div>
+                {isLiveMode && (
+                  <div style={{ fontSize: 13, marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>
+                    <LiveClock timeZone={timeZone} />
+                  </div>
+                )}
+                {!isLiveMode && (
+                  <Text type="secondary" style={{ fontSize: 12, marginTop: 4 }}>{clockStr}</Text>
+                )}
               </div>
-              {/* 农历的年月日 */}
-              <div style={{ marginBottom: 12 }}>
-                <Text type="secondary" style={{ fontSize: 11 }}>农历的年月日</Text>
-                <div style={{ marginTop: 4 }}>
+              {/* 农历 + 星期（主日期下方，并列突出） */}
+              <div style={{ padding: '0 12px 12px', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
                   {selectedLunarSlot != null ? (
-                    <>
-                      <Text>{yearToChinese(selectedLunarSlot.lunarYear)}年</Text>
-                      <Text style={{ marginLeft: 4 }}>
-                        {selectedLunarSlot.isLeapMonth ? '闰' : ''}{LUNAR_MONTH_NAMES[selectedLunarSlot.lunarMonth - 1]}月
-                      </Text>
-                      <Text style={{ marginLeft: 4 }}>{lunarDayStr(selectedLunarSlot.dayOfMonth)}日</Text>
-                    </>
+                    <>农历{yearToChinese(selectedLunarSlot.lunarYear)}年{selectedLunarSlot.isLeapMonth ? '闰' : ''}{LUNAR_MONTH_NAMES[selectedLunarSlot.lunarMonth - 1]}月{selectedLunarSlot.daysInMonth === 30 ? '大' : '小'} {lunarDayStr(selectedLunarSlot.dayOfMonth)}日</>
                   ) : selectedLunar != null ? (
-                    <Text>{selectedLunar}</Text>
+                    <>农历 {selectedLunar}</>
                   ) : (
-                    <Text type="secondary">—</Text>
+                    <Text type="secondary">农历 —</Text>
                   )}
                 </div>
-              </div>
-              {/* 干支历(八字)的年月日时 */}
-              <div style={{ fontSize: 14 }}>
-                <Text type="secondary" style={{ fontSize: 11 }}>干支历（八字）的年月日时</Text>
-                <div style={{ fontVariantNumeric: 'tabular-nums', marginTop: 4 }}>
-                  {[
-                    selectedGanzhi?.yearName && /^[\u4e00-\u9fa5]{2}$/.test(selectedGanzhi.yearName) ? `${selectedGanzhi.yearName}${zodiac != null ? `[${zodiac}]` : ''}年` : '—年',
-                    selectedGanzhi?.monthName && /^[\u4e00-\u9fa5]{2}$/.test(selectedGanzhi.monthName) ? `${selectedGanzhi.monthName}月` : '—月',
-                    selectedGanzhi?.dayName != null && /^[\u4e00-\u9fa5]{2}$/.test(selectedGanzhi?.dayName ?? '') ? `${selectedGanzhi.dayName}日` : '—日',
-                    hourGanzhi ? `${hourGanzhi}时` : '—时',
-                  ].join('，')}
+                <div style={{ fontSize: 13, fontWeight: 600 }}>
+                  星期{WEEKDAY_NAMES[weekdayIndex]}
                 </div>
-                <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.65)', marginTop: 6 }}>
-                  <Text type="secondary" style={{ fontSize: 11 }}>时宪历（日96刻，每刻15分60秒）</Text>
-                  {isLiveMode ? <ShixianFromLiveTime /> : <div style={{ marginTop: 2 }}>{formatShixianKe(displayHour, displayMinute, displaySecond)}</div>}
+                <Text type="secondary" style={{ fontSize: 11 }}>第{dayOfYear}天，第{weekOfYear}周</Text>
+                {isSelectedToday && isLiveMode && <Tag color="blue" style={{ marginTop: 6 }}>今天</Tag>}
+              </div>
+              {/* 底部：干支历、时宪历（紧凑网格块） */}
+              <div style={{ padding: '10px 12px 12px', display: 'grid', gap: '8px 12px', gridTemplateColumns: '1fr 1fr', alignItems: 'start' }}>
+                <div>
+                  <Text type="secondary" style={{ fontSize: 10, display: 'block', marginBottom: 2 }}>干支历</Text>
+                  <div style={{ fontSize: 12, lineHeight: 1.5, fontVariantNumeric: 'tabular-nums' }}>
+                    {[
+                      selectedGanzhi?.yearName && /^[\u4e00-\u9fa5]{2}$/.test(selectedGanzhi.yearName) ? `${selectedGanzhi.yearName}${zodiac != null ? `[${zodiac}]` : ''}年` : '—',
+                      selectedGanzhi?.monthName && /^[\u4e00-\u9fa5]{2}$/.test(selectedGanzhi.monthName) ? `${selectedGanzhi.monthName}月` : '—',
+                      selectedGanzhi?.dayName != null && /^[\u4e00-\u9fa5]{2}$/.test(selectedGanzhi?.dayName ?? '') ? `${selectedGanzhi.dayName}日` : '—',
+                      hourGanzhi ? `${hourGanzhi}时` : '—',
+                    ].join(' ')}
+                  </div>
+                </div>
+                <div>
+                  <Text type="secondary" style={{ fontSize: 10, display: 'block', marginBottom: 2 }}>时宪历</Text>
+                  <div style={{ fontSize: 12, lineHeight: 1.5, fontVariantNumeric: 'tabular-nums' }}>
+                    {isLiveMode ? <ShixianFromLiveTime /> : formatShixianKe(displayHour, displayMinute, displaySecond)}
+                  </div>
                 </div>
               </div>
             </Card>
