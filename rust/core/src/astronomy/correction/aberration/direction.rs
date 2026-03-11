@@ -31,13 +31,14 @@ fn normalize(v: [Real; 3]) -> [Real; 3] {
     [v[0] / n, v[1] / n, v[2] / n]
 }
 
-/// 年光行差：真方向 r、地心速度 v（AU/day），返回视方向单位向量。
+/// 年光行差：几何方向 r、地心速度 v（AU/day），返回视方向单位向量。
+/// 约定：e 为观测者到源的几何方向；视方向 e' = e + (1/c)[v − (e·v)e]（文献 e.g. doc/6）。
 pub fn annual_aberration_direction(r: [Real; 3], v: [Real; 3]) -> [Real; 3] {
     let e = normalize(r);
     let edotv = dot(e, v);
     let one_over_c = real(1.0) / constant::light_speed_au_per_day();
     let correction = sub(v, scale(edotv, e));
-    let e_corrected = sub(e, scale(one_over_c, correction));
+    let e_corrected = add(e, scale(one_over_c, correction));
     normalize(e_corrected)
 }
 
@@ -62,9 +63,9 @@ pub fn annual_aberration_direction_derivative(
         one_over_c,
         sub(dv_dt, add(scale(dedotv_dt, e), scale(edotv, de_dt))),
     );
-    let df_dt = sub(de_dt, correction_dt);
+    let df_dt = add(de_dt, correction_dt);
     let correction = scale(one_over_c, sub(v, scale(edotv, e)));
-    let f = sub(e, correction);
+    let f = add(e, correction);
     let f_norm = norm(f);
     if f_norm <= real(0.0) {
         return [real(0.0), real(0.0), real(0.0)];

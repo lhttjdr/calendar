@@ -40,3 +40,36 @@
 | 农历 | calendar::chinese_lunar |
 
 测试：Vsop87、ELPMPP02、Nutation、TimePoint、农历等均有对应 Rust 测试模块。
+
+## 11.4 Real 底层切换方案比较
+
+目标：在**编译时**在 twofloat（double-double）与 f64 之间切换标量类型 `Real`，便于 wasm 用 f64 减体积/提速、桌面或测试用 twofloat 保精度。
+
+### 方案概览
+
+| 维度       | 方案 A：条件编译两套实现           | 方案 B：泛型 Real\<R: Backend\> + 单份 impl |
+|------------|------------------------------------|---------------------------------------------|
+| 核心做法   | `#[cfg(feature = "real-f64")]` 下整份 Real 换实现 | `struct Real<R>(R)`，`impl<R: Backend> RealOps for Real<R>`，`type Real = Real<TwoFloat>` / `Real<F64>` |
+| 上层改动   | 无                                 | 无（对外仍是 `Real` type alias）             |
+| 重复代码   | 多（几乎所有 Real 的 impl 写两遍） | 少（只有 Backend 的“适配层”各写一份）      |
+| 扩展第三后端 | 再加一套 cfg + 第三份 impl        | 仅新类型 impl Backend，Real 不动            |
+
+**方案 A**：条件编译两套实现；实现路径直观、const 友好，但重复多、扩展成本高。**方案 B**：泛型 Real\<R: Backend\> + 单份 impl；无重复逻辑、扩展性好，但需划清 Backend 与 RealOps 边界、注意 const 与单态化。两种方案都**不能**在运行时动态切换，只能通过 Cargo feature 在编译时选一个后端。短期二选一且少动架构可选 A；预期多后端或长期维护可选 B。
+
+## 11.5 f64 使用约定与审计（Rust core）
+
+约定：core 内标量一律 **Real**；f64 仅出现在：`math/real` 内部、与 `[f64;3]`/矩阵/线性代数交互时在写入处 `.as_f64()`、以及 wasm/FFI 导出层。
+
+- **已按约定**：precession/nutation/apparent 入口用 `impl ToReal`，内部仅在需 f64 处 `.as_f64()`。
+- **边界/可接受**：math/real、旋转矩阵与向量、常量表、NUTATION_OVERRIDE、jd_from_t_cent、vondrak2011 内部、测试与解析。
+- **可后续收紧**：fundamental_arguments(t)、nutation_77(t)、approximate_new_moon_jd 返回值、longitude 步长常量等可改为 `impl ToReal` 或返回 Real；矩阵/向量交界处保持“用 Real 填入时 .as_f64()”。
+
+**自检清单**：新函数标量优先 `Real` 或 `impl ToReal`；入口层不一路传 t_f64；矩阵/向量用 `x.as_f64()` 填入。
+
+## 11.6 物理量与类型审计（历史）
+
+**历史审计**：原实现中 astronomy 下使用 Decimal、元组处的排查，建议有物理概念的改为物理量（`PlaneAngle`、`Length`、`Duration`、`Position`、`Velocity` 等）。
+
+- **建议改为物理量**：大气折射角度入参/返回、章动 (Δψ, Δε)、坐标点各字段、光行时 initialDistance、合朔/节气中的 prevSunDist/prevMoonDist、TimeScaleContext.deltaT 返回值等。
+- **可保留或轻量改进**：时间与归一化时间、历表/级数内部、矩阵/向量运算、无量纲或约定单位、容差/配置。
+- **Rust core 部分**：角度/长度/角速度/时间等可用 `PlaneAngle`/`Length`/`AngularRate`/`Duration` 替代的裸 f64，多数已在实施顺序中完成（大气折射、定气定朔容差、常量角速度、delta_t、fundamental_arguments、sun_position_icrs 等已做）。

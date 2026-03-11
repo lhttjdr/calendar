@@ -1,12 +1,13 @@
 //! ELPMPP02/VSOP87 vs JPL DE406：Rust 测试内实时调用 Python/jplephem，内存传递，无需 CSV。
 //! 运行：PYO3_PYTHON=.venv/bin/python cargo test elpmpp02_vs_jpl_de406_python
 //!      PYO3_PYTHON=... cargo test vsop87_vs_jpl_de406_python
+//!      PYO3_PYTHON=... cargo test de406_rust_vs_python_de406
 
 #![cfg(all(test, not(target_arch = "wasm32"), feature = "python-test"))]
 
 use super::*;
 use crate::astronomy::apparent::sun_position_icrs;
-use crate::astronomy::ephemeris::{load_earth_vsop87, Vsop87};
+use crate::astronomy::ephemeris::{load_earth_vsop87, De406Kernel, Vsop87};
 use crate::astronomy::time::{TimePoint, TimeScale};
 use crate::math::real::{real, RealOps};
 use crate::platform::DataLoaderNative;
@@ -169,6 +170,51 @@ def run_sun_icrs(ephem_path, jd_list):
         earth_ssb = emb_ssb + earth_emb
         x, y, z = (sun_ssb - earth_ssb)
         out.append([jd, float(x), float(y), float(z)])
+    return out, ''
+";
+
+/// DE406 地心日、地心月 ICRS (km, km/s)，用于 Rust DE406 与 Python/jplephem 直接核对（不经过 CSV）。
+const PY_CODE_DE406_GEOCENTRIC: &str = r"
+import os
+def run_geocentric(bsp_path, jd_list):
+    try:
+        from jplephem.spk import SPK
+    except ImportError as e:
+        return [], 'jplephem import failed: ' + str(e)
+    if not os.path.isfile(bsp_path):
+        return [], 'BSP path is not a file: ' + repr(bsp_path)
+    try:
+        with open(bsp_path, 'rb') as f:
+            head = f.read(8)
+        if head.startswith(b'JPL PLAN') or head.startswith(b'JPL EPHEM'):
+            return [], 'file is legacy JPL format; need de406.bsp (SPK)'
+    except Exception:
+        pass
+    try:
+        kernel = SPK.open(bsp_path)
+        kernel[0, 10].compute_and_differentiate(jd_list[0])
+        kernel[0, 3].compute_and_differentiate(jd_list[0])
+        kernel[3, 399].compute_and_differentiate(jd_list[0])
+        kernel[3, 301].compute_and_differentiate(jd_list[0])
+    except Exception as e:
+        return [], 'SPK.open or segments failed: ' + str(e)
+    # jplephem compute_and_differentiate 返回速度为 km/day，转为 km/s 与 Rust 一致
+    SEC_PER_DAY = 86400.0
+    out = []
+    for jd in jd_list:
+        sun_pos, sun_vel = kernel[0, 10].compute_and_differentiate(jd)
+        emb_pos, emb_vel = kernel[0, 3].compute_and_differentiate(jd)
+        earth_emb_pos, earth_emb_vel = kernel[3, 399].compute_and_differentiate(jd)
+        earth_pos = emb_pos + earth_emb_pos
+        earth_vel = emb_vel + earth_emb_vel
+        sx, sy, sz = (sun_pos - earth_pos)
+        svx, svy, svz = (sun_vel - earth_vel) / SEC_PER_DAY
+        moon_pos, moon_vel = kernel[3, 301].compute_and_differentiate(jd)
+        earth_emb_pos, earth_emb_vel = kernel[3, 399].compute_and_differentiate(jd)
+        mx, my, mz = (moon_pos - earth_emb_pos)
+        mvx, mvy, mvz = (moon_vel - earth_emb_vel) / SEC_PER_DAY
+        out.append([jd, float(sx), float(sy), float(sz), float(svx), float(svy), float(svz),
+                    float(mx), float(my), float(mz), float(mvx), float(mvy), float(mvz)])
     return out, ''
 ";
 
@@ -451,5 +497,112 @@ fn vsop87_vs_jpl_de406_python() {
             "JD {} VSOP87+patch=({:.3},{:.3},{:.3}) DE406=({:.3},{:.3},{:.3}) |dr|={:.2} km tol={}",
             jd, x_vsop, y_vsop, z_vsop, x_jpl, y_jpl, z_jpl, dr_km, TOL_KM
         );
+    }
+}
+
+/// Rust DE406（本仓库 BSP 读取）vs Python/jplephem DE406：同一 BSP、同一 JD，地心日/月 ICRS (km, km/s) 直接对比，不经过 CSV。
+#[test]
+fn de406_rust_vs_python_de406() {
+    if std::env::var("PYO3_PYTHON").is_err() {
+        println!("de406_rust_vs_python_de406: skipped (PYO3_PYTHON not set)");
+        return;
+    }
+    set_python_home_if_requested();
+    let base = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let bsp_path: String = std::env::var("DE406_BSP")
+        .ok()
+        .filter(|p| std::path::Path::new(p).is_file())
+        .or_else(|| {
+            let p = base.join("data/jpl/de406/de406.bsp");
+            if p.is_file() {
+                Some(p.to_string_lossy().into_owned())
+            } else {
+                base.join("data/jpl/de406.bsp")
+                    .is_file()
+                    .then(|| base.join("data/jpl/de406.bsp").to_string_lossy().into_owned())
+            }
+        })
+        .unwrap_or_else(|| base.join("data/jpl").to_string_lossy().into_owned());
+    if !std::path::Path::new(&bsp_path).is_file() {
+        println!("de406_rust_vs_python_de406: skipped (no DE406 BSP file at DE406_BSP or data/jpl/de406.bsp or data/jpl/de406/de406.bsp)");
+        return;
+    }
+    let jds: Vec<f64> = vec![2444239.5, 2451545.0, 2451545.5, 2455000.0, 2457397.5];
+
+    let (py_rows, _err): (Vec<Vec<f64>>, String) = match pyo3::Python::with_gil(|py| -> pyo3::PyResult<(Vec<Vec<f64>>, String)> {
+        #[allow(deprecated)]
+        let mod_ = pyo3::types::PyModule::from_code_bound(py, PY_CODE_DE406_GEOCENTRIC, "de406_geocentric.py", "de406_geocentric")?;
+        let func = mod_.getattr("run_geocentric")?;
+        let tuple = func.call1((bsp_path.as_str(), jds.clone()))?;
+        tuple.extract()
+    }) {
+        Ok((rows, _)) if !rows.is_empty() => (rows, String::new()),
+        Ok((_, msg)) => {
+            println!("de406_rust_vs_python_de406: skipped ({})", if msg.is_empty() { "no rows" } else { msg.trim() });
+            return;
+        }
+        Err(e) => {
+            println!("de406_rust_vs_python_de406: skipped (Python error: {})", e);
+            return;
+        }
+    };
+
+    let kernel = match De406Kernel::open(&bsp_path) {
+        Ok(k) => k,
+        Err(e) => {
+            println!("de406_rust_vs_python_de406: skipped (Rust open BSP failed: {})", e);
+            return;
+        }
+    };
+
+    const TOL_POS_KM: f64 = 1e-6;  // 1 mm
+    const TOL_VEL_KM_S: f64 = 1e-6;
+    println!("JD(TDB)     Rust DE406 vs Python/jplephem: 太阳/月球 ICRS (km, km/s) 残差");
+    for row in &py_rows {
+        if row.len() < 13 {
+            continue;
+        }
+        let jd = row[0];
+        let (ps_km, vs_km_s) = match kernel.geocentric_sun(jd) {
+            Ok(pv) => (pv.0, pv.1),
+            Err(e) => {
+                panic!("Rust geocentric_sun({}) failed: {}", jd, e);
+            }
+        };
+        let (pm_km, vm_km_s) = match kernel.geocentric_moon(jd) {
+            Ok(pv) => (pv.0, pv.1),
+            Err(e) => {
+                panic!("Rust geocentric_moon({}) failed: {}", jd, e);
+            }
+        };
+        let rust_sun = [ps_km[0] / 1000.0, ps_km[1] / 1000.0, ps_km[2] / 1000.0];
+        let rust_sun_v = [vs_km_s[0] / 1000.0, vs_km_s[1] / 1000.0, vs_km_s[2] / 1000.0];
+        let rust_moon = [pm_km[0] / 1000.0, pm_km[1] / 1000.0, pm_km[2] / 1000.0];
+        let rust_moon_v = [vm_km_s[0] / 1000.0, vm_km_s[1] / 1000.0, vm_km_s[2] / 1000.0];
+        let py_sun = [row[1], row[2], row[3]];
+        let py_sun_v = [row[4], row[5], row[6]];
+        let py_moon = [row[7], row[8], row[9]];
+        let py_moon_v = [row[10], row[11], row[12]];
+        for i in 0..3 {
+            let d = rust_sun[i] - py_sun[i];
+            assert!(d.abs() <= TOL_POS_KM, "JD {} Sun pos[{}] Rust={} Py={} diff={}", jd, i, rust_sun[i], py_sun[i], d);
+        }
+        for i in 0..3 {
+            let d = rust_sun_v[i] - py_sun_v[i];
+            assert!(d.abs() <= TOL_VEL_KM_S, "JD {} Sun vel[{}] Rust={} Py={} diff={}", jd, i, rust_sun_v[i], py_sun_v[i], d);
+        }
+        for i in 0..3 {
+            let d = rust_moon[i] - py_moon[i];
+            assert!(d.abs() <= TOL_POS_KM, "JD {} Moon pos[{}] Rust={} Py={} diff={}", jd, i, rust_moon[i], py_moon[i], d);
+        }
+        for i in 0..3 {
+            let d = rust_moon_v[i] - py_moon_v[i];
+            assert!(d.abs() <= TOL_VEL_KM_S, "JD {} Moon vel[{}] Rust={} Py={} diff={}", jd, i, rust_moon_v[i], py_moon_v[i], d);
+        }
+        let (dxs, dys, dzs) = (rust_sun[0] - py_sun[0], rust_sun[1] - py_sun[1], rust_sun[2] - py_sun[2]);
+        let (dxm, dym, dzm) = (rust_moon[0] - py_moon[0], rust_moon[1] - py_moon[1], rust_moon[2] - py_moon[2]);
+        let dr_sun = (dxs * dxs + dys * dys + dzs * dzs).sqrt();
+        let dr_moon = (dxm * dxm + dym * dym + dzm * dzm).sqrt();
+        println!("  {:.1}   Sun |dr|={:.2e} km   Moon |dr|={:.2e} km", jd, dr_sun, dr_moon);
     }
 }

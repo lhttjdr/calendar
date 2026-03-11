@@ -266,6 +266,57 @@ pub fn nutation_for_apparent(t: impl ToReal) -> (PlaneAngle, PlaneAngle) {
     })
 }
 
+/// 若 loader 能加载 path（tab5.3a），则启用完整 IAU2000A 章动；否则保持 77 项。应用/管线初始化时调用一次。
+/// 与星历表一样通过 [`load::load_iau2000a`] 加载数据表。
+#[cfg(not(target_arch = "wasm32"))]
+pub fn try_init_full_nutation(
+    loader: &dyn crate::platform::DataLoader,
+    path: &str,
+) -> bool {
+    match super::load::load_iau2000a(loader, path) {
+        Ok(iau) => {
+            set_nutation_override(Some(Box::new(move |t| iau.nutation(t))));
+            true
+        }
+        Err(_) => false,
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn try_init_full_nutation(
+    loader: &dyn crate::platform::DataLoader,
+    path: &str,
+) -> bool {
+    match super::load::load_iau2000a(loader, path) {
+        Ok(iau) => {
+            set_nutation_override(Some(Box::new(move |t| iau.nutation(t))));
+            true
+        }
+        Err(_) => false,
+    }
+}
+
+/// 从二进制 buffer 启用完整章动（.bin 或解压后的 .br），与星历表 from_binary 一致。成功返回 true。
+pub fn try_init_full_nutation_from_binary(bytes: &[u8]) -> bool {
+    match super::load::load_iau2000a_from_binary(bytes) {
+        Ok(iau) => {
+            set_nutation_override(Some(Box::new(move |t| iau.nutation(t))));
+            true
+        }
+        Err(_) => false,
+    }
+}
+
+/// 在闭包内临时使用 77 项章动（用于迭代粗算阶段），执行完后恢复原覆盖。
+pub fn with_nutation_77<R, F: FnOnce() -> R>(f: F) -> R {
+    NUTATION_OVERRIDE.with(|cell| {
+        let prev = RefCell::replace(cell, None);
+        let out = f();
+        let _ = RefCell::replace(cell, prev);
+        out
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -3,9 +3,13 @@
 
 use std::cmp::Ordering;
 
-use crate::astronomy::apparent::{moon_apparent_ecliptic_longitude, sun_apparent_ecliptic_longitude};
+use crate::astronomy::apparent::{
+    moon_apparent_ecliptic_longitude_with_options, moon_apparent_ecliptic_longitude_de406_with_options,
+    sun_apparent_ecliptic_longitude_with_options, sun_apparent_ecliptic_longitude_de406_with_options,
+    ApparentPipelineOptions,
+};
 use crate::astronomy::aspects::{moon_ecliptic_longitude_with_max_terms, sun_ecliptic_longitude};
-use crate::astronomy::ephemeris::{Elpmpp02Data, Vsop87};
+use crate::astronomy::ephemeris::{De406Kernel, Elpmpp02Data, Vsop87};
 use crate::astronomy::time::{TimePoint, TimeScale};
 use crate::math::real::{real_const, real, Real, RealOps};
 use crate::quantity::angular_rate::AngularRate;
@@ -110,15 +114,21 @@ fn longitude_difference_geometric_unwrapped(
     }
 }
 
-/// 视黄经差（月−日）在合朔处为 0，用于二分法求根。
+/// 定朔用管线选项：含月球光行时（use_light_time_moon），满足 GB/T 33661-2017 约 1 s 精度。
+fn synodic_apparent_options() -> ApparentPipelineOptions {
+    ApparentPipelineOptions::pipeline_default()
+}
+
+/// 视黄经差（月−日）在合朔处为 0，用于二分法求根。使用 pipeline_default（含月球光行时 tr 迭代）。
 fn residual_apparent_longitude_diff(
     vsop: &Vsop87,
     elp: &Elpmpp02Data,
     jd: Real,
 ) -> Real {
     let t = TimePoint::new(TimeScale::TT, jd);
-    let moon_lam = moon_apparent_ecliptic_longitude(elp, t).rad();
-    let sun_lam = sun_apparent_ecliptic_longitude(vsop, t).rad();
+    let opts = synodic_apparent_options();
+    let moon_lam = moon_apparent_ecliptic_longitude_with_options(elp, t, &opts).rad();
+    let sun_lam = sun_apparent_ecliptic_longitude_with_options(vsop, t, &opts).rad();
     (moon_lam - sun_lam).wrap_to_signed_pi()
 }
 
@@ -156,6 +166,204 @@ fn new_moon_jd_bisection(
     (lo + hi) * real_const(0.5)
 }
 
+/// 视黄经差（月−日）残差，DE406 历表路径。
+fn residual_apparent_longitude_diff_de406(
+    kernel: &De406Kernel,
+    jd: Real,
+    options: &ApparentPipelineOptions,
+) -> Real {
+    let t = TimePoint::new(TimeScale::TT, jd);
+    let moon_lam = moon_apparent_ecliptic_longitude_de406_with_options(kernel, t, options).rad();
+    let sun_lam = sun_apparent_ecliptic_longitude_de406_with_options(kernel, t, options).rad();
+    (moon_lam - sun_lam).wrap_to_signed_pi()
+}
+
+fn new_moon_jd_bisection_de406_with_options(
+    kernel: &De406Kernel,
+    jd_lo: Real,
+    jd_hi: Real,
+    tolerance: PlaneAngle,
+    max_iterations: usize,
+    options: &ApparentPipelineOptions,
+) -> Real {
+    let tol_r = tolerance.rad();
+    let mut lo = jd_lo;
+    let mut hi = jd_hi;
+    let mut r_lo = residual_apparent_longitude_diff_de406(kernel, lo, options);
+    let r_hi = residual_apparent_longitude_diff_de406(kernel, hi, options);
+    if r_lo * r_hi > real_const(0.0) {
+        return (lo + hi) * real_const(0.5);
+    }
+    for _ in 0..max_iterations {
+        let mid = (lo + hi) * real_const(0.5);
+        let r_mid = residual_apparent_longitude_diff_de406(kernel, mid, options);
+        if r_mid.abs() <= tol_r {
+            return mid;
+        }
+        if r_mid * r_lo > real_const(0.0) {
+            lo = mid;
+            r_lo = r_mid;
+        } else {
+            hi = mid;
+        }
+    }
+    (lo + hi) * real_const(0.5)
+}
+
+/// 二分法求定朔，DE406 历表。
+fn new_moon_jd_bisection_de406(
+    kernel: &De406Kernel,
+    jd_lo: Real,
+    jd_hi: Real,
+    tolerance: PlaneAngle,
+    max_iterations: usize,
+) -> Real {
+    new_moon_jd_bisection_de406_with_options(
+        kernel,
+        jd_lo,
+        jd_hi,
+        tolerance,
+        max_iterations,
+        &synodic_apparent_options(),
+    )
+}
+
+/// 仅精算阶段：从 t_approx 出发，用 DE406 视黄经 + 数值导数求合朔 JD。
+pub fn new_moon_jd_fine_de406_with_options(
+    kernel: &De406Kernel,
+    t_approx: TimePoint,
+    tolerance: PlaneAngle,
+    max_iterations: usize,
+    options: &ApparentPipelineOptions,
+) -> Real {
+    let tol_r = tolerance.rad();
+    let mut jd = t_approx.to_scale(TimeScale::TT).jd;
+    for _ in 0..max_iterations {
+        let t = TimePoint::new(TimeScale::TT, jd);
+        let moon_lam = moon_apparent_ecliptic_longitude_de406_with_options(kernel, t, options).rad();
+        let sun_lam = sun_apparent_ecliptic_longitude_de406_with_options(kernel, t, options).rad();
+        let residual_r = (moon_lam - sun_lam).wrap_to_signed_pi();
+        if residual_r.abs() <= tol_r {
+            return jd;
+        }
+        let t_lo = TimePoint::new(TimeScale::TT, jd - NUMERICAL_DELTA_JD);
+        let t_hi = TimePoint::new(TimeScale::TT, jd + NUMERICAL_DELTA_JD);
+        let moon_lo = moon_apparent_ecliptic_longitude_de406_with_options(kernel, t_lo, options).rad();
+        let sun_lo = sun_apparent_ecliptic_longitude_de406_with_options(kernel, t_lo, options).rad();
+        let moon_hi = moon_apparent_ecliptic_longitude_de406_with_options(kernel, t_hi, options).rad();
+        let sun_hi = sun_apparent_ecliptic_longitude_de406_with_options(kernel, t_hi, options).rad();
+        let diff_lo = (moon_lo - sun_lo).wrap_to_signed_pi();
+        let diff_hi = (moon_hi - sun_hi).wrap_to_signed_pi();
+        let mut d_diff = diff_hi - diff_lo;
+        if d_diff > real(core::f64::consts::PI) {
+            d_diff = d_diff - TAU_R;
+        } else if d_diff < real(-core::f64::consts::PI) {
+            d_diff = d_diff + TAU_R;
+        }
+        let two_delta: Real = real_const(2.0) * NUMERICAL_DELTA_JD;
+        let velocity = d_diff / two_delta;
+        let safe_velocity = if velocity.abs() < real_const(0.01) {
+            real_const(0.13)
+        } else {
+            velocity
+        };
+        jd -= residual_r / safe_velocity;
+    }
+    jd
+}
+
+/// 仅精算阶段，使用 pipeline_default（含月球光行时）。
+pub fn new_moon_jd_fine_de406(
+    kernel: &De406Kernel,
+    t_approx: TimePoint,
+    tolerance: PlaneAngle,
+    max_iterations: usize,
+) -> Real {
+    new_moon_jd_fine_de406_with_options(
+        kernel,
+        t_approx,
+        tolerance,
+        max_iterations,
+        &synodic_apparent_options(),
+    )
+}
+
+/// 定朔（DE406 BSP 历表）：求月视黄经 − 日视黄经 = 0 的 JD(TT)。仅精算，无粗算。
+pub fn new_moon_jd_de406(
+    kernel: &De406Kernel,
+    t_approx: TimePoint,
+    tolerance: PlaneAngle,
+    max_iterations: usize,
+) -> Real {
+    new_moon_jd_fine_de406(kernel, t_approx, tolerance, max_iterations)
+}
+
+/// 定朔（DE406）：[jd_start, jd_end] 内所有合朔 JD(TT)，升序。牛顿失败时用二分法后备。
+pub fn new_moon_jds_in_range_de406(
+    kernel: &De406Kernel,
+    jd_start: Real,
+    jd_end: Real,
+    tolerance: PlaneAngle,
+    max_iterations: usize,
+) -> Vec<Real> {
+    new_moon_jds_in_range_de406_with_options(
+        kernel,
+        jd_start,
+        jd_end,
+        tolerance,
+        max_iterations,
+        &synodic_apparent_options(),
+    )
+}
+
+/// 同上，可指定 pipeline 选项（如岁差/章动历元 TDB 以与 TDBtimes 对照）。
+pub fn new_moon_jds_in_range_de406_with_options(
+    kernel: &De406Kernel,
+    jd_start: Real,
+    jd_end: Real,
+    tolerance: PlaneAngle,
+    max_iterations: usize,
+    options: &ApparentPipelineOptions,
+) -> Vec<Real> {
+    if jd_end < jd_start {
+        return vec![];
+    }
+    let epoch = NEW_MOON_W0_EPOCH_JD;
+    let month = MEAN_SYNODIC_MONTH_W0;
+    let n0 = ((jd_start - epoch) / month).to_i32_floor();
+    let n_end_approx = ((jd_end - epoch) / month).to_i32_floor() + 2;
+    let mut out: Vec<Real> = Vec::new();
+    for n in n0..=n_end_approx {
+        let approx = approximate_new_moon_jd(n);
+        let jd = new_moon_jd_fine_de406_with_options(
+            kernel,
+            TimePoint::new(TimeScale::TT, approx),
+            tolerance,
+            max_iterations,
+            options,
+        );
+        let jd_f = jd.as_f64();
+        let valid = jd_f.is_finite()
+            && (jd_f - approx.as_f64()).abs() < MAX_REFINED_OFFSET_DAYS;
+        let jd_use = if valid {
+            jd
+        } else {
+            new_moon_jd_bisection_de406_with_options(
+                kernel,
+                approx - BISECT_HALF_WIDTH_DAYS,
+                approx + BISECT_HALF_WIDTH_DAYS,
+                tolerance,
+                max_iterations,
+                options,
+            )
+        };
+        if jd_use >= jd_start && jd_use <= jd_end {
+            out.push(jd_use);
+        }
+    }
+    out
+}
+
 /// 仅精算阶段：从 t_approx 出发，用视黄经 + 数值导数求合朔 JD。供粗算后调用或直接使用。
 /// 收敛判断在 R 上做，天文层不把 tolerance 转为 f64。
 pub fn new_moon_jd_fine(
@@ -166,21 +374,22 @@ pub fn new_moon_jd_fine(
     max_iterations: usize,
 ) -> Real {
     let tol_r = tolerance.rad();
+    let opts = synodic_apparent_options();
     let mut jd = t_approx.to_scale(TimeScale::TT).jd;
     for _ in 0..max_iterations {
         let t = TimePoint::new(TimeScale::TT, jd);
-        let moon_lam = moon_apparent_ecliptic_longitude(elp, t).rad();
-        let sun_lam = sun_apparent_ecliptic_longitude(vsop, t).rad();
+        let moon_lam = moon_apparent_ecliptic_longitude_with_options(elp, t, &opts).rad();
+        let sun_lam = sun_apparent_ecliptic_longitude_with_options(vsop, t, &opts).rad();
         let residual_r = (moon_lam - sun_lam).wrap_to_signed_pi();
         if residual_r.abs() <= tol_r {
             return jd;
         }
         let t_lo = TimePoint::new(TimeScale::TT, jd - NUMERICAL_DELTA_JD);
         let t_hi = TimePoint::new(TimeScale::TT, jd + NUMERICAL_DELTA_JD);
-        let moon_lo = moon_apparent_ecliptic_longitude(elp, t_lo).rad();
-        let sun_lo = sun_apparent_ecliptic_longitude(vsop, t_lo).rad();
-        let moon_hi = moon_apparent_ecliptic_longitude(elp, t_hi).rad();
-        let sun_hi = sun_apparent_ecliptic_longitude(vsop, t_hi).rad();
+        let moon_lo = moon_apparent_ecliptic_longitude_with_options(elp, t_lo, &opts).rad();
+        let sun_lo = sun_apparent_ecliptic_longitude_with_options(vsop, t_lo, &opts).rad();
+        let moon_hi = moon_apparent_ecliptic_longitude_with_options(elp, t_hi, &opts).rad();
+        let sun_hi = sun_apparent_ecliptic_longitude_with_options(vsop, t_hi, &opts).rad();
         let diff_lo = (moon_lo - sun_lo).wrap_to_signed_pi();
         let diff_hi = (moon_hi - sun_hi).wrap_to_signed_pi();
         let mut d_diff = diff_hi - diff_lo;
@@ -338,17 +547,19 @@ mod tests {
     use crate::astronomy::constant::J2000;
     use crate::astronomy::ephemeris::{load_all, load_earth_vsop87, Elpmpp02Correction};
     use crate::astronomy::frame::nutation;
-    use crate::astronomy::frame::nutation::iau2000a::Iau2000a;
-    use crate::astronomy::frame::nutation::table_parser;
     use crate::astronomy::time::TimeScale;
     use crate::calendar::gregorian::Gregorian;
     use crate::platform::DataLoaderNative;
     use std::io::BufRead;
     use std::path::Path;
 
-    /// 从 data/TDBtimes.txt 加载指定年份的 12 定朔 JD(TDB)。列序：Q0_02..Q0_13，索引 31+4*i。
-    fn load_tdbtimes_new_moons(base_path: &Path, year: i32) -> Option<Vec<f64>> {
-        let path = base_path.join("data/TDBtimes.txt");
+    /// 《月相和二十四节气的计算》§7.4 节气朔望标准时刻表路径（与 term_jd 共用同一表）。
+    /// 参考表计算方法：DE441 历表 + 光行时 + IAU2006 岁差 + IAU2000A 章动，求 λ_M−λ_S = 0 的 TDB 时刻（朔）。
+    const SOLAR_TERMS_REFERENCE_PATH: &str = "data/月相和二十四节气的计算/TDBtimes.txt";
+
+    /// 从节气朔望标准时刻表加载指定年份的 12 定朔 JD(TDB)。列序：Q0_02..Q0_13，索引 31+4*i。
+    fn load_new_moons_reference_jd(base_path: &Path, year: i32) -> Option<Vec<f64>> {
+        let path = base_path.join(SOLAR_TERMS_REFERENCE_PATH);
         let f = std::fs::File::open(path).ok()?;
         let mut lines = std::io::BufReader::new(f).lines();
         lines.next(); // skip header
@@ -374,34 +585,29 @@ mod tests {
         None
     }
 
-    /// 定朔测试：2026 年 12 朔 vs data/TDBtimes.txt，容差 3 s。
+    /// 定朔测试：2026 年 12 朔与《月相和二十四节气的计算》§7.4 节气朔望标准时刻表对照，容差 3 s。
     #[test]
-    fn new_moon_2026_vs_tdbtimes() {
+    fn new_moon_2026_vs_reference() {
         let base = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let loader = DataLoaderNative::new(&base);
         let vsop = match load_earth_vsop87(&loader, "data/vsop87/VSOP87B.ear") {
             Ok(v) => v,
             Err(_) => {
-                println!("new_moon_2026_vs_tdbtimes: skipped (data/vsop87/VSOP87B.ear not found)");
+                println!("new_moon_2026_vs_reference: skipped (data/vsop87/VSOP87B.ear not found)");
                 return;
             }
         };
         let elp = match load_all(&loader, "data/elpmpp02", Elpmpp02Correction::DE406) {
             Ok(e) => e,
             Err(_) => {
-                println!("new_moon_2026_vs_tdbtimes: skipped (data/elpmpp02 not found or load failed)");
+                println!("new_moon_2026_vs_reference: skipped (data/elpmpp02 not found or load failed)");
                 return;
             }
         };
-        match table_parser::load_tab53a(&loader, "data/IAU2000/tab5.3a.txt") {
-            Ok(quads) if !quads.is_empty() => {
-                let n = quads.len();
-                let iau = Iau2000a::from_quads(quads);
-                nutation::set_nutation_override(Some(Box::new(move |t| iau.nutation(t))));
-                println!("  [章动] 已加载 data/IAU2000/tab5.3a.txt ({} 项)，定朔用完整 IAU2000A", n);
-            }
-            Ok(_) => println!("  [章动] data/IAU2000/tab5.3a.txt 为空，用 77 项"),
-            Err(e) => println!("  [章动] 未加载 data/IAU2000/tab5.3a.txt ({})，用 77 项", e),
+        if nutation::try_init_full_nutation(&loader, nutation::DEFAULT_TAB53A_PATH) {
+            println!("  [章动] 已加载 tab5.3a，定朔用完整 IAU2000A");
+        } else {
+            println!("  [章动] 未加载 tab5.3a，用 77 项");
         }
         let year = 2026;
         let jd_start = Gregorian::to_julian_day(year, 1, 1);
@@ -412,31 +618,151 @@ mod tests {
         const TOLERANCE_SEC: f64 = 3.0;
         const NUM_NEW_MOONS: usize = 6;
 
-        if let Some(ref_tdb) = load_tdbtimes_new_moons(&base, year) {
+        if let Some(ref_jd_tdb) = load_new_moons_reference_jd(&base, year) {
             assert!(
                 our_jds.len() >= NUM_NEW_MOONS,
                 "2026 应至少 {} 个朔，得 {}",
                 NUM_NEW_MOONS,
                 our_jds.len()
             );
-            println!("  [标准] 朔日参考取自 data/TDBtimes.txt (IAU2006/2000A)，容差 {} s", TOLERANCE_SEC as i32);
-            println!("  朔    本实现−TDB(s)");
+            println!("  [标准] 朔日参考取自节气朔望标准时刻表 (DE441+IAU2006/2000A)，容差 {} s", TOLERANCE_SEC as i32);
+            println!("  朔    本实现−参考TDB(s)");
             for i in 0..NUM_NEW_MOONS {
-                let ref_jd_tdb = ref_tdb[i];
+                let ref_jd_tdb = ref_jd_tdb[i];
                 let our_jd_tt = our_jds[i];
                 let our_jd_tdb = TimePoint::new(TimeScale::TT, our_jd_tt).to_scale(TimeScale::TDB).jd;
                 let diff_sec = (our_jd_tdb - ref_jd_tdb) * 86400.0;
                 println!("  {}  {:+.3}", i + 1, diff_sec);
                 assert!(
                     diff_sec.abs() <= TOLERANCE_SEC,
-                    "2026 朔 {}: 本实现−TDB = {:.3} s，超过容差 {} s",
+                    "2026 朔 {}: 本实现−参考TDB = {:.3} s，超过容差 {} s",
                     i + 1,
                     diff_sec.abs(),
                     TOLERANCE_SEC as i32
                 );
             }
         } else {
-            println!("new_moon_2026_vs_tdbtimes: data/TDBtimes.txt 无 2026 行，仅校验 2026 年内定朔计算完成");
+            println!("new_moon_2026_vs_reference: 节气朔望标准时刻表无 2026 行，仅校验 2026 年内定朔计算完成");
+            assert!(
+                our_jds.len() >= 1,
+                "2026 年内应至少 1 个朔，得 {}",
+                our_jds.len()
+            );
+        }
+        nutation::set_nutation_override(None);
+    }
+
+    /// 定朔（DE406）与《月相和二十四节气的计算》TDBtimes 对照。参考表为 DE441，本实现用 DE406；DE441 与 DE406 差异小，容差 1 s。
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn new_moon_2026_de406_vs_tdbtimes() {
+        // 仓库根：优先用脚本导出的 REPO_ROOT，否则按 manifest 相对路径解析
+        let base: std::path::PathBuf = std::env::var("REPO_ROOT")
+            .ok()
+            .and_then(|p| {
+                let path = Path::new(&p);
+                path.is_dir().then(|| path.canonicalize().ok()).flatten()
+            })
+            .unwrap_or_else(|| {
+                let base_rel = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+                if base_rel.is_absolute() {
+                    base_rel.canonicalize().unwrap_or(base_rel).into()
+                } else {
+                    std::env::current_dir()
+                        .ok()
+                        .and_then(|cwd| cwd.join(&base_rel).canonicalize().ok())
+                        .unwrap_or(base_rel)
+                        .into()
+                }
+            });
+        let bsp_path: String = std::env::var("DE406_BSP")
+            .ok()
+            .filter(|p| std::path::Path::new(p).is_file())
+            .or_else(|| {
+                let p = base.join("data/jpl/de406/de406.bsp");
+                if p.is_file() {
+                    Some(p.to_string_lossy().into_owned())
+                } else {
+                    base.join("data/jpl/de406.bsp")
+                        .is_file()
+                        .then(|| base.join("data/jpl/de406.bsp").to_string_lossy().into_owned())
+                }
+            })
+            .unwrap_or_else(|| base.join("data/jpl").to_string_lossy().into_owned());
+        if !std::path::Path::new(&bsp_path).is_file() {
+            let tried = std::env::var("DE406_BSP").ok().unwrap_or_else(|| bsp_path.clone());
+            println!(
+                "new_moon_2026_de406_vs_tdbtimes: skipped (no DE406 BSP)，已尝试: {}",
+                tried
+            );
+            return;
+        }
+        let kernel = match De406Kernel::open(&bsp_path) {
+            Ok(k) => k,
+            Err(e) => {
+                println!("new_moon_2026_de406_vs_tdbtimes: skipped (open BSP: {})", e);
+                return;
+            }
+        };
+        let loader = DataLoaderNative::new(&base);
+        if nutation::try_init_full_nutation(&loader, nutation::DEFAULT_TAB53A_PATH) {
+            println!("  [章动] 已加载 tab5.3a，DE406 定朔用完整 IAU2000A");
+        } else {
+            println!("  [章动] 未加载 tab5.3a，用 77 项");
+        }
+        let year = 2026;
+        let jd_start = Gregorian::to_julian_day(year, 1, 1);
+        let jd_end = Gregorian::to_julian_day(year, 12, 31) + real_const(1.0);
+        const MAX_ITER: usize = 30;
+        let options = ApparentPipelineOptions::pipeline_default();
+        let our_jds = new_moon_jds_in_range_de406_with_options(
+            &kernel,
+            jd_start,
+            jd_end,
+            PlaneAngle::from_rad(real_const(1e-8)),
+            MAX_ITER,
+            &options,
+        );
+        /// DE406 vs 参考表(DE441)，容差 1 s（DE441/DE406 差异小）
+        const TOLERANCE_SEC: f64 = 1.0;
+        const NUM_NEW_MOONS: usize = 6;
+        println!("  [DE406 定朔 vs TDBtimes] 容差: {} s", TOLERANCE_SEC);
+
+        if let Some(ref_jd_tdb) = load_new_moons_reference_jd(&base, year) {
+            assert!(
+                our_jds.len() >= NUM_NEW_MOONS,
+                "2026 DE406 应至少 {} 个朔，得 {}",
+                NUM_NEW_MOONS,
+                our_jds.len()
+            );
+            println!("  与 TDBtimes.txt (DE441) 对照，逐项残差 (本实现−参考，秒):");
+            println!("  朔    残差(s)");
+            let mut max_residual_sec: f64 = 0.0;
+            for i in 0..NUM_NEW_MOONS {
+                let ref_jd = ref_jd_tdb[i];
+                let our_jd_tt = our_jds[i];
+                let our_jd_tdb = TimePoint::new(TimeScale::TT, our_jd_tt).to_scale(TimeScale::TDB).jd;
+                let diff_sec = (our_jd_tdb - ref_jd) * 86400.0;
+                let residual_sec = diff_sec.abs().as_f64();
+                if residual_sec > max_residual_sec {
+                    max_residual_sec = residual_sec;
+                }
+                println!("  {}  {:+.3}", i + 1, diff_sec);
+                assert!(
+                    residual_sec <= TOLERANCE_SEC,
+                    "2026 朔 {}: DE406−参考TDB = {:.3} s，超过容差 {} s",
+                    i + 1,
+                    residual_sec,
+                    TOLERANCE_SEC as i32
+                );
+            }
+            println!("  最大残差: {:.3} s (容差 {} s)", max_residual_sec, TOLERANCE_SEC);
+        } else {
+            let ref_path = base.join(SOLAR_TERMS_REFERENCE_PATH);
+            println!(
+                "  （未找到参考表或其中无 2026 行，未输出残差）路径: {}",
+                ref_path.display()
+            );
             assert!(
                 our_jds.len() >= 1,
                 "2026 年内应至少 1 个朔，得 {}",

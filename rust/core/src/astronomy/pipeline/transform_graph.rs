@@ -1,6 +1,8 @@
 //! 状态转移路由：纯物理旋转，图搜索最短路径（文档 3.1、4.2、7.2）。
 //! 架变换使用完整 6×6 状态转移 [R R_dot; 0 R]，R_dot 为旋转对时间的导数（科里奥利项）。
 //! 下方共用段（岁差、章动、真黄赤交角）当 t 确定时变换矩阵仅依赖 t，按历元缓存。
+//!
+//! **时间尺度**：岁差（P03/Vondrak）、章动（IAU）公式规定入参 **TT**；`transform_to(_, _, jd_tt)` 的 `jd_tt` 须为 TT。
 
 use crate::astronomy::frame::precession::{
     mean_obliquity, precession_derivative_times_vector_for, precession_transform_for, PrecessionModel,
@@ -61,9 +63,9 @@ fn edge_label(from_id: &str, to_id: &str) -> Option<String> {
         ("ELPMPP02_MEAN_LUNAR", MEAN_ECLIPTIC_ECLIPTIC) => "Laskar P,Q 旋转",
         (MEAN_ECLIPTIC_EQUATOR, FK5_UNCORRECTED) => "黄赤交角 R_x(ε₀)",
         (MEAN_ECLIPTIC_ECLIPTIC, FK5_CORRECTED) => "黄赤交角 R_x(ε₀)",
-        (FK5_UNCORRECTED, "VsopToDe406IcrsFit") => "Frame bias B + DE406 拟合修正",
+        (FK5_UNCORRECTED, "VsopToDe406IcrsFit") => "Frame bias B⁻¹ + DE406 拟合修正",
         ("VsopToDe406IcrsFit", "ICRS") => "恒等",
-        ("ICRS", FK5_CORRECTED) => "B^T（Frame bias 逆）",
+        ("ICRS", FK5_CORRECTED) => "B（Frame bias，GCRS→FK5）",
         (FK5_CORRECTED, "MeanEquator(epoch)") => "岁差（P03）",
         ("MeanEquator(epoch)", "TrueEquator(epoch)") => "章动",
         ("TrueEquator(epoch)", "ApparentEcliptic(epoch)") => "R_x(ε) 真黄赤交角",
@@ -106,7 +108,8 @@ struct EpochTransitionsCache {
     obliquity: StateTransition6,
 }
 
-/// 历元缓存容差（日）：同一日内视为同一 t。
+/// 历元缓存容差（日）：|jd_tt - cache_key| < 此值则复用岁差/章动/黄赤交角矩阵。
+/// 1e-9 保证同一次调用内几乎只复用同一 jd；若批量算多年节气可适当放宽（如 0.01）以减少 77 项章动重算，精度影响在亚角秒级。
 const EPOCH_CACHE_TOLERANCE_DAY: f64 = 1e-9;
 
 fn fill_epoch_transitions_cache(

@@ -21,7 +21,7 @@ cargo build -p lunar-core --no-default-features --features real-f64
 cargo test -p lunar-core --no-default-features --features real-f64
 ```
 
-实现见 `core/src/math/real.rs`（Backend trait + RealInner\<R\>）；方案对比见 [doc/real-backend-compare.md](../doc/real-backend-compare.md)。
+实现见 `core/src/math/real.rs`（Backend trait + RealInner\<R\>）；方案对比见 [doc/11-project-and-implementation.md](../doc/11-project-and-implementation.md) §11.4。
 
 ## 命令（需先安装 Rust：<https://rustup.rs>）
 

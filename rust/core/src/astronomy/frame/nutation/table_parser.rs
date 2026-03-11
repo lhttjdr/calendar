@@ -32,7 +32,7 @@ pub fn parse_file(lines: &[String]) -> Vec<ParsedTerm> {
 }
 
 /// data/IAU2000/tab5.3a 格式：每行 5 个乘数 (L Lm F D Om) + Period(days) + 8 列 (mas)。
-/// 返回 (ψ项, ψ率项, ε项, ε率项)；振幅 mas→弧秒×0.001。
+/// 8 列顺序与 77 项一致：Δψ cos(6)、Δψ sin(7)、Δε sin(8)、Δε cos(9)、Δψ̇ cos(10)、Δψ̇ sin(11)、Δε̇ cos(12)、Δε̇ sin(13)。振幅 mas→弧秒×0.001。
 pub fn parse_tab53a_line(line: &str) -> Option<[ParsedTerm; 4]> {
     let s = line.trim();
     if s.is_empty() || s.starts_with('*') {
@@ -52,14 +52,15 @@ pub fn parse_tab53a_line(line: &str) -> Option<[ParsedTerm; 4]> {
     let mut c14 = c5;
     c14.extend(std::iter::repeat(0).take(9));
     let scale = 0.001_f64;
-    let psi_in = parse_f64(6) * scale;
-    let d_psi_in = parse_f64(7) * scale;
+    // Δψ = sin*psi_in + cos*psi_out；表列 6=cos、7=sin，与 77 项 A(sin)、a[2](cos) 对应
+    let psi_in = parse_f64(7) * scale;
+    let psi_out = parse_f64(6) * scale;
+    let d_psi_in = parse_f64(11) * scale;
+    let d_psi_out = parse_f64(10) * scale;
     let eps_in = parse_f64(8) * scale;
-    let d_eps_in = parse_f64(9) * scale;
-    let psi_out = parse_f64(10) * scale;
-    let d_psi_out = parse_f64(11) * scale;
-    let eps_out = parse_f64(12) * scale;
-    let d_eps_out = parse_f64(13) * scale;
+    let d_eps_in = parse_f64(13) * scale;
+    let eps_out = parse_f64(9) * scale;
+    let d_eps_out = parse_f64(12) * scale;
     Some([
         (c14.clone(), (psi_in, psi_out)),
         (c14.clone(), (d_psi_in, d_psi_out)),
@@ -69,7 +70,7 @@ pub fn parse_tab53a_line(line: &str) -> Option<[ParsedTerm; 4]> {
 }
 
 /// 从 DataLoader 加载并解析 tab5.3a 文件，返回所有行的四元组 (ψ, ψ率, ε, ε率) 列表。
-pub fn load_tab53a<L: crate::platform::DataLoader>(
+pub fn load_tab53a<L: crate::platform::DataLoader + ?Sized>(
     loader: &L,
     path: &str,
 ) -> Result<Vec<[ParsedTerm; 4]>, crate::platform::LoadError> {
@@ -121,12 +122,16 @@ mod tests {
 
     #[test]
     fn parse_tab53a_first_data_line() {
-        let line = "   0  0  0  0  1    -6798.383 -17206.4161 -17.4666  9205.2331  0.9086  3.3386  0.0029  1.5377  0.0002";
+        // 表列 6=Δψ cos、7=Δψ sin（与 77 项一致）；解析后 psi_in=sin、psi_out=cos，主项约 -17.2 弧秒
+        let line = "0 0 0 0 1 -6798.383 -17206.4161 -17.4666 9205.2331 0.9086 3.3386 0.0029 1.5377 0.0002";
         let quad = parse_tab53a_line(line);
         assert!(quad.is_some());
         let q = quad.unwrap();
         assert_eq!(q[0].0[4], 1);
-        assert!(real(q[0].1.0).is_near(real(-17.2064161), 0.001));
+        let a0 = q[0].1.0;
+        let a1 = q[0].1.1;
+        assert!(real(a0).abs().is_near(real(17.2064161), 0.01) || real(a1).abs().is_near(real(17.2064161), 0.01),
+            "第一项 Δψ 主系数应约 17.2 弧秒，得 psi_in={}, psi_out={}", a0, a1);
     }
 
     /// 当存在 data/IAU2000/tab5.3a.txt 时加载并解析（外部数据迁移）

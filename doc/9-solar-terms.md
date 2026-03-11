@@ -1,6 +1,6 @@
 # 9. 二十四节气与定气
 
-定气：**视黄经 = 0°, 15°, 30°, …** 的时刻；pipeline 含光行时与光行差。实现仅保留**方案二**（VSOP87 几何 + P03 岁差 + IAU 2000A 章动，章动矩阵 R1(ε)R3(-Δψ)R1(-(ε+Δε)) 与 DE406/IERS 一致）。定气残差与时刻差容差 30 s（本实现 vs TDB、本实现 vs DE406）。
+定气：**视黄经 = 0°, 15°, 30°, …** 的时刻；pipeline 含光行时与光行差。实现仅保留**方案二**（VSOP87 几何 + P03 岁差 + IAU 2000A 章动，章动矩阵 R1(ε)R3(-Δψ)R1(-(ε+Δε)) 与 DE406/IERS 一致）。定气残差与时刻差容差 30 s（本实现 vs 参考表、本实现 vs DE406）。为满足国标 1 秒所做的**忽略与截断**（相对论/时空、矩阵与导数、观测者效应及站心 ENU）见 [6-light-time-and-aberration.md](6-light-time-and-aberration.md) §「为满足国标 1 秒的忽略与截断总览」。
 
 ## 9.1 定义与 pipeline 总览
 
@@ -43,14 +43,28 @@
 
 测试入口：`SolarTermTest`（「2026 二十四节气 vs DE406」「pipeline 节点打印与 DE406 逐步对比」）。岁差/章动/光行差模型详见 [3-precession.md](3-precession.md)、[4-nutation.md](4-nutation.md)、[6-light-time-and-aberration.md](6-light-time-and-aberration.md)。
 
-## 9.6 标准数据表 TDBtimes
+## 9.6 节气朔望标准时刻表（《月相和二十四节气的计算》§7.4）
 
-**TDBtimes.txt** 用于与定气/定朔标准时刻对照，格式依《月相和二十四节气的计算》§7.4，如下。
+定气/定朔标准时刻对照表存放于 **data/月相和二十四节气的计算/**，格式依《月相和二十四节气的计算》§7.4，如下。
+
+### 参考表的计算方法
+
+参考表中各时刻由《月相和二十四节气的计算》所述方法计算得到，与本项目定气/定朔的物理定义一致：
+
+- **历表**：主表用 **JPL DE441** 提供日、地、月几何（TDB 为时间自变量）；extended 表同源、仅岁差模型不同。
+- **光行时**：观测时刻 t 下迭代得到推迟时 tr，取 tr 时刻的几何位置（或等价使用 Xproper = x(tr)−xE(tr) 折叠光行差）。
+- **岁差与章动**：主表采用 **IAU 2006** 岁差 + **IAU 2000A** 章动；**TDBtimes_extended.txt** 采用 **Vondrák 2011** 岁差（见 [3-precession.md](3-precession.md)），章动仍为 IAU 2000A。
+- **定气**：太阳视黄经 λ_S（经岁差、章动、光行差到视黄道）达到 0°, 15°, … 的 **TDB 时刻**。
+- **定朔/望/弦**：地心视黄经差 λ_M − λ_S 达到 0, π, π/2, 3π/2 的 **TDB 时刻**。
+
+因此本实现与参考表在「同一历表+岁差章动+光行时/光行差约定」下可比对；差异主要来自历表（本项目定气用 VSOP87+DE406 拟合、定朔用 ELPMPP02）与参考表所用 DE441 的差异，以及岁差/章动实现细节。
+
+### 表格式
 
 - **第 1 栏**：公历年。
 - **第 2 栏**：jd0，该年 1 月 0 日（TDB+8）零时的儒略日数。
-- **第 3 栏**：Z11a，最接近 jd0 的**冬至**时刻（相对 jd0 的日数）；对 TDBtimes.txt 涵盖年份，此为前一公历年的冬至。
+- **第 3 栏**：Z11a，最接近 jd0 的**冬至**时刻（相对 jd0 的日数）；对表涵盖年份，此为前一公历年的冬至。
 - **第 4–27 栏**：Z11a 以后的二十四节气相对 jd0 的日数，表头为 **J12 Z12 J01 Z01 J02 Z02 … J11 Z11b**，即 **小寒、大寒、立春、雨水、惊蛰、春分、清明、…、冬至**（春分在第 8 列，冬至在第 27 列）。
 - **第 28 栏起**：Q0_01 Q1_01 Q2_01 Q3_01 Q0_02 …，15 个朔望月内的 **朔(Q0)、上弦(Q1)、望(Q2)、下弦(Q3)**，各为相对 jd0 的日数。
 
-TDBtimes.txt 用 DE441 + IAU2006/2000A 岁差章动；TDBtimes extended 用 Vondrák 2011 岁差，见 [3-precession.md](3-precession.md)。定气列映射见 `rust/core/src/astronomy/aspects/solar_term/term_jd.rs` 中 `load_tdbtimes_solar_terms`。
+主表 **TDBtimes.txt** 用 DE441 + IAU2006/2000A 岁差章动；**TDBtimes_extended.txt** 用 Vondrák 2011 岁差，见 [3-precession.md](3-precession.md)。定气列映射见 `rust/core/src/astronomy/aspects/solar_term/term_jd.rs` 中 `load_solar_terms_reference_jd`。

@@ -583,7 +583,7 @@ function App() {
                   星期{WEEKDAY_NAMES[weekdayIndex]}
                 </div>
                 <Text type="secondary" style={{ fontSize: 11 }}>第{dayOfYear}天，第{weekOfYear}周</Text>
-                {isSelectedToday && isLiveMode && <Tag color="blue" style={{ marginTop: 6 }}>今天</Tag>}
+                {!isLiveMode && isSelectedToday && <Tag color="blue" style={{ marginTop: 6 }}>今天</Tag>}
               </div>
               {/* 底部：干支历、时宪历（紧凑网格块） */}
               <div style={{ padding: '10px 12px 12px', display: 'grid', gap: '8px 12px', gridTemplateColumns: '1fr 1fr', alignItems: 'start' }}>
@@ -773,7 +773,9 @@ function App() {
                             />
                           </Flex>
                         </div>
-                        <Button type="primary" icon={<CalendarOutlined />} onClick={goToday} block>今天</Button>
+                        {isLiveMode ? null : (
+                          <Button type="primary" icon={<CalendarOutlined />} onClick={() => { setIsLiveMode(true); goToday() }} block>返回实时</Button>
+                        )}
                       </Space>
                     ),
                   },

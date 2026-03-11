@@ -171,7 +171,7 @@ pub fn correction_rad_dec_r_derivative_per_day(t: &TimePoint) -> (f64, f64, f64)
     )
 }
 
-/// ΔRA、ΔDec、ΔR（AU）。T 用 TT 儒略日。(PlaneAngle, PlaneAngle, Length)。
+/// ΔRA、ΔDec、ΔR（AU）。公式规定 **TT** 儒略日，入参须为 TT。(PlaneAngle, PlaneAngle, Length)。
 pub fn correction_rad_dec_r(t: &TimePoint) -> (PlaneAngle, PlaneAngle, Length) {
     let jd = t.to_scale(TimeScale::TT).jd;
     let tt = jd_to_t(jd).0.as_f64();

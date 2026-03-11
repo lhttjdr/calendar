@@ -3,8 +3,9 @@
 //!
 //! **矩阵与向量**：岁差/章动/旋转的矩阵与向量已统一为 `Mat::<Real,3,3>` 与 `[Real; 3]`，整条链标量均为 Real。
 
-use crate::astronomy::constant::J2000;
-use crate::astronomy::ephemeris::{Elpmpp02Data, Vsop87};
+use crate::astronomy::constant::{J2000, AU_METERS};
+use crate::astronomy::correction::aberration::annual_aberration_direction;
+use crate::astronomy::ephemeris::{De406Kernel, Elpmpp02Data, Vsop87};
 use crate::astronomy::frame::fk5_icrs;
 use crate::astronomy::frame::vsop87_de406_icrs_patch;
 use crate::astronomy::frame::nutation::nutation_for_apparent;
@@ -40,9 +41,12 @@ pub struct ApparentPipelineOptions {
     pub use_analytic_velocity: bool,
     /// 质心行星 (Vsop87, M_planet/M_sun)，用于 BCRS 地心速度（光行差等可选）。None = 仅地球。
     pub vsop_barycentric_planets: Option<Vec<(Vsop87, f64)>>,
+    /// 若 true：定气/太阳视黄经用「X_r + 显式光行差」；默认 false（Xproper 折叠法，不再施光行差）。
+    pub use_explicit_aberration: bool,
 }
 
 impl Default for ApparentPipelineOptions {
+    /// 通用默认：月球不施光行时。**定朔**请用 [`Self::pipeline_default()`]，以启用月球光行时 tr 迭代（约 1.5～2 s 精度影响）。
     fn default() -> Self {
         Self {
             use_p03_precession: true,
@@ -50,12 +54,13 @@ impl Default for ApparentPipelineOptions {
             use_light_time_moon: false,
             use_analytic_velocity: false,
             vsop_barycentric_planets: None,
+            use_explicit_aberration: false,
         }
     }
 }
 
 impl ApparentPipelineOptions {
-    /// 定气/视黄经默认：定气用 P03，月球施光行时。
+    /// 定气/定朔用默认：P03 岁差，**月球施光行时**（tr 迭代），无显式光行差。定朔必须用此选项以满足 GB/T 约 1 s 要求。
     pub fn pipeline_default() -> Self {
         Self {
             use_p03_precession: true,
@@ -63,6 +68,19 @@ impl ApparentPipelineOptions {
             use_light_time_moon: true,
             use_analytic_velocity: false,
             vsop_barycentric_planets: None,
+            use_explicit_aberration: false,
+        }
+    }
+
+    /// 定气用「X_r + 显式光行差」管线（与 TDB 对照测试用）。
+    pub fn pipeline_explicit_aberration_for_tdb_test() -> Self {
+        Self {
+            use_p03_precession: true,
+            precession_model: None,
+            use_light_time_moon: false,
+            use_analytic_velocity: false,
+            vsop_barycentric_planets: None,
+            use_explicit_aberration: true,
         }
     }
 
@@ -134,6 +152,73 @@ pub fn sun_position_icrs(vsop: &Vsop87, t: TimePoint) -> Position {
     state.position
 }
 
+/// 地心在 ICRS 下的速度（m/s），BCRS 意义，供「X_r + 显式光行差」用。J2000 平黄道 → FK5 赤道 → ICRS。
+/// 与历表一致使用 TDB 时刻求速度。
+fn earth_velocity_icrs_m_per_s(vsop: &Vsop87, t: TimePoint) -> [Real; 3] {
+    let jd_tdb = t.to_scale(TimeScale::TDB).jd;
+    let v_ecl = crate::astronomy::correction::earth_velocity_ecliptic_j2000_bcrs(vsop, &[], jd_tdb);
+    let eps0 = mean_obliquity(0.0).rad();
+    let (ce, se) = (eps0.cos(), eps0.sin());
+    let v_fk5_y = v_ecl[1].clone() * ce + v_ecl[2].clone() * se;
+    let v_fk5_z = real_const(-1.0) * v_ecl[1].clone() * se + v_ecl[2].clone() * ce;
+    let (a, b, c) = fk5_icrs::rotate_equatorial(v_ecl[0].clone(), v_fk5_y, v_fk5_z);
+    [a, b, c]
+}
+
+/// 太阳视黄经（X_r + 显式光行差）：先光行时 X_r = x(tr)−xE(t)，再施周年光行差，再岁差章动。与 Xproper 折叠法在 (v/c) 一阶一致，供对比验证。
+/// 与默认管线使用同一 LightTimeCorrector 得 (tr, Xproper)，保证 tr 与 Xproper 一致后再做 X_r 与光行差。
+pub fn sun_apparent_ecliptic_longitude_explicit_aberration(
+    vsop: &Vsop87,
+    t: TimePoint,
+    options: &ApparentPipelineOptions,
+) -> PlaneAngle {
+    let t_tt = t.to_scale(TimeScale::TT);
+    let jd_obs = t_tt.jd;
+    let corrector: LightTimeCorrector<'_, Vsop87, VsopToDe406IcrsFit> = LightTimeCorrector {
+        ephemeris: vsop,
+        mapper: None,
+        max_iter: 2,
+    };
+    let (tr, state_me) = corrector.retarded_state(t_tt, Body::Sun);
+    let jd_tr = tr.to_scale(TimeScale::TT).jd;
+    let graph = TransformGraph::default_graph();
+    let state_fk5 = graph.transform_to(state_me, ReferenceFrame::FK5, jd_tr);
+    let state_icrs = VsopToDe406IcrsFit.apply(state_fk5, tr);
+    let [px, py, pz] = state_icrs.position.to_meters();
+    let v_icrs = earth_velocity_icrs_m_per_s(vsop, t);
+    let delta_t_days = jd_tr - jd_obs;
+    let sec_per_day = real_const(86400.0);
+    let x_r = px + v_icrs[0].clone() * delta_t_days * sec_per_day;
+    let y_r = py + v_icrs[1].clone() * delta_t_days * sec_per_day;
+    let z_r = pz + v_icrs[2].clone() * delta_t_days * sec_per_day;
+    let r_au = [
+        x_r / AU_METERS,
+        y_r / AU_METERS,
+        z_r / AU_METERS,
+    ];
+    let au_per_day = real_const(86400.0) / AU_METERS;
+    let v_au = [
+        v_icrs[0].clone() * au_per_day,
+        v_icrs[1].clone() * au_per_day,
+        v_icrs[2].clone() * au_per_day,
+    ];
+    let e_app = annual_aberration_direction(r_au, v_au);
+    let graph = TransformGraph::default_graph().with_precession_model(options.effective_precession_model());
+    let state = crate::astronomy::pipeline::State6::from_si_in_frame(
+        ReferenceFrame::ICRS,
+        e_app[0].clone() * AU_METERS,
+        e_app[1].clone() * AU_METERS,
+        e_app[2].clone() * AU_METERS,
+        zero(),
+        zero(),
+        zero(),
+    );
+    // 与 Xproper 管线一致：用推迟时 jd_tr 的架取 λ，以便与 TDB 参考及定气对比一致
+    let epoch = Epoch::new(jd_tr);
+    let state = graph.transform_to(state, ReferenceFrame::ApparentEcliptic(epoch), jd_tr);
+    PlaneAngle::from_rad(state.to_spherical().lon.rad().wrap_to_2pi())
+}
+
 /// 太阳视黄经（弧度 [0, 2π)）：管线为光行时 → EphemerisProvider(Sun) → FK5 → VsopToDe406IcrsFit → TransformGraph → ApparentEcliptic → λ。与定气参考一致。内部 f64，边界转 R。
 pub fn sun_apparent_ecliptic_longitude(vsop: &Vsop87, t: TimePoint) -> PlaneAngle {
     let lam = sun_apparent_ecliptic_longitude_impl(vsop, t, &ApparentPipelineOptions::default()).0;
@@ -150,7 +235,8 @@ pub fn sun_apparent_ecliptic_longitude_with_options(
     lam
 }
 
-/// Sun apparent ecliptic longitude velocity (rad/day) via analytic derivative chain. Returns Real.
+/// Sun apparent ecliptic longitude velocity (rad/day) via analytic derivative chain.
+/// 与 λ 同为一阶 (v/c) 模型之导数，未引入 (v/c)² 项；用于定气 Newton 迭代时与文档 0.05 s 精度一致。
 pub fn sun_apparent_ecliptic_longitude_velocity_analytic(
     vsop: &Vsop87,
     t: TimePoint,
@@ -424,6 +510,64 @@ pub fn moon_apparent_ecliptic_longitude_with_options(
     PlaneAngle::from_rad(rad)
 }
 
+// ---------- DE406 BSP 历表路径：状态已是 ICRS，无需 FrameMapper/patch ----------
+
+/// 太阳视黄经（DE406 BSP）：光行时 → De406Kernel(Sun) → ICRS → TransformGraph → ApparentEcliptic → λ。
+pub fn sun_apparent_ecliptic_longitude_de406(kernel: &De406Kernel, t: TimePoint) -> PlaneAngle {
+    sun_apparent_ecliptic_longitude_de406_with_options(kernel, t, &ApparentPipelineOptions::default())
+}
+
+/// 同上，可指定岁差等选项。岁差/章动模型（如 IAU）规定用 **TT**，历表求值为 TDB；管线在岁差/章动步将 TDB→TT 后再算，不沿用 TDB。
+pub fn sun_apparent_ecliptic_longitude_de406_with_options(
+    kernel: &De406Kernel,
+    t: TimePoint,
+    options: &ApparentPipelineOptions,
+) -> PlaneAngle {
+    let t_tt = t.to_scale(TimeScale::TT);
+    let corrector: LightTimeCorrector<'_, De406Kernel, VsopToDe406IcrsFit> = LightTimeCorrector {
+        ephemeris: kernel,
+        mapper: None,
+        max_iter: 2,
+    };
+    let (tr, state) = corrector.retarded_state(t_tt, Body::Sun);
+    let jd_tt = tr.to_scale(TimeScale::TT).jd;
+    let precession_model = options.effective_precession_model();
+    let graph = TransformGraph::default_graph().with_precession_model(precession_model);
+    let epoch = Epoch::new(jd_tt);
+    let state = graph.transform_to(state, ReferenceFrame::ApparentEcliptic(epoch), jd_tt);
+    PlaneAngle::from_rad(state.to_spherical().lon.rad().wrap_to_2pi())
+}
+
+/// 月球视黄经（DE406 BSP）：可选光行时 → De406Kernel(Moon) → ICRS → TransformGraph → ApparentEcliptic → λ。
+pub fn moon_apparent_ecliptic_longitude_de406(kernel: &De406Kernel, t: TimePoint) -> PlaneAngle {
+    moon_apparent_ecliptic_longitude_de406_with_options(kernel, t, &ApparentPipelineOptions::default())
+}
+
+/// 同上，可指定光行时、岁差等选项。
+pub fn moon_apparent_ecliptic_longitude_de406_with_options(
+    kernel: &De406Kernel,
+    t: TimePoint,
+    options: &ApparentPipelineOptions,
+) -> PlaneAngle {
+    let t_tt = t.to_scale(TimeScale::TT);
+    let (state, jd_tt_work) = if options.use_light_time_moon {
+        let corrector: LightTimeCorrector<'_, De406Kernel, VsopToDe406IcrsFit> = LightTimeCorrector {
+            ephemeris: kernel,
+            mapper: None,
+            max_iter: 2,
+        };
+        let (tr, state) = corrector.retarded_state(t_tt, Body::Moon);
+        (state, tr.to_scale(TimeScale::TT).jd)
+    } else {
+        (kernel.compute_state(Body::Moon, t_tt), t_tt.jd)
+    };
+    let precession_model = options.effective_precession_model();
+    let graph = TransformGraph::default_graph().with_precession_model(precession_model);
+    let epoch = Epoch::new(jd_tt_work);
+    let state = graph.transform_to(state, ReferenceFrame::ApparentEcliptic(epoch), jd_tt_work);
+    PlaneAngle::from_rad(state.to_spherical().lon.rad().wrap_to_2pi())
+}
+
 /// 返回 (λ, diagnostic)。诊断用，可对比 dpsi/deps/P/ε/λ。
 pub fn sun_apparent_ecliptic_longitude_diagnostic(vsop: &Vsop87, t: TimePoint) -> (PlaneAngle, ApparentSunDiagnostic) {
     sun_apparent_ecliptic_longitude_impl(vsop, t, &ApparentPipelineOptions::default())
@@ -490,5 +634,42 @@ mod tests {
         let vsop = crate::astronomy::ephemeris::vsop87::minimal_earth_vsop();
         let lam = sun_apparent_ecliptic_longitude(&vsop, j2000_tt());
         assert!(lam.rad() >= real(0) && lam.rad() < real(core::f64::consts::TAU));
+    }
+
+    /// 「X_r + 显式光行差」与 Xproper 折叠法在 (v/c) 一阶应一致；差异为 (v/c)² 量级（约 1e-8 rad ≈ 0.002″）。
+    #[test]
+    fn sun_apparent_explicit_aberration_matches_xproper() {
+        let vsop = crate::astronomy::ephemeris::vsop87::minimal_earth_vsop();
+        let t = j2000_tt();
+        let lam_xproper = sun_apparent_ecliptic_longitude(&vsop, t);
+        let lam_explicit = sun_apparent_ecliptic_longitude_explicit_aberration(&vsop, t, &ApparentPipelineOptions::default());
+        let diff = (lam_explicit.rad() - lam_xproper.rad()).wrap_to_signed_pi();
+        let tol_rad = real_const(5e-8);
+        assert!(
+            diff.abs() < tol_rad,
+            "explicit_aberration vs xproper: diff = {} rad (~{} \")",
+            diff.as_f64(),
+            diff.as_f64() * 180.0 / core::f64::consts::PI * 3600.0
+        );
+    }
+
+    /// 「X_r + 显式光行差」与 Xproper 在 2026 春分附近仍应一致（与定气、TDB 对比前提）。
+    #[test]
+    fn sun_apparent_explicit_aberration_matches_xproper_near_2026_spring() {
+        use crate::astronomy::time::{TimePoint, TimeScale};
+        use crate::calendar::gregorian::Gregorian;
+        let vsop = crate::astronomy::ephemeris::vsop87::minimal_earth_vsop();
+        let jd_approx = Gregorian::to_julian_day(2026, 3, 20) + real_const(0.2);
+        let t = TimePoint::new(TimeScale::TT, jd_approx);
+        let lam_xproper = sun_apparent_ecliptic_longitude(&vsop, t);
+        let lam_explicit = sun_apparent_ecliptic_longitude_explicit_aberration(&vsop, t, &ApparentPipelineOptions::default());
+        let diff = (lam_explicit.rad() - lam_xproper.rad()).wrap_to_signed_pi();
+        let tol_rad = real_const(5e-8);
+        assert!(
+            diff.abs() < tol_rad,
+            "explicit_aberration vs xproper near 2026 spring: diff = {} rad (~{} \")",
+            diff.as_f64(),
+            diff.as_f64() * 180.0 / core::f64::consts::PI * 3600.0
+        );
     }
 }

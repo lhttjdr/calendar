@@ -1,11 +1,11 @@
 # 8. 月相与合朔
 
-本章专述**月相**（朔、望、上弦、下弦）与**合朔**的求法、平朔近似公式（W0）、以及合朔与视黄经精度事实。视黄经与视位置计算的 pipeline 见 [7-apparent-longitude-and-syzygy.md](7-apparent-longitude-and-syzygy.md)；八步表与 TDBtimes 格式见 [9-solar-terms.md](9-solar-terms.md)。
+本章专述**月相**（朔、望、上弦、下弦）与**合朔**的求法、平朔近似公式（W0）、以及合朔与视黄经精度事实。视黄经与视位置计算的 pipeline 见 [7-apparent-longitude-and-syzygy.md](7-apparent-longitude-and-syzygy.md)；八步表与节气朔望标准时刻表格式见 [9-solar-terms.md](9-solar-terms.md)。
 
 ## 8.1 合朔与其它月相
 
 - **朔（合朔）**：存在 t(TT) 使 **视**黄经相等 λ_S = λ_M。
-- **望**：视黄经差 λ_M − λ_S = π；**上弦** = π/2，**下弦** = 3π/2。求根与合朔同一 pipeline，仅目标角不同。标准数据表 TDBtimes 中列 Q0=朔、Q1=上弦、Q2=望、Q3=下弦（格式见 [9-solar-terms.md](9-solar-terms.md) §9.6）。
+- **望**：视黄经差 λ_M − λ_S = π；**上弦** = π/2，**下弦** = 3π/2。求根与合朔同一 pipeline，仅目标角不同。节气朔望标准时刻表中列 Q0=朔、Q1=上弦、Q2=望、Q3=下弦（格式见 [9-solar-terms.md](9-solar-terms.md) §9.6）。
 - **求法**：牛顿迭代，f = λ_M − λ_S，f' = dλ_M/d(JD)−dλ_S/d(JD)；导数用解析 `Apparent.*VelocityAnalytic`。
 - **Coarse**：几何黄经差 + 平均 synodic 速度 ≈ 0.213 rad/日，得到 Fine 初值。
 - **Fine**：视黄经 + 解析导数；可选光行时从第 2 步起；ELP 项数前 3 步用 fineMaxTerms，残差 &lt;1e-3 rad 后放宽到全项；光行时 Fast/Full 见代码；收敛判据 |λ_M−λ_S| &lt; tolerance（如 1e-8 rad）。

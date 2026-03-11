@@ -5,6 +5,7 @@ use wasm_bindgen::prelude::*;
 use lunar_core::math::real::{real, RealOps};
 use lunar_core::platform::{DataLoader, LoadError};
 use lunar_core::astronomy::ephemeris::{load_earth_vsop87, load_all, load_all_from_binary, Elpmpp02Correction, Vsop87};
+use lunar_core::astronomy::frame::nutation;
 
 /// 从内存 path → 文件内容 读取，供 wasm 内现算岁数据使用。
 struct DataLoaderMemory {
@@ -588,6 +589,7 @@ pub fn compute_year_data_wasm(
     files.insert(format!("{}/ELP_PERT.S2", ELP_BASE), elp_pert_s2.to_string());
     files.insert(format!("{}/ELP_PERT.S3", ELP_BASE), elp_pert_s3.to_string());
     let loader = DataLoaderMemory { files };
+    let _ = nutation::try_init_full_nutation(&loader, nutation::DEFAULT_TAB53A_PATH);
     let vsop = load_earth_vsop87(&loader, VSOP87_EAR_PATH)
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
     let elp = load_all(&loader, ELP_BASE, Elpmpp02Correction::DE406)
@@ -629,6 +631,7 @@ pub fn compute_year_data_from_binary(
     files.insert(format!("{}/ELP_PERT.S2", ELP_BASE), elp_pert_s2.to_string());
     files.insert(format!("{}/ELP_PERT.S3", ELP_BASE), elp_pert_s3.to_string());
     let loader = DataLoaderMemory { files };
+    let _ = nutation::try_init_full_nutation(&loader, nutation::DEFAULT_TAB53A_PATH);
     let elp = load_all(&loader, ELP_BASE, Elpmpp02Correction::DE406)
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
     let year_data = lunar_core::calendar::chinese_lunar::compute_year_data(

@@ -65,6 +65,21 @@
 
 选用历表时请核对**时间覆盖**是否包含目标时段、**参考架**是否与 pipeline 一致（必要时做 Frame Bias 等变换）、**时间自变量**是否为 TDB（与 TT 差约 2 ms 内可忽略或按 [1-time-and-timescales.md](1-time-and-timescales.md) 换算）。
 
+### JPL 星历的提供形式与格式、体积
+
+**本项目是否提供 JPL 星历？**  
+本项目**主流程不依赖、也不直接提供** JPL DE 星历。定气/定朔使用的历表为 **VSOP87**（太阳）+ **ELPMPP02**（月球），见下节「本项目中的选择与对齐」。JPL DE406 仅在**测试与比对**中出现：通过 Python **jplephem** 读取 **BSP（SPK）** 内核与 VSOP87/ELPMPP02 对比，或通过预生成的 CSV 样本比对；详见 `data/jpl/README.txt`。
+
+**JPL 星历的两种常见格式**
+
+| 格式 | 说明 | 典型用途 | 体积（示例 DE405） |
+|------|------|----------|---------------------|
+| **BSP（SPK）** | NAIF 的二进制 SPK 内核格式（.bsp），DAF/SPK 结构，跨平台。 | jplephem、SPICE、星历工具；本项目 Python 测试用。 | 全时段 de405.bsp 约 **62 MB**；截断时段如 1960–2020 约 **6.2 MB**。 |
+| **原始二进制（JPL PLAN）** | JPL 官方提供的 Linux 小端二进制（如 lnxp1600p2200.405、lnxm3000p3000.406）。 | **OreKit** 的 JPLEphemeridesLoader；**不能**用 BSP。 | 全时段约 **53 MB**（或 13 MB×4 分段）。 |
+
+- **体积对比**：全时段下原始二进制略小（53 MB vs 62 MB）；若只需**截断时段**，BSP 可做成小文件（如 6.2 MB），更省空间。**ASCII 源**最大（科学计数法约 20–25 字节/数，约为 8 字节浮点的 2.5 倍），一般不直接用于生产。
+- **本项目若要用 JPL**：Rust 主流程当前不读 BSP；若需在管线中直接使用 JPL，可考虑接入 NAIF SPICE 或 Rust 的 SPK 解析库，或继续通过 jplephem 等外部工具生成样本再比对。自定义历表二进制格式（VSOP87 .ear.bin、ELPMPP02 .bin）见 [13-ephemeris-binary-format.md](13-ephemeris-binary-format.md)，体积小于对应文本且可再 Brotli 压缩。
+
 ### 主要历表系列与沿革
 
 **JPL DE 系列（美国）**  

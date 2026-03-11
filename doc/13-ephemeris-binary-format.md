@@ -1,5 +1,7 @@
 # 历表二进制化与零解析方案
 
+本章描述**本项目历表**（VSOP87、ELPMPP02）的二进制格式与零解析加载。**JPL 星历**的 BSP（SPK）与原始二进制格式、体积对比见 [5-ephemerides-and-de-align.md](5-ephemerides-and-de-align.md) §「JPL 星历的提供形式与格式、体积」。
+
 ## 现状与瓶颈
 
 当前 Web 端历表数据流：**TXT (ASCII) → fetch → 解析**。
@@ -70,20 +72,32 @@
 |------------|------------------|------------------|------|
 | VSOP87 地心 | `VSOP87B.ear`    | `VSOP87B.ear.bin`| 优先请求 .bin，404 则 .ear |
 | ELP_MAIN/PERT | `.S1/.S2/.S3`  | `.S1.bin` 等     | 6 个 .bin 均可用时走 `compute_year_data_full_binary` |
+| **章动 tab5.3a** | `data/IAU2000/tab5.3a.txt` | `tab5.3a.bin` / `.bin.br` | `load_iau2000a_from_binary` 或 `try_init_full_nutation_from_binary`；.br 由前端解压后传入 |
 
 - 前端：优先并行 fetch 7 个 .bin；若全部 200 则走 `compute_year_data_full_binary`；否则若 VSOP87 .bin 可用则走 `compute_year_data_from_binary(vsop87_bin, elp_*_text)`；否则全部文本 + `compute_year_data_wasm(...)`。
+- 章动：若有 `tab5.3a.bin`（或 .br 解压后），可调用 `try_init_full_nutation_from_binary(bytes)` 启用完整 IAU2000A，与星历表 .bin/.br 用法一致。
 
 ---
 
 ## 构建脚本
 
-- **一次性生成 VSOP87 + ELP 的 .bin**（推荐）：在项目根目录执行  
+- **一次性生成 VSOP87 + ELP + 章动 tab5.3a 的 .bin**（推荐）：在项目根目录执行  
   `./scripts/gen_ephemeris_bin.sh`  
-  默认使用 `./data`，可传参指定数据目录，例如 `./scripts/gen_ephemeris_bin.sh /path/to/data`。会生成 `data/vsop87/VSOP87B.ear.bin` 与 `data/elpmpp02/` 下 6 个 `.bin`。
+  默认使用 `./data`，可传参指定数据目录。会生成 `data/vsop87/VSOP87B.ear.bin`、`data/elpmpp02/` 下 6 个 `.bin`、`data/IAU2000/tab5.3a.bin`。
 - **分别生成**：在 `rust` 目录下  
   VSOP87：`cargo run -p lunar-core --example vsop87_to_bin --no-default-features --features twofloat -- ../data/vsop87/VSOP87B.ear ../data/vsop87/VSOP87B.ear.bin`  
-  ELP：`cargo run -p lunar-core --example elpmpp02_to_bin --no-default-features --features twofloat -- ../data/elpmpp02`
-- **Brotli 压缩**（可选）：在项目根目录执行 `node scripts/compress_ephemeris_brotli.mjs [数据目录]`，会在 `data/` 下为每个 .bin 生成同名的 .br；前端会优先请求 .bin.br 并解压。
-- **前端数据**：在 `web` 目录执行 `npm run copy-data` 会把 `data/vsop87/` 与 `data/elpmpp02/` 拷贝到 `web/public/data/`（含 .ear、.bin、.br 若存在），供 fetch 使用。
+  ELP：`cargo run -p lunar-core --example elpmpp02_to_bin --no-default-features --features twofloat -- ../data/elpmpp02`  
+  章动：`cargo run -p lunar-core --example tab53a_to_bin --no-default-features --features twofloat -- ..`（项目根）
+- **Brotli 压缩**（可选）：在项目根目录执行 `node scripts/compress_ephemeris_brotli.mjs [数据目录]`，会在 `data/` 下为每个 .bin（含 `IAU2000/tab5.3a.bin`）生成同名的 .br；前端会优先请求 .bin.br 并解压。
+- **前端数据**：在 `web` 目录执行 `npm run copy-data` 会把 `data/vsop87/`、`data/elpmpp02/`、`data/IAU2000/` 拷贝到 `web/public/data/`（含 .txt/.ear、.bin、.br 若存在），供 fetch 使用。
 
-上述方案在保持与现有文本管线兼容的前提下，实现“可压缩 + 零解析”的历表加载路径，并为 ELP 等后续二进制化预留同一套思路。
+---
+
+## 章动 tab5.3a 二进制格式
+
+- **魔数**：`N53A`（4 字节），版本 `u32` = 1，行数 `u32`。
+- **每行**：4 项 ×（14×i32 LE + 2×f64 LE）= 288 字节/行。
+- **API**：`Iau2000a::from_binary(bytes)` / `to_binary()`；`load_iau2000a_from_binary(bytes)`；`try_init_full_nutation_from_binary(bytes)` 启用完整章动。
+- **.br**：与历表一致，由前端用 `DecompressionStream('brotli')` 解压后传入 `from_binary` 或 `try_init_full_nutation_from_binary`。
+
+上述方案在保持与现有文本管线兼容的前提下，实现“可压缩 + 零解析”的历表与章动加载路径。
