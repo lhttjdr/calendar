@@ -44,6 +44,15 @@ jobs:
       - name: Install jplephem for DE406 comparison tests
         run: pip install jplephem
 
+      # 章动：若无 data/IAU2000/tab5.3a.txt 则从 IERS 拉取并生成（VLBI 合并格式），供 lunar-core 测试/覆盖率
+      - name: Prepare nutation (章动)
+        run: |
+          if [ ! -f data/IAU2000/tab5.3a.txt ]; then
+            python3 scripts/iers_nutation_to_tab53a.py
+          else
+            echo "data/IAU2000/tab5.3a.txt exists, skip fetch"
+          fi
+
       - name: Set PYO3 and lib path for coverage run
         run: |
           echo "PYO3_PYTHON=$(which python3)" >> $GITHUB_ENV

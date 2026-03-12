@@ -34,7 +34,8 @@ ORDER_77 = [
 
 
 def fetch(url: str) -> str:
-    with urllib.request.urlopen(url, timeout=30) as r:
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; IERS-table-fetcher/1.0)"})
+    with urllib.request.urlopen(req, timeout=30) as r:
         return r.read().decode("utf-8", errors="replace")
 
 
@@ -130,9 +131,14 @@ def parse_53b_j1(lines, start: int):
     return out
 
 
+def _section_marker_ok(line: str) -> bool:
+    """IERS 表头：标准为 'Number of terms'，部分表用 'Nb of terms'；tab5.3b 可能为 'Number  of terms'（双空格）。"""
+    return bool(re.search(r"Number\s+of\s+terms", line)) or "Nb of terms" in line
+
+
 def find_section(lines, marker: str) -> int:
     for i, line in enumerate(lines):
-        if marker in line and "Number of terms" in line:
+        if marker in line and _section_marker_ok(line):
             return i
     return -1
 
@@ -149,12 +155,42 @@ def main():
     lines_a = raw_a.splitlines()
     lines_b = raw_b.splitlines()
 
+    # 若返回 HTML 或非表格式，则无 "j = 0" / "Number of terms" 或 "Nb of terms"
     j0_a = find_section(lines_a, "j = 0")
     j1_a = find_section(lines_a, "j = 1")
     j0_b = find_section(lines_b, "j = 0")
     j1_b = find_section(lines_b, "j = 1")
     if j0_a < 0 or j1_a < 0 or j0_b < 0:
-        raise SystemExit("Could not find j=0/j=1 sections in IERS files")
+        err_which = []
+        if j0_a < 0:
+            err_which.append("tab5.3a j=0")
+        if j1_a < 0:
+            err_which.append("tab5.3a j=1")
+        if j0_b < 0:
+            err_which.append("tab5.3b j=0")
+        if j1_b < 0:
+            err_which.append("tab5.3b j=1 (optional)")
+        def looks_like_html(text: str) -> bool:
+            t = text.strip()[:500].lower()
+            return t.startswith("<!") or "<html" in t or "<!doctype" in t
+
+        err = [
+            "Could not find j=0/j=1 sections in IERS files (expected 'j = 0' and 'Number of terms' or 'Nb of terms').",
+            f"Missing: {', '.join(err_which)}. Indices: j0_a={j0_a} j1_a={j1_a} j0_b={j0_b} j1_b={j1_b}.",
+        ]
+        if looks_like_html(raw_a) or looks_like_html(raw_b):
+            err.append("Response looks like HTML (e.g. IERS error page or redirect). Check URL or network.")
+        err.append(f"tab5.3a line count: {len(lines_a)}")
+        err.append("tab5.3a first 5 and line 19:")
+        for i in [0, 1, 2, 3, 4]:
+            if i < len(lines_a):
+                err.append(f"  {i+1}: {lines_a[i][:80]!r}")
+        if len(lines_a) > 19:
+            err.append(f"  19: {lines_a[18][:80]!r}")
+        err.append("tab5.3b first 3 lines:")
+        for i, line in enumerate(lines_b[:3]):
+            err.append(f"  {i+1}: {line[:80]!r}")
+        raise SystemExit("\n".join(err))
 
     # skip header rows after "Number of terms" (--- and column header)
     start_j0_a = j0_a + 3
@@ -209,8 +245,8 @@ def main():
 *                      (days)       Psi     dPsi/dt   Eps    dEps/dt   Psi   dPsi/dt    Eps  dEps/dt
 *                                   (mas)   (mas/c)    (mas)   (mas/c)  (mas)  (mas/c)  (mas)  (mas/c)
 """
-    with open(out_path, "w", encoding="utf-8") as f:
-        f.write(header)
+    with open(out_path, "w", encoding="utf-8") as outf:
+        outf.write(header)
         for key in ordered_keys:
             l, lp, f, d, om = key
             ai, app, ap, appp, bi, bpp, bp, bppp = merge[key]
@@ -221,7 +257,7 @@ def main():
                 f"{to_mas(ai):12.4f} {to_mas(ap):8.4f} {to_mas(bi):12.4f} {to_mas(bp):8.4f} "
                 f"{to_mas(app):8.4f} {to_mas(appp):8.4f} {to_mas(bpp):8.4f} {to_mas(bppp):8.4f}\n"
             )
-            f.write(row)
+            outf.write(row)
 
     print(f"Wrote {len(ordered_keys)} terms to {out_path}")
 
