@@ -95,8 +95,124 @@ fn try_init_de406_patch_with_lines(lines: &[String]) -> bool {
     }
 }
 
-/// 解析 patch 文本：段 [RA]/[Dec]/[R]，每段一行 4 数（长期）再多行 (freq c0 s0 c1 s1)。
-fn parse_patch_lines(lines: &[String]) -> Option<PatchData> {
+/// 二进制格式：魔数 "PICR"、版本 u32=1，随后 [RA] 4×f64 + u32 n_ra + n_ra×5×f64，[Dec] 同，[R] 同。小端。
+const PATCH_BIN_MAGIC: &[u8; 4] = b"PICR";
+const PATCH_BIN_VERSION: u32 = 1;
+
+fn read_u32_le(b: &[u8], i: usize) -> Option<u32> {
+    if i + 4 > b.len() {
+        return None;
+    }
+    let mut arr = [0u8; 4];
+    arr.copy_from_slice(&b[i..i + 4]);
+    Some(u32::from_le_bytes(arr))
+}
+
+fn read_f64_le(b: &[u8], i: usize) -> Option<f64> {
+    if i + 8 > b.len() {
+        return None;
+    }
+    let mut arr = [0u8; 8];
+    arr.copy_from_slice(&b[i..i + 8]);
+    Some(f64::from_le_bytes(arr))
+}
+
+fn read_section_bin(bytes: &[u8], pos: &mut usize) -> Option<([f64; 4], Vec<(f64, f64, f64, f64, f64)>)> {
+    let mut secular = [0.0_f64; 4];
+    for s in &mut secular {
+        *s = read_f64_le(bytes, *pos)?;
+        *pos += 8;
+    }
+    let n = read_u32_le(bytes, *pos)? as usize;
+    *pos += 4;
+    let mut terms = Vec::with_capacity(n);
+    for _ in 0..n {
+        let f0 = read_f64_le(bytes, *pos)?;
+        *pos += 8;
+        let f1 = read_f64_le(bytes, *pos)?;
+        *pos += 8;
+        let f2 = read_f64_le(bytes, *pos)?;
+        *pos += 8;
+        let f3 = read_f64_le(bytes, *pos)?;
+        *pos += 8;
+        let f4 = read_f64_le(bytes, *pos)?;
+        *pos += 8;
+        terms.push((f0, f1, f2, f3, f4));
+    }
+    Some((secular, terms))
+}
+
+/// 从二进制加载 patch 数据（.bin 或解压后的 .br）。格式见本模块常量与 `to_binary`。
+pub fn from_binary(bytes: &[u8]) -> Option<PatchData> {
+    if bytes.len() < 4 + 4 {
+        return None;
+    }
+    if &bytes[0..4] != PATCH_BIN_MAGIC {
+        return None;
+    }
+    let version = read_u32_le(bytes, 4)?;
+    if version != PATCH_BIN_VERSION {
+        return None;
+    }
+    let mut pos = 8;
+    let (ra_secular, ra_terms) = read_section_bin(bytes, &mut pos)?;
+    let (dec_secular, dec_terms) = read_section_bin(bytes, &mut pos)?;
+    let (r_secular, r_terms) = read_section_bin(bytes, &mut pos)?;
+    if ra_terms.len() >= 20 && dec_terms.len() >= 20 && r_terms.len() >= 20 {
+        Some(PatchData {
+            ra_secular,
+            ra_terms,
+            dec_secular,
+            dec_terms,
+            r_secular,
+            r_terms,
+        })
+    } else {
+        None
+    }
+}
+
+/// 序列化为二进制（供构建脚本生成 .bin；.br 由前端或构建时压缩）。
+pub fn to_binary(data: &PatchData) -> Vec<u8> {
+    let mut out = Vec::new();
+    out.extend_from_slice(PATCH_BIN_MAGIC);
+    out.extend_from_slice(&PATCH_BIN_VERSION.to_le_bytes());
+    fn write_section(out: &mut Vec<u8>, secular: &[f64; 4], terms: &[(f64, f64, f64, f64, f64)]) {
+        for &s in secular {
+            out.extend_from_slice(&s.to_le_bytes());
+        }
+        out.extend_from_slice(&(terms.len() as u32).to_le_bytes());
+        for &(f0, f1, f2, f3, f4) in terms {
+            out.extend_from_slice(&f0.to_le_bytes());
+            out.extend_from_slice(&f1.to_le_bytes());
+            out.extend_from_slice(&f2.to_le_bytes());
+            out.extend_from_slice(&f3.to_le_bytes());
+            out.extend_from_slice(&f4.to_le_bytes());
+        }
+    }
+    write_section(&mut out, &data.ra_secular, &data.ra_terms);
+    write_section(&mut out, &data.dec_secular, &data.dec_terms);
+    write_section(&mut out, &data.r_secular, &data.r_terms);
+    out
+}
+
+/// 从二进制 buffer 加载并设为当前 patch（.bin 或解压后的 .br）。成功返回 true。
+pub fn try_init_de406_patch_from_binary(bytes: &[u8]) -> bool {
+    if let Some(data) = from_binary(bytes) {
+        *PATCH_CACHE.write().unwrap() = Some(data);
+        true
+    } else {
+        false
+    }
+}
+
+/// 当前是否已加载 patch（文本或二进制初始化后为 true）。
+pub fn is_de406_patch_loaded() -> bool {
+    PATCH_CACHE.read().unwrap().is_some()
+}
+
+/// 解析 patch 文本：段 [RA]/[Dec]/[R]，每段一行 4 数（长期）再多行 (freq c0 s0 c1 s1)。供 example patch_to_bin 使用。
+pub fn parse_patch_lines(lines: &[String]) -> Option<PatchData> {
     let mut ra_secular = [0.0_f64; 4];
     let mut ra_terms = Vec::new();
     let mut dec_secular = [0.0_f64; 4];

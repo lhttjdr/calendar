@@ -5,6 +5,7 @@
 
 import { fetchBinaryMaybeBrotli, isVsop87Binary, isElpBinary } from './fetchEphemerisBinary'
 import { EPHEMERIS_BINARY_URLS, EPHEMERIS_BINARY_URL_LIST } from './ephemerisUrls'
+const PATCH_ICRS_BIN_URL = EPHEMERIS_BINARY_URLS.patch_icrs_bin
 
 export type YearDataMessage = {
   lunarYear: number
@@ -13,6 +14,7 @@ export type YearDataMessage = {
 }
 
 let wasm: {
+  init_de406_patch_from_binary?: (bytes: Uint8Array) => boolean
   compute_year_data_full_binary: (
     lunarYear: number,
     vsop: Uint8Array,
@@ -47,6 +49,14 @@ async function computeInWorker(lunarYear: number): Promise<YearDataMessage | nul
     .filter((u): u is Uint8Array => u != null && u.length >= 4)
   if (!vsop || elpBins.length !== 6 || !isVsop87Binary(vsop) || elpBins.some((b) => !isElpBinary(b)))
     return null
+  try {
+    const patchBuf = await fetchBinaryMaybeBrotli(PATCH_ICRS_BIN_URL)
+    if (patchBuf && typeof w.init_de406_patch_from_binary === 'function') {
+      w.init_de406_patch_from_binary(patchBuf)
+    }
+  } catch {
+    // patch 可选，404 则忽略
+  }
   const result = w.compute_year_data_full_binary(
     lunarYear,
     vsop,

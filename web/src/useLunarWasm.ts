@@ -19,6 +19,8 @@
 
 import { DATA_BASE, ELP_BASE, EPHEMERIS_BINARY_URL_LIST, EPHEMERIS_BINARY_URLS } from './ephemerisUrls'
 
+const PATCH_ICRS_BIN_URL = EPHEMERIS_BINARY_URLS.patch_icrs_bin
+
 const FILES = {
   vsop87_ear: `${DATA_BASE}/vsop87/VSOP87B.ear`,
   vsop87_ear_bin: EPHEMERIS_BINARY_URLS.vsop87_ear_bin,
@@ -269,6 +271,14 @@ async function getYearDataMainThreadImpl(
       })
     }
     if (hasAll) {
+      try {
+        const patchBuf = await fetchBinaryMaybeBrotli(PATCH_ICRS_BIN_URL)
+        if (patchBuf && typeof w.init_de406_patch_from_binary === 'function') {
+          w.init_de406_patch_from_binary(patchBuf)
+        }
+      } catch {
+        // patch 可选
+      }
       const result = w.compute_year_data_full_binary(
         lunarYear,
         vsop87Bin,

@@ -22,6 +22,7 @@ const files = [
   path.join(dataDir, 'elpmpp02', 'ELP_PERT.S2.bin'),
   path.join(dataDir, 'elpmpp02', 'ELP_PERT.S3.bin'),
   path.join(dataDir, 'IAU2000', 'tab5.3a.bin'),
+  path.join(dataDir, 'fit', 'vsop87-de406-icrs.bin'),
 ]
 
 for (const fp of files) {

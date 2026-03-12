@@ -67,11 +67,11 @@ jobs:
           uv run --only-group chapront-fit python scripts/vsop87_de406_ecliptic_fit.py || true
         continue-on-error: true
 
-      # 历表：由原始文件生成 .bin，再压成 .bin.br，供前端零解析/Brotli 加载
-      - name: Generate ephemeris .bin
+      # 历表 + 拟合：由原始文件生成 .bin（含章动 tab5.3a、拟合表 vsop87-de406-icrs 若 .txt 存在），再压成 .bin.br
+      - name: Generate ephemeris and patch .bin
         run: ./scripts/gen_ephemeris_bin.sh
 
-      - name: Compress ephemeris .bin to .br
+      - name: Compress .bin to .br (ephemeris + patch)
         run: node scripts/compress_ephemeris_brotli.mjs
 
       - name: Install web dependencies

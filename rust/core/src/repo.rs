@@ -23,6 +23,8 @@ pub mod paths {
 
     /// VSOP87–DE406 赤道 patch
     pub const FIT_VSOP87_DE406_ICRS: &str = "data/fit/vsop87-de406-icrs.txt";
+    /// VSOP87–DE406 赤道 patch 二进制（可选）
+    pub const FIT_VSOP87_DE406_ICRS_BIN: &str = "data/fit/vsop87-de406-icrs.bin";
     /// VSOP87–DE406 黄道 patch
     pub const FIT_VSOP87_DE406_ECLIPTIC: &str = "data/fit/vsop87-de406-ecliptic.txt";
 

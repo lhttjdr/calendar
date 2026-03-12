@@ -104,6 +104,8 @@ export interface LunarBackend {
     readonly nodeIds: string[]
     readonly edges: readonly { readonly from_id: string; readonly to_id: string; readonly cost: number; readonly label?: string | null }[]
   }
+  /** 从二进制加载拟合表（.bin 或解压后的 .br）。全二进制路径下可选，有则状态栏显示「拟合表: 已加载」。 */
+  init_de406_patch_from_binary?(bytes: Uint8Array): boolean
   /** 上次岁数据计算时章动表是否已加载为完整 IAU2000A（否则为 77 项）。可选，供状态栏展示。 */
   get_repo_aux_nutation_full?(): boolean
   /** 上次岁数据计算时赤道拟合表（VSOP87–DE406 ICRS patch）是否已加载。可选，供状态栏展示。 */

@@ -697,7 +697,8 @@ pub fn compute_year_data_full_binary(
         Elpmpp02Correction::DE406,
     )
     .map_err(|e| JsValue::from_str(&e.to_string()))?;
-    *REPO_AUX_STATUS.lock().unwrap() = (false, false);
+    let patch_ok = vsop87_de406_icrs_patch::is_de406_patch_loaded();
+    *REPO_AUX_STATUS.lock().unwrap() = (false, patch_ok);
     let year_data = lunar_core::calendar::chinese_lunar::compute_year_data(
         &vsop,
         &elp,
@@ -713,7 +714,13 @@ pub fn compute_year_data_full_binary(
     })
 }
 
-/// 上次岁数据计算时的 repo 辅助数据加载状态，供状态栏展示。全二进制路径下章动/拟合未从 repo 加载，为 false。
+/// 从二进制加载拟合表（.bin 或解压后的 .br）。在全二进制历表路径下，前端可先 fetch patch.bin 再调用本函数，再调用 compute_year_data_full_binary，则状态栏显示「拟合表: 已加载」。
+#[wasm_bindgen]
+pub fn init_de406_patch_from_binary(bytes: &[u8]) -> bool {
+    vsop87_de406_icrs_patch::try_init_de406_patch_from_binary(bytes)
+}
+
+/// 上次岁数据计算时的 repo 辅助数据加载状态，供状态栏展示。全二进制路径下章动未从 repo 加载；拟合表若已通过 init_de406_patch_from_binary 加载则为 true。
 #[wasm_bindgen]
 pub fn get_repo_aux_nutation_full() -> bool {
     REPO_AUX_STATUS.lock().unwrap().0

@@ -7,6 +7,8 @@ export const ELP_BASE = `${DATA_BASE}/elpmpp02`
 
 /** 二进制 URL 带缓存破坏，避免浏览器沿用旧 404 缓存导致一直走全文本 */
 const BIN_V = '?v=2'
+const FIT_BASE = `${DATA_BASE}/fit`
+
 export const EPHEMERIS_BINARY_URLS = {
   vsop87_ear_bin: `${DATA_BASE}/vsop87/VSOP87B.ear.bin${BIN_V}`,
   elp_main_s1_bin: `${ELP_BASE}/ELP_MAIN.S1.bin${BIN_V}`,
@@ -15,6 +17,8 @@ export const EPHEMERIS_BINARY_URLS = {
   elp_pert_s1_bin: `${ELP_BASE}/ELP_PERT.S1.bin${BIN_V}`,
   elp_pert_s2_bin: `${ELP_BASE}/ELP_PERT.S2.bin${BIN_V}`,
   elp_pert_s3_bin: `${ELP_BASE}/ELP_PERT.S3.bin${BIN_V}`,
+  /** 拟合表 ICRS patch，可选；有则全二进制路径下状态栏显示「拟合表: 已加载」 */
+  patch_icrs_bin: `${FIT_BASE}/vsop87-de406-icrs.bin${BIN_V}`,
 } as const
 
 export const EPHEMERIS_BINARY_URL_LIST = [
