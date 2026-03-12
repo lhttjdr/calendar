@@ -1,10 +1,16 @@
 //! 跨平台数据加载抽象：由 Native（std::fs）或 Wasm（fetch/嵌入）实现。
 
-/// 按路径读取文本行；path 为相对或绝对路径/资源名。
+/// 按路径读取文本行或二进制；path 为相对或绝对路径/资源名。
 /// Native 实现用 std::fs，Wasm 可用 fetch 或编译期嵌入。
 pub trait DataLoader: Send + Sync {
     /// 读取全部行（同步）。Wasm 侧可为 async 的同步封装或预加载。
     fn read_lines(&self, path: &str) -> Result<Vec<String>, LoadError>;
+
+    /// 读取二进制。默认返回 NotFound；实现方按需覆盖。
+    fn read_bytes(&self, path: &str) -> Result<Vec<u8>, LoadError> {
+        let _ = path;
+        Err(LoadError::NotFound(format!("read_bytes not implemented for {}", path)))
+    }
 }
 
 /// 数据加载错误
@@ -51,5 +57,14 @@ impl DataLoader for DataLoaderNative {
         let s = std::fs::read_to_string(&p)
             .map_err(|e| LoadError::Io(format!("{}: {}", p.display(), e)))?;
         Ok(s.lines().map(String::from).collect())
+    }
+
+    fn read_bytes(&self, path: &str) -> Result<Vec<u8>, LoadError> {
+        let p = if std::path::Path::new(path).is_absolute() {
+            std::path::PathBuf::from(path)
+        } else {
+            self.base_path.join(path)
+        };
+        std::fs::read(&p).map_err(|e| LoadError::Io(format!("{}: {}", p.display(), e)))
     }
 }

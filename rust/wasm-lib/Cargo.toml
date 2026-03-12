@@ -15,10 +15,3 @@ wasm-bindgen = "0.2"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
-
-[profile.release]
-# 最小化 WASM 体积与跨边界开销：体积优化 + 单编译单元以加深优化
-opt-level = "z"
-lto = true
-codegen-units = 1
-panic = "abort"

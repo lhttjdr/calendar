@@ -4,6 +4,6 @@ pub mod fixed;
 pub mod nutation;
 pub mod precession;
 
-pub use fixed::{fk5_icrs, vsop87_de406_icrs_patch};
+pub use fixed::{fk5_icrs, vsop87_de406_ecliptic_patch, vsop87_de406_icrs_patch};
 pub use nutation::*;
 pub use precession::*;

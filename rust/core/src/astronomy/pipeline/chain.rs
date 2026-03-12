@@ -53,7 +53,7 @@ impl<'a, P, M> Pipeline<'a, P, M> {
         corrector.retarded_state(t, body)
     }
 
-    /// 4. 物理空间旋转到目标架
+    /// 4. 物理空间旋转到目标架（图语义：起止点最短路执行，见 TransformGraph）
     pub fn transform_to(&self, state: State6, target: crate::quantity::reference_frame::ReferenceFrame, jd_tt: Real) -> State6 {
         self.graph.transform_to(state, target, jd_tt)
     }

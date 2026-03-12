@@ -5,7 +5,9 @@
 use std::io::{Read, Seek, SeekFrom};
 
 const RECORD_SIZE: usize = 1024;
+#[allow(dead_code)]
 const J2000_JD: f64 = 2451545.0;
+#[allow(dead_code)]
 const SEC_PER_DAY: f64 = 86400.0;
 
 /// DAF 文件记录号从 1 开始。
@@ -34,6 +36,7 @@ fn read_header_u32s(rec: &[u8], endian: Endian) -> (u32, u32, u32) {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct DafHeader {
     pub endian: Endian,
     /// 摘要中双精度个数（SPK 为 2）
@@ -68,6 +71,7 @@ impl Endian {
 
 /// 单个摘要：SPK 段描述。2 双精度 + 5 整数（NAIF 标准）；部分文件为 2+6。
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 pub struct SpkSummary {
     pub start_second: f64,
     pub end_second: f64,
@@ -79,6 +83,7 @@ pub struct SpkSummary {
     pub end_i: i32,
 }
 
+#[allow(dead_code)]
 impl SpkSummary {
     pub fn start_jd(&self) -> f64 {
         J2000_JD + self.start_second / SEC_PER_DAY

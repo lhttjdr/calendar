@@ -21,9 +21,20 @@ import numpy as np
 import os
 from scipy.optimize import least_squares
 
-# 路径：可改为本地路径或通过环境变量覆盖
-VSOP_PATH = os.environ.get("VSOP87B_EAR", "data/vsop87/VSOP87B.ear")
-DE406_PATH = os.environ.get("DE406_BSP", "data/jpl/de406.bsp")
+# 路径：数据均在 data/ 下；可通过环境变量覆盖
+def _default_vsop():
+    return os.environ.get("VSOP87B_EAR") or "data/vsop87/VSOP87B.ear"
+
+def _default_de406():
+    if os.environ.get("DE406_BSP"):
+        return os.environ.get("DE406_BSP")
+    for p in ("data/jpl/de406.bsp", "data/jpl/de406/de406.bsp"):
+        if os.path.isfile(p):
+            return p
+    return "data/jpl/de406.bsp"
+
+VSOP_PATH = _default_vsop()
+DE406_PATH = _default_de406()
 
 
 # ==========================================================================
@@ -420,6 +431,29 @@ def run_ultimate_fit_with_bounds(vsop_file, de406_file):
     return results, provider, kernel
 
 
+def write_icrs_patch_txt(results, out_path):
+    """将赤道 patch 拟合结果写入 data/fit 格式：段 [RA]/[Dec]/[R]，每段一行 4 长期 + 多行 (freq c0 s0 c1 s1)。"""
+    lines = [
+        "# VSOP87 -> DE406 ICRS 地心太阳改正（Chapront 2000 混合项）。T = (JD−J2000)/365250 儒略千年。",
+        "# Δ = secular(a0..a3) + Σ (c0+c1*T)cos(f*T) + (s0+s1*T)sin(f*T)。RA/Dec 角秒，R AU。",
+        "# 段：[RA] 4 个长期项 + 23 行 (freq c0 s0 c1 s1)；[Dec] 4+25；[R] 4+24。",
+        "",
+    ]
+    for name in ["RA", "Dec", "R"]:
+        c, f, _ = results[name]
+        lines.append(f"[{name}]")
+        lines.append(" ".join(map(str, c[:4])))
+        for i in range(len(f)):
+            row = c[4 + i * 4 : 4 + (i + 1) * 4]
+            lines.append(f"{f[i]} {row[0]} {row[1]} {row[2]} {row[3]}")
+        lines.append("")
+    out_path = os.path.abspath(out_path)
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    with open(out_path, "w") as f:
+        f.write("\n".join(lines))
+    print(f"\n>>> 已写入 {out_path}")
+
+
 class ChaprontPatchApplicator:
     """用拟合结果在给定 T（儒略千年）下计算 ΔRA、ΔDec、ΔR。支持混合(RA MIXT=1)与终极(全 MIXT=2)结果。"""
     def __init__(self, fit_results):
@@ -497,3 +531,6 @@ if __name__ == "__main__":
         print("\n>>> 验证（Total Offset / Delta Patch / Residual）")
         for jd in [2451545.0, 2461059.3]:
             print_comparison(jd, provider, applicator, kernel)
+        out_txt = os.environ.get("CHAPRONT_OUT_TXT", "data/fit/vsop87-de406-icrs.txt")
+        if out_txt:
+            write_icrs_patch_txt(fit_res, out_txt)

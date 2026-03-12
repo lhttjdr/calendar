@@ -55,6 +55,13 @@ export const EPHEMERIS_SOURCE_LABELS: Record<EphemerisDataSource, string> = {
   full_text: '历表：全文本 (.ear / ELP)',
 }
 
+/** 数据源对应的格式简述（是否二进制），用于状态栏 */
+export const EPHEMERIS_FORMAT_LABELS: Record<EphemerisDataSource, string> = {
+  full_binary: '二进制',
+  vsop_binary_elp_text: '混合',
+  full_text: '文本',
+}
+
 import type { LunarBackend } from './lunar-backend-types'
 import { loadLunarBackend, type RealBackendVariant } from './lunar-backend-loader'
 import { fetchBinaryMaybeBrotli, isVsop87Binary, isElpBinary } from './fetchEphemerisBinary'

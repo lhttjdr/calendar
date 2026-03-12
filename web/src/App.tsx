@@ -23,6 +23,7 @@ import {
   LUNAR_MONTH_NAMES,
   lunarDayStr,
   EPHEMERIS_SOURCE_LABELS,
+  EPHEMERIS_FORMAT_LABELS,
   type YearData,
   type GanzhiResult,
   type GanzhiOptionsTuple,
@@ -262,6 +263,8 @@ function App() {
   /** Real 后端：twofloat=高精度，f64=体积/速度；切换后重新加载 WASM */
   const [realBackendVariant, setRealBackendVariant] = useState<RealBackendVariant>(getStoredRealBackend)
   const [ephemerisSource, setEphemerisSource] = useState<EphemerisDataSource | null>(null)
+  /** 章动表/拟合表加载状态（由 WASM get_repo_aux_* 提供，仅文本/混合路径有值；全二进制为 77 项+未加载） */
+  const [repoAux, setRepoAux] = useState<{ nutationFull: boolean; patchIcrs: boolean } | null>(null)
   const [timeZone, setTimeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone)
   const prevTimeZoneRef = useRef<string | null>(null)
 
@@ -286,6 +289,16 @@ function App() {
     if (isVsop87Cached()) return
     ensureVsop87Cached().then(() => setVsop87Tick((n) => n + 1)).catch(() => {})
   }, [wasm, yearDataList.length, selectedDate.year, selectedDate.month, selectedDate.day, ganzhiOptions, vsop87Tick])
+
+  useEffect(() => {
+    if (!wasm || ephemerisSource == null) {
+      setRepoAux(null)
+      return
+    }
+    const nutationFull = typeof wasm.get_repo_aux_nutation_full === 'function' ? wasm.get_repo_aux_nutation_full() : false
+    const patchIcrs = typeof wasm.get_repo_aux_patch_icrs === 'function' ? wasm.get_repo_aux_patch_icrs() : false
+    setRepoAux({ nutationFull, patchIcrs })
+  }, [wasm, ephemerisSource])
 
   const presetSelectValue = getPresetIndexFromOptions(ganzhiOptions)
   const dropdownValue = presetSelectValue >= 0 ? presetSelectValue : 4
@@ -906,13 +919,22 @@ function App() {
             </Modal>
           </Flex>
         </Flex>
-        {ephemerisSource != null && (
-          <div style={{ marginTop: 12, paddingTop: 8, borderTop: '1px solid #f0f0f0' }}>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              {EPHEMERIS_SOURCE_LABELS[ephemerisSource]}
+        <div style={{ marginTop: 12, paddingTop: 8, borderTop: '1px solid #f0f0f0' }}>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {loading === 'WASM' && 'Repo：加载 WASM…'}
+            {loading === '数据' && 'Repo：加载历表…'}
+            {loading == null && error != null && 'Repo：加载失败'}
+            {loading == null && error == null && ephemerisSource != null &&
+              `Repo：已加载 · 格式：${EPHEMERIS_FORMAT_LABELS[ephemerisSource]} · ${EPHEMERIS_SOURCE_LABELS[ephemerisSource]}`}
+            {loading == null && error == null && ephemerisSource == null && wasm != null && 'Repo：就绪'}
+            {loading == null && error == null && wasm == null && 'Repo：—'}
+          </Text>
+          {repoAux != null && (
+            <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
+              章动表：{repoAux.nutationFull ? '完整 IAU2000A' : '77 项'} · 拟合表：{repoAux.patchIcrs ? '已加载' : '未加载'}
             </Text>
-          </div>
-        )}
+          )}
+        </div>
       </Spin>
     </div>
   )

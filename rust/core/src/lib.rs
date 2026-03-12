@@ -10,4 +10,8 @@ pub mod calendar;
 pub mod math;
 pub mod platform;
 pub mod quantity;
+pub mod repo;
 
+/// 测试用数据文件管理（仅 `cargo test` 时编译，不进入库/wasm 产物）。
+#[cfg(test)]
+mod test_util;

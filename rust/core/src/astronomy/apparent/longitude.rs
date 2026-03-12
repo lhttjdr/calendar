@@ -1,20 +1,23 @@
 //! 视位置：光行时 → r(tr)=Xproper + 岁差+章动 → 太阳视黄经（与定气参考一致）；另 VSOP87+FK5→ICRS+patch → 太阳 ICRS。
 //! 与 LightTime 一致：式(37) Xproper(t)=x(tr)−xE(tr) 已含光行时+光行差，故不再施光行差。
 //!
+//! **图语义**：架变换统一由 `TransformGraph` 驱动——按起止点最短路（`transform_to`）或起止点+途径点受限最短路（`transform_to_via`）执行，见 doc 15。
+//!
 //! **矩阵与向量**：岁差/章动/旋转的矩阵与向量已统一为 `Mat::<Real,3,3>` 与 `[Real; 3]`，整条链标量均为 Real。
 
-use crate::astronomy::constant::{J2000, AU_METERS};
+use crate::astronomy::constant::{AU_METERS, J2000};
+use crate::astronomy::frame::vsop87_de406_ecliptic_patch;
 use crate::astronomy::correction::aberration::annual_aberration_direction;
 use crate::astronomy::ephemeris::{De406Kernel, Elpmpp02Data, Vsop87};
 use crate::astronomy::frame::fk5_icrs;
 use crate::astronomy::frame::vsop87_de406_icrs_patch;
-use crate::astronomy::frame::nutation::nutation_for_apparent;
+use crate::astronomy::frame::nutation::{nutation_for_apparent, nutation_for_model, NutationModel};
 use crate::astronomy::frame::nutation::{eps_true_dot, nutation_derivative_times_vector};
 use crate::astronomy::time::{TimePoint, TimeScale};
 use crate::astronomy::frame::precession::{
     mean_obliquity, precession_derivative_times_vector_for, precession_transform_for, PrecessionModel,
 };
-use crate::astronomy::pipeline::{Body, EphemerisProvider, FrameMapper, LightTimeCorrector, TransformGraph, VsopToDe406IcrsFit};
+use crate::astronomy::pipeline::{Body, Compose, EphemerisProvider, FrameMapper, Fk5ToIcrsBias, LightTimeCorrector, TransformGraph, Vsop87FitDe406Equatorial};
 use crate::math::algebra::mat::Mat;
 use crate::math::real::{real_const, real, zero, one, Real, RealOps, ToReal};
 use crate::quantity::angle::PlaneAngle;
@@ -126,8 +129,14 @@ pub fn nutation_matrix_mean_to_true(t_cent: impl ToReal) -> [[Real; 3]; 3] {
 /// 章动矩阵 N^T（旧接口，保留兼容）。请用 nutation_matrix_mean_to_true 以符合被动旋转约定。
 #[inline]
 pub fn nutation_matrix_transposed(t_cent: impl ToReal) -> [[Real; 3]; 3] {
+    nutation_matrix_transposed_for_model(t_cent, NutationModel::IAU2000B)
+}
+
+/// 按章动模型返回 N^T；用于重边（IAU2000A / IAU2000B）。
+#[inline]
+pub fn nutation_matrix_transposed_for_model(t_cent: impl ToReal, model: NutationModel) -> [[Real; 3]; 3] {
     let t_real = real(t_cent);
-    let (dpsi, deps) = nutation_for_apparent(t_real);
+    let (dpsi, deps) = nutation_for_model(t_real, model);
     let n = nutation_matrix(mean_obliquity(t_real), dpsi, deps);
     Mat::<Real, 3, 3>::from(n).transpose().to_array()
 }
@@ -141,14 +150,51 @@ fn nutation_matrix(eps_mean: PlaneAngle, dpsi: PlaneAngle, deps: PlaneAngle) -> 
     r1_eps.mul_mat(&r3_dpsi).mul_mat(&r1_eps_deps).to_array()
 }
 
-/// 太阳地心位置 in ICRS (GCRF)。管线：EphemerisProvider(Sun) → MeanEcliptic→FK5 → VsopToDe406IcrsFit → position。
-/// 太阳在 J2000 赤道架下的位置（地心）。
+/// 默认变换图并挂接 FK5→ICRS 映射器；无黄道 patch 边，最短路为 MeanEcliptic→FK5→ICRS(9)。
+fn default_graph_with_icrs_mapper() -> TransformGraph {
+    TransformGraph::default_graph().with_fk5_to_icrs_mapper(|s, jd_tt| {
+        let t = TimePoint::new(TimeScale::TT, jd_tt);
+        Compose(Fk5ToIcrsBias, Vsop87FitDe406Equatorial).apply(s, t)
+    })
+}
+
+/// 默认图 + FK5→ICRS + 黄道 patch 映射器；最短路可为 MeanEcliptic→Patch→FK5→ICRS(5)。patch 未加载时改正为 0。
+fn default_graph_with_icrs_and_ecliptic_patch_mapper() -> TransformGraph {
+    default_graph_with_icrs_mapper().with_ecliptic_patch_mapper(|s, jd_tt| {
+        let epoch = Epoch::new(jd_tt);
+        let tr = TimePoint::new(TimeScale::TT, jd_tt);
+        let [x, y, z] = s.position.to_meters();
+        let r = (x.clone() * x + y.clone() * y + z.clone() * z).sqrt();
+        let r_au = (r.clone() / AU_METERS).as_f64();
+        let l = y.clone().atan2(x.clone());
+        let b = if r > zero() { (z / r).asin() } else { zero() };
+        let (lp, bp, r_au_p) = vsop87_de406_ecliptic_patch::apply_patch_to_ecliptic_for_geocentric_sun(
+            PlaneAngle::from_rad(l),
+            PlaneAngle::from_rad(b),
+            r_au,
+            &tr,
+        );
+        let (vx, vy, vz) = (s.velocity.vx.m_per_s(), s.velocity.vy.m_per_s(), s.velocity.vz.m_per_s());
+        let cp = lp.rad().cos() * bp.rad().cos();
+        let sp = lp.rad().sin() * bp.rad().cos();
+        let zp = bp.rad().sin();
+        let r_m = real(r_au_p) * AU_METERS;
+        crate::astronomy::pipeline::State6::from_si_in_frame(
+            ReferenceFrame::MeanEclipticEclipticPatch(epoch),
+            r_m.clone() * cp,
+            r_m.clone() * sp,
+            r_m * zp,
+            vx, vy, vz,
+        )
+    })
+}
+
+/// 太阳地心位置 in ICRS (GCRF)。图语义：起止点最短路 MeanEcliptic→…→ICRS 执行。
 pub fn sun_position_icrs(vsop: &Vsop87, t: TimePoint) -> Position {
     let jd_tt = t.to_scale(TimeScale::TT).jd;
     let state = vsop.compute_state(Body::Sun, t);
-    let graph = TransformGraph::default_graph();
-    let state = graph.transform_to(state, ReferenceFrame::FK5, jd_tt);
-    let state = VsopToDe406IcrsFit.apply(state, t);
+    let graph = default_graph_with_icrs_mapper();
+    let state = graph.transform_to(state, ReferenceFrame::ICRS, jd_tt);
     state.position
 }
 
@@ -174,16 +220,15 @@ pub fn sun_apparent_ecliptic_longitude_explicit_aberration(
 ) -> PlaneAngle {
     let t_tt = t.to_scale(TimeScale::TT);
     let jd_obs = t_tt.jd;
-    let corrector: LightTimeCorrector<'_, Vsop87, VsopToDe406IcrsFit> = LightTimeCorrector {
+    let corrector: LightTimeCorrector<'_, Vsop87, Compose<Fk5ToIcrsBias, Vsop87FitDe406Equatorial>> = LightTimeCorrector {
         ephemeris: vsop,
         mapper: None,
         max_iter: 2,
     };
     let (tr, state_me) = corrector.retarded_state(t_tt, Body::Sun);
     let jd_tr = tr.to_scale(TimeScale::TT).jd;
-    let graph = TransformGraph::default_graph();
-    let state_fk5 = graph.transform_to(state_me, ReferenceFrame::FK5, jd_tr);
-    let state_icrs = VsopToDe406IcrsFit.apply(state_fk5, tr);
+    let graph = default_graph_with_icrs_mapper();
+    let state_icrs = graph.transform_to(state_me, ReferenceFrame::ICRS, jd_tr); // 图语义：最短路 → ICRS
     let [px, py, pz] = state_icrs.position.to_meters();
     let v_icrs = earth_velocity_icrs_m_per_s(vsop, t);
     let delta_t_days = jd_tr - jd_obs;
@@ -203,7 +248,7 @@ pub fn sun_apparent_ecliptic_longitude_explicit_aberration(
         v_icrs[2].clone() * au_per_day,
     ];
     let e_app = annual_aberration_direction(r_au, v_au);
-    let graph = TransformGraph::default_graph().with_precession_model(options.effective_precession_model());
+    let graph = default_graph_with_icrs_mapper().with_precession_model(options.effective_precession_model());
     let state = crate::astronomy::pipeline::State6::from_si_in_frame(
         ReferenceFrame::ICRS,
         e_app[0].clone() * AU_METERS,
@@ -213,13 +258,13 @@ pub fn sun_apparent_ecliptic_longitude_explicit_aberration(
         zero(),
         zero(),
     );
-    // 与 Xproper 管线一致：用推迟时 jd_tr 的架取 λ，以便与 TDB 参考及定气对比一致
+    // 与 Xproper 管线一致：用推迟时 jd_tr 的架取 λ。图语义：ICRS→…→ApparentEcliptic 最短路执行。
     let epoch = Epoch::new(jd_tr);
     let state = graph.transform_to(state, ReferenceFrame::ApparentEcliptic(epoch), jd_tr);
     PlaneAngle::from_rad(state.to_spherical().lon.rad().wrap_to_2pi())
 }
 
-/// 太阳视黄经（弧度 [0, 2π)）：管线为光行时 → EphemerisProvider(Sun) → FK5 → VsopToDe406IcrsFit → TransformGraph → ApparentEcliptic → λ。与定气参考一致。内部 f64，边界转 R。
+/// 太阳视黄经（弧度 [0, 2π)）：管线为光行时 → EphemerisProvider(Sun) → FK5 → Compose(Fk5ToIcrsBias, Vsop87FitDe406Equatorial) → TransformGraph → ApparentEcliptic → λ。与定气参考一致。内部 f64，边界转 R。
 pub fn sun_apparent_ecliptic_longitude(vsop: &Vsop87, t: TimePoint) -> PlaneAngle {
     let lam = sun_apparent_ecliptic_longitude_impl(vsop, t, &ApparentPipelineOptions::default()).0;
     lam
@@ -243,7 +288,7 @@ pub fn sun_apparent_ecliptic_longitude_velocity_analytic(
     options: &ApparentPipelineOptions,
 ) -> Real {
     let t_tt = t.to_scale(TimeScale::TT);
-    let corrector: LightTimeCorrector<'_, Vsop87, VsopToDe406IcrsFit> = LightTimeCorrector {
+    let corrector: LightTimeCorrector<'_, Vsop87, Compose<Fk5ToIcrsBias, Vsop87FitDe406Equatorial>> = LightTimeCorrector {
         ephemeris: vsop,
         mapper: None,
         max_iter: 2,
@@ -373,7 +418,7 @@ fn moon_apparent_ecliptic_longitude_velocity_analytic(
 ) -> Real {
     let t_tt = t.to_scale(TimeScale::TT);
     let (state, jd_work) = if options.use_light_time_moon {
-        let corrector: LightTimeCorrector<'_, Elpmpp02Data, VsopToDe406IcrsFit> = LightTimeCorrector {
+        let corrector: LightTimeCorrector<'_, Elpmpp02Data, Compose<Fk5ToIcrsBias, Vsop87FitDe406Equatorial>> = LightTimeCorrector {
             ephemeris: elp,
             mapper: None,
             max_iter: 2,
@@ -491,7 +536,7 @@ pub fn moon_apparent_ecliptic_longitude_with_options(
 ) -> PlaneAngle {
     let t_tt = t.to_scale(TimeScale::TT);
     let (state, jd_work) = if options.use_light_time_moon {
-        let corrector: LightTimeCorrector<'_, Elpmpp02Data, VsopToDe406IcrsFit> = LightTimeCorrector {
+        let corrector: LightTimeCorrector<'_, Elpmpp02Data, Compose<Fk5ToIcrsBias, Vsop87FitDe406Equatorial>> = LightTimeCorrector {
             ephemeris: elp,
             mapper: None,
             max_iter: 2,
@@ -505,9 +550,8 @@ pub fn moon_apparent_ecliptic_longitude_with_options(
     let precession_model = options.effective_precession_model();
     let graph = TransformGraph::default_graph().with_precession_model(precession_model);
     let epoch = Epoch::new(jd_work);
-    let state = graph.transform_to(state, ReferenceFrame::ApparentEcliptic(epoch), jd_work);
-    let rad = state.to_spherical().lon.rad().wrap_to_2pi();
-    PlaneAngle::from_rad(rad)
+    let state = graph.transform_to(state, ReferenceFrame::ApparentEcliptic(epoch), jd_work); // 图语义：最短路 ICRS→…→ApparentEcliptic
+    PlaneAngle::from_rad(state.to_spherical().lon.rad().wrap_to_2pi())
 }
 
 // ---------- DE406 BSP 历表路径：状态已是 ICRS，无需 FrameMapper/patch ----------
@@ -524,7 +568,7 @@ pub fn sun_apparent_ecliptic_longitude_de406_with_options(
     options: &ApparentPipelineOptions,
 ) -> PlaneAngle {
     let t_tt = t.to_scale(TimeScale::TT);
-    let corrector: LightTimeCorrector<'_, De406Kernel, VsopToDe406IcrsFit> = LightTimeCorrector {
+    let corrector: LightTimeCorrector<'_, De406Kernel, Compose<Fk5ToIcrsBias, Vsop87FitDe406Equatorial>> = LightTimeCorrector {
         ephemeris: kernel,
         mapper: None,
         max_iter: 2,
@@ -534,7 +578,7 @@ pub fn sun_apparent_ecliptic_longitude_de406_with_options(
     let precession_model = options.effective_precession_model();
     let graph = TransformGraph::default_graph().with_precession_model(precession_model);
     let epoch = Epoch::new(jd_tt);
-    let state = graph.transform_to(state, ReferenceFrame::ApparentEcliptic(epoch), jd_tt);
+    let state = graph.transform_to(state, ReferenceFrame::ApparentEcliptic(epoch), jd_tt); // 图语义：最短路 ICRS→…→ApparentEcliptic
     PlaneAngle::from_rad(state.to_spherical().lon.rad().wrap_to_2pi())
 }
 
@@ -551,7 +595,7 @@ pub fn moon_apparent_ecliptic_longitude_de406_with_options(
 ) -> PlaneAngle {
     let t_tt = t.to_scale(TimeScale::TT);
     let (state, jd_tt_work) = if options.use_light_time_moon {
-        let corrector: LightTimeCorrector<'_, De406Kernel, VsopToDe406IcrsFit> = LightTimeCorrector {
+        let corrector: LightTimeCorrector<'_, De406Kernel, Compose<Fk5ToIcrsBias, Vsop87FitDe406Equatorial>> = LightTimeCorrector {
             ephemeris: kernel,
             mapper: None,
             max_iter: 2,
@@ -564,7 +608,7 @@ pub fn moon_apparent_ecliptic_longitude_de406_with_options(
     let precession_model = options.effective_precession_model();
     let graph = TransformGraph::default_graph().with_precession_model(precession_model);
     let epoch = Epoch::new(jd_tt_work);
-    let state = graph.transform_to(state, ReferenceFrame::ApparentEcliptic(epoch), jd_tt_work);
+    let state = graph.transform_to(state, ReferenceFrame::ApparentEcliptic(epoch), jd_tt_work); // 图语义：最短路 ICRS→…→ApparentEcliptic
     PlaneAngle::from_rad(state.to_spherical().lon.rad().wrap_to_2pi())
 }
 
@@ -578,8 +622,22 @@ fn sun_apparent_ecliptic_longitude_impl(
     t: TimePoint,
     options: &ApparentPipelineOptions,
 ) -> (PlaneAngle, ApparentSunDiagnostic) {
+    if options.use_explicit_aberration {
+        let lam = sun_apparent_ecliptic_longitude_explicit_aberration(vsop, t, options);
+        let diag = ApparentSunDiagnostic {
+            t_cent: 0.0,
+            dpsi: PlaneAngle::from_rad(zero()),
+            deps: PlaneAngle::from_rad(zero()),
+            precession_diag: [0.0, 0.0, 0.0],
+            eps_mean: PlaneAngle::from_rad(zero()),
+            eps_true: PlaneAngle::from_rad(zero()),
+            lambda_mean_ecliptic: PlaneAngle::from_rad(zero()),
+            lambda: lam,
+        };
+        return (lam, diag);
+    }
     let t_tt = t.to_scale(TimeScale::TT);
-    let corrector: LightTimeCorrector<'_, Vsop87, VsopToDe406IcrsFit> = LightTimeCorrector {
+    let corrector: LightTimeCorrector<'_, Vsop87, Compose<Fk5ToIcrsBias, Vsop87FitDe406Equatorial>> = LightTimeCorrector {
         ephemeris: vsop,
         mapper: None,
         max_iter: 2,
@@ -588,15 +646,15 @@ fn sun_apparent_ecliptic_longitude_impl(
     let jd_tr = tr.to_scale(TimeScale::TT).jd;
     let t_cent = julian_centuries_from_jd(jd_tr);
     let precession_model = options.effective_precession_model();
-    let graph = TransformGraph::default_graph().with_precession_model(precession_model);
-    let state = graph.transform_to(state, ReferenceFrame::FK5, jd_tr);
-    let state = VsopToDe406IcrsFit.apply(state, tr);
+    let graph = default_graph_with_icrs_and_ecliptic_patch_mapper().with_precession_model(precession_model);
     let epoch = Epoch::new(jd_tr);
+    let state = graph.transform_to(state, ReferenceFrame::ICRS, jd_tr); // 图语义：最短路 → ICRS
+
     let (dpsi, deps) = nutation_for_apparent(t_cent);
     let eps_mean = mean_obliquity(t_cent).rad();
     let eps_true = eps_mean + deps.rad();
 
-    // 平黄经：仅岁差 → 平赤道，再按平黄赤交角转到平黄道（赤道→黄道 R1(-ε)）
+    // 图语义：ICRS→…→ApparentEcliptic 受限最短路途径 MeanEquator，分步执行以便取平黄经诊断
     let state_me = graph.transform_to(state, ReferenceFrame::MeanEquator(epoch), jd_tr);
     let [x, y, z] = state_me.position.to_meters();
     let (c, s) = (eps_mean.cos(), eps_mean.sin());

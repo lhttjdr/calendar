@@ -1,3 +1,10 @@
 [workspace]
 resolver = "2"
 members = ["core", "wasm-lib", "wasm-lib-f64"]
+
+[profile.release]
+# 与 wasm 包一致，便于 release 体积优化；非 root 包的 profile 会被忽略，故在此统一指定
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"

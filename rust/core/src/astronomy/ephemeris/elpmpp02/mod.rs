@@ -535,11 +535,8 @@ mod tests {
     #[test]
     #[cfg(not(target_arch = "wasm32"))]
     fn load_all_and_position_velocity_full() {
-        use crate::platform::DataLoaderNative;
-        // 仓库布局：rust/core 为 manifest_dir，数据在 ../../data/elpmpp02
-        let base = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/elpmpp02");
-        let loader = DataLoaderNative::new(&base);
-        let data = load_all(&loader, ".", Elpmpp02Correction::DE405).expect("load elpmpp02");
+        let loader = crate::repo::default_loader();
+        let data = load_all(&loader, crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE405).expect("load elpmpp02");
         assert!(!data.is_mean_only());
         let (pos, vel) = position_velocity(&data, j2000_tt());
         let r = pos.norm().meters();
@@ -562,14 +559,13 @@ mod tests {
     #[cfg(not(target_arch = "wasm32"))]
     fn elpmpp02_vs_jpl_de406_samples() {
         use crate::astronomy::time::{TimePoint, TimeScale};
-        use crate::platform::DataLoaderNative;
         use std::io::BufRead;
 
-        let base = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let csv_path = base.join("data/jpl/elp_vs_jpl_de406_samples.csv");
+        let base = crate::repo::repo_root();
+        let csv_path = base.join(crate::repo::paths::JPL_ELP_VS_JPL_SAMPLES_CSV);
         let Ok(csv) = std::fs::File::open(&csv_path) else { return };
-        let loader = DataLoaderNative::new(&base);
-        let data = match load_all(&loader, "data/elpmpp02", Elpmpp02Correction::DE406) {
+        let loader = crate::repo::default_loader();
+        let data = match load_all(&loader, crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE406) {
             Ok(d) => d,
             Err(_) => return,
         };

@@ -6,6 +6,7 @@ use std::io::{Read, Seek};
 
 
 /// 段数据：Type 2（仅位置）或 Type 3（位置+速度），Chebyshev 系数。
+#[allow(dead_code)]
 pub struct SegmentData {
     /// 第一段起始时间（TDB 秒，相对 J2000）
     pub init: f64,

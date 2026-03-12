@@ -46,13 +46,26 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pages-
 
-      - name: Build WASM (wasm-lib)
-        working-directory: rust/wasm-lib
-        run: wasm-pack build --release --target web
+      # 章动：若无 data/IAU2000/tab5.3a.txt 则从 IERS 拉取并生成（VLBI 合并格式），供后续 .bin 与前端加载
+      - name: Prepare nutation (章动)
+        run: |
+          if [ ! -f data/IAU2000/tab5.3a.txt ]; then
+            python3 scripts/iers_nutation_to_tab53a.py
+          else
+            echo "data/IAU2000/tab5.3a.txt exists, skip fetch"
+          fi
 
-      - name: Build WASM (wasm-lib-f64)
-        working-directory: rust/wasm-lib-f64
-        run: wasm-pack build --release --target web
+      - name: Build WASM (wasm-lib + wasm-lib-f64)
+        run: ./scripts/build_wasm.sh --release
+
+      # 补丁：若具备 VSOP87 + DE406 BSP 则生成 data/fit 赤道/黄道拟合表；否则沿用仓库内已有或前端显示「未加载」
+      - name: Setup uv (for patch scripts)
+        uses: astral-sh/setup-uv@v4
+      - name: Prepare patch (补丁)
+        run: |
+          uv run --only-group chapront-fit python scripts/vsop87_de406_chapront_fit.py || true
+          uv run --only-group chapront-fit python scripts/vsop87_de406_ecliptic_fit.py || true
+        continue-on-error: true
 
       # 历表：由原始文件生成 .bin，再压成 .bin.br，供前端零解析/Brotli 加载
       - name: Generate ephemeris .bin

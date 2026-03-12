@@ -38,4 +38,4 @@ wasm-pack build wasm-lib --target web
 
 ## 数据路径
 
-数据路径：`data/vsop87/`、`data/elpmpp02/` 等，由调用方设置 `DataLoader` 的 base path（例如仓库根目录）。
+数据路径由 [repo](core/src/repo.rs) 模块统一管理：`repo::paths` 定义所有相对路径常量（如 `VSOP87_EARTH`、`ELPMPP02`、`IAU2000_TAB53A` 等），`repo::repo_root()` 在 Native 下解析仓库根（环境变量 `REPO_ROOT` 或 `CARGO_MANIFEST_DIR` 上两级）。调用方用 `DataLoaderNative::new(&repo::repo_root())` 并配合 `repo::paths::*` 即可保证路径一致。

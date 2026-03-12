@@ -63,6 +63,7 @@ function getGraphData(wasm: LunarBackend & { transformGraphVisualizationData?: (
   return (wasm as { transformGraphVisualizationData: () => TransformGraphViz }).transformGraphVisualizationData()
 }
 
+const HELIOCENTRIC_MEAN_ECLIPTIC = '日心_MeanEcliptic(epoch)'
 const ECLIPTIC_PATCH_ID = 'Vsop87De406EclipticPatch'
 
 const MEAN_ECLIPTIC_EQUATOR = 'MeanEcliptic(epoch)_赤道'
@@ -74,6 +75,8 @@ const FK5_CORRECTED = 'FK5_已修正'
 function getEdgeLabelFallback(fromId: string, toId: string): string {
   const key = `${fromId}\0${toId}`
   const map: Record<string, string> = {
+    ['VSOP87\0' + HELIOCENTRIC_MEAN_ECLIPTIC]: '光行时→tr；历表求值',
+    [HELIOCENTRIC_MEAN_ECLIPTIC + '\0' + MEAN_ECLIPTIC_EQUATOR]: '日心→地心',
     ['VSOP87\0' + MEAN_ECLIPTIC_EQUATOR]: '光行时→tr；历表输出',
     ['VSOP87\0' + ECLIPTIC_PATCH_ID]: '光行时→tr；黄道拟合：L,B 拟合修正',
     [ECLIPTIC_PATCH_ID + '\0' + MEAN_ECLIPTIC_ECLIPTIC]: 'R_x(ε₀)+Frame bias',
@@ -81,8 +84,8 @@ function getEdgeLabelFallback(fromId: string, toId: string): string {
     ['ELPMPP02_MEAN_LUNAR\0' + MEAN_ECLIPTIC_ECLIPTIC]: 'Laskar P,Q 旋转',
     [MEAN_ECLIPTIC_EQUATOR + '\0' + FK5_UNCORRECTED]: '黄赤交角 R_x(ε₀)',
     [MEAN_ECLIPTIC_ECLIPTIC + '\0' + FK5_CORRECTED]: '黄赤交角 R_x(ε₀)',
-    [FK5_UNCORRECTED + '\0VsopToDe406IcrsFit']: 'Frame bias B + DE406 拟合修正',
-    ['VsopToDe406IcrsFit\0ICRS']: '恒等',
+    [FK5_UNCORRECTED + '\0Fk5ToIcrsBias+Vsop87FitDe406Equatorial']: 'Frame bias B + DE406 拟合修正',
+    ['Fk5ToIcrsBias+Vsop87FitDe406Equatorial\0ICRS']: '恒等',
     ['ICRS\0' + FK5_CORRECTED]: 'B^T（Frame bias 逆）',
     [FK5_CORRECTED + '\0MeanEquator(epoch)']: '岁差（P03）',
     ['MeanEquator(epoch)\0TrueEquator(epoch)']: '章动',
@@ -94,6 +97,7 @@ function getEdgeLabelFallback(fromId: string, toId: string): string {
 /** 框内：标架 + 坐标系 + 历元。赤道/黄道拆两节点；FK5 拆为未修正→patch→已修正 */
 const NODE_BOX_LABELS: Record<string, string> = {
   VSOP87: 'VSOP87 · J2000 动力学平黄道',
+  [HELIOCENTRIC_MEAN_ECLIPTIC]: '日心 · 历元平黄道',
   Vsop87De406EclipticPatch: 'Vsop87+黄道补丁 · J2000 平黄道',
   ELPMPP02: 'ELPMPP02 · J2000 月心平架',
   ELPMPP02_MEAN_LUNAR: 'ELP 平均根数 · J2000 平黄道',
@@ -101,7 +105,7 @@ const NODE_BOX_LABELS: Record<string, string> = {
   'MeanEcliptic(epoch)_黄道': 'MeanEcliptic · 历元平黄道（黄道路径）',
   'FK5_未修正': 'FK5 · J2000 平赤道（未修正）',
   'FK5_已修正': 'FK5 · J2000 平赤道（已修正）',
-  VsopToDe406IcrsFit: 'Vsop→DE406 拟合 · ICRS',
+    'Fk5ToIcrsBias+Vsop87FitDe406Equatorial': 'Vsop→DE406 拟合 · ICRS',
   ICRS: 'ICRS · 国际天球参考系',
   'MeanEquator(epoch)': 'MeanEquator · 历元平赤道',
   'TrueEquator(epoch)': 'TrueEquator · 历元真赤道',

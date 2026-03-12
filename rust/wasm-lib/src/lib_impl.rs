@@ -4,19 +4,35 @@ use once_cell::sync::Lazy;
 use wasm_bindgen::prelude::*;
 use lunar_core::math::real::{real, RealOps};
 use lunar_core::platform::{DataLoader, LoadError};
-use lunar_core::astronomy::ephemeris::{load_earth_vsop87, load_all, load_all_from_binary, Elpmpp02Correction, Vsop87};
+use lunar_core::astronomy::ephemeris::{load_all, load_all_from_binary, load_earth_vsop87_from_repo, Elpmpp02Correction, Vsop87};
 use lunar_core::astronomy::frame::nutation;
+use lunar_core::astronomy::frame::vsop87_de406_icrs_patch;
 
-/// 从内存 path → 文件内容 读取，供 wasm 内现算岁数据使用。
-struct DataLoaderMemory {
-    files: HashMap<String, String>,
+/// Wasm 侧 DataLoader 实现（与 core 的 DataLoaderNative 对称）。path → 文件内容，文本用 files，二进制用 binary（如 fetch 的 .bin）。
+struct DataLoaderWasm {
+    pub files: HashMap<String, String>,
+    pub binary: HashMap<String, Vec<u8>>,
 }
 
-impl DataLoader for DataLoaderMemory {
+impl DataLoaderWasm {
+    /// 用文本文件表构造；binary 表为空，可按需再插入。
+    fn new(files: HashMap<String, String>) -> Self {
+        Self { files, binary: HashMap::new() }
+    }
+}
+
+impl DataLoader for DataLoaderWasm {
     fn read_lines(&self, path: &str) -> Result<Vec<String>, LoadError> {
         self.files
             .get(path)
             .map(|s| s.lines().map(String::from).collect())
+            .ok_or_else(|| LoadError::NotFound(path.to_string()))
+    }
+
+    fn read_bytes(&self, path: &str) -> Result<Vec<u8>, LoadError> {
+        self.binary
+            .get(path)
+            .cloned()
             .ok_or_else(|| LoadError::NotFound(path.to_string()))
     }
 }
@@ -26,6 +42,9 @@ const ELP_BASE: &str = "data/elpmpp02";
 
 /// 缓存已解析的 VSOP87，避免日历每格调用时重复解析 300KB+ 文本（节气派干支历）。
 static VSOP87_CACHE: Lazy<Mutex<Option<Arc<Vsop87>>>> = Lazy::new(|| Mutex::new(None));
+
+/// 上次岁数据计算时的 repo 辅助数据加载状态（章动表、拟合表），供状态栏展示。
+static REPO_AUX_STATUS: Lazy<Mutex<(bool, bool)>> = Lazy::new(|| Mutex::new((false, false)));
 
 #[wasm_bindgen]
 pub fn gregorian_to_jd(year: i32, month: i32, day: i32) -> f64 {
@@ -316,9 +335,9 @@ pub fn ganzhi_from_jd_solar_wasm(
         } else {
             let mut files = HashMap::new();
             files.insert(VSOP87_EAR_PATH.to_string(), vsop87_ear.to_string());
-            let loader = DataLoaderMemory { files };
-            let parsed = load_earth_vsop87(&loader, VSOP87_EAR_PATH)
-                .map_err(|e| JsValue::from_str(&e.to_string()))?;
+            let loader = DataLoaderWasm::new(files);
+            lunar_core::repo::set_loader(Box::new(loader));
+            let parsed = load_earth_vsop87_from_repo().map_err(|e| JsValue::from_str(&e.to_string()))?;
             let arc = Arc::new(parsed);
             *guard = Some(Arc::clone(&arc));
             arc
@@ -449,8 +468,9 @@ pub fn ganzhi_for_gregorian_month_wasm(
         } else {
             let mut files = HashMap::new();
             files.insert(VSOP87_EAR_PATH.to_string(), vsop87_ear.to_string());
-            let loader = DataLoaderMemory { files };
-            match load_earth_vsop87(&loader, VSOP87_EAR_PATH) {
+            let loader = DataLoaderWasm::new(files);
+            lunar_core::repo::set_loader(Box::new(loader));
+            match load_earth_vsop87_from_repo() {
                 Ok(parsed) => {
                     let arc = Arc::new(parsed);
                     *guard = Some(Arc::clone(&arc));
@@ -588,11 +608,13 @@ pub fn compute_year_data_wasm(
     files.insert(format!("{}/ELP_PERT.S1", ELP_BASE), elp_pert_s1.to_string());
     files.insert(format!("{}/ELP_PERT.S2", ELP_BASE), elp_pert_s2.to_string());
     files.insert(format!("{}/ELP_PERT.S3", ELP_BASE), elp_pert_s3.to_string());
-    let loader = DataLoaderMemory { files };
-    let _ = nutation::try_init_full_nutation(&loader, nutation::DEFAULT_TAB53A_PATH);
-    let vsop = load_earth_vsop87(&loader, VSOP87_EAR_PATH)
-        .map_err(|e| JsValue::from_str(&e.to_string()))?;
-    let elp = load_all(&loader, ELP_BASE, Elpmpp02Correction::DE406)
+    let loader = DataLoaderWasm::new(files);
+    lunar_core::repo::set_loader(Box::new(loader));
+    let nutation_ok = nutation::try_init_full_nutation_from_repo();
+    let patch_ok = vsop87_de406_icrs_patch::try_init_de406_patch_from_repo();
+    *REPO_AUX_STATUS.lock().unwrap() = (nutation_ok, patch_ok);
+    let vsop = load_earth_vsop87_from_repo().map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let elp = load_all(lunar_core::repo::get_loader().unwrap(), ELP_BASE, Elpmpp02Correction::DE406)
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
     let year_data = lunar_core::calendar::chinese_lunar::compute_year_data(
         &vsop,
@@ -630,9 +652,12 @@ pub fn compute_year_data_from_binary(
     files.insert(format!("{}/ELP_PERT.S1", ELP_BASE), elp_pert_s1.to_string());
     files.insert(format!("{}/ELP_PERT.S2", ELP_BASE), elp_pert_s2.to_string());
     files.insert(format!("{}/ELP_PERT.S3", ELP_BASE), elp_pert_s3.to_string());
-    let loader = DataLoaderMemory { files };
-    let _ = nutation::try_init_full_nutation(&loader, nutation::DEFAULT_TAB53A_PATH);
-    let elp = load_all(&loader, ELP_BASE, Elpmpp02Correction::DE406)
+    let loader = DataLoaderWasm::new(files);
+    lunar_core::repo::set_loader(Box::new(loader));
+    let nutation_ok = nutation::try_init_full_nutation_from_repo();
+    let patch_ok = vsop87_de406_icrs_patch::try_init_de406_patch_from_repo();
+    *REPO_AUX_STATUS.lock().unwrap() = (nutation_ok, patch_ok);
+    let elp = load_all(lunar_core::repo::get_loader().unwrap(), ELP_BASE, Elpmpp02Correction::DE406)
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
     let year_data = lunar_core::calendar::chinese_lunar::compute_year_data(
         &vsop,
@@ -672,6 +697,7 @@ pub fn compute_year_data_full_binary(
         Elpmpp02Correction::DE406,
     )
     .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    *REPO_AUX_STATUS.lock().unwrap() = (false, false);
     let year_data = lunar_core::calendar::chinese_lunar::compute_year_data(
         &vsop,
         &elp,
@@ -687,11 +713,22 @@ pub fn compute_year_data_full_binary(
     })
 }
 
+/// 上次岁数据计算时的 repo 辅助数据加载状态，供状态栏展示。全二进制路径下章动/拟合未从 repo 加载，为 false。
+#[wasm_bindgen]
+pub fn get_repo_aux_nutation_full() -> bool {
+    REPO_AUX_STATUS.lock().unwrap().0
+}
+
+#[wasm_bindgen]
+pub fn get_repo_aux_patch_icrs() -> bool {
+    REPO_AUX_STATUS.lock().unwrap().1
+}
+
 // ---------------------------------------------------------------------------
 // 视位置管线：变换图可视化（供前端画架变换图）
 // ---------------------------------------------------------------------------
 
-/// 单条架变换边的可视化数据（含可选步骤标签）。
+/// 单条架变换边的可视化数据（含步骤标签与边分类）。
 #[wasm_bindgen]
 #[derive(Clone)]
 pub struct GraphEdgeViz {
@@ -699,6 +736,10 @@ pub struct GraphEdgeViz {
     to_id: String,
     cost: u32,
     label: Option<String>,
+    /// 边的概念分类中文标签（标架旋转 / 标架平移 / 光行时 / 等）
+    kind_cn: String,
+    /// 边的执行形式中文标签（旋转 / 平移 / 映射 / 等）
+    form_cn: String,
 }
 
 #[wasm_bindgen]
@@ -720,12 +761,41 @@ impl GraphEdgeViz {
     pub fn label(&self) -> String {
         self.label.clone().unwrap_or_else(|| "几何变换".into())
     }
+    #[wasm_bindgen(getter_with_clone, js_name = kindCn)]
+    pub fn kind_cn(&self) -> String {
+        self.kind_cn.clone()
+    }
+    #[wasm_bindgen(getter_with_clone, js_name = formCn)]
+    pub fn form_cn(&self) -> String {
+        self.form_cn.clone()
+    }
 }
 
-/// 变换图的可视化数据：节点 id 列表与边列表，供前端绘图（如 D3 / Mermaid）。
+/// 节点原点角色（日心/地心/质心），供前端按角色着色或分组。
+#[wasm_bindgen]
+#[derive(Clone)]
+pub struct NodeOriginViz {
+    node_id: String,
+    origin_cn: String,
+}
+
+#[wasm_bindgen]
+impl NodeOriginViz {
+    #[wasm_bindgen(getter_with_clone, js_name = nodeId)]
+    pub fn node_id(&self) -> String {
+        self.node_id.clone()
+    }
+    #[wasm_bindgen(getter_with_clone, js_name = originCn)]
+    pub fn origin_cn(&self) -> String {
+        self.origin_cn.clone()
+    }
+}
+
+/// 变换图的可视化数据：节点 id、节点原点角色、边列表，供前端绘图与分类展示。
 #[wasm_bindgen]
 pub struct TransformGraphViz {
     node_ids: Vec<String>,
+    node_origins: Vec<NodeOriginViz>,
     edges: Vec<GraphEdgeViz>,
 }
 
@@ -734,6 +804,10 @@ impl TransformGraphViz {
     #[wasm_bindgen(getter_with_clone, js_name = nodeIds)]
     pub fn node_ids(&self) -> Vec<String> {
         self.node_ids.clone()
+    }
+    #[wasm_bindgen(getter_with_clone, js_name = nodeOrigins)]
+    pub fn node_origins(&self) -> Vec<NodeOriginViz> {
+        self.node_origins.clone()
     }
     #[wasm_bindgen(getter_with_clone)]
     pub fn edges(&self) -> Vec<GraphEdgeViz> {
@@ -747,7 +821,15 @@ pub fn transform_graph_visualization_data() -> TransformGraphViz {
     let graph = lunar_core::astronomy::pipeline::TransformGraph::default_graph();
     let data = graph.visualization_data();
     TransformGraphViz {
-        node_ids: data.node_ids,
+        node_ids: data.node_ids.clone(),
+        node_origins: data
+            .node_origins
+            .into_iter()
+            .map(|(id, r)| NodeOriginViz {
+                node_id: id,
+                origin_cn: r.label_cn().to_string(),
+            })
+            .collect(),
         edges: data
             .edges
             .into_iter()
@@ -756,6 +838,8 @@ pub fn transform_graph_visualization_data() -> TransformGraphViz {
                 to_id: e.to_id,
                 cost: e.cost,
                 label: e.label,
+                kind_cn: e.kind.label_cn().to_string(),
+                form_cn: e.form.label_cn().to_string(),
             })
             .collect(),
     }

@@ -7,12 +7,12 @@
 
 use super::*;
 use crate::astronomy::apparent::sun_position_icrs;
-use crate::astronomy::ephemeris::{load_earth_vsop87, De406Kernel, Vsop87};
+use crate::astronomy::ephemeris::{load_earth_vsop87_from_repo, De406Kernel, Vsop87};
 use crate::astronomy::time::{TimePoint, TimeScale};
 use crate::math::real::{real, RealOps};
-use crate::platform::DataLoaderNative;
 use pyo3::types::PyAnyMethods;
 
+#[allow(dead_code)]
 const PY_CODE: &str = r"
 import math, os
 def run(ephem_path, jd_list):
@@ -219,6 +219,7 @@ def run_geocentric(bsp_path, jd_list):
 ";
 
 /// DE406 地心太阳在 J2000 平黄道 (x,y,z) km；与 PY_CODE 同路径与旋转。
+#[allow(dead_code)]
 const PY_CODE_SUN: &str = r"
 import math, os
 def run_sun(ephem_path, jd_list):
@@ -300,9 +301,9 @@ fn elpmpp02_vs_jpl_de406_python() {
         return;
     }
     set_python_home_if_requested();
-    let base = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let base = crate::repo::repo_root();
     let ephem_path: String = std::env::var("DE406_PATH")
-        .unwrap_or_else(|_| base.join("data/jpl").to_string_lossy().into_owned());
+        .unwrap_or_else(|_| base.join(crate::repo::paths::JPL_DATA_DIR).to_string_lossy().into_owned());
     let jds: Vec<f64> = vec![2433282.5, 2444239.5, 2451545.0, 2455000.0, 2473400.5];
 
     let (jpl_rows, _jpl_error): (Vec<Vec<f64>>, String) = match pyo3::Python::with_gil(|py| -> pyo3::PyResult<(Vec<Vec<f64>>, String)> {
@@ -323,8 +324,8 @@ fn elpmpp02_vs_jpl_de406_python() {
         }
     };
 
-    let loader = DataLoaderNative::new(&base);
-    let data = match load_all(&loader, "data/elpmpp02", Elpmpp02Correction::DE406) {
+    let loader = crate::repo::default_loader();
+    let data = match load_all(&loader, crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE406) {
         Ok(d) => d,
         Err(_) => {
             println!("elpmpp02_vs_jpl_de406_python: skipped (ELPMPP02 data not loaded)");
@@ -406,9 +407,9 @@ fn vsop87_vs_jpl_de406_python() {
         return;
     }
     set_python_home_if_requested();
-    let base = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let base = crate::repo::repo_root();
     let ephem_path: String = std::env::var("DE406_PATH")
-        .unwrap_or_else(|_| base.join("data/jpl").to_string_lossy().into_owned());
+        .unwrap_or_else(|_| base.join(crate::repo::paths::JPL_DATA_DIR).to_string_lossy().into_owned());
     let jds: Vec<f64> = vec![
         2444239.5, 2451545.0, 2455000.0, 2268922.5, 2637936.5,
         2300000.0, 2400000.0, 2500000.0, 2600000.0,
@@ -432,8 +433,7 @@ fn vsop87_vs_jpl_de406_python() {
         }
     };
 
-    let loader = DataLoaderNative::new(&base);
-    let vsop: Vsop87 = match load_earth_vsop87(&loader, "data/vsop87/VSOP87B.ear") {
+    let vsop: Vsop87 = match load_earth_vsop87_from_repo() {
         Ok(v) => v,
         Err(_) => {
             println!("vsop87_vs_jpl_de406_python: skipped (VSOP87 data not loaded)");
@@ -508,23 +508,23 @@ fn de406_rust_vs_python_de406() {
         return;
     }
     set_python_home_if_requested();
-    let base = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let base = crate::repo::repo_root();
     let bsp_path: String = std::env::var("DE406_BSP")
         .ok()
         .filter(|p| std::path::Path::new(p).is_file())
         .or_else(|| {
-            let p = base.join("data/jpl/de406/de406.bsp");
+            let p = base.join(crate::repo::paths::DE406_BSP_CANDIDATES[0]);
             if p.is_file() {
                 Some(p.to_string_lossy().into_owned())
             } else {
-                base.join("data/jpl/de406.bsp")
+                base.join(crate::repo::paths::DE406_BSP_CANDIDATES[1])
                     .is_file()
-                    .then(|| base.join("data/jpl/de406.bsp").to_string_lossy().into_owned())
+                    .then(|| base.join(crate::repo::paths::DE406_BSP_CANDIDATES[1]).to_string_lossy().into_owned())
             }
         })
-        .unwrap_or_else(|| base.join("data/jpl").to_string_lossy().into_owned());
+        .unwrap_or_else(|| base.join(crate::repo::paths::JPL_DATA_DIR).to_string_lossy().into_owned());
     if !std::path::Path::new(&bsp_path).is_file() {
-        println!("de406_rust_vs_python_de406: skipped (no DE406 BSP file at DE406_BSP or data/jpl/de406.bsp or data/jpl/de406/de406.bsp)");
+        println!("de406_rust_vs_python_de406: skipped (no DE406 BSP file at DE406_BSP or {})", crate::repo::paths::DE406_BSP_CANDIDATES[1]);
         return;
     }
     let jds: Vec<f64> = vec![2444239.5, 2451545.0, 2451545.5, 2455000.0, 2457397.5];

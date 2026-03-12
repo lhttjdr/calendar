@@ -1,5 +1,0 @@
-# Chapront (2000) 拟合脚本依赖
-# 用法: pip install -r requirements-chapront-fit.txt
-numpy>=1.20
-scipy>=1.7
-jplephem>=2.15

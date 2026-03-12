@@ -12,6 +12,8 @@ pub enum ReferenceFrame {
     ICRS,
     FK5,
     MeanEcliptic(Epoch),
+    /// 黄道 DE406 patch 后的 J2000 平黄道（与 MeanEcliptic 同几何，仅表示已施黄经 patch）。
+    MeanEclipticEclipticPatch(Epoch),
     MeanEquator(Epoch),
     TrueEquator(Epoch),
     TrueEcliptic(Epoch),
@@ -26,6 +28,7 @@ impl ReferenceFrame {
         matches!(
             self,
             ReferenceFrame::MeanEcliptic(_)
+                | ReferenceFrame::MeanEclipticEclipticPatch(_)
                 | ReferenceFrame::MeanEquator(_)
                 | ReferenceFrame::TrueEquator(_)
                 | ReferenceFrame::TrueEcliptic(_)
@@ -39,6 +42,7 @@ impl ReferenceFrame {
             ReferenceFrame::ICRS => "ICRS",
             ReferenceFrame::FK5 => "FK5",
             ReferenceFrame::MeanEcliptic(_) => "MeanEcliptic(epoch)",
+            ReferenceFrame::MeanEclipticEclipticPatch(_) => "MeanEclipticEclipticPatch(epoch)",
             ReferenceFrame::MeanEquator(_) => "MeanEquator(epoch)",
             ReferenceFrame::TrueEquator(_) => "TrueEquator(epoch)",
             ReferenceFrame::TrueEcliptic(_) => "TrueEcliptic(epoch)",

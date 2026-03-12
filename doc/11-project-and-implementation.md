@@ -17,12 +17,12 @@
 
 - **目标**：核心库一次编写，Native 与 WebAssembly 共用；无 GC、SIMD 友好。
 - **架构**：`rust/core`（math、astronomy、calendar、platform trait）、`rust/wasm-lib`（wasm-bindgen 暴露）、可选 `desktop`（Tauri）。
-- **数据**：通过 `Platform` trait 注入读路径；Native 用 `std::fs`，Wasm 用 `fetch` 或嵌入。
+- **数据**：由 **repo** 模块统一路径与读写（`repo::paths`、`repo_root()`、`read_lines`/`read_bytes`）；Native 用 `default_loader()` 与各 `*_from_repo()`，Wasm 由宿主 `set_loader` 注入后同样调用 `*_from_repo()`。章动/拟合/历表加载与管线（doc 15 §6）一致。
 - **高精度**：`rust_decimal`（96-bit 定点）；三角/开方在 `Real` 内用 f64，其余算术高精度。
 
 ### 11.2.1 视位置管线架构（Rust）
 
-视位置计算已统一到管线架构（历元/坐标表示/参考架三正交，见第 2、7 章），代码位于 `rust/core/src/astronomy/pipeline/`：**State6 / StateTransition6**、**EphemerisProvider**（Vsop87 太阳、Elpmpp02Data 月球）、**FrameMapper**（VsopToDe406IcrsFit）、**LightTimeCorrector**、**TransformGraph**（岁差 P03/Vondrak2011）、**Pipeline** Fluent API。对外仍通过 `astronomy::apparent` 暴露 `sun_position_icrs`、`sun_apparent_ecliptic_longitude*`、`moon_apparent_ecliptic_longitude*`，内部走上述管线，API 不变。详见第 7 章 §7.2。
+视位置计算已统一到管线架构（历元/坐标表示/参考架三正交，见第 2、7 章），代码位于 `rust/core/src/astronomy/pipeline/`：**State6 / StateTransition6**、**EphemerisProvider**（Vsop87 太阳、Elpmpp02Data 月球）、**FrameMapper**（Fk5ToIcrsBias、Vsop87FitDe406Equatorial，或 Compose 组合）、**LightTimeCorrector**、**TransformGraph**（岁差 P03/Vondrak2011）、**Pipeline** Fluent API。对外仍通过 `astronomy::apparent` 暴露 `sun_position_icrs`、`sun_apparent_ecliptic_longitude*`、`moon_apparent_ecliptic_longitude*`，内部走上述管线，API 不变。详见第 7 章 §7.2。
 
 ### 11.2.2 性能与部署策略
 

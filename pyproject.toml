@@ -1,0 +1,17 @@
+[project]
+name = "calendar"
+version = "0.1.0"
+description = "天文历算与历法（VSOP87/ELPMPP02/章动/岁差/公历农历）"
+readme = "README.md"
+requires-python = ">=3.10"
+
+# 生成 patch 数据：需 data/vsop87/VSOP87B.ear、DE406 BSP（如 data/jpl/de406.bsp）
+# 赤道: uv run --only-group chapront-fit python scripts/vsop87_de406_chapront_fit.py
+# 黄道: uv run --only-group chapront-fit python scripts/vsop87_de406_ecliptic_fit.py
+# 输出默认写入 data/fit/vsop87-de406-icrs.txt 与 data/fit/vsop87-de406-ecliptic.txt
+[dependency-groups]
+chapront-fit = [
+    "numpy>=1.20",
+    "scipy>=1.7",
+    "jplephem>=2.15",
+]

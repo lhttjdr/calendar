@@ -18,9 +18,20 @@ import os
 from jplephem.spk import SPK
 from scipy.optimize import least_squares
 
-# 路径：可改为本地路径或通过环境变量覆盖
-VSOP_PATH = os.environ.get("VSOP87B_EAR", "data/vsop87/VSOP87B.ear")
-DE406_PATH = os.environ.get("DE406_BSP", "data/jpl/de406.bsp")
+# 路径：数据均在 data/ 下；可通过环境变量覆盖
+def _default_vsop():
+    return os.environ.get("VSOP87B_EAR") or "data/vsop87/VSOP87B.ear"
+
+def _default_de406():
+    if os.environ.get("DE406_BSP"):
+        return os.environ.get("DE406_BSP")
+    for p in ("data/jpl/de406.bsp", "data/jpl/de406/de406.bsp"):
+        if os.path.isfile(p):
+            return p
+    return "data/jpl/de406.bsp"
+
+VSOP_PATH = _default_vsop()
+DE406_PATH = _default_de406()
 
 
 # ==========================================================================
@@ -328,6 +339,29 @@ def run_physically_locked_fit(vsop_file, de406_file):
     return final_results, provider, kernel
 
 
+def write_ecliptic_patch_txt(results, out_path):
+    """将黄道 patch 拟合结果写入 data/fit 格式：段 [L]/[B]/[R]，每段一行 4 长期 + 多行 (freq c0 s0 c1 s1)。"""
+    lines = [
+        "# VSOP87 -> DE406 黄道改正（Chapront 2000 混合项）。T = (JD−J2000)/365250 儒略千年。",
+        "# Δ = secular(a0..a3) + Σ (c0+c1*T)cos(f*T) + (s0+s1*T)sin(f*T)。L/B 角秒，R AU。",
+        "# 段：[L] 4 个长期项 + 若干行 (freq c0 s0 c1 s1)；[B] 4+若干；[R] 4+若干。",
+        "",
+    ]
+    for name in ["L", "B", "R"]:
+        c, f, _ = results[name]
+        lines.append(f"[{name}]")
+        lines.append(" ".join(map(str, c[:4])))
+        for i in range(len(f)):
+            row = c[4 + i * 4 : 4 + (i + 1) * 4]
+            lines.append(f"{f[i]} {row[0]} {row[1]} {row[2]} {row[3]}")
+        lines.append("")
+    out_path = os.path.abspath(out_path)
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    with open(out_path, "w") as f:
+        f.write("\n".join(lines))
+    print(f"\n>>> 已写入 {out_path}")
+
+
 # ==========================================================================
 # 3. 验证与执行
 # ==========================================================================
@@ -403,6 +437,9 @@ if __name__ == "__main__":
     fit_results, provider, kernel = run_physically_locked_fit(
         vsop_file, de406_file
     )
+    out_txt = os.environ.get("ECLIPTIC_PATCH_OUT_TXT", "data/fit/vsop87-de406-ecliptic.txt")
+    if out_txt:
+        write_ecliptic_patch_txt(fit_results, out_txt)
     applicator = EclipticPatchApplicator(fit_results)
     jd_table = [
         (2444239.5, "1980.2"),

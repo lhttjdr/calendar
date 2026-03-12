@@ -245,7 +245,7 @@ pub fn precession_matrix_derivative_times_vector(r: [Real; 3], t: impl ToReal) -
         (dv[1] * nv - v[1] * dnv) / nv2,
         (dv[2] * nv - v[2] * dnv) / nv2,
     ];
-    let mid = cross3(pequ, eqx);
+    let _mid = cross3(pequ, eqx);
     let dmid = [
         dpequ[1] * eqx[2] - dpequ[2] * eqx[1] + pequ[1] * deqx[2] - pequ[2] * deqx[1],
         dpequ[2] * eqx[0] - dpequ[0] * eqx[2] + pequ[2] * deqx[0] - pequ[0] * deqx[2],

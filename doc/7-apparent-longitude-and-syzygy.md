@@ -53,14 +53,14 @@
 | 组件 | 职责 | 本程序实现 |
 |------|------|------------|
 | **EphemerisProvider** | 在给定时刻返回天体 6D 状态（位置+速度），架由实现约定 | **Vsop87**：Body::Sun → MeanEcliptic(J2000)；**Elpmpp02Data**：Body::Moon → MeanEcliptic(J2000) |
-| **FrameMapper** | 跨架非线性映射（含拟合/残差补丁），改变状态 Frame 标签 | **VsopToDe406IcrsFit**：FK5 赤道 → ICRS（FK5↔ICRS + DE406 太阳赤道 patch） |
+| **FrameMapper** | 跨架非线性映射（含拟合/残差补丁），改变状态 Frame 标签 | **Compose(Fk5ToIcrsBias, Vsop87FitDe406Equatorial)**：FK5 赤道 → ICRS（FK5↔ICRS + DE406 太阳赤道 patch） |
 | **LightTimeCorrector** | 光行时回溯：t → tr，并返回 tr 时刻的 6D 状态 | 持有 EphemerisProvider（及可选 FrameMapper），迭代 2 次得 tr 与 state |
 | **TransformGraph** | 纯旋转架变换路由；按目标架施加岁差 P、章动 N^T、黄赤交角等 | MeanEcliptic↔FK5、ICRS↔FK5、FK5→MeanEquator(epoch)→TrueEquator(epoch)→ApparentEcliptic(epoch)；岁差可选 **P03** / **Vondrak2011** |
 
 ### 太阳视黄经与 ICRS 位置
 
-- **太阳 ICRS 位置**（`sun_position_icrs`）：EphemerisProvider(Sun) → State6(MeanEcliptic) → TransformGraph.transform_to(FK5) → VsopToDe406IcrsFit.apply → 取 `state.position`（ICRS）。
-- **太阳视黄经**（`sun_apparent_ecliptic_longitude*`）：LightTimeCorrector(无 mapper) → (tr, state_MeanEcliptic) → transform_to(FK5) → VsopToDe406IcrsFit.apply → transform_to(ApparentEcliptic(tr)) → **λ = state.to_spherical().lon_rad**（wrap [0, 2π)）。诊断量（Δψ、Δε、P 对角、ε_mean、ε_true）仍由同一历元 t_cent 计算，供比对。
+- **太阳 ICRS 位置**（`sun_position_icrs`）：EphemerisProvider(Sun) → State6(MeanEcliptic) → TransformGraph.transform_to(FK5) → Compose(Fk5ToIcrsBias, Vsop87FitDe406Equatorial).apply → 取 `state.position`（ICRS）。
+- **太阳视黄经**（`sun_apparent_ecliptic_longitude*`）：LightTimeCorrector(无 mapper) → (tr, state_MeanEcliptic) → transform_to(FK5) → Compose(Fk5ToIcrsBias, Vsop87FitDe406Equatorial).apply → transform_to(ApparentEcliptic(tr)) → **λ = state.to_spherical().lon_rad**（wrap [0, 2π)）。诊断量（Δψ、Δε、P 对角、ε_mean、ε_true）仍由同一历元 t_cent 计算，供比对。
 
 ### 月球视黄经
 
@@ -80,7 +80,7 @@
 图中一条「边」只对应**一个组件的一步**，不把其他组件或多步合成一条标签。
 
 - **光行时（t → tr）**：仅由 **LightTimeCorrector** 完成；太阳路径上 `mapper` 为 **None**，不含赤道拟合。边「VSOP87 → MeanEcliptic(epoch)」标签为「光行时→tr；历表输出 MeanEcliptic」。
-- **赤道拟合**：仅由 **FrameMapper（VsopToDe406IcrsFit）** 完成，在 `transform_to(FK5)` 之后显式调用；边「FK5 → VsopToDe406IcrsFit」为「Frame bias B + DE406 拟合修正」，「VsopToDe406IcrsFit → ICRS」为恒等（架已为 ICRS）。
+- **赤道拟合**：仅由 **FrameMapper（Compose(Fk5ToIcrsBias, Vsop87FitDe406Equatorial)）** 完成，在 `transform_to(FK5)` 之后显式调用；边「FK5 → Compose(Fk5ToIcrsBias, Vsop87FitDe406Equatorial)」为「Frame bias B + DE406 拟合修正」，「Compose(Fk5ToIcrsBias, Vsop87FitDe406Equatorial) → ICRS」为恒等（架已为 ICRS）。
 - **TransformGraph** 只做纯旋转（岁差、章动、黄赤交角、Frame bias B^T）；每条边对应一次 `get_transition` 的矩阵，无多合一。
 - **月球**：边「ELPMPP02 → ELPMPP02_MEAN_LUNAR」仅表历表求值（含 DE405/Table6 修正）→ 月心平架；「ELPMPP02_MEAN_LUNAR → MeanEcliptic(epoch)」仅表 **Laskar P,Q 旋转**（Table6 在求值步，Table7 为 J2000→ICRS 的另一步，不写在此边）。
 

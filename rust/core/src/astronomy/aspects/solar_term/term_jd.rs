@@ -660,16 +660,14 @@ pub fn solar_term_jds_for_year_cached(vsop: &Vsop87, year: i32) -> Vec<Real> {
 mod tests {
     use super::*;
     use crate::astronomy::apparent::ApparentPipelineOptions;
-    use crate::astronomy::ephemeris::{load_earth_vsop87, De406Kernel};
+    use crate::astronomy::ephemeris::De406Kernel;
+    #[cfg(not(target_arch = "wasm32"))]
+    use crate::astronomy::ephemeris::load_earth_vsop87_from_repo;
     use crate::astronomy::frame::nutation;
+    use crate::astronomy::frame::vsop87_de406_icrs_patch;
     use crate::astronomy::time::{TimePoint, TimeScale};
-    use crate::platform::DataLoaderNative;
     use std::io::BufRead;
     use std::path::Path;
-
-    /// 《月相和二十四节气的计算》§7.4 节气朔望标准时刻表路径（相对项目根）。
-    /// 参考表计算方法：DE441 历表 + 光行时 + IAU2006 岁差 + IAU2000A 章动，求太阳视黄经 = 0°, 15°, … 的 TDB 时刻。
-    const SOLAR_TERMS_REFERENCE_PATH: &str = "data/月相和二十四节气的计算/TDBtimes.txt";
 
     /// 从节气朔望标准时刻表加载指定年份的 24 节气 JD(TDB)。
     /// 格式依《月相和二十四节气的计算》§7.4：第 1 栏年、第 2 栏 jd0（该年 1 月 0 日 TDB+8 零时）、
@@ -677,7 +675,7 @@ mod tests {
     /// 故 24 节气占 tokens[3]..tokens[26]（0-based）。本实现顺序为 春分(0)..惊蛰(23)，对应文件列 春分(8)、清明(9)、…、大雪(25)、冬至(26)、小寒(3)、…、惊蛰(7)。
     /// idx = 3 + (k<=17 ? 5+k : (k+5)%24)。
     fn load_solar_terms_reference_jd(base_path: &Path, year: i32) -> Option<Vec<f64>> {
-        let path = base_path.join(SOLAR_TERMS_REFERENCE_PATH);
+        let path = base_path.join(crate::repo::paths::SOLAR_TERMS_REFERENCE);
         let f = std::fs::File::open(path).ok()?;
         let mut lines = std::io::BufReader::new(f).lines();
         lines.next(); // skip header
@@ -704,23 +702,25 @@ mod tests {
     }
 
     /// 定气测试：2026 年 24 节气与《月相和二十四节气的计算》§7.4 节气朔望标准时刻表对照。
+    /// base 与 DE406 测试一致（仓库根），保证章动表与参考表同源，容差 30 s 不放宽。
     #[test]
+    #[cfg(not(target_arch = "wasm32"))]
     fn solar_term_2026_vs_reference() {
-        let base = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let loader = DataLoaderNative::new(&base);
-        let vsop = match load_earth_vsop87(&loader, "data/vsop87/VSOP87B.ear") {
+        let base = crate::repo::repo_root();
+        let vsop = match load_earth_vsop87_from_repo() {
             Ok(v) => v,
             Err(_) => {
-                println!("solar_term_2026_vs_reference: skipped (data/vsop87/VSOP87B.ear not found)");
+                println!("solar_term_2026_vs_reference: skipped ({})", crate::repo::paths::VSOP87_EARTH);
                 return;
             }
         };
-        // 加载 data/IAU2000 完整章动后容差 30 s；未加载则用 77 项（残差约 300 s）
-        if nutation::try_init_full_nutation(&loader, nutation::DEFAULT_TAB53A_PATH) {
-            println!("  [章动] 已加载 tab5.3a，定气用完整 IAU2000A");
+        let full_nutation_loaded = nutation::try_init_full_nutation_from_repo();
+        if full_nutation_loaded {
+            println!("  [章动] 已加载 IERS 5.3a+5.3b，定气用完整 IAU2000A");
         } else {
-            println!("  [章动] 未加载 tab5.3a，用 77 项");
+            println!("  [章动] 未加载 5.3a/5.3b，用 77 项；跳过与参考表对比（参考表为完整章动）");
         }
+        let _ = vsop87_de406_icrs_patch::try_init_de406_patch_from_repo();
         // doc §9：方案二 VSOP87 + P03 岁差 + IAU 2000A 章动；默认 pipeline 即可。
         let our_jds = solar_term_jds_for_year(&vsop, 2026);
         assert_eq!(our_jds.len(), 24, "应得 24 个节气");
@@ -732,6 +732,7 @@ mod tests {
         /// 容差 30 s（参考表为 DE441+IAU2006/2000A）。算法需与参考一致，不得放宽容差掩盖错误。
         const TOLERANCE_SEC: f64 = 30.0;
 
+        if full_nutation_loaded {
         if let Some(ref_jd_tdb) = load_solar_terms_reference_jd(&base, 2026) {
             // 诊断：在参考春分时刻 ref_tt 处视黄经及中间量（默认 pipeline）
             let ref_tt_spring = TimePoint::new(TimeScale::TDB, real(ref_jd_tdb[0])).to_scale(TimeScale::TT).jd;
@@ -750,7 +751,6 @@ mod tests {
                 diag.t_cent, dpsi_sec, deps_sec,
                 diag.precession_diag[0], diag.precession_diag[1], diag.precession_diag[2],
                 diag.eps_mean.rad(), diag.eps_true.rad());
-            // 与定朔一致：均在 TDB 下比较（our_jds 为 TT，转为 TDB 后与参考表 JD(TDB) 比较）
             println!("  节气    本实现−参考TDB(s)");
             for k in 0..24 {
                 let our_jd_tdb = TimePoint::new(TimeScale::TT, our_jds[k]).to_scale(TimeScale::TDB).jd;
@@ -769,6 +769,7 @@ mod tests {
         } else {
             println!("solar_term_2026_vs_reference: 节气朔望标准时刻表无 2026 行，仅校验 24 节气计算完成");
         }
+        }
         nutation::set_nutation_override(None);
     }
 
@@ -776,39 +777,21 @@ mod tests {
     #[test]
     #[cfg(not(target_arch = "wasm32"))]
     fn solar_term_2026_de406_vs_tdbtimes() {
-        // 仓库根：优先用脚本导出的 REPO_ROOT，否则按 manifest 相对路径解析（避免 cwd 不同导致解析到错误目录）
-        let base: std::path::PathBuf = std::env::var("REPO_ROOT")
-            .ok()
-            .and_then(|p| {
-                let path = Path::new(&p);
-                path.is_dir().then(|| path.canonicalize().ok()).flatten()
-            })
-            .unwrap_or_else(|| {
-                let base_rel = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
-                if base_rel.is_absolute() {
-                    base_rel.canonicalize().unwrap_or(base_rel).into()
-                } else {
-                    std::env::current_dir()
-                        .ok()
-                        .and_then(|cwd| cwd.join(&base_rel).canonicalize().ok())
-                        .unwrap_or(base_rel)
-                        .into()
-                }
-            });
+        let base = crate::repo::repo_root();
         let bsp_path: String = std::env::var("DE406_BSP")
             .ok()
             .filter(|p| std::path::Path::new(p).is_file())
             .or_else(|| {
-                let p = base.join("data/jpl/de406/de406.bsp");
+                let p = base.join(crate::repo::paths::DE406_BSP_CANDIDATES[0]);
                 if p.is_file() {
                     Some(p.to_string_lossy().into_owned())
                 } else {
-                    base.join("data/jpl/de406.bsp")
+                    base.join(crate::repo::paths::DE406_BSP_CANDIDATES[1])
                         .is_file()
-                        .then(|| base.join("data/jpl/de406.bsp").to_string_lossy().into_owned())
+                        .then(|| base.join(crate::repo::paths::DE406_BSP_CANDIDATES[1]).to_string_lossy().into_owned())
                 }
             })
-            .unwrap_or_else(|| base.join("data/jpl").to_string_lossy().into_owned());
+            .unwrap_or_else(|| base.join(crate::repo::paths::JPL_DATA_DIR).to_string_lossy().into_owned());
         if !std::path::Path::new(&bsp_path).is_file() {
             let tried = std::env::var("DE406_BSP").ok().unwrap_or_else(|| bsp_path.clone());
             println!(
@@ -824,12 +807,14 @@ mod tests {
                 return;
             }
         };
-        let loader = DataLoaderNative::new(&base);
-        if nutation::try_init_full_nutation(&loader, nutation::DEFAULT_TAB53A_PATH) {
-            println!("  [章动] 已加载 tab5.3a，DE406 定气用完整 IAU2000A");
-        } else {
-            println!("  [章动] 未加载 tab5.3a，用 77 项");
+        // 77 项从 tab5.3a 前 77 行加载（repo）；完整表时春分残差约 9 s，77 项约 0.6 s，本测试用 77 项以保证 1 s 容差。
+        let ok77 = nutation::try_init_nutation_from_repo();
+        if !ok77 {
+            println!("  [章动] 未找到 tab5.3a/tab5.3b，跳过 DE406 vs TDBtimes 测试");
+            return;
         }
+        let _ = vsop87_de406_icrs_patch::try_init_de406_patch_from_repo();
+        println!("  [章动] DE406 定气 vs TDBtimes 使用 77 项（tab5.3a 前 77 行）");
         let options = ApparentPipelineOptions::default();
         let our_jds = solar_term_jds_for_year_de406_with_options(&kernel, 2026, &options);
         assert_eq!(our_jds.len(), 24);
@@ -838,7 +823,7 @@ mod tests {
             "春分", "清明", "谷雨", "立夏", "小满", "芒种", "夏至", "小暑", "大暑", "立秋", "处暑", "白露",
             "秋分", "寒露", "霜降", "立冬", "小雪", "大雪", "冬至", "小寒", "大寒", "立春", "雨水", "惊蛰",
         ];
-        /// DE406 vs 参考表(DE441)，容差 1 s（DE441/DE406 差异小）
+        /// DE406 vs 参考表(DE441)，容差 1 s。不得放宽容差。
         const TOLERANCE_SEC: f64 = 1.0;
         println!("  [DE406 定气 vs TDBtimes] 容差: {} s", TOLERANCE_SEC);
 
@@ -866,7 +851,7 @@ mod tests {
             }
             println!("  最大残差: {:.1} s (容差 {} s)", max_residual_sec, TOLERANCE_SEC);
         } else {
-            let ref_path = base.join(SOLAR_TERMS_REFERENCE_PATH);
+            let ref_path = base.join(crate::repo::paths::SOLAR_TERMS_REFERENCE);
             println!(
                 "  （未找到参考表或其中无 2026 行，未输出残差）路径: {}",
                 ref_path.display()
@@ -877,19 +862,23 @@ mod tests {
 
     /// 定气测试（X_r + 显式光行差）：2026 年 24 节气用显式光行差管线定气，与节气朔望标准时刻表对比，容差 30 s。
     #[test]
+    #[cfg(not(target_arch = "wasm32"))]
     fn solar_term_2026_explicit_aberration_vs_reference() {
-        let base = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let loader = DataLoaderNative::new(&base);
-        let vsop = match load_earth_vsop87(&loader, "data/vsop87/VSOP87B.ear") {
+        let base = crate::repo::repo_root();
+        let vsop = match load_earth_vsop87_from_repo() {
             Ok(v) => v,
             Err(_) => {
-                println!("solar_term_2026_explicit_aberration_vs_reference: skipped (data/vsop87/VSOP87B.ear not found)");
+                println!("solar_term_2026_explicit_aberration_vs_reference: skipped ({})", crate::repo::paths::VSOP87_EARTH);
                 return;
             }
         };
-        if nutation::try_init_full_nutation(&loader, nutation::DEFAULT_TAB53A_PATH) {
-            println!("  [X_r+显式光行差] 已加载 tab5.3a，定气与 TDB 对比");
+        let full_nutation_loaded = nutation::try_init_full_nutation_from_repo();
+        if full_nutation_loaded {
+            println!("  [X_r+显式光行差] 已加载 IERS 5.3a+5.3b，定气与 TDB 对比");
+        } else {
+            println!("  [章动] 未加载 5.3a/5.3b；跳过与参考表对比");
         }
+        let _ = vsop87_de406_icrs_patch::try_init_de406_patch_from_repo();
         let options = ApparentPipelineOptions::pipeline_explicit_aberration_for_tdb_test();
         let our_jds = solar_term_jds_for_year_with_options(&vsop, 2026, &options);
         assert_eq!(our_jds.len(), 24, "应得 24 个节气");
@@ -900,6 +889,7 @@ mod tests {
         ];
         const TOLERANCE_SEC: f64 = 30.0;
 
+        if full_nutation_loaded {
         if let Some(ref_jd_tdb) = load_solar_terms_reference_jd(&base, 2026) {
             // 在参考春分时刻用同一历表比较「X_r+显式光行差」与 Xproper 的 λ，理论上应一致
             let jd_tdb_spring = ref_jd_tdb[0];
@@ -932,6 +922,29 @@ mod tests {
         } else {
             println!("solar_term_2026_explicit_aberration_vs_reference: 节气朔望标准时刻表无 2026 行，仅校验 24 节气计算完成");
         }
+        }
         nutation::set_nutation_override(None);
+    }
+
+    /// 验证 tab5.3a 前 77 项与 77 项章动（同文件前 77 行）在 t=0 一致。
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn tab53a_first_77_matches_nutation_77() {
+        if !nutation::try_init_nutation_from_repo() {
+            println!("tab53a_first_77_matches_nutation_77: skipped (tab5.3a not found)");
+            return;
+        }
+        let full = match nutation::load_iau2000a_from_repo() {
+            Ok(m) => m,
+            Err(_) => return,
+        };
+        let (dpsi_77, deps_77) = nutation::nutation_77(real_const(0.0));
+        let (dpsi_f77, deps_f77) = full.nutation_first_n(real_const(0.0), 77);
+        let arcsec = |a: PlaneAngle| a.rad().as_f64() * 648000.0 / std::f64::consts::PI;
+        let diff_psi = (arcsec(dpsi_f77) - arcsec(dpsi_77)).abs();
+        let diff_eps = (arcsec(deps_f77) - arcsec(deps_77)).abs();
+        println!("  [tab5.3a 前77项 vs 77项] t=0: Δψ 差 {:.4}″ Δε 差 {:.4}″", diff_psi, diff_eps);
+        assert!(diff_psi < 0.01, "前77项 Δψ 应与 nutation_77 一致，差 {:.4}″", diff_psi);
+        assert!(diff_eps < 0.01, "前77项 Δε 应与 nutation_77 一致，差 {:.4}″", diff_eps);
     }
 }

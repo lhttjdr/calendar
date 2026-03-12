@@ -1,6 +1,6 @@
 # 文档索引（按《月相和二十四节气的计算》章节）
 
-本仓库文档分 14 章，每章一个文件。参考文献见 `doc/references/`；编算农历网页见 [ChineseCalendar](https://ytliu0.github.io/ChineseCalendar/computation_simp.html)。
+本仓库文档分 15 章，每章一个文件。参考文献见 `doc/references/`；编算农历网页见 [ChineseCalendar](https://ytliu0.github.io/ChineseCalendar/computation_simp.html)。
 
 | 章 | 文件 | 内容 |
 |----|------|------|
@@ -18,6 +18,7 @@
 | **12** | [12-wasm-react-performance.md](12-wasm-react-performance.md) | Rust+WASM+React 性能调优与边界优化 |
 | **13** | [13-ephemeris-binary-format.md](13-ephemeris-binary-format.md) | 历表二进制化与零解析方案（VSOP87/ELPMPP02） |
 | **14** | [14-data-paths-summary.md](14-data-paths-summary.md) | 历表与数据路径总结（VSOP87/ELPMPP02/DE406 路径、标架、时间尺度） |
+| **15** | [15-pipeline-graph-taxonomy.md](15-pipeline-graph-taxonomy.md) | 管线图：节点与边的分类与抽象（OriginRole、TransitionKind/Form） |
 
 ---
 

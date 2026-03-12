@@ -104,4 +104,8 @@ export interface LunarBackend {
     readonly nodeIds: string[]
     readonly edges: readonly { readonly from_id: string; readonly to_id: string; readonly cost: number; readonly label?: string | null }[]
   }
+  /** 上次岁数据计算时章动表是否已加载为完整 IAU2000A（否则为 77 项）。可选，供状态栏展示。 */
+  get_repo_aux_nutation_full?(): boolean
+  /** 上次岁数据计算时赤道拟合表（VSOP87–DE406 ICRS patch）是否已加载。可选，供状态栏展示。 */
+  get_repo_aux_patch_icrs?(): boolean
 }
