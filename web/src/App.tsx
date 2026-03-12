@@ -108,14 +108,13 @@ function utcFromLocalInZone(y: number, m: number, d: number, h: number, min: num
   return new Date((lo + hi) / 2)
 }
 
-/** 实时时钟：与 LiveTimeProvider 联动，按所选时区显示当前时刻 */
+/** 实时时钟：与 LiveTimeProvider 联动，按所选时区只显示时分秒+时区（年月日在卡片顶部/日区已展示） */
 function LiveClock({ timeZone }: { timeZone: string }) {
   const t = useLiveTime()
   if (t == null) return null
   const p = formatDateInTimeZone(t, timeZone)
   return (
     <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
-      {p.year}年{p.month}月{p.day}日{' '}
       {p.hour.toString().padStart(2, '0')}:{p.minute.toString().padStart(2, '0')}:{p.second.toString().padStart(2, '0')}
       {' '}<Text type="secondary" style={{ fontSize: 12 }}>{timeZone}</Text>
     </span>
@@ -512,9 +511,9 @@ function App() {
     ? getHourGanzhi(selectedGanzhi.dayName, displayHour)
     : ''
 
-  const clockStr = isLiveMode
+  const timeStr = isLiveMode
     ? '' /* 实时模式用 LiveClock 组件显示 */
-    : `${displayY}年${displayM}月${displayD}日 ${selectedTime.hour.toString().padStart(2, '0')}:${selectedTime.minute.toString().padStart(2, '0')}:${selectedTime.second.toString().padStart(2, '0')} ${timeZone}`
+    : `${selectedTime.hour.toString().padStart(2, '0')}:${selectedTime.minute.toString().padStart(2, '0')}:${selectedTime.second.toString().padStart(2, '0')} ${timeZone}`
 
   const yearOptions = Array.from({ length: 21 }, (_, i) => ({ label: `${today.year - 10 + i}年`, value: today.year - 10 + i }))
   const timeZoneOptions = useMemo(() => getTimeZoneOptions(), [])
@@ -558,16 +557,11 @@ function App() {
           <LiveTimeProvider enabled={isLiveMode}>
           <Flex vertical gap={12} style={{ width: 260, flexShrink: 0, overflow: 'visible' }}>
             <Card size="small" style={{ width: '100%', overflow: 'visible' }} styles={{ body: { padding: 0, overflow: 'visible' } }}>
-              {/* 顶部：年月条（撕页日历式） */}
+              {/* 顶部：只保留公历年月 */}
               <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(0,0,0,0.06)', textAlign: 'center' }}>
                 <Text type="secondary" style={{ fontSize: 11 }}>{year}年{month}月</Text>
-                {selectedLunarSlot != null && (
-                  <Text type="secondary" style={{ fontSize: 11, marginLeft: 8 }}>
-                    {selectedLunarSlot.isLeapMonth ? '闰' : ''}{LUNAR_MONTH_NAMES[selectedLunarSlot.lunarMonth - 1]}{selectedLunarSlot.daysInMonth === 30 ? '大' : '小'}
-                  </Text>
-                )}
               </div>
-              {/* 中央：大号日期（视觉焦点） */}
+              {/* 日（大号） */}
               <div style={{ padding: '16px 12px 8px', textAlign: 'center' }}>
                 <div style={{ fontSize: 48, fontWeight: 700, lineHeight: 1, color: 'rgba(0,0,0,0.88)', fontVariantNumeric: 'tabular-nums' }}>
                   {sel.day}
@@ -578,10 +572,10 @@ function App() {
                   </div>
                 )}
                 {!isLiveMode && (
-                  <Text type="secondary" style={{ fontSize: 12, marginTop: 4 }}>{clockStr}</Text>
+                  <Text type="secondary" style={{ fontSize: 12, marginTop: 4 }}>{timeStr}</Text>
                 )}
               </div>
-              {/* 农历 + 星期（主日期下方，并列突出） */}
+              {/* 农历年月日 + 星期 */}
               <div style={{ padding: '0 12px 12px', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
                 <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
                   {selectedLunarSlot != null ? (
