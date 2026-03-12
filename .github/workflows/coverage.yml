@@ -52,11 +52,12 @@ jobs:
           # Ubuntu 上 libpython 多在系统路径，若链接失败可取消下一行注释并改用对应 LIBDIR
           # echo "LD_LIBRARY_PATH=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR') or '')")" >> $GITHUB_ENV
 
+      # 仅对 lunar-core 跑覆盖率；wasm-lib / wasm-lib-f64 依赖 cfg(target_arch = "wasm32") 的 repo::set_loader/get_loader，在 host 上不编译
       - name: Generate coverage (lcov + HTML)
         working-directory: rust
         run: |
-          cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
-          cargo llvm-cov report --html --output-dir target/llvm-cov/html
+          cargo llvm-cov --all-features -p lunar-core --lcov --output-path lcov.info
+          cargo llvm-cov report -p lunar-core --html --output-dir target/llvm-cov/html
 
       - name: Upload lcov to Codecov (optional)
         uses: codecov/codecov-action@v4
