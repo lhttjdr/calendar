@@ -18,6 +18,8 @@ pub trait DataLoader: Send + Sync {
 pub enum LoadError {
     Io(String),
     NotFound(String),
+    /// 数据格式错误
+    Parse(String),
 }
 
 impl std::fmt::Display for LoadError {
@@ -25,6 +27,7 @@ impl std::fmt::Display for LoadError {
         match self {
             LoadError::Io(s) => write!(f, "IO: {}", s),
             LoadError::NotFound(s) => write!(f, "Not found: {}", s),
+            LoadError::Parse(s) => write!(f, "Parse: {}", s),
         }
     }
 }

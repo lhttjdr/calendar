@@ -62,7 +62,8 @@ declare module 'lunar-wasm' {
     elp_main_s3: string,
     elp_pert_s1: string,
     elp_pert_s2: string,
-    elp_pert_s3: string
+    elp_pert_s3: string,
+    nutation_tab53a_bin: Uint8Array
   ): { lunar_year: number; new_moon_jds: Float64Array; zhong_qi_jds: Float64Array }
 
   /** 视位置变换图可视化：节点=参考架，边=6×6 状态转移。供前端画架变换图（如 D3 / Mermaid）。 */

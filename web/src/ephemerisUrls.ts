@@ -17,8 +17,12 @@ export const EPHEMERIS_BINARY_URLS = {
   elp_pert_s1_bin: `${ELP_BASE}/ELP_PERT.S1.bin${BIN_V}`,
   elp_pert_s2_bin: `${ELP_BASE}/ELP_PERT.S2.bin${BIN_V}`,
   elp_pert_s3_bin: `${ELP_BASE}/ELP_PERT.S3.bin${BIN_V}`,
-  /** 拟合表 ICRS patch，可选；有则全二进制路径下状态栏显示「拟合表: 已加载」 */
-  patch_icrs_bin: `${FIT_BASE}/vsop87-de406-icrs.bin${BIN_V}`,
+  /** VSOP87 地球改正（拟合到 DE406，Chapront 2000 方法），可选；有则状态栏显示「地球改正: 已加载」 */
+  earth_patch_de406_bin: `${FIT_BASE}/vsop87-de406-earth.bin${BIN_V}`,
+  /** 同上，拟合到 DE441 */
+  earth_patch_de441_bin: `${FIT_BASE}/vsop87-de441-earth.bin${BIN_V}`,
+  /** 章动完整表 IAU2000A（tab5.3a.bin），与历表二进制同一链路；有则状态栏显示「完整 IAU2000A」，否则回落 77 项 */
+  nutation_tab53a_bin: `${DATA_BASE}/IAU2000/tab5.3a.bin${BIN_V}`,
 } as const
 
 export const EPHEMERIS_BINARY_URL_LIST = [
@@ -30,3 +34,6 @@ export const EPHEMERIS_BINARY_URL_LIST = [
   EPHEMERIS_BINARY_URLS.elp_pert_s2_bin,
   EPHEMERIS_BINARY_URLS.elp_pert_s3_bin,
 ] as const
+
+/** VSOP87 地球改正所拟合的目标历表（与 Rust 侧缺省 `PatchTarget::De406` 一致）；改为 'de441' 即用 DE441 版。 */
+export const EARTH_PATCH_TARGET: 'de406' | 'de441' = 'de406'

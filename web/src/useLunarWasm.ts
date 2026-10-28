@@ -17,9 +17,13 @@
  *   避免重复计算；需要扩展岁数据或增加「公历年的 24 节气」缓存并在两处共用。
  */
 
-import { DATA_BASE, ELP_BASE, EPHEMERIS_BINARY_URL_LIST, EPHEMERIS_BINARY_URLS } from './ephemerisUrls'
-
-const PATCH_ICRS_BIN_URL = EPHEMERIS_BINARY_URLS.patch_icrs_bin
+import { DATA_BASE, ELP_BASE, EPHEMERIS_BINARY_URLS } from './ephemerisUrls'
+import {
+  fetchFullBinaryEphemerisSet,
+  fetchNutationTab53aBin,
+  applyEarthPatchIfAvailable,
+  type EphemerisDataSource,
+} from './ephemerisSourceRegistry'
 
 const FILES = {
   vsop87_ear: `${DATA_BASE}/vsop87/VSOP87B.ear`,
@@ -47,26 +51,9 @@ export type YearData = {
   zhongQiJds: Float64Array
 }
 
-/** 岁数据使用的历表数据源，用于状态栏展示 */
-export type EphemerisDataSource = 'full_binary' | 'vsop_binary_elp_text' | 'full_text'
-
-/** 数据源对应的状态栏文案 */
-export const EPHEMERIS_SOURCE_LABELS: Record<EphemerisDataSource, string> = {
-  full_binary: '历表：全二进制 (.bin/.br)',
-  vsop_binary_elp_text: '历表：VSOP87 二进制 + ELP 文本',
-  full_text: '历表：全文本 (.ear / ELP)',
-}
-
-/** 数据源对应的格式简述（是否二进制），用于状态栏 */
-export const EPHEMERIS_FORMAT_LABELS: Record<EphemerisDataSource, string> = {
-  full_binary: '二进制',
-  vsop_binary_elp_text: '混合',
-  full_text: '文本',
-}
-
 import type { LunarBackend } from './lunar-backend-types'
 import { loadLunarBackend, type RealBackendVariant } from './lunar-backend-loader'
-import { fetchBinaryMaybeBrotli, isVsop87Binary, isElpBinary } from './fetchEphemerisBinary'
+import { fetchBinaryMaybeBrotli, isVsop87Binary } from './fetchEphemerisBinary'
 
 export type { RealBackendVariant } from './lunar-backend-loader'
 
@@ -248,46 +235,20 @@ async function getYearDataMainThreadImpl(
   const w = backend ?? await loadWasm()
 
   if (typeof w.compute_year_data_full_binary === 'function') {
-    const settled = await Promise.allSettled(EPHEMERIS_BINARY_URL_LIST.map((url) => fetchBinaryMaybeBrotli(url)))
-    const vsop87Bin = settled[0].status === 'fulfilled' ? settled[0].value : null
-    const elpBins = settled
-      .slice(1, 7)
-      .map((r) => (r.status === 'fulfilled' ? r.value : null))
-      .filter((u): u is Uint8Array => u != null && u.length >= 4)
-    const hasAll = Boolean(
-      vsop87Bin &&
-        elpBins.length === 6 &&
-        isVsop87Binary(vsop87Bin) &&
-        elpBins.every(isElpBinary)
-    )
-    if (import.meta.env.DEV && !hasAll) {
-      const vsopOk = vsop87Bin != null && isVsop87Binary(vsop87Bin)
-      const elpOk = elpBins.length === 6 && elpBins.every(isElpBinary)
-      console.log('[历表] 未走全二进制:', {
-        vsop: vsop87Bin ? `${vsop87Bin.length}B, magic=${vsopOk}` : 'rejected',
-        elpCount: elpBins.length,
-        elpMagicOk: elpOk,
-        settled: settled.map((s) => (s.status === 'fulfilled' ? 'ok' : 'rejected')),
-      })
-    }
-    if (hasAll) {
-      try {
-        const patchBuf = await fetchBinaryMaybeBrotli(PATCH_ICRS_BIN_URL)
-        if (patchBuf && typeof w.init_de406_patch_from_binary === 'function') {
-          w.init_de406_patch_from_binary(patchBuf)
-        }
-      } catch {
-        // patch 可选
-      }
+    const fullSet = await fetchFullBinaryEphemerisSet()
+    if (fullSet) {
+      await applyEarthPatchIfAvailable(w)
+      const nutationBin = await fetchNutationTab53aBin()
       const result = w.compute_year_data_full_binary(
         lunarYear,
-        vsop87Bin,
-        elpBins[0]!,
-        elpBins[1]!,
-        elpBins[2]!,
-        elpBins[3]!,
-        elpBins[4]!,
-        elpBins[5]!
+        fullSet.vsop87Bin,
+        fullSet.elpBins[0],
+        fullSet.elpBins[1],
+        fullSet.elpBins[2],
+        fullSet.elpBins[3],
+        fullSet.elpBins[4],
+        fullSet.elpBins[5],
+        nutationBin
       )
       const yearData: YearData = {
         lunarYear: result.lunar_year,
@@ -310,6 +271,7 @@ async function getYearDataMainThreadImpl(
   if (vsop87BinFallback && isVsop87Binary(vsop87BinFallback) && typeof w.compute_year_data_from_binary === 'function') {
     const vsop87Bin = vsop87BinFallback
     const elp = await fetchElpTexts()
+    const nutationBin = await fetchNutationTab53aBin()
     const result = w.compute_year_data_from_binary(
       lunarYear,
       vsop87Bin,
@@ -318,7 +280,8 @@ async function getYearDataMainThreadImpl(
       elp.elp_main_s3,
       elp.elp_pert_s1,
       elp.elp_pert_s2,
-      elp.elp_pert_s3
+      elp.elp_pert_s3,
+      nutationBin
     )
     const yearData: YearData = {
       lunarYear: result.lunar_year,
@@ -331,6 +294,7 @@ async function getYearDataMainThreadImpl(
   }
 
   const texts = await fetchAll()
+  const nutationBin = await fetchNutationTab53aBin()
   const result = w.compute_year_data_wasm(
     lunarYear,
     texts.vsop87_ear,
@@ -339,7 +303,8 @@ async function getYearDataMainThreadImpl(
     texts.elp_main_s3,
     texts.elp_pert_s1,
     texts.elp_pert_s2,
-    texts.elp_pert_s3
+    texts.elp_pert_s3,
+    nutationBin
   )
   const yearData: YearData = {
     lunarYear: result.lunar_year,

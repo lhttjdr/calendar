@@ -1,5 +1,5 @@
 //! 将 VSOP87 文本（如 VSOP87B.ear）转为二进制 .bin，供前端 fetch 零解析加载。
-//! 运行：cargo run -p lunar-core --example vsop87_to_bin -- data/vsop87/VSOP87B.ear
+//! 运行：cargo run -p lunar-core --example vsop87_to_bin -- vendor/vsop87/VSOP87B.ear
 //! 输出：同目录下 VSOP87B.ear.bin（或通过第二参数指定输出路径）。
 
 fn main() {

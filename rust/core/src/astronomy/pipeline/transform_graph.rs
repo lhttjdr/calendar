@@ -10,7 +10,7 @@
 
 use crate::astronomy::frame::fixed::fk5_icrs;
 use crate::astronomy::frame::precession::{
-    mean_obliquity, precession_derivative_times_vector_for, precession_transform_for, PrecessionModel,
+    mean_obliquity, mean_obliquity_for, precession_derivative_times_vector_for, precession_transform_for, PrecessionModel,
 };
 use crate::astronomy::frame::nutation::{
     eps_true_dot, nutation_derivative_times_vector, nutation_for_model, NutationModel,
@@ -163,10 +163,9 @@ pub fn kind_to_form(kind: TransitionKind) -> TransitionForm {
 /// 按节点 id 返回其原点角色（若有）；用于可视化与校验。
 pub fn node_origin(node_id: &str) -> Option<OriginRole> {
     match node_id {
-        "VSOP87" | HELIOCENTRIC_MEAN_ECLIPTIC | ECLIPTIC_PATCH_NODE_ID => Some(OriginRole::Heliocentric),
-        MEAN_ECLIPTIC_EQUATOR | MEAN_ECLIPTIC_ECLIPTIC | FK5_UNCORRECTED | FK5_CORRECTED
-        | "MeanEquator(epoch)" | "TrueEquator(epoch)" | "ApparentEcliptic(epoch)"
-        | "Fk5ToIcrsBias+Vsop87FitDe406Equatorial" | "ICRS" => Some(OriginRole::Geocentric),
+        "VSOP87" | HELIOCENTRIC_MEAN_ECLIPTIC => Some(OriginRole::Heliocentric),
+        MEAN_ECLIPTIC_EQUATOR | MEAN_ECLIPTIC_ECLIPTIC | FK5_EPHEMERIS | FK5_FROM_ICRS
+        | "MeanEquator(epoch)" | "TrueEquator(epoch)" | "ApparentEcliptic(epoch)" | "ICRS" => Some(OriginRole::Geocentric),
         _ => None,
     }
 }
@@ -175,10 +174,6 @@ pub fn node_origin(node_id: &str) -> Option<OriginRole> {
 pub fn edge_form_for_frames(from: ReferenceFrame, to: ReferenceFrame) -> Option<TransitionForm> {
     match (from, to) {
         (ReferenceFrame::MeanEcliptic(_), ReferenceFrame::FK5) => Some(TransitionForm::Rotation),
-        (ReferenceFrame::MeanEcliptic(_), ReferenceFrame::MeanEclipticEclipticPatch(_)) => {
-            Some(TransitionForm::Mapping)
-        }
-        (ReferenceFrame::MeanEclipticEclipticPatch(_), ReferenceFrame::FK5) => Some(TransitionForm::Rotation),
         (ReferenceFrame::FK5, ReferenceFrame::MeanEquator(_)) => Some(TransitionForm::Rotation),
         (ReferenceFrame::MeanEquator(_), ReferenceFrame::TrueEquator(_)) => Some(TransitionForm::Rotation),
         (ReferenceFrame::TrueEquator(_), ReferenceFrame::ApparentEcliptic(_)) => Some(TransitionForm::Rotation),
@@ -188,16 +183,14 @@ pub fn edge_form_for_frames(from: ReferenceFrame, to: ReferenceFrame) -> Option<
     }
 }
 
-/// 太阳历表日心架输出（平黄道），经原点变换→地心后到 MeanEcliptic_赤道。
+/// 太阳历表日心架输出（平黄道；VSOP87 拟合到 DE406/DE441 的改正已含在历表求值中），经原点变换→地心后到 MeanEcliptic_赤道。
 const HELIOCENTRIC_MEAN_ECLIPTIC: &'static str = "日心_MeanEcliptic(epoch)";
-/// 黄道拟合路径的展示用节点（补丁在 L,B，再旋转；与赤道拟合并列）。
-const ECLIPTIC_PATCH_NODE_ID: &'static str = "Vsop87De406EclipticPatch";
-/// 历元平黄道拆为两节点，赤道修正与黄道修正两条路不交叉。
+/// 历元平黄道拆为两节点（展示用）：日（VSOP87）一路与月（ELPMPP02）一路不交叉。
 const MEAN_ECLIPTIC_EQUATOR: &'static str = "MeanEcliptic(epoch)_赤道";
 const MEAN_ECLIPTIC_ECLIPTIC: &'static str = "MeanEcliptic(epoch)_黄道";
-/// FK5 拆为两节点：赤道 patch 经未修正→拟合→ICRS→已修正。
-const FK5_UNCORRECTED: &'static str = "FK5_未修正";
-const FK5_CORRECTED: &'static str = "FK5_已修正";
+/// FK5 拆为两节点（展示用）：历表输出的 J2000 平赤道 → ICRS → 回转到 FK5 再接岁差。
+const FK5_EPHEMERIS: &'static str = "FK5_历表输出";
+const FK5_FROM_ICRS: &'static str = "FK5_自ICRS";
 
 /// 按 (from_id, to_id) 返回边的变换分类。
 fn edge_kind(from_id: &str, to_id: &str) -> TransitionKind {
@@ -205,18 +198,13 @@ fn edge_kind(from_id: &str, to_id: &str) -> TransitionKind {
         ("VSOP87", HELIOCENTRIC_MEAN_ECLIPTIC) => TransitionKind::LightTime,
         (HELIOCENTRIC_MEAN_ECLIPTIC, MEAN_ECLIPTIC_EQUATOR) => TransitionKind::FrameTranslation,
         ("VSOP87", MEAN_ECLIPTIC_EQUATOR) => TransitionKind::LightTimeAberrationFolded,
-        ("VSOP87", ECLIPTIC_PATCH_NODE_ID) => TransitionKind::LightTime,
-        (ECLIPTIC_PATCH_NODE_ID, MEAN_ECLIPTIC_ECLIPTIC) => TransitionKind::FrameRotation,
-        ("MeanEcliptic(epoch)", "MeanEclipticEclipticPatch(epoch)") => TransitionKind::GeneralMapping,
-        ("MeanEclipticEclipticPatch(epoch)", "FK5") => TransitionKind::FrameRotation,
         ("ELPMPP02", "ELPMPP02_MEAN_LUNAR") => TransitionKind::GeneralMapping,
         ("ELPMPP02_MEAN_LUNAR", MEAN_ECLIPTIC_ECLIPTIC) => TransitionKind::FrameRotation,
-        (MEAN_ECLIPTIC_EQUATOR, FK5_UNCORRECTED) => TransitionKind::FrameRotation,
-        (MEAN_ECLIPTIC_ECLIPTIC, FK5_CORRECTED) => TransitionKind::FrameRotation,
-        (FK5_UNCORRECTED, "Fk5ToIcrsBias+Vsop87FitDe406Equatorial") => TransitionKind::GeneralMapping,
-        ("Fk5ToIcrsBias+Vsop87FitDe406Equatorial", "ICRS") => TransitionKind::FrameRotation,
-        ("ICRS", FK5_CORRECTED) => TransitionKind::FrameRotation,
-        (FK5_CORRECTED, "MeanEquator(epoch)") => TransitionKind::FrameRotation,
+        (MEAN_ECLIPTIC_EQUATOR, FK5_EPHEMERIS) => TransitionKind::FrameRotation,
+        (MEAN_ECLIPTIC_ECLIPTIC, FK5_FROM_ICRS) => TransitionKind::FrameRotation,
+        (FK5_EPHEMERIS, "ICRS") => TransitionKind::FrameRotation,
+        ("ICRS", FK5_FROM_ICRS) => TransitionKind::FrameRotation,
+        (FK5_FROM_ICRS, "MeanEquator(epoch)") => TransitionKind::FrameRotation,
         ("MeanEquator(epoch)", "TrueEquator(epoch)") => TransitionKind::FrameRotation,
         ("TrueEquator(epoch)", "ApparentEcliptic(epoch)") => TransitionKind::FrameRotation,
         _ => TransitionKind::FrameRotation,
@@ -226,21 +214,16 @@ fn edge_kind(from_id: &str, to_id: &str) -> TransitionKind {
 /// 按 (from_id, to_id) 返回管线步骤标签；仅写动作，不重复标架/坐标系（框内已示）。
 fn edge_label(from_id: &str, to_id: &str, edge_key: Option<&str>) -> Option<String> {
     let label = match (from_id, to_id) {
-        ("VSOP87", HELIOCENTRIC_MEAN_ECLIPTIC) => "光行时→tr；历表求值",
+        ("VSOP87", HELIOCENTRIC_MEAN_ECLIPTIC) => "光行时→tr；历表求值（含 DE406/DE441 拟合改正）",
         (HELIOCENTRIC_MEAN_ECLIPTIC, MEAN_ECLIPTIC_EQUATOR) => "日心→地心",
         ("VSOP87", MEAN_ECLIPTIC_EQUATOR) => "光行时→tr；历表输出",
-        ("VSOP87", ECLIPTIC_PATCH_NODE_ID) => "光行时→tr；黄道拟合：L,B 拟合修正",
-        (ECLIPTIC_PATCH_NODE_ID, MEAN_ECLIPTIC_ECLIPTIC) => "R_x(ε₀)+Frame bias",
-        ("MeanEcliptic(epoch)", "MeanEclipticEclipticPatch(epoch)") => "黄道 L,B,R DE406 拟合修正",
-        ("MeanEclipticEclipticPatch(epoch)", "FK5") => "黄赤交角 R_x(ε₀)",
         ("ELPMPP02", "ELPMPP02_MEAN_LUNAR") => "历表求值（含 DE405/Table6 修正）",
         ("ELPMPP02_MEAN_LUNAR", MEAN_ECLIPTIC_ECLIPTIC) => "Laskar P,Q 旋转",
-        (MEAN_ECLIPTIC_EQUATOR, FK5_UNCORRECTED) => "黄赤交角 R_x(ε₀)",
-        (MEAN_ECLIPTIC_ECLIPTIC, FK5_CORRECTED) => "黄赤交角 R_x(ε₀)",
-        (FK5_UNCORRECTED, "Fk5ToIcrsBias+Vsop87FitDe406Equatorial") => "Frame bias B⁻¹ + DE406 拟合修正",
-        ("Fk5ToIcrsBias+Vsop87FitDe406Equatorial", "ICRS") => "恒等",
-        ("ICRS", FK5_CORRECTED) => "B（Frame bias，GCRS→FK5）",
-        (FK5_CORRECTED, "MeanEquator(epoch)") => match edge_key {
+        (MEAN_ECLIPTIC_EQUATOR, FK5_EPHEMERIS) => "黄赤交角 R_x(ε₀)",
+        (MEAN_ECLIPTIC_ECLIPTIC, FK5_FROM_ICRS) => "黄赤交角 R_x(ε₀)",
+        (FK5_EPHEMERIS, "ICRS") => "Frame bias B⁻¹（FK5→ICRS）",
+        ("ICRS", FK5_FROM_ICRS) => "B（Frame bias，GCRS→FK5）",
+        (FK5_FROM_ICRS, "MeanEquator(epoch)") => match edge_key {
             Some("Vondrak2011") => "岁差（Vondrak2011）",
             _ => "岁差（P03）",
         },
@@ -301,7 +284,7 @@ pub struct TransformEdgeViz {
     pub kind: TransitionKind,
     /// 执行形式（如何算）：由 kind 默认推导，供管线分支与文档用。
     pub form: TransitionForm,
-    /// 管线步骤说明，如 "P03岁差"、"章动"、"B+DE406 patch"。
+    /// 管线步骤说明，如 "P03岁差"、"章动"、"Frame bias"。
     pub label: Option<String>,
 }
 
@@ -382,7 +365,7 @@ fn fill_epoch_transitions_cache(
             precession_derivative_times_vector_for(r, t_cent, precession_model)
         }),
     };
-    let n_t = nutation_matrix_transposed_for_model(t_cent, nutation_model);
+    let n_t = nutation_matrix_transposed_for_model(t_cent, nutation_model, precession_model);
     let nutation = StateTransition6 {
         from_frame: to_me,
         to_frame: to_te,
@@ -392,7 +375,7 @@ fn fill_epoch_transitions_cache(
         }),
     };
     let (_, deps) = nutation_for_model(t_cent, nutation_model);
-    let eps_mean = mean_obliquity(t_cent).rad();
+    let eps_mean = mean_obliquity_for(t_cent, precession_model).rad();
     let eps_true = eps_mean + deps.rad();
     let (ct, st) = (eps_true.cos(), eps_true.sin());
     let r = [[one(), zero(), zero()], [zero(), ct, st], [zero(), -st, ct]];
@@ -412,7 +395,7 @@ fn fill_epoch_transitions_cache(
     }
 }
 
-/// FK5→ICRS 或 MeanEcliptic→Patch 等“映射边”的执行器：输入 (state, jd_tt)，输出变换后的 state。
+/// FK5→ICRS 等“映射边”的执行器：输入 (state, jd_tt)，输出变换后的 state。
 pub type EdgeMapperFn = Box<dyn Fn(State6, Real) -> State6 + Send + 'static>;
 
 /// 变换图：注册边与矩阵提供者，按最短路驱动执行并施加 6D 变换。
@@ -424,25 +407,22 @@ pub struct TransformGraph {
     pub nutation_model: NutationModel,
     /// 带条件的快速跳跃边状态：满足 (precession, nutation, jd) 命中则执行时走缓存边，否则计算并更新。
     epoch_cache: RefCell<Option<(PrecessionModel, NutationModel, EpochTransitionsCache)>>,
-    /// FK5 → ICRS 边的执行器（Frame bias + DE406 拟合等）；未设则路径含该边时无法执行。
+    /// FK5 → ICRS 边的执行器（Frame bias）；未设则路径含该边时无法执行。
     optional_fk5_to_icrs: Option<EdgeMapperFn>,
-    /// MeanEcliptic → MeanEclipticEclipticPatch 边的执行器（黄道 L,B,R 拟合）；未设则最短路径会避开该边或执行失败。
-    optional_ecliptic_patch: Option<EdgeMapperFn>,
 }
 
 impl TransformGraph {
     pub fn new() -> Self {
         Self {
             edges: vec![],
-            precession_model: PrecessionModel::P03,
+            precession_model: PrecessionModel::Vondrak2011,
             nutation_model: NutationModel::IAU2000B,
             epoch_cache: RefCell::new(None),
             optional_fk5_to_icrs: None,
-            optional_ecliptic_patch: None,
         }
     }
 
-    /// 指定岁差模型（定气用 P03，长期可用 Vondrak2011）。
+    /// 指定岁差模型（缺省 Vondrak2011；P03 可选）。
     pub fn with_precession_model(mut self, model: PrecessionModel) -> Self {
         self.precession_model = model;
         self
@@ -460,15 +440,6 @@ impl TransformGraph {
         F: Fn(State6, Real) -> State6 + Send + 'static,
     {
         self.optional_fk5_to_icrs = Some(Box::new(f));
-        self
-    }
-
-    /// 设置 MeanEcliptic→MeanEclipticEclipticPatch 边的执行器；图拓扑已含该路径，未设则最短路不会走该边。
-    pub fn with_ecliptic_patch_mapper<F>(mut self, f: F) -> Self
-    where
-        F: Fn(State6, Real) -> State6 + Send + 'static,
-    {
-        self.optional_ecliptic_patch = Some(Box::new(f));
         self
     }
 
@@ -497,24 +468,14 @@ impl TransformGraph {
         });
     }
 
-    /// 构建完整图（静态拓扑）：含黄道直连、黄道 patch 路径、赤道链与 ICRS↔FK5；展示与运算共用此图。
-    /// 未设 `with_ecliptic_patch_mapper` / `with_fk5_to_icrs_mapper` 时，最短路会避开对应映射边。
+    /// 构建完整图（静态拓扑）：含黄道直连、赤道链与 ICRS↔FK5；展示与运算共用此图。
+    /// 未设 `with_fk5_to_icrs_mapper` 时，最短路会避开 FK5→ICRS 映射边。
     pub fn default_graph() -> Self {
         let mut g = Self::new();
         g.add_edge(
             ReferenceFrame::MeanEcliptic(Epoch::j2000()),
             ReferenceFrame::FK5,
             8,
-        );
-        g.add_edge(
-            ReferenceFrame::MeanEcliptic(Epoch::j2000()),
-            ReferenceFrame::MeanEclipticEclipticPatch(Epoch::j2000()),
-            0,
-        );
-        g.add_edge(
-            ReferenceFrame::MeanEclipticEclipticPatch(Epoch::j2000()),
-            ReferenceFrame::FK5,
-            4,
         );
         g.add_edge_with_key(
             ReferenceFrame::FK5,
@@ -546,10 +507,7 @@ impl TransformGraph {
         g
     }
 
-    /// Fit 步骤节点 id（可视化用）：FK5 → bias+赤道 fit → ICRS。
-    const PATCH_NODE_ID: &'static str = "Fk5ToIcrsBias+Vsop87FitDe406Equatorial";
-
-    /// 返回图的可视化数据：赤道/黄道拆节点；FK5 拆为未修正→patch→ICRS→已修正。
+    /// 返回图的可视化数据：赤道/黄道拆节点；FK5 拆为历表输出→ICRS→自 ICRS 回转。
     pub fn visualization_data(&self) -> TransformGraphVizData {
         let mean_ecliptic_id = "MeanEcliptic(epoch)";
         let fk5_id = "FK5";
@@ -565,11 +523,11 @@ impl TransformGraph {
                     node_ids.push(MEAN_ECLIPTIC_ECLIPTIC.to_string());
                 }
             } else if f == fk5_id {
-                if seen.insert(FK5_UNCORRECTED) {
-                    node_ids.push(FK5_UNCORRECTED.to_string());
+                if seen.insert(FK5_EPHEMERIS) {
+                    node_ids.push(FK5_EPHEMERIS.to_string());
                 }
-                if seen.insert(FK5_CORRECTED) {
-                    node_ids.push(FK5_CORRECTED.to_string());
+                if seen.insert(FK5_FROM_ICRS) {
+                    node_ids.push(FK5_FROM_ICRS.to_string());
                 }
             } else if seen.insert(f) {
                 node_ids.push(f.to_string());
@@ -583,13 +541,13 @@ impl TransformGraph {
                     node_ids.push(MEAN_ECLIPTIC_ECLIPTIC.to_string());
                 }
             } else if t == fk5_id {
-                if seen.insert(FK5_UNCORRECTED) {
-                    node_ids.push(FK5_UNCORRECTED.to_string());
+                if seen.insert(FK5_EPHEMERIS) {
+                    node_ids.push(FK5_EPHEMERIS.to_string());
                 }
-                if seen.insert(FK5_CORRECTED) {
-                    node_ids.push(FK5_CORRECTED.to_string());
+                if seen.insert(FK5_FROM_ICRS) {
+                    node_ids.push(FK5_FROM_ICRS.to_string());
                 }
-            } else if t != "MeanEclipticEclipticPatch(epoch)" && seen.insert(t) {
+            } else if seen.insert(t) {
                 node_ids.push(t.to_string());
             }
         }
@@ -597,35 +555,24 @@ impl TransformGraph {
         for e in &self.edges {
             let from_id = e.from_frame.id_str().to_string();
             let to_id = e.to_frame.id_str().to_string();
-            if from_id == mean_ecliptic_id && to_id == "MeanEclipticEclipticPatch(epoch)" {
-                continue;
-            }
-            if from_id == "MeanEclipticEclipticPatch(epoch)" && to_id == fk5_id {
-                continue;
-            }
             if from_id == fk5_id && to_id == "ICRS" {
-                if seen.insert(Self::PATCH_NODE_ID) {
-                    node_ids.push(Self::PATCH_NODE_ID.to_string());
-                }
-                edges.push(make_edge_viz(FK5_UNCORRECTED, Self::PATCH_NODE_ID, e.cost, None));
-                edges.push(make_edge_viz(Self::PATCH_NODE_ID, "ICRS", 0, None));
+                edges.push(make_edge_viz(FK5_EPHEMERIS, "ICRS", e.cost, None));
             } else if from_id == "ICRS" && to_id == fk5_id {
-                edges.push(make_edge_viz("ICRS", FK5_CORRECTED, e.cost, None));
+                edges.push(make_edge_viz("ICRS", FK5_FROM_ICRS, e.cost, None));
             } else if from_id == fk5_id && to_id == "MeanEquator(epoch)" {
-                edges.push(make_edge_viz(FK5_CORRECTED, &to_id, e.cost, e.edge_key.as_deref()));
+                edges.push(make_edge_viz(FK5_FROM_ICRS, &to_id, e.cost, e.edge_key.as_deref()));
             } else if from_id == mean_ecliptic_id && to_id == fk5_id {
-                edges.push(make_edge_viz(MEAN_ECLIPTIC_EQUATOR, FK5_UNCORRECTED, e.cost, None));
-                edges.push(make_edge_viz(MEAN_ECLIPTIC_ECLIPTIC, FK5_CORRECTED, e.cost, None));
+                edges.push(make_edge_viz(MEAN_ECLIPTIC_EQUATOR, FK5_EPHEMERIS, e.cost, None));
+                edges.push(make_edge_viz(MEAN_ECLIPTIC_ECLIPTIC, FK5_FROM_ICRS, e.cost, None));
             } else {
                 edges.push(make_edge_viz(&from_id, &to_id, e.cost, e.edge_key.as_deref()));
             }
         }
-        // 静态完整图：始终预置历表入口与黄道 patch 分支
+        // 静态完整图：始终预置历表入口（日 VSOP87、月 ELPMPP02）
         if node_ids.iter().any(|s| s == MEAN_ECLIPTIC_EQUATOR) {
             let prepend_nodes = vec![
                 "VSOP87".to_string(),
                 HELIOCENTRIC_MEAN_ECLIPTIC.to_string(),
-                ECLIPTIC_PATCH_NODE_ID.to_string(),
                 "ELPMPP02".to_string(),
                 "ELPMPP02_MEAN_LUNAR".to_string(),
             ];
@@ -633,8 +580,6 @@ impl TransformGraph {
             let prepend_edges = vec![
                 make_edge_viz("VSOP87", HELIOCENTRIC_MEAN_ECLIPTIC, 0, None),
                 make_edge_viz(HELIOCENTRIC_MEAN_ECLIPTIC, MEAN_ECLIPTIC_EQUATOR, 0, None),
-                make_edge_viz("VSOP87", ECLIPTIC_PATCH_NODE_ID, 0, None),
-                make_edge_viz(ECLIPTIC_PATCH_NODE_ID, MEAN_ECLIPTIC_ECLIPTIC, 0, None),
                 make_edge_viz("ELPMPP02", "ELPMPP02_MEAN_LUNAR", 0, None),
                 make_edge_viz("ELPMPP02_MEAN_LUNAR", MEAN_ECLIPTIC_ECLIPTIC, 0, None),
             ];
@@ -673,7 +618,6 @@ impl TransformGraph {
             (ReferenceFrame::FK5, ReferenceFrame::FK5) => true,
             (ReferenceFrame::ICRS, ReferenceFrame::ICRS) => true,
             (ReferenceFrame::MeanEcliptic(_), ReferenceFrame::MeanEcliptic(_)) => true,
-            (ReferenceFrame::MeanEclipticEclipticPatch(_), ReferenceFrame::MeanEclipticEclipticPatch(_)) => true,
             (ReferenceFrame::MeanEquator(_), ReferenceFrame::MeanEquator(_)) => true,
             (ReferenceFrame::TrueEquator(_), ReferenceFrame::TrueEquator(_)) => true,
             (ReferenceFrame::ApparentEcliptic(_), ReferenceFrame::ApparentEcliptic(_)) => true,
@@ -732,8 +676,6 @@ impl TransformGraph {
             cost: Cost,
             node: NodeId,
         }
-        let from_is_patch = matches!(from, ReferenceFrame::MeanEclipticEclipticPatch(_));
-        let to_is_patch = matches!(to, ReferenceFrame::MeanEclipticEclipticPatch(_));
         let mut adj: HashMap<NodeId, Vec<(NodeId, Cost, PathEdge)>> = HashMap::new();
         for e in &self.edges {
             let is_precession_edge = matches!(
@@ -748,14 +690,6 @@ impl TransformGraph {
                 (ReferenceFrame::MeanEquator(_), ReferenceFrame::TrueEquator(_))
             );
             if is_nutation_edge && !nutation_edge_matches(e, self.nutation_model) {
-                continue;
-            }
-            let is_patch_edge = matches!(
-                (e.from_frame, e.to_frame),
-                (ReferenceFrame::MeanEcliptic(_), ReferenceFrame::MeanEclipticEclipticPatch(_))
-                    | (ReferenceFrame::MeanEclipticEclipticPatch(_), ReferenceFrame::FK5)
-            );
-            if is_patch_edge && !from_is_patch && !to_is_patch {
                 continue;
             }
             if matches!((e.from_frame, e.to_frame), (ReferenceFrame::FK5, ReferenceFrame::ICRS))
@@ -820,8 +754,7 @@ impl TransformGraph {
         let precession_model = edge_key_to_precession(edge_key, self.precession_model);
         let nutation_model = edge_key_to_nutation(edge_key, self.nutation_model);
         match (from, to) {
-            (ReferenceFrame::MeanEcliptic(_), ReferenceFrame::FK5)
-            | (ReferenceFrame::MeanEclipticEclipticPatch(_), ReferenceFrame::FK5) => {
+            (ReferenceFrame::MeanEcliptic(_), ReferenceFrame::FK5) => {
                 let eps0 = mean_obliquity(0.0).rad();
                 let (ct, st) = (eps0.cos(), eps0.sin());
                 let r = [[one(), zero(), zero()], [zero(), ct, -st], [zero(), st, ct]];
@@ -954,15 +887,6 @@ impl TransformGraph {
                         .optional_fk5_to_icrs
                         .as_ref()
                         .expect("apply_edge: FK5→ICRS mapper required");
-                    f(state, jd_tt)
-                } else if matches!(
-                    (from_f, to_f),
-                    (ReferenceFrame::MeanEcliptic(_), ReferenceFrame::MeanEclipticEclipticPatch(_))
-                ) {
-                    let f = self
-                        .optional_ecliptic_patch
-                        .as_ref()
-                        .expect("apply_edge: MeanEcliptic→Patch mapper required");
                     f(state, jd_tt)
                 } else {
                     panic!("apply_edge: unknown mapping {} -> {}", from_f.id_str(), to_f.id_str());

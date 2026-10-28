@@ -33,6 +33,9 @@ pub struct VsopBlock {
 #[derive(Clone, Debug)]
 pub struct Vsop87 {
     pub blocks: Vec<VsopBlock>,
+    /// 可选的日心 L、B、R 改正（拟合到 JPL 数值历表，见 [`super::vsop87_patch`]）；有则在
+    /// [`Self::position_and_velocity_jd`] 中施于位置与速度，所有上层计算自动生效。
+    pub patch: Option<super::vsop87_patch::LbrPatch>,
 }
 
 /// VSOP87 球面位置：L/B 为角，R 为长。标量 Real。
@@ -85,14 +88,10 @@ impl Vsop87 {
             for term in &block.terms {
                 let phase_t = term.phase + term.frequency.angle_for_t_julian_millennia(t);
                 let phase_reduced = phase_t.wrap_to_2pi().rad();
-                let cos_b = phase_reduced.cos();
-                let sin_b = phase_reduced.sin();
-                let vel_scalar = if a == 0 {
-                    real(0)
-                } else {
-                    real(a as f64) * t_pow_am1 * cos_b
-                        - term.frequency.rad_per_julian_millennium() * t_pow_a * sin_b
-                };
+                let (sin_b, cos_b) = phase_reduced.sin_cos();
+                // d/dT [T^α cos(φ + ωT)] = α T^{α−1} cos(…) − ω T^α sin(…)；α = 0 时前一项为 0、后一项照计
+                // （α = 0 块含中心差等主要周期项，漏算会使地球速度小约 2e ≈ 3.3%）
+                let vel_scalar = real(a as f64) * t_pow_am1 * cos_b - term.frequency.rad_per_julian_millennium() * t_pow_a * sin_b;
 
                 match &term.amplitude {
                     Vsop87Amplitude::Angle(angle) => {
@@ -121,6 +120,18 @@ impl Vsop87 {
             }
         }
 
+        if let Some(p) = &self.patch {
+            let (dl, db, dr) = p.correction(t);
+            let (ddl, ddb, ddr) = p.derivative(t);
+            let as2rad = real(core::f64::consts::PI / 648000.0);
+            sum_l = sum_l + PlaneAngle::from_rad(dl * as2rad);
+            sum_b = sum_b + PlaneAngle::from_rad(db * as2rad);
+            sum_r = Length::from_value(sum_r.meters() + dr * AU_METERS, LengthUnit::Meter);
+            sum_dl = sum_dl + AngularRate::from_value(ddl * as2rad, AngularRateUnit::RadPerJulianMillennium);
+            sum_db = sum_db + AngularRate::from_value(ddb * as2rad, AngularRateUnit::RadPerJulianMillennium);
+            sum_dr = sum_dr + Speed::from_value(ddr * AU_METERS, SpeedUnit::MPerJulianMillennium);
+        }
+
         let pos = Vsop87SphericalPosition {
             L: sum_l.wrap_to_2pi(),
             B: sum_b.wrap_to_signed_pi(),
@@ -132,6 +143,28 @@ impl Vsop87 {
             d_r: Speed::from_value(sum_dr.in_unit(SpeedUnit::MPerS), SpeedUnit::MPerS),
         };
         (pos, vel)
+    }
+
+    /// 施加日心 L、B、R 改正（拟合到 JPL 数值历表）。
+    pub fn with_patch(mut self, patch: super::vsop87_patch::LbrPatch) -> Self {
+        self.patch = Some(patch);
+        self
+    }
+
+    /// 日心直角坐标（J2000 动力学黄道与春分点）：位置 m、速度 m/s；jd 为 TDB。含 [`Self::patch`]（若有）。
+    pub fn heliocentric_rectangular(&self, jd: Real) -> ([Real; 3], [Real; 3]) {
+        let (pos, vel) = self.position_and_velocity_jd(jd);
+        let (l, b, r) = (pos.L.rad(), pos.B.rad(), pos.R.meters());
+        let (dl, db, dr) = (vel.d_l.rad_per_second(), vel.d_b.rad_per_second(), vel.d_r.m_per_s());
+        let (cl, sl, cb, sb) = (l.cos(), l.sin(), b.cos(), b.sin());
+        (
+            [r * cb * cl, r * cb * sl, r * sb],
+            [
+                dr * cb * cl - r * sb * cl * db - r * cb * sl * dl,
+                dr * cb * sl - r * sb * sl * db + r * cb * cl * dl,
+                dr * sb + r * cb * db,
+            ],
+        )
     }
 
     /// 球面位置（物理量）；jd 为 TDB。
@@ -173,7 +206,7 @@ impl Vsop87 {
         [vx, vy, vz]
     }
 
-    /// 从二进制格式加载（零解析：头 + f64 小端数组）。格式见 doc/13-ephemeris-binary-format.md。
+    /// 从二进制格式加载（零解析：头 + f64 小端数组）。格式见 doc/engineering/ephemeris-binary-format.md。
     pub fn from_binary(bytes: &[u8]) -> Result<Vsop87, LoadError> {
         const MAGIC: &[u8; 4] = b"VSB1";
         const HEADER_LEN: usize = 4 + 4 + 4; // magic + version + num_blocks
@@ -228,7 +261,7 @@ impl Vsop87 {
         if blocks.is_empty() {
             return Err(LoadError::Io("VSOP87 binary no blocks".into()));
         }
-        Ok(Vsop87 { blocks })
+        Ok(Vsop87 { blocks, patch: None })
     }
 
     /// 序列化为二进制格式（与 from_binary 对称，供构建脚本生成 .ear.bin）。
@@ -307,6 +340,7 @@ pub fn minimal_earth_vsop() -> Vsop87 {
                 }],
             },
         ],
+        patch: None,
     }
 }
 
@@ -381,7 +415,7 @@ impl Vsop87Parse {
         if blocks.is_empty() {
             return Err(LoadError::Io("No blocks parsed".into()));
         }
-        Ok(Vsop87 { blocks })
+        Ok(Vsop87 { blocks, patch: None })
     }
 
     pub fn parse(loader: &dyn DataLoader, path: &str) -> Result<Vsop87, LoadError> {
@@ -395,6 +429,32 @@ mod tests {
     use super::*;
     use crate::astronomy::constant::J2000;
     use crate::math::real::{real, RealOps, ToReal};
+
+    /// 解析速度对数值微分（中心差分 h = 0.01 日）：地球与火星，含改正与否，若干历元。修正前 α = 0 块的导数被漏算，
+    /// 地球速度小约 3.3%（2026-10-27 发现：恒星周年光行差对 Skyfield 差 0.6″）。
+    #[test]
+    fn analytic_velocity_matches_numeric_derivative() {
+        use crate::astronomy::ephemeris::{load_earth_vsop87_from_repo, load_planet_vsop87_from_repo};
+        use crate::astronomy::pipeline::Planet;
+        let earth = load_earth_vsop87_from_repo().unwrap();
+        let mars = load_planet_vsop87_from_repo(Planet::Mars).unwrap();
+        for v in [&earth, &mars] {
+            for jd in [2451545.0, 2460676.5, 2268923.5, 1757585.0] {
+                let (_, vel) = v.heliocentric_rectangular(real(jd));
+                let h = 0.01;
+                let (a, _) = v.heliocentric_rectangular(real(jd - h));
+                let (b, _) = v.heliocentric_rectangular(real(jd + h));
+                for i in 0..3 {
+                    let num = (b[i] - a[i]).as_f64() / (2.0 * h * 86400.0);
+                    assert!((vel[i].as_f64() - num).abs() < 0.01, "jd {jd} 分量 {i}: 解析 {} 数值 {num}", vel[i].as_f64());
+                }
+                let vb = v.velocity_ecliptic_j2000_m_per_s(real(jd));
+                for i in 0..3 {
+                    assert!((vb[i] - vel[i]).abs().as_f64() < 1e-6, "velocity_ecliptic_j2000_m_per_s 与 heliocentric_rectangular 不一致");
+                }
+            }
+        }
+    }
 
     #[test]
     fn jd_to_t_j2000() {
@@ -426,6 +486,7 @@ mod tests {
                 VsopBlock { coords: 2, alpha_t: 0, terms: vec![term_angle(real(0.1), real(0), real(0))] },
                 VsopBlock { coords: 3, alpha_t: 0, terms: vec![term_length_au(real(1), real(0), real(0))] },
             ],
+            patch: None,
         };
         let pos = vsop.position_jd(J2000);
         assert!(pos.L.rad().abs() > real(0) && pos.B.rad().abs() > real(0) && (pos.R.meters() / AU_METERS).abs() > real(0));
@@ -442,6 +503,7 @@ mod tests {
                 alpha_t: 0,
                 terms: vec![term_angle(real(1), real(0), real(0))],
             }],
+            patch: None,
         };
         let sun_l = sun_ecliptic_longitude(&vsop, j2000_tt());
         assert!(sun_l.rad().abs() > real(0));

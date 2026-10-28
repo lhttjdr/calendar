@@ -10,36 +10,49 @@ use std::path::PathBuf;
 /// 所有外部数据文件的相对路径（相对仓库根），单一来源，避免拼写与层级错误。
 pub mod paths {
     /// 章动 IERS 5.3a（经度，µas）
-    pub const IAU2000_TAB53A: &str = "data/IAU2000/tab5.3a.txt";
+    pub const IAU2000_TAB53A: &str = "vendor/IAU2000/tab5.3a.txt";
     /// 章动 IERS 5.3b（倾角，µas）
-    pub const IAU2000_TAB53B: &str = "data/IAU2000/tab5.3b.txt";
+    pub const IAU2000_TAB53B: &str = "vendor/IAU2000/tab5.3b.txt";
     /// 章动二进制（可选）
-    pub const IAU2000_TAB53A_BIN: &str = "data/IAU2000/tab5.3a.bin";
+    pub const IAU2000_TAB53A_BIN: &str = "vendor/IAU2000/tab5.3a.bin";
 
     /// VSOP87 地球系数
-    pub const VSOP87_EARTH: &str = "data/vsop87/VSOP87B.ear";
+    pub const VSOP87_EARTH: &str = "vendor/vsop87/VSOP87B.ear";
+    /// VSOP87 各行星系数目录（`VSOP87B.mer` 等，后缀见 `Planet::vsop87_suffix`）
+    pub const VSOP87_DIR: &str = "vendor/vsop87";
     /// ELPMPP02 数据目录
-    pub const ELPMPP02: &str = "data/elpmpp02";
+    pub const ELPMPP02: &str = "vendor/elpmpp02";
 
-    /// VSOP87–DE406 赤道 patch
-    pub const FIT_VSOP87_DE406_ICRS: &str = "data/fit/vsop87-de406-icrs.txt";
-    /// VSOP87–DE406 赤道 patch 二进制（可选）
-    pub const FIT_VSOP87_DE406_ICRS_BIN: &str = "data/fit/vsop87-de406-icrs.bin";
-    /// VSOP87–DE406 黄道 patch
-    pub const FIT_VSOP87_DE406_ECLIPTIC: &str = "data/fit/vsop87-de406-ecliptic.txt";
+    /// VSOP87–DE406 各行星（含地球）日心 L、B、R 改正（Chapront 2000 方法）
+    pub const FIT_VSOP87_DE406_PLANETS: &str = "data/fit/vsop87-de406-planets.txt";
+    /// VSOP87–DE441 各行星（含地球）日心 L、B、R 改正（同上方法，目标历表 DE441）
+    pub const FIT_VSOP87_DE441_PLANETS: &str = "data/fit/vsop87-de441-planets.txt";
+    /// wasm 用：地球改正二进制（`examples/patch_to_bin.rs` 由上两表生成，只含 `ear`）
+    pub const FIT_VSOP87_DE406_EARTH_BIN: &str = "data/fit/vsop87-de406-earth.bin";
+    pub const FIT_VSOP87_DE441_EARTH_BIN: &str = "data/fit/vsop87-de441-earth.bin";
 
     /// 《月相和二十四节气的计算》§7.4 节气朔望标准时刻表
-    pub const SOLAR_TERMS_REFERENCE: &str = "data/月相和二十四节气的计算/TDBtimes.txt";
+    pub const SOLAR_TERMS_REFERENCE: &str = "vendor/月相和二十四节气的计算/TDBtimes.txt";
 
     /// DE406 BSP 候选路径（按优先级）
     pub const DE406_BSP_CANDIDATES: &[&str] = &[
-        "data/jpl/de406/de406.bsp",
-        "data/jpl/de406.bsp",
+        "vendor/jpl/de406/de406.bsp",
+        "vendor/jpl/de406.bsp",
     ];
     /// DE406 数据目录（用于跳过提示）
-    pub const JPL_DATA_DIR: &str = "data/jpl";
+    pub const JPL_DATA_DIR: &str = "vendor/jpl";
+    /// JPL DE441 BSP（3 GB，仅本地验证，不入库；见 vendor/jpl/de441/README.md）
+    pub const DE441_BSP: &str = "vendor/jpl/de441/de441.bsp";
+    /// JPL DE431（3.7 GB，MS2016/2021 ΔT 所配历表，仅本地验证，不入库；见 vendor/jpl/de431/README.md）
+    pub const DE431_BSP: &str = "vendor/jpl/de431/de431t.bsp";
+    /// Hipparcos 亮星表（V ≤ 6.5），见 astronomy::stars
+    pub const HIPPARCOS_BRIGHT: &str = "data/stars/hipparcos_bright.csv";
+    /// 二十八宿距星（各体系），见 astronomy::sky_culture::chinese
+    pub const CHINESE_LUNAR_MANSIONS: &str = "data/sky_culture/chinese_lunar_mansion_determinatives.csv";
+    /// 中国星官（各体系），见 astronomy::sky_culture::chinese
+    pub const CHINESE_ASTERISMS: &str = "data/sky_culture/chinese_asterisms.csv";
     /// ELPMPP02 vs JPL DE406 样本 CSV（J2000 平黄道 km）
-    pub const JPL_ELP_VS_JPL_SAMPLES_CSV: &str = "data/jpl/elp_vs_jpl_de406_samples.csv";
+    pub const JPL_ELP_VS_JPL_SAMPLES_CSV: &str = "vendor/jpl/elp_vs_jpl_de406_samples.csv";
 }
 
 /// 返回仓库根目录（Native 下用于构造 DataLoader 的 base_path）。

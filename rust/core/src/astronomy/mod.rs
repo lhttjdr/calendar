@@ -14,7 +14,7 @@
 //!
 //! - **时间** [`time`]：历元、时标（TT/TDB/UTC），管线输入。
 //! - **星历表提供者** [`EphemerisProvider`](pipeline::EphemerisProvider)：给时刻 → 6D 状态；由 [`ephemeris`]（Vsop87、Elpmpp02）实现。
-//! - **架映射** [`FrameMapper`](pipeline::FrameMapper)：跨架拟合/改正；用 [`frame`]（fk5_icrs、vsop87_de406_icrs_patch）。
+//! - **架映射** [`FrameMapper`](pipeline::FrameMapper)：跨架映射；用 [`frame`]（fk5_icrs）。VSOP87 拟合到 DE406/DE441 的改正在 [`ephemeris::vsop87_patch`]，挂在 `Vsop87` 上。
 //! - **岁差 / 章动** [`precession`]、[`nutation`]：架随时间的旋转（平架→真架），在 [`TransformGraph`](pipeline::TransformGraph) 中组合。
 //! - **光行时** [`LightTimeCorrector`](pipeline::LightTimeCorrector)：用 [`light_time`]。
 //! - **光学改正** [`OpticalCorrector`](pipeline::OpticalCorrector)：光行差等，用 [`aberration`]。
@@ -33,7 +33,11 @@ pub mod constant;
 pub mod correction;
 pub mod ephemeris;
 pub mod frame;
+pub mod geodesy;
+pub mod phenomena;
 pub mod pipeline;
+pub mod sky_culture;
+pub mod stars;
 pub mod time;
 
 

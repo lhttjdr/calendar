@@ -1,9 +1,11 @@
 pub mod elpmpp02;
 pub mod vsop87;
+pub mod vsop87_patch;
 pub mod spk;
 mod load;
 pub use load::{
-    load_earth_vsop87, load_earth_vsop87_from_repo, DEFAULT_ELPMPP02_PATH, DEFAULT_VSOP87_EARTH_PATH,
+    load_earth_vsop87, load_earth_vsop87_corrected_from_repo, load_earth_vsop87_from_repo, load_planet_vsop87_corrected_from_repo,
+    load_planet_vsop87_from_repo, DEFAULT_ELPMPP02_PATH, DEFAULT_VSOP87_EARTH_PATH,
 };
 pub use spk::De406Kernel;
 pub use elpmpp02::{

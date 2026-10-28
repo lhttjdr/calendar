@@ -212,7 +212,7 @@ pub fn load_iers_53b_j1_map(lines: &[String]) -> std::collections::HashMap<IersL
 }
 
 /// VLBI/合并格式：单文件每行 "L Lm F D Om  Period  Psi dPsi Eps dEps  Psi_out dPsi_out Eps_out dEps_out"（mas），
-/// 如 scripts/iers_nutation_to_tab53a.py 输出或 IERS "NUTATION SERIES FROM VLBI DATA"。返回 quads，系数已转弧秒。
+/// 如 scripts/ephemeris/iers_nutation_to_tab53a.py 输出或 IERS "NUTATION SERIES FROM VLBI DATA"。返回 quads，系数已转弧秒。
 pub fn parse_vlbi_merged_to_quads(lines: &[String]) -> Vec<[ParsedTerm; 4]> {
     const MAS_TO_ARCSEC: f64 = 1e-3;
     let mut quads = Vec::new();
@@ -293,7 +293,7 @@ pub fn merge_iers_53a_53b_to_quads(
 
 #[cfg(test)]
 mod tests {
-    /// 当存在 data/IAU2000/tab5.3a.txt + tab5.3b.txt 时从 repo 读并合并
+    /// 当存在 vendor/IAU2000/tab5.3a.txt + tab5.3b.txt 时从 repo 读并合并
     #[cfg(not(target_arch = "wasm32"))]
     #[test]
     fn load_iers_53a_53b_from_data_dir() {

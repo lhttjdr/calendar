@@ -1,4 +1,5 @@
-//! 视位置：光行时 → r(tr)=Xproper + 岁差+章动 → 太阳视黄经（与定气参考一致）；另 VSOP87+FK5→ICRS+patch → 太阳 ICRS。
+//! 视位置：光行时 → r(tr)=Xproper + 岁差+章动 → 太阳视黄经（与定气参考一致）；另 VSOP87+FK5→ICRS → 太阳 ICRS。
+//! VSOP87 拟合到 DE406/DE441 的改正挂在 [`Vsop87::patch`] 上（加载时选定），管线本身不再含改正映射器。
 //! 与 LightTime 一致：式(37) Xproper(t)=x(tr)−xE(tr) 已含光行时+光行差，故不再施光行差。
 //!
 //! **图语义**：架变换统一由 `TransformGraph` 驱动——按起止点最短路（`transform_to`）或起止点+途径点受限最短路（`transform_to_via`）执行，见 doc 15。
@@ -6,18 +7,16 @@
 //! **矩阵与向量**：岁差/章动/旋转的矩阵与向量已统一为 `Mat::<Real,3,3>` 与 `[Real; 3]`，整条链标量均为 Real。
 
 use crate::astronomy::constant::{AU_METERS, J2000};
-use crate::astronomy::frame::vsop87_de406_ecliptic_patch;
 use crate::astronomy::correction::aberration::annual_aberration_direction;
 use crate::astronomy::ephemeris::{De406Kernel, Elpmpp02Data, Vsop87};
 use crate::astronomy::frame::fk5_icrs;
-use crate::astronomy::frame::vsop87_de406_icrs_patch;
 use crate::astronomy::frame::nutation::{nutation_for_apparent, nutation_for_model, NutationModel};
 use crate::astronomy::frame::nutation::{eps_true_dot, nutation_derivative_times_vector};
 use crate::astronomy::time::{TimePoint, TimeScale};
 use crate::astronomy::frame::precession::{
-    mean_obliquity, precession_derivative_times_vector_for, precession_transform_for, PrecessionModel,
+    mean_obliquity, mean_obliquity_for, precession_derivative_times_vector_for, precession_transform_for, PrecessionModel,
 };
-use crate::astronomy::pipeline::{Body, Compose, EphemerisProvider, FrameMapper, Fk5ToIcrsBias, LightTimeCorrector, TransformGraph, Vsop87FitDe406Equatorial};
+use crate::astronomy::pipeline::{Body, EphemerisProvider, FrameMapper, Fk5ToIcrsBias, LightTimeCorrector, TransformGraph};
 use crate::math::algebra::mat::Mat;
 use crate::math::real::{real_const, real, zero, one, Real, RealOps, ToReal};
 use crate::quantity::angle::PlaneAngle;
@@ -34,7 +33,9 @@ const SEC_PER_CENTURY: Real = real_const(36525.0 * 86400.0);
 /// 视位置 pipeline 选项。
 #[derive(Clone, Debug)]
 pub struct ApparentPipelineOptions {
-    /// 定气用 true（P03）；其它场景可用 false（Vondrak2011）。若 `precession_model` 为 Some 则优先使用。
+    /// true → P03（IAU 2006，J2000 前后数百年有效）；false → Vondrák 2011（长期，缺省）。若 `precession_model` 为 Some 则优先使用。
+    /// 2026-10-26 起缺省为 Vondrák 2011：两者在 20、21 世纪差 < 100 μas，古代 P03 偏离数值积分（Vondrák et al. 2011），
+    /// 见 doc/astronomy/precession.md。
     pub use_p03_precession: bool,
     /// 显式指定岁差模型；None 时由 use_p03_precession 决定（true→P03，false→Vondrak2011）。
     pub precession_model: Option<PrecessionModel>,
@@ -52,7 +53,7 @@ impl Default for ApparentPipelineOptions {
     /// 通用默认：月球不施光行时。**定朔**请用 [`Self::pipeline_default()`]，以启用月球光行时 tr 迭代（约 1.5～2 s 精度影响）。
     fn default() -> Self {
         Self {
-            use_p03_precession: true,
+            use_p03_precession: false,
             precession_model: None,
             use_light_time_moon: false,
             use_analytic_velocity: false,
@@ -63,10 +64,10 @@ impl Default for ApparentPipelineOptions {
 }
 
 impl ApparentPipelineOptions {
-    /// 定气/定朔用默认：P03 岁差，**月球施光行时**（tr 迭代），无显式光行差。定朔必须用此选项以满足 GB/T 约 1 s 要求。
+    /// 定气/定朔用默认：Vondrák 2011 岁差，**月球施光行时**（tr 迭代），无显式光行差。定朔必须用此选项以满足 GB/T 约 1 s 要求。
     pub fn pipeline_default() -> Self {
         Self {
-            use_p03_precession: true,
+            use_p03_precession: false,
             precession_model: None,
             use_light_time_moon: true,
             use_analytic_velocity: false,
@@ -129,15 +130,19 @@ pub fn nutation_matrix_mean_to_true(t_cent: impl ToReal) -> [[Real; 3]; 3] {
 /// 章动矩阵 N^T（旧接口，保留兼容）。请用 nutation_matrix_mean_to_true 以符合被动旋转约定。
 #[inline]
 pub fn nutation_matrix_transposed(t_cent: impl ToReal) -> [[Real; 3]; 3] {
-    nutation_matrix_transposed_for_model(t_cent, NutationModel::IAU2000B)
+    nutation_matrix_transposed_for_model(t_cent, NutationModel::IAU2000B, PrecessionModel::P03)
 }
 
-/// 按章动模型返回 N^T；用于重边（IAU2000A / IAU2000B）。
+/// 按章动模型返回 N^T；用于重边（IAU2000A / IAU2000B）。平黄赤交角随岁差模型取（与岁差配套）。
 #[inline]
-pub fn nutation_matrix_transposed_for_model(t_cent: impl ToReal, model: NutationModel) -> [[Real; 3]; 3] {
+pub fn nutation_matrix_transposed_for_model(
+    t_cent: impl ToReal,
+    model: NutationModel,
+    precession_model: PrecessionModel,
+) -> [[Real; 3]; 3] {
     let t_real = real(t_cent);
     let (dpsi, deps) = nutation_for_model(t_real, model);
-    let n = nutation_matrix(mean_obliquity(t_real), dpsi, deps);
+    let n = nutation_matrix(mean_obliquity_for(t_real, precession_model), dpsi, deps);
     Mat::<Real, 3, 3>::from(n).transpose().to_array()
 }
 
@@ -150,42 +155,11 @@ fn nutation_matrix(eps_mean: PlaneAngle, dpsi: PlaneAngle, deps: PlaneAngle) -> 
     r1_eps.mul_mat(&r3_dpsi).mul_mat(&r1_eps_deps).to_array()
 }
 
-/// 默认变换图并挂接 FK5→ICRS 映射器；无黄道 patch 边，最短路为 MeanEcliptic→FK5→ICRS(9)。
-fn default_graph_with_icrs_mapper() -> TransformGraph {
+/// 默认变换图并挂接 FK5→ICRS 映射器（SOFA 架偏差）；最短路为 MeanEcliptic→FK5→ICRS。
+pub(crate) fn default_graph_with_icrs_mapper() -> TransformGraph {
     TransformGraph::default_graph().with_fk5_to_icrs_mapper(|s, jd_tt| {
         let t = TimePoint::new(TimeScale::TT, jd_tt);
-        Compose(Fk5ToIcrsBias, Vsop87FitDe406Equatorial).apply(s, t)
-    })
-}
-
-/// 默认图 + FK5→ICRS + 黄道 patch 映射器；最短路可为 MeanEcliptic→Patch→FK5→ICRS(5)。patch 未加载时改正为 0。
-fn default_graph_with_icrs_and_ecliptic_patch_mapper() -> TransformGraph {
-    default_graph_with_icrs_mapper().with_ecliptic_patch_mapper(|s, jd_tt| {
-        let epoch = Epoch::new(jd_tt);
-        let tr = TimePoint::new(TimeScale::TT, jd_tt);
-        let [x, y, z] = s.position.to_meters();
-        let r = (x.clone() * x + y.clone() * y + z.clone() * z).sqrt();
-        let r_au = (r.clone() / AU_METERS).as_f64();
-        let l = y.clone().atan2(x.clone());
-        let b = if r > zero() { (z / r).asin() } else { zero() };
-        let (lp, bp, r_au_p) = vsop87_de406_ecliptic_patch::apply_patch_to_ecliptic_for_geocentric_sun(
-            PlaneAngle::from_rad(l),
-            PlaneAngle::from_rad(b),
-            r_au,
-            &tr,
-        );
-        let (vx, vy, vz) = (s.velocity.vx.m_per_s(), s.velocity.vy.m_per_s(), s.velocity.vz.m_per_s());
-        let cp = lp.rad().cos() * bp.rad().cos();
-        let sp = lp.rad().sin() * bp.rad().cos();
-        let zp = bp.rad().sin();
-        let r_m = real(r_au_p) * AU_METERS;
-        crate::astronomy::pipeline::State6::from_si_in_frame(
-            ReferenceFrame::MeanEclipticEclipticPatch(epoch),
-            r_m.clone() * cp,
-            r_m.clone() * sp,
-            r_m * zp,
-            vx, vy, vz,
-        )
+        Fk5ToIcrsBias.apply(s, t)
     })
 }
 
@@ -220,7 +194,7 @@ pub fn sun_apparent_ecliptic_longitude_explicit_aberration(
 ) -> PlaneAngle {
     let t_tt = t.to_scale(TimeScale::TT);
     let jd_obs = t_tt.jd;
-    let corrector: LightTimeCorrector<'_, Vsop87, Compose<Fk5ToIcrsBias, Vsop87FitDe406Equatorial>> = LightTimeCorrector {
+    let corrector: LightTimeCorrector<'_, Vsop87, Fk5ToIcrsBias> = LightTimeCorrector {
         ephemeris: vsop,
         mapper: None,
         max_iter: 2,
@@ -270,7 +244,7 @@ pub fn sun_apparent_ecliptic_longitude(vsop: &Vsop87, t: TimePoint) -> PlaneAngl
     lam
 }
 
-/// 同上，可指定岁差等选项（定气宜 `use_p03_precession: true`）。
+/// 同上，可指定岁差等选项（缺省 Vondrák 2011；P03 可选）。
 pub fn sun_apparent_ecliptic_longitude_with_options(
     vsop: &Vsop87,
     t: TimePoint,
@@ -288,7 +262,7 @@ pub fn sun_apparent_ecliptic_longitude_velocity_analytic(
     options: &ApparentPipelineOptions,
 ) -> Real {
     let t_tt = t.to_scale(TimeScale::TT);
-    let corrector: LightTimeCorrector<'_, Vsop87, Compose<Fk5ToIcrsBias, Vsop87FitDe406Equatorial>> = LightTimeCorrector {
+    let corrector: LightTimeCorrector<'_, Vsop87, Fk5ToIcrsBias> = LightTimeCorrector {
         ephemeris: vsop,
         mapper: None,
         max_iter: 2,
@@ -310,19 +284,8 @@ pub fn sun_apparent_ecliptic_longitude_velocity_analytic(
         vel_m[1] * ce - vel_m[2] * se,
         vel_m[1] * se + vel_m[2] * ce,
     );
-    let pos_icrs = Position::from_si_meters_in_frame(ReferenceFrame::ICRS, xi, yi, zi);
-    let (pos_c, vel_c) =
-        vsop87_de406_icrs_patch::apply_patch_velocity_to_equatorial_for_geocentric_sun(
-            pos_icrs,
-            [vxi, vyi, vzi],
-            &tr,
-        );
-    let (r0, r1, r2) = fk5_icrs::rotate_equatorial_icrs_to_fk5(
-        pos_c.x.meters(),
-        pos_c.y.meters(),
-        pos_c.z.meters(),
-    );
-    let (v0, v1, v2) = fk5_icrs::rotate_equatorial_icrs_to_fk5(vel_c[0], vel_c[1], vel_c[2]);
+    let (r0, r1, r2) = fk5_icrs::rotate_equatorial_icrs_to_fk5(xi, yi, zi);
+    let (v0, v1, v2) = fk5_icrs::rotate_equatorial_icrs_to_fk5(vxi, vyi, vzi);
     let pt = precession_transform_for(t_cent, precession_model);
     let r_fk5 = [r0, r1, r2];
     let pos_me = pt.apply_vec(r_fk5);
@@ -334,7 +297,7 @@ pub fn sun_apparent_ecliptic_longitude_velocity_analytic(
         v_me_rot[1] + dpr[1] / SEC_PER_CENTURY,
         v_me_rot[2] + dpr[2] / SEC_PER_CENTURY,
     ];
-    let n_t = nutation_matrix_transposed(t_cent);
+    let n_t = nutation_matrix_transposed_for_model(t_cent, NutationModel::IAU2000B, precession_model);
     let pos_te = Mat::<Real, 3, 3>::from(n_t).mul_vec(pos_me);
     let dnr = nutation_derivative_times_vector(pos_me, t_cent, precession_model);
     let v_te_rot = Mat::<Real, 3, 3>::from(n_t).mul_vec(vel_me);
@@ -344,7 +307,7 @@ pub fn sun_apparent_ecliptic_longitude_velocity_analytic(
         v_te_rot[2] + dnr[2] / SEC_PER_CENTURY,
     ];
     let (_, deps) = nutation_for_apparent(t_cent);
-    let eps_true = mean_obliquity(t_cent).rad() + deps.rad();
+    let eps_true = mean_obliquity_for(t_cent, precession_model).rad() + deps.rad();
     let r1_eps = rotation_x(PlaneAngle::from_rad(eps_true));
     let r1p_eps = rotation_x_derivative(eps_true);
     let eps_td = eps_true_dot(t_cent, precession_model);
@@ -418,7 +381,7 @@ fn moon_apparent_ecliptic_longitude_velocity_analytic(
 ) -> Real {
     let t_tt = t.to_scale(TimeScale::TT);
     let (state, jd_work) = if options.use_light_time_moon {
-        let corrector: LightTimeCorrector<'_, Elpmpp02Data, Compose<Fk5ToIcrsBias, Vsop87FitDe406Equatorial>> = LightTimeCorrector {
+        let corrector: LightTimeCorrector<'_, Elpmpp02Data, Fk5ToIcrsBias> = LightTimeCorrector {
             ephemeris: elp,
             mapper: None,
             max_iter: 2,
@@ -452,7 +415,7 @@ fn moon_apparent_ecliptic_longitude_velocity_analytic(
         v_me_rot[1] + dpr[1] / SEC_PER_CENTURY,
         v_me_rot[2] + dpr[2] / SEC_PER_CENTURY,
     ];
-    let n_t = nutation_matrix_transposed(t_cent);
+    let n_t = nutation_matrix_transposed_for_model(t_cent, NutationModel::IAU2000B, precession_model);
     let pos_te = Mat::<Real, 3, 3>::from(n_t).mul_vec(pos_me);
     let dnr = nutation_derivative_times_vector(pos_me, t_cent, precession_model);
     let v_te_rot = Mat::<Real, 3, 3>::from(n_t).mul_vec(vel_me);
@@ -462,7 +425,7 @@ fn moon_apparent_ecliptic_longitude_velocity_analytic(
         v_te_rot[2] + dnr[2] / SEC_PER_CENTURY,
     ];
     let (_, deps) = nutation_for_apparent(t_cent);
-    let eps_true = mean_obliquity(t_cent).rad() + deps.rad();
+    let eps_true = mean_obliquity_for(t_cent, precession_model).rad() + deps.rad();
     let r1_eps = rotation_x(PlaneAngle::from_rad(eps_true));
     let r1p_eps = rotation_x_derivative(eps_true);
     let eps_td = eps_true_dot(t_cent, precession_model);
@@ -536,7 +499,7 @@ pub fn moon_apparent_ecliptic_longitude_with_options(
 ) -> PlaneAngle {
     let t_tt = t.to_scale(TimeScale::TT);
     let (state, jd_work) = if options.use_light_time_moon {
-        let corrector: LightTimeCorrector<'_, Elpmpp02Data, Compose<Fk5ToIcrsBias, Vsop87FitDe406Equatorial>> = LightTimeCorrector {
+        let corrector: LightTimeCorrector<'_, Elpmpp02Data, Fk5ToIcrsBias> = LightTimeCorrector {
             ephemeris: elp,
             mapper: None,
             max_iter: 2,
@@ -568,7 +531,7 @@ pub fn sun_apparent_ecliptic_longitude_de406_with_options(
     options: &ApparentPipelineOptions,
 ) -> PlaneAngle {
     let t_tt = t.to_scale(TimeScale::TT);
-    let corrector: LightTimeCorrector<'_, De406Kernel, Compose<Fk5ToIcrsBias, Vsop87FitDe406Equatorial>> = LightTimeCorrector {
+    let corrector: LightTimeCorrector<'_, De406Kernel, Fk5ToIcrsBias> = LightTimeCorrector {
         ephemeris: kernel,
         mapper: None,
         max_iter: 2,
@@ -595,7 +558,7 @@ pub fn moon_apparent_ecliptic_longitude_de406_with_options(
 ) -> PlaneAngle {
     let t_tt = t.to_scale(TimeScale::TT);
     let (state, jd_tt_work) = if options.use_light_time_moon {
-        let corrector: LightTimeCorrector<'_, De406Kernel, Compose<Fk5ToIcrsBias, Vsop87FitDe406Equatorial>> = LightTimeCorrector {
+        let corrector: LightTimeCorrector<'_, De406Kernel, Fk5ToIcrsBias> = LightTimeCorrector {
             ephemeris: kernel,
             mapper: None,
             max_iter: 2,
@@ -637,7 +600,7 @@ fn sun_apparent_ecliptic_longitude_impl(
         return (lam, diag);
     }
     let t_tt = t.to_scale(TimeScale::TT);
-    let corrector: LightTimeCorrector<'_, Vsop87, Compose<Fk5ToIcrsBias, Vsop87FitDe406Equatorial>> = LightTimeCorrector {
+    let corrector: LightTimeCorrector<'_, Vsop87, Fk5ToIcrsBias> = LightTimeCorrector {
         ephemeris: vsop,
         mapper: None,
         max_iter: 2,
@@ -646,12 +609,12 @@ fn sun_apparent_ecliptic_longitude_impl(
     let jd_tr = tr.to_scale(TimeScale::TT).jd;
     let t_cent = julian_centuries_from_jd(jd_tr);
     let precession_model = options.effective_precession_model();
-    let graph = default_graph_with_icrs_and_ecliptic_patch_mapper().with_precession_model(precession_model);
+    let graph = default_graph_with_icrs_mapper().with_precession_model(precession_model);
     let epoch = Epoch::new(jd_tr);
     let state = graph.transform_to(state, ReferenceFrame::ICRS, jd_tr); // 图语义：最短路 → ICRS
 
     let (dpsi, deps) = nutation_for_apparent(t_cent);
-    let eps_mean = mean_obliquity(t_cent).rad();
+    let eps_mean = mean_obliquity_for(t_cent, precession_model).rad();
     let eps_true = eps_mean + deps.rad();
 
     // 图语义：ICRS→…→ApparentEcliptic 受限最短路途径 MeanEquator，分步执行以便取平黄经诊断

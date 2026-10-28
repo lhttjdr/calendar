@@ -1,21 +1,21 @@
 //! DE406 BSP 历表：视黄经与定朔示例。
 //!
-//! BSP 路径与项目约定一致：`data/jpl/de406.bsp` 或 `data/jpl/de406/de406.bsp`（相对仓库根）。
+//! BSP 路径与项目约定一致：`vendor/jpl/de406.bsp` 或 `vendor/jpl/de406/de406.bsp`（相对仓库根）。
 //!
 //! 运行（仓库根下）：
 //!   cargo run -p lunar-core --example de406_apparent --no-default-features --features twofloat
 //! 或指定路径 / 环境变量：
-//!   cargo run -p lunar-core --example de406_apparent --no-default-features --features twofloat -- data/jpl/de406.bsp
-//!   DE406_BSP=data/jpl/de406.bsp cargo run -p lunar-core --example de406_apparent --no-default-features --features twofloat
+//!   cargo run -p lunar-core --example de406_apparent --no-default-features --features twofloat -- vendor/jpl/de406.bsp
+//!   DE406_BSP=vendor/jpl/de406.bsp cargo run -p lunar-core --example de406_apparent --no-default-features --features twofloat
 //!
 //! 输出：J2000.5 太阳/月球视黄经（弧度与度）、该时段内一个定朔 JD(TT)。
 
-/// 与 tests_jpl_python / data/jpl 约定一致：在 data/jpl 下找 de406.bsp 或 de406/de406.bsp。
+/// 与 tests_jpl_python / vendor/jpl 约定一致：在 vendor/jpl 下找 de406.bsp 或 de406/de406.bsp。
 const BSP_CANDIDATES: &[&str] = &[
-    "data/jpl/de406.bsp",
-    "data/jpl/de406/de406.bsp",
-    "../data/jpl/de406.bsp",
-    "../data/jpl/de406/de406.bsp",
+    "vendor/jpl/de406.bsp",
+    "vendor/jpl/de406/de406.bsp",
+    "../vendor/jpl/de406.bsp",
+    "../vendor/jpl/de406/de406.bsp",
 ];
 
 fn main() {
@@ -41,7 +41,7 @@ fn main() {
 
     let Some(bsp_path) = bsp_path else {
         eprintln!("未找到 BSP 文件。本项目约定路径（相对仓库根）：");
-        eprintln!("  data/jpl/de406.bsp  或  data/jpl/de406/de406.bsp");
+        eprintln!("  vendor/jpl/de406.bsp  或  vendor/jpl/de406/de406.bsp");
         eprintln!("也可：传参  -- <路径>  或设置环境变量  DE406_BSP");
         eprintln!("BSP 须为 NAIF SPK 格式（非 lnx*.406 的 JPL 原始二进制）");
         std::process::exit(1);

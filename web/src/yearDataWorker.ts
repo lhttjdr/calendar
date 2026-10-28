@@ -1,11 +1,10 @@
 /**
  * Web Worker：在 Worker 内 fetch 历表二进制并调用 WASM 计算岁数据，结果用 Transferable 回传主线程，避免阻塞 UI。
- * 仅处理「全二进制」路径；失败时通知主线程回退到主线程逻辑。
+ * 仅处理一级「全二进制」路径（fetchFullBinaryEphemerisSet 不可用时直接回退主线程，不在 Worker 内实现二/三级）；
+ * 数据源仲裁逻辑（哪一级、旁路数据取舍）统一在 ephemerisSourceRegistry.ts，不在这里重复。
  */
 
-import { fetchBinaryMaybeBrotli, isVsop87Binary, isElpBinary } from './fetchEphemerisBinary'
-import { EPHEMERIS_BINARY_URLS, EPHEMERIS_BINARY_URL_LIST } from './ephemerisUrls'
-const PATCH_ICRS_BIN_URL = EPHEMERIS_BINARY_URLS.patch_icrs_bin
+import { fetchFullBinaryEphemerisSet, fetchNutationTab53aBin, applyEarthPatchIfAvailable } from './ephemerisSourceRegistry'
 
 export type YearDataMessage = {
   lunarYear: number
@@ -14,7 +13,7 @@ export type YearDataMessage = {
 }
 
 let wasm: {
-  init_de406_patch_from_binary?: (bytes: Uint8Array) => boolean
+  init_vsop87_earth_patch_from_binary?: (bytes: Uint8Array) => boolean
   compute_year_data_full_binary: (
     lunarYear: number,
     vsop: Uint8Array,
@@ -23,7 +22,8 @@ let wasm: {
     e3: Uint8Array,
     p1: Uint8Array,
     p2: Uint8Array,
-    p3: Uint8Array
+    p3: Uint8Array,
+    nutationTab53aBin: Uint8Array
   ) => { lunar_year: number; new_moon_jds: number[]; zhong_qi_jds: number[] }
 } | null = null
 
@@ -38,34 +38,20 @@ async function loadWasm() {
 async function computeInWorker(lunarYear: number): Promise<YearDataMessage | null> {
   const w = await loadWasm()
   if (typeof w.compute_year_data_full_binary !== 'function') return null
-  const settled = await Promise.allSettled(
-    EPHEMERIS_BINARY_URL_LIST.map((url) => fetchBinaryMaybeBrotli(url))
-  )
-  const vsop =
-    settled[0].status === 'fulfilled' ? settled[0].value : null
-  const elpBins = settled
-    .slice(1, 7)
-    .map((r) => (r.status === 'fulfilled' ? r.value : null))
-    .filter((u): u is Uint8Array => u != null && u.length >= 4)
-  if (!vsop || elpBins.length !== 6 || !isVsop87Binary(vsop) || elpBins.some((b) => !isElpBinary(b)))
-    return null
-  try {
-    const patchBuf = await fetchBinaryMaybeBrotli(PATCH_ICRS_BIN_URL)
-    if (patchBuf && typeof w.init_de406_patch_from_binary === 'function') {
-      w.init_de406_patch_from_binary(patchBuf)
-    }
-  } catch {
-    // patch 可选，404 则忽略
-  }
+  const fullSet = await fetchFullBinaryEphemerisSet()
+  if (!fullSet) return null
+  await applyEarthPatchIfAvailable(w)
+  const nutationBin = await fetchNutationTab53aBin()
   const result = w.compute_year_data_full_binary(
     lunarYear,
-    vsop,
-    elpBins[0]!,
-    elpBins[1]!,
-    elpBins[2]!,
-    elpBins[3]!,
-    elpBins[4]!,
-    elpBins[5]!
+    fullSet.vsop87Bin,
+    fullSet.elpBins[0],
+    fullSet.elpBins[1],
+    fullSet.elpBins[2],
+    fullSet.elpBins[3],
+    fullSet.elpBins[4],
+    fullSet.elpBins[5],
+    nutationBin
   )
   const newMoonJds = new Float64Array(result.new_moon_jds)
   const zhongQiJds = new Float64Array(result.zhong_qi_jds)
@@ -89,4 +75,3 @@ self.onmessage = async (ev: MessageEvent<{ type: string; id: number; lunarYear?:
     self.postMessage({ id, fallback: true, lunarYear })
   }
 }
-

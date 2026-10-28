@@ -546,9 +546,9 @@ pub fn new_moon_jds_in_range_with_options(
 mod tests {
     use super::*;
     use crate::astronomy::constant::J2000;
-    use crate::astronomy::ephemeris::{load_all, load_earth_vsop87_from_repo, Elpmpp02Correction};
+    use crate::astronomy::ephemeris::vsop87_patch::PatchTarget;
+    use crate::astronomy::ephemeris::{load_all, load_earth_vsop87_corrected_from_repo, Elpmpp02Correction};
     use crate::astronomy::frame::nutation;
-    use crate::astronomy::frame::vsop87_de406_icrs_patch;
     use crate::astronomy::time::TimeScale;
     use crate::calendar::gregorian::Gregorian;
     use std::io::BufRead;
@@ -587,7 +587,7 @@ mod tests {
     #[cfg(not(target_arch = "wasm32"))]
     fn new_moon_2026_vs_reference() {
         let base = crate::repo::repo_root();
-        let vsop = match load_earth_vsop87_from_repo() {
+        let vsop = match load_earth_vsop87_corrected_from_repo(PatchTarget::De406) {
             Ok(v) => v,
             Err(_) => {
                 println!("new_moon_2026_vs_reference: skipped ({})", crate::repo::paths::VSOP87_EARTH);
@@ -607,7 +607,6 @@ mod tests {
         } else {
             println!("  [章动] 未加载 5.3a/5.3b，用 77 项");
         }
-        let _ = vsop87_de406_icrs_patch::try_init_de406_patch_from_repo();
         let year = 2026;
         let jd_start = Gregorian::to_julian_day(year, 1, 1);
         let jd_end = Gregorian::to_julian_day(year, 12, 31) + real_const(1.0);
@@ -690,7 +689,6 @@ mod tests {
         } else {
             println!("  [章动] 未加载 5.3a/5.3b，用 77 项");
         }
-        let _ = vsop87_de406_icrs_patch::try_init_de406_patch_from_repo();
         let year = 2026;
         let jd_start = Gregorian::to_julian_day(year, 1, 1);
         let jd_end = Gregorian::to_julian_day(year, 12, 31) + real_const(1.0);

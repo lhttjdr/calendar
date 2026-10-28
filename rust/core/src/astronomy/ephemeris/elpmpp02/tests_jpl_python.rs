@@ -37,7 +37,7 @@ def run(ephem_path, jd_list):
                 p = f
                 break
         else:
-            return [], 'DE406 not found under ' + repr(ephem_path) + ' (need a .406/.bsp kernel file, e.g. lnxm3000p3000.406 or linux_p1550p2650.406 in data/jpl or data/jpl/de406/)'
+            return [], 'DE406 not found under ' + repr(ephem_path) + ' (need a .406/.bsp kernel file, e.g. lnxm3000p3000.406 or linux_p1550p2650.406 in vendor/jpl or vendor/jpl/de406/)'
     else:
         return [], 'DE406 path does not exist: ' + repr(ephem_path)
     try:
@@ -45,7 +45,7 @@ def run(ephem_path, jd_list):
             head = f.read(32)
         if head.startswith(b'JPL PLAN') or head.startswith(b'JPL EPHEM'):
             return [], ('file is legacy JPL planetary format (starts with JPL PLAN/EPHEM); '
-                'jplephem SPK needs DAF/SPK format. Use de406.bsp from NAIF, or see data/jpl/README.txt')
+                'jplephem SPK needs DAF/SPK format. Use de406.bsp from NAIF, or see vendor/jpl/README.txt')
     except Exception:
         pass
     try:

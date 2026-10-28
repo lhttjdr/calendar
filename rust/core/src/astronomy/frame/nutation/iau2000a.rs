@@ -82,7 +82,7 @@ impl Iau2000a {
                 .map(|i| real(c[i]) * f[i].rad())
                 .fold(zero(), |a, b| a + b)
                 .wrap_to_2pi();
-            let (s, c_th) = (theta.sin(), theta.cos());
+            let (s, c_th) = theta.sin_cos();
             let (psi_in, psi_out) = q[0].1;
             let (d_psi_in, d_psi_out) = q[1].1;
             let (eps_in, eps_out) = q[2].1;
@@ -186,7 +186,7 @@ impl Iau2000a {
                 .map(|i| real(c[i]) * f[i].rad())
                 .fold(zero(), |a, b| a + b)
                 .wrap_to_2pi();
-            let (s, c_th) = (theta.sin(), theta.cos());
+            let (s, c_th) = theta.sin_cos();
             let (psi_in, psi_out) = q[0].1;
             let (d_psi_in, d_psi_out) = q[1].1;
             let (eps_in, eps_out) = q[2].1;
@@ -234,7 +234,7 @@ impl Iau2000a {
                 .zip(f_dot.iter())
                 .map(|(ci, fdi)| (*ci as f64) * fdi)
                 .sum();
-            let (s, c_th) = (theta.sin(), theta.cos());
+            let (s, c_th) = theta.sin_cos();
             let (psi_in, psi_out) = q[0].1;
             let (d_psi_in, d_psi_out) = q[1].1;
             let (eps_in, eps_out) = q[2].1;

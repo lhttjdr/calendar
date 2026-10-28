@@ -19,6 +19,10 @@ once_cell = "1.19"
 # 标量 Real 默认后端（double-double）；启用 real-f64 时可不依赖
 twofloat = { version = "0.8", optional = true }
 num-traits = "0.2"
+# 古历复原：大整数+分数，避免浮点千年误差
+num-bigint = "0.4"
+num-integer = "0.1"
+num-rational = "0.4"
 # 角度字符串解析（PlaneAngle.parse）
 regex = "1.10"
 # 仅当 feature python-test 时参与测试；默认开启以便 cargo test 跑全量测试，无 libpython 时用 --no-default-features --features twofloat

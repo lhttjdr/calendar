@@ -44,6 +44,13 @@ pub trait Backend:
     fn cos(self) -> Self
     where
         Self: Sized;
+    /// 同时求 sin、cos：只做一次辐角约化，结果与分别调用 sin、cos 逐位相同。
+    fn sin_cos(self) -> (Self, Self)
+    where
+        Self: Sized + Copy,
+    {
+        (self.sin(), self.cos())
+    }
     fn tan(self) -> Self
     where
         Self: Sized;
@@ -54,6 +61,12 @@ pub trait Backend:
     where
         Self: Sized;
     fn atan2(self, other: Self) -> Self
+    where
+        Self: Sized;
+    fn exp(self) -> Self
+    where
+        Self: Sized;
+    fn ln(self) -> Self
     where
         Self: Sized;
 }
@@ -107,6 +120,10 @@ impl Backend for TwoFloatBackend {
     fn cos(self) -> Self {
         TwoFloatBackend(self.0.cos())
     }
+    fn sin_cos(self) -> (Self, Self) {
+        let (s, c) = self.0.sin_cos();
+        (TwoFloatBackend(s), TwoFloatBackend(c))
+    }
     fn tan(self) -> Self {
         TwoFloatBackend(self.0.tan())
     }
@@ -118,6 +135,20 @@ impl Backend for TwoFloatBackend {
     }
     fn atan2(self, other: Self) -> Self {
         TwoFloatBackend(self.0.atan2(other.0))
+    }
+    /// twofloat 0.8 的 `exp` 对负自变量误差约 2e-12（实测，如 exp(−ln 10)·10 − 1），对正自变量准确；负时取 1/exp(−x)。
+    fn exp(self) -> Self {
+        if self.0 < twofloat::TwoFloat::from(0.0) {
+            TwoFloatBackend(twofloat::TwoFloat::from(1.0) / (-self.0).exp())
+        } else {
+            TwoFloatBackend(self.0.exp())
+        }
+    }
+    /// twofloat 0.8 的 `ln` 误差约 2e-12（实测，劣于 f64）；以 f64 的 ln 为初值做一步牛顿迭代 y = y₀ + x/exp(y₀) − 1
+    /// （exp 用上面的准确实现），达到双双精度。
+    fn ln(self) -> Self {
+        let y0 = TwoFloatBackend(twofloat::TwoFloat::from(self.0.hi().ln()));
+        TwoFloatBackend(y0.0 + self.0 / y0.exp().0 - twofloat::TwoFloat::from(1.0))
     }
 }
 
@@ -198,6 +229,10 @@ impl Backend for F64Backend {
     fn cos(self) -> Self {
         F64Backend(self.0.cos())
     }
+    fn sin_cos(self) -> (Self, Self) {
+        let (s, c) = self.0.sin_cos();
+        (F64Backend(s), F64Backend(c))
+    }
     fn tan(self) -> Self {
         F64Backend(self.0.tan())
     }
@@ -209,6 +244,12 @@ impl Backend for F64Backend {
     }
     fn atan2(self, other: Self) -> Self {
         F64Backend(self.0.atan2(other.0))
+    }
+    fn exp(self) -> Self {
+        F64Backend(self.0.exp())
+    }
+    fn ln(self) -> Self {
+        F64Backend(self.0.ln())
     }
 }
 
@@ -340,6 +381,12 @@ impl<R: Backend> RealInner<R> {
     #[inline]
     pub fn cos(self) -> RealInner<R> {
         RealInner(self.0.cos())
+    }
+    /// 同时求 (sin, cos)，只约化一次辐角；与分别求逐位相同。
+    #[inline]
+    pub fn sin_cos(self) -> (RealInner<R>, RealInner<R>) {
+        let (s, c) = self.0.sin_cos();
+        (RealInner(s), RealInner(c))
     }
     #[inline]
     pub fn tan(self) -> RealInner<R> {
@@ -668,6 +715,25 @@ pub trait RealOps:
     {
         Self::from_f64(self.as_f64().atan2(other.as_f64())).unwrap_or_else(Self::zero)
     }
+    fn exp(self) -> Self
+    where
+        Self: Sized,
+    {
+        Self::from_f64(self.as_f64().exp()).unwrap_or_else(Self::zero)
+    }
+    fn ln(self) -> Self
+    where
+        Self: Sized,
+    {
+        Self::from_f64(self.as_f64().ln()).unwrap_or_else(Self::zero)
+    }
+    /// 常用对数 log₁₀ = ln / ln 10。
+    fn log10(self) -> Self
+    where
+        Self: Sized,
+    {
+        self.ln() / Self::from_f64(core::f64::consts::LN_10).unwrap_or_else(Self::one)
+    }
     fn power_series_at(coeffs: &[f64], x: Self) -> Self
     where
         Self: Sized,
@@ -750,6 +816,12 @@ impl<R: Backend> RealOps for RealInner<R> {
     }
     fn atan2(self, other: Self) -> Self {
         RealInner(self.0.atan2(other.0))
+    }
+    fn exp(self) -> Self {
+        RealInner(self.0.exp())
+    }
+    fn ln(self) -> Self {
+        RealInner(self.0.ln())
     }
     /// 纯 Real 取模，避免 twofloat 经 as_f64 丢失精度导致牛顿迭代收敛到错误根。
     fn wrap_to_2pi(self) -> Self {

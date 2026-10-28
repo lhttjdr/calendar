@@ -125,13 +125,21 @@ fn rotation_y_derivative(angle_rad: impl ToReal) -> [[Real; 3]; 3] {
     [[-s, zero(), c], [zero(), zero(), zero()], [-c, zero(), -s]]
 }
 
-/// 岁差矩阵：J2000 平赤道 → 历元 t 平赤道（doc §3）。P = R3(ζ) R2(-θ) R3(z)。
+/// 岁差矩阵：J2000 平赤道 → 历元 t 平赤道（doc §3）。
+///
+/// 标准式（IERS Conventions 2010 式 5.39，SOFA `iauPmat06` 的 ζθz 等价形式）用被动旋转记为 P = R3(−z_A)·R2(θ_A)·R3(−ζ_A)，
+/// 即先转 ζ、再转 θ、最后转 z。本文件的 `rotation_z`/`rotation_y` 是主动旋转（R3(−α) = `rotation_z(α)`，
+/// R2(α) = `rotation_y(−α)`），故写作 `rotation_z(z)·rotation_y(−θ)·rotation_z(ζ)`。
+///
+/// 2026-10-26 前此处 ζ 与 z 位置对调。由于 ζ_A ≈ z_A（一次项同为 2306.08″t），现代误差只有 0.01″，但二次项相差
+/// 0.79″t²，远端误差约 θ_A·(z_A − ζ_A)：公元 1000 年 7″、公元 100 年 51″、前 1000 年 196″（与 Skyfield 四角公式对照，
+/// 见 `apparent::tests_planets::planets_pipeline_vs_skyfield`）。
 pub fn precession_matrix(t: impl ToReal) -> [[Real; 3]; 3] {
     let t = real(t);
-    let rz_zeta = Mat::<Real, 3, 3>::from(rotation_z(zeta(t)));
-    let ry_neg_theta = Mat::<Real, 3, 3>::from(rotation_y(PlaneAngle::from_rad(-theta(t).rad())));
-    let rz_z = Mat::<Real, 3, 3>::from(rotation_z(z(t)));
-    rz_zeta.mul_mat(&ry_neg_theta).mul_mat(&rz_z).to_array()
+    let r3_neg_z = Mat::<Real, 3, 3>::from(rotation_z(z(t)));
+    let r2_theta = Mat::<Real, 3, 3>::from(rotation_y(PlaneAngle::from_rad(-theta(t).rad())));
+    let r3_neg_zeta = Mat::<Real, 3, 3>::from(rotation_z(zeta(t)));
+    r3_neg_z.mul_mat(&r2_theta).mul_mat(&r3_neg_zeta).to_array()
 }
 
 pub fn precession_apply(t: impl ToReal, v: [Real; 3]) -> [Real; 3] {
@@ -171,33 +179,30 @@ fn add_vec(a: [Real; 3], b: [Real; 3]) -> [Real; 3] {
     [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
 }
 
-/// (dP/dt)·r，P = R3(ζ) R2(-θ) R3(z)。t 儒略世纪，r 米。返回 m/世纪。
+/// (dP/dt)·r，P = `rotation_z(z)·rotation_y(−θ)·rotation_z(ζ)`（见 [`precession_matrix`]）。t 儒略世纪，r 米。返回 m/世纪。
 pub fn precession_derivative_times_vector(r: [Real; 3], t: impl ToReal) -> [Real; 3] {
     let t = real(t);
     let zeta_t = zeta(t).rad();
     let theta_t = theta(t).rad();
     let z_t = z(t).rad();
-    let r3_zeta = Mat::<Real, 3, 3>::from(rotation_z(zeta(t)));
-    let r2_neg_theta = Mat::<Real, 3, 3>::from(rotation_y(PlaneAngle::from_rad(-theta_t)));
-    let r3_z = Mat::<Real, 3, 3>::from(rotation_z(z(t)));
-    let v_after_z = r3_z.mul_vec(r);
-    let v_after_theta = r2_neg_theta.mul_vec(v_after_z);
+    let a_z = Mat::<Real, 3, 3>::from(rotation_z(z(t)));
+    let b_theta = Mat::<Real, 3, 3>::from(rotation_y(PlaneAngle::from_rad(-theta_t)));
+    let c_zeta = Mat::<Real, 3, 3>::from(rotation_z(zeta(t)));
+    let v_after_zeta = c_zeta.mul_vec(r);
+    let v_after_theta = b_theta.mul_vec(v_after_zeta);
     let z_dot_r = z_dot(t).rad_per_julian_century();
     let theta_dot_r = theta_dot(t).rad_per_julian_century();
     let zeta_dot_r = zeta_dot(t).rad_per_julian_century();
-    let term1 = scale_vec(
-        zeta_dot_r,
-        Mat::<Real, 3, 3>::from(rotation_z_derivative(zeta_t)).mul_vec(v_after_theta),
-    );
-    let term2 = r3_zeta.mul_vec(scale_vec(
+    let term_z = scale_vec(z_dot_r, Mat::<Real, 3, 3>::from(rotation_z_derivative(z_t)).mul_vec(v_after_theta));
+    let term_theta = a_z.mul_vec(scale_vec(
         -theta_dot_r,
-        Mat::<Real, 3, 3>::from(rotation_y_derivative(-theta_t)).mul_vec(v_after_z),
+        Mat::<Real, 3, 3>::from(rotation_y_derivative(-theta_t)).mul_vec(v_after_zeta),
     ));
-    let term3 = r3_zeta.mul_vec(r2_neg_theta.mul_vec(scale_vec(
-        z_dot_r,
-        Mat::<Real, 3, 3>::from(rotation_z_derivative(z_t)).mul_vec(r),
+    let term_zeta = a_z.mul_vec(b_theta.mul_vec(scale_vec(
+        zeta_dot_r,
+        Mat::<Real, 3, 3>::from(rotation_z_derivative(zeta_t)).mul_vec(r),
     )));
-    add_vec(term1, add_vec(term2, term3))
+    add_vec(term_z, add_vec(term_theta, term_zeta))
 }
 
 /// 按模型选择岁差导数：(dP/dt)·r，m/世纪。t 支持 Real。
@@ -209,6 +214,11 @@ pub fn precession_derivative_times_vector_for(r: [Real; 3], t: impl ToReal, mode
 }
 
 /// 平黄赤交角及其对 t 的导数（按岁差模型）。t 支持 Real。
+/// 平黄赤交角 ε_A（按岁差模型：P03 多项式或 Vondrák 2011 长期式）。t 儒略世纪。
+pub fn mean_obliquity_for(t: impl ToReal, model: PrecessionModel) -> PlaneAngle {
+    mean_obliquity_rad_and_derivative_for(t, model).0
+}
+
 pub fn mean_obliquity_rad_and_derivative_for(
     t: impl ToReal,
     model: PrecessionModel,

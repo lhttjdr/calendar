@@ -303,13 +303,40 @@ fn phase_at_real(fi: &[Real], alpha_t: &[Real]) -> Real {
     (0..n).fold(zero(), |s, i| s + fi[i] * alpha_t[i])
 }
 
+/// Table 6 相位修正在时刻 T 的系数：修正 = i_F·a + i_l·b（弧度），其时间导数 = i_F·a′ + i_l·b′（弧度/世纪）。
+/// 修正对 (i_F, i_l) 线性，故每次求值只算一次，逐项只做两次乘加（见 [table6_phase_correction_rad]）。
+#[derive(Clone, Copy)]
+struct Table6Coeffs {
+    a: Real,
+    b: Real,
+    a_dot: Real,
+    b_dot: Real,
+}
+
+impl Table6Coeffs {
+    fn at(correction: Elpmpp02Correction, t_cy: JulianCenturies) -> Self {
+        // 修正对 (i_F, i_l) 线性：取 (i_F, i_l) = (1, 0)、(0, 1) 两组即得 a、b 及其导数
+        let a = table6_phase_correction_rad(correction, &[0, 1, 0, 0], t_cy).rad();
+        let b = table6_phase_correction_rad(correction, &[0, 0, 1, 0], t_cy).rad();
+        let a_dot = table6_phase_correction_derivative_rad(correction, &[0, 1, 0, 0], t_cy).in_unit(AngularRateUnit::RadPerJulianCentury);
+        let b_dot = table6_phase_correction_derivative_rad(correction, &[0, 0, 1, 0], t_cy).in_unit(AngularRateUnit::RadPerJulianCentury);
+        Self { a, b, a_dot, b_dot }
+    }
+
+    #[inline]
+    fn phase(&self, ilu: &[i32; 4]) -> (Real, Real) {
+        let (i_f, i_l) = (real(ilu[1]), real(ilu[2]));
+        (i_f * self.a + i_l * self.b, i_f * self.a_dot + i_l * self.b_dot)
+    }
+}
+
 /// 单组周期+泊松求值：(p, v) 角秒与角秒/世纪。t_cy 为 [JulianCenturies](JulianCenturies)，无量纲直接参与计算（[ToReal] 转 Real）。
 fn calculate_component(
     t_cy: JulianCenturies,
     alpha_t: &[Real; 5],
     period: &[Elpmpp02Term],
     poisson: &[Elpmpp02Term],
-    correction: Elpmpp02Correction,
+    t6: &Table6Coeffs,
     max_terms: Option<usize>,
 ) -> (Real, Real) {
     let mut sum_p = zero();
@@ -318,23 +345,27 @@ fn calculate_component(
     let take_po = max_terms.unwrap_or(poisson.len());
     let alpha_slice: &[Real] = alpha_t.as_slice();
     for t in period.iter().take(take_p) {
-        let y = phase_at_real(&t.fi, alpha_slice) + table6_phase_correction_rad(correction, &t.ilu, t_cy).rad();
-        sum_p = sum_p + t.ci.arcsec() * y.sin();
-        let yp = power_series_derivative_at_real(&t.fi, t_cy)
-            + table6_phase_correction_derivative_rad(correction, &t.ilu, t_cy).in_unit(AngularRateUnit::RadPerJulianCentury);
-        sum_v = sum_v + t.ci.arcsec() * y.cos() * yp;
+        let (c6, c6_dot) = t6.phase(&t.ilu);
+        let y = phase_at_real(&t.fi, alpha_slice) + c6;
+        let (sy, cy) = y.sin_cos();
+        let ci = t.ci.arcsec();
+        sum_p = sum_p + ci * sy;
+        let yp = power_series_derivative_at_real(&t.fi, t_cy) + c6_dot;
+        sum_v = sum_v + ci * cy * yp;
     }
     for t in poisson.iter().take(take_po) {
-        let y = phase_at_real(&t.fi, alpha_slice) + table6_phase_correction_rad(correction, &t.ilu, t_cy).rad();
+        let (c6, c6_dot) = t6.phase(&t.ilu);
+        let y = phase_at_real(&t.fi, alpha_slice) + c6;
         let alpha_val = if t.alpha >= 0 && (t.alpha as usize) < alpha_t.len() {
             alpha_t[t.alpha as usize]
         } else {
             zero()
         };
-        let x = t.ci.arcsec() * alpha_val;
-        sum_p = sum_p + x * y.sin();
-        let yp = power_series_derivative_at_real(&t.fi, t_cy)
-            + table6_phase_correction_derivative_rad(correction, &t.ilu, t_cy).in_unit(AngularRateUnit::RadPerJulianCentury);
+        let ci = t.ci.arcsec();
+        let x = ci * alpha_val;
+        let (sy, cy) = y.sin_cos();
+        sum_p = sum_p + x * sy;
+        let yp = power_series_derivative_at_real(&t.fi, t_cy) + c6_dot;
         let alpha_prev = if t.alpha > 0 && ((t.alpha - 1) as usize) < alpha_t.len() {
             alpha_t[(t.alpha - 1) as usize]
         } else {
@@ -343,9 +374,9 @@ fn calculate_component(
         let xp = if t.alpha == 0 {
             zero()
         } else {
-            real(t.alpha) * t.ci.arcsec() * alpha_prev
+            real(t.alpha) * ci * alpha_prev
         };
-        sum_v = sum_v + xp * y.sin() + x * yp * y.cos();
+        sum_v = sum_v + xp * sy + x * yp * cy;
     }
     (sum_p, sum_v)
 }
@@ -360,12 +391,13 @@ fn position_velocity_full(
     let t_cy: JulianCenturies = epoch_tt.offset_in_julian_centuries(J2000, real(DAYS_PER_JULIAN_CENTURY));
     let alpha_t: [Real; 5] = [real(1), real(t_cy), t_cy * t_cy, t_cy * t_cy * t_cy, t_cy * t_cy * t_cy * t_cy];
     let mt = max_terms.map(|u| u as usize);
+    let t6 = Table6Coeffs::at(data.correction, t_cy);
     let (pv1p, pv1v) = calculate_component(
         t_cy,
         &alpha_t,
         &data.period_v,
         &data.poisson_v,
-        data.correction,
+        &t6,
         mt,
     );
     let (pv2p, pv2v) = calculate_component(
@@ -373,7 +405,7 @@ fn position_velocity_full(
         &alpha_t,
         &data.period_u,
         &data.poisson_u,
-        data.correction,
+        &t6,
         mt,
     );
     let (pv3p, pv3v) = calculate_component(
@@ -381,7 +413,7 @@ fn position_velocity_full(
         &alpha_t,
         &data.period_r,
         &data.poisson_r,
-        data.correction,
+        &t6,
         mt,
     );
     let c = &data.constants;
@@ -498,6 +530,29 @@ mod tests {
     use crate::astronomy::time::j2000_tt;
     use crate::math::real::RealOps;
 
+    /// 求值实现改动（Table 6 修正按 (i_F, i_l) 线性提到项循环外、sin/cos 合并为 sin_cos）前后结果一致：
+    /// 参考值为 2026-10-27 改动前的输出（f64 打印）。只允许舍入级差异（位置 1e-6 m、速度 1e-12 m/s）。
+    #[test]
+    fn evaluation_refactor_matches_reference() {
+        const REF: [(f64, [f64; 3], [f64; 3]); 6] = [
+            (625000.5, [-30071266.28884214, 370421386.330352, 12830876.72533786], [-1049.4062693488086, -28.52921748012978, 93.17453800310732]),
+            (1200000.25, [123980528.25447671, -356413249.33844334, 29715892.30682388], [969.3752906718186, 385.003219363859, 15.256313768806093]),
+            (1850000.0, [-384582554.120894, 65872487.4588778, -16881143.701455172], [-219.44932097808584, -980.3583217895643, -87.61933144855267]),
+            (2451545.0, [-291608323.0137932, -274979807.29978675, 36271176.21224059], [643.5315348350508, -730.9838524644059, -11.50666731429378]),
+            (2460000.75, [286725829.4160839, 254649693.18840897, 3600891.436102207], [-621.3362699260315, 806.9371817581213, 90.6824803662571]),
+            (2900000.5, [-399714581.42837083, -46283288.500821374, 32225970.291812975], [135.46465167041828, -967.8713692033186, 37.09742508951317]),
+        ];
+        let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE406).unwrap();
+        for (jd, p_ref, v_ref) in REF {
+            let (p, v) = position_velocity(&elp, TimePoint::new(crate::astronomy::time::TimeScale::TT, real(jd)));
+            let (m, vm) = (p.to_meters(), v.to_m_per_s());
+            for k in 0..3 {
+                assert!((m[k].as_f64() - p_ref[k]).abs() < 1e-6, "JD {jd} 位置[{k}] {} vs {}", m[k].as_f64(), p_ref[k]);
+                assert!((vm[k].as_f64() - v_ref[k]).abs() < 1e-12, "JD {jd} 速度[{k}] {} vs {}", vm[k].as_f64(), v_ref[k]);
+            }
+        }
+    }
+
     #[test]
     fn de405_mean_only_position_near_j2000() {
         let data = Elpmpp02Data::de405_mean_only();
@@ -553,7 +608,7 @@ mod tests {
         assert!(vm[0].abs() < real(1e4) && vm[1].abs() < real(1e4) && vm[2].abs() < real(1e4));
     }
 
-    /// ELPMPP02(DE406) vs JPL DE406：从 data/jpl/elp_vs_jpl_de406_samples.csv 读取参考位置（J2000 平黄道 km），与 ELPMPP02 比较。
+    /// ELPMPP02(DE406) vs JPL DE406：从 vendor/jpl/elp_vs_jpl_de406_samples.csv 读取参考位置（J2000 平黄道 km），与 ELPMPP02 比较。
     /// CSV 可由 Python jplephem 等生成（GCRF→Table 7 转 J2000 黄道）。
     #[test]
     #[cfg(not(target_arch = "wasm32"))]

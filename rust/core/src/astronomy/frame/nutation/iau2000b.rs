@@ -10,25 +10,25 @@ use std::sync::RwLock;
 
 fn rotation_x(angle_rad: impl ToReal) -> [[Real; 3]; 3] {
     let a = real(angle_rad);
-    let (c, s) = (a.cos(), a.sin());
+    let (s, c) = a.sin_cos();
     [[one(), zero(), zero()], [zero(), c, -s], [zero(), s, c]]
 }
 
 fn rotation_x_derivative(angle_rad: impl ToReal) -> [[Real; 3]; 3] {
     let a = real(angle_rad);
-    let (c, s) = (a.cos(), a.sin());
+    let (s, c) = a.sin_cos();
     [[zero(), zero(), zero()], [zero(), -s, -c], [zero(), c, -s]]
 }
 
 fn rotation_z(angle_rad: impl ToReal) -> [[Real; 3]; 3] {
     let a = real(angle_rad);
-    let (c, s) = (a.cos(), a.sin());
+    let (s, c) = a.sin_cos();
     [[c, -s, zero()], [s, c, zero()], [zero(), zero(), one()]]
 }
 
 fn rotation_z_derivative(angle_rad: impl ToReal) -> [[Real; 3]; 3] {
     let a = real(angle_rad);
-    let (c, s) = (a.cos(), a.sin());
+    let (s, c) = a.sin_cos();
     [[-s, -c, zero()], [c, -s, zero()], [zero(), zero(), zero()]]
 }
 
@@ -170,7 +170,7 @@ thread_local! {
     static NUTATION_OVERRIDE: RefCell<Option<Box<dyn Fn(Real) -> (PlaneAngle, PlaneAngle)>>> = RefCell::new(None);
 }
 
-/// 设置章动覆盖（如加载 data/IAU2000 后的 Iau2000a）。传 None 恢复 77 项。Native 需 Send；WASM 无此要求。回调入参为 Real。
+/// 设置章动覆盖（如加载 vendor/IAU2000 后的 Iau2000a）。传 None 恢复 77 项。Native 需 Send；WASM 无此要求。回调入参为 Real。
 #[cfg(not(target_arch = "wasm32"))]
 pub fn set_nutation_override(f: Option<Box<dyn Fn(Real) -> (PlaneAngle, PlaneAngle) + Send>>) {
     NUTATION_OVERRIDE.with(|cell| *cell.borrow_mut() = f);

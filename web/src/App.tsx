@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, createContext, useContext } from 'react'
-import { Button, Card, Select, Radio, Space, Flex, Typography, Tag, Spin, Alert, Modal, Tabs } from 'antd'
-import { LeftOutlined, RightOutlined, CalendarOutlined, SettingOutlined, ApartmentOutlined } from '@ant-design/icons'
+import { Button, Card, Select, Radio, Checkbox, Space, Flex, Typography, Tag, Spin, Alert, Modal, Tabs } from 'antd'
+import { LeftOutlined, RightOutlined, CalendarOutlined, SettingOutlined, ApartmentOutlined, EyeOutlined } from '@ant-design/icons'
 import { TransformGraphPage } from './TransformGraphPage'
 import type { LunarBackend } from './lunar-backend-types'
 import {
@@ -22,14 +22,13 @@ import {
   GANZHI_DAY_BOUNDARY_OPTIONS,
   LUNAR_MONTH_NAMES,
   lunarDayStr,
-  EPHEMERIS_SOURCE_LABELS,
-  EPHEMERIS_FORMAT_LABELS,
   type YearData,
   type GanzhiResult,
   type GanzhiOptionsTuple,
   type RealBackendVariant,
-  type EphemerisDataSource,
 } from './useLunarWasm'
+import { EPHEMERIS_SOURCE_LABELS, EPHEMERIS_FORMAT_LABELS, type EphemerisDataSource } from './ephemerisSourceRegistry'
+import { EARTH_PATCH_TARGET } from './ephemerisUrls'
 
 const REAL_BACKEND_STORAGE_KEY = 'lunar-real-backend'
 
@@ -39,6 +38,63 @@ function getStoredRealBackend(): RealBackendVariant {
     if (v === 'f64' || v === 'twofloat') return v
   } catch {}
   return 'f64'
+}
+
+/**
+ * 单日信息卡片按「三大域四段结构」（见 doc/architecture/three-domains.md）分组的可选显示项。
+ * 农历年月日本身是骨架信息，不做可关闭项；这里只管天文/历法的事件层、派生层输出，
+ * 以及工程性质的仲裁层状态（Repo 历表加载情况），彼此独立开关、各自持久化到 localStorage。
+ */
+type DayInfoLayerKey =
+  | 'astro_synodic' // 天文·事件层：合朔时刻
+  | 'astro_solarTerm' // 天文·事件层：节气交节（含平气对比）
+  | 'calendar_eraNames' // 历法·派生层：政权·帝王·年号（含并存政权）
+  | 'calendar_regimeCalendars' // 历法·独立基础层：其它政权推步历（蜀汉四分、东吴乾象等）
+  | 'calendar_ganzhi' // 历法：干支历四柱
+  | 'calendar_shixian' // 历法：时宪历刻分秒
+  | 'repoStatus' // 工程：天文仲裁层状态（历表/章动表/地球改正加载情况）
+
+const DAY_INFO_LAYERS_STORAGE_KEY = 'lunar-day-info-layers'
+
+const DAY_INFO_LAYER_GROUPS: { title: string; items: { key: DayInfoLayerKey; label: string }[] }[] = [
+  {
+    title: '天文（事件层）',
+    items: [
+      { key: 'astro_synodic', label: '合朔时刻' },
+      { key: 'astro_solarTerm', label: '节气交节' },
+    ],
+  },
+  {
+    title: '历法',
+    items: [
+      { key: 'calendar_eraNames', label: '政权·年号（含并存政权）' },
+      { key: 'calendar_regimeCalendars', label: '其它政权推步历（蜀汉/东吴等）' },
+      { key: 'calendar_ganzhi', label: '干支历四柱' },
+      { key: 'calendar_shixian', label: '时宪历' },
+    ],
+  },
+  {
+    title: '工程（仲裁层状态）',
+    items: [{ key: 'repoStatus', label: 'Repo/历表加载状态' }],
+  },
+]
+
+const DEFAULT_DAY_INFO_LAYERS: Record<DayInfoLayerKey, boolean> = {
+  astro_synodic: true,
+  astro_solarTerm: true,
+  calendar_eraNames: true,
+  calendar_regimeCalendars: true,
+  calendar_ganzhi: true,
+  calendar_shixian: true,
+  repoStatus: true,
+}
+
+function getStoredDayInfoLayers(): Record<DayInfoLayerKey, boolean> {
+  try {
+    const raw = localStorage.getItem(DAY_INFO_LAYERS_STORAGE_KEY)
+    if (raw) return { ...DEFAULT_DAY_INFO_LAYERS, ...(JSON.parse(raw) as Partial<Record<DayInfoLayerKey, boolean>>) }
+  } catch {}
+  return DEFAULT_DAY_INFO_LAYERS
 }
 
 const { Text } = Typography
@@ -127,6 +183,33 @@ function ShixianFromLiveTime() {
   if (t == null) return null
   return <div style={{ marginTop: 2 }}>{formatShixianKe(t.getHours(), t.getMinutes(), t.getSeconds())}</div>
 }
+
+/** 岁数据中 12 中气顺序：zhongQiJds[0]=冬至,…,zhongQiJds[11]=小雪 */
+const ZHONG_QI_NAMES = ['冬至', '大寒', '雨水', '春分', '谷雨', '小满', '夏至', '大暑', '处暑', '秋分', '霜降', '小雪']
+
+const JD_UNIX_EPOCH = 2440587.5
+function jdUtcToDate(jdUtc: number): Date {
+  return new Date((jdUtc - JD_UNIX_EPOCH) * 86400 * 1000)
+}
+function beijingDayFromJdUtc(jdUtc: number): { y: number; m: number; d: number } {
+  const p = formatDateInTimeZone(jdUtcToDate(jdUtc), 'Asia/Shanghai')
+  return { y: p.year, m: p.month, d: p.day }
+}
+function formatJdUtcInZone(jdUtc: number, timeZone: string): string {
+  const d = jdUtcToDate(jdUtc)
+  const p = formatDateInTimeZone(d, timeZone)
+  return `${p.hour.toString().padStart(2, '0')}:${p.minute.toString().padStart(2, '0')}`
+}
+/** 定气 JD(TT) → JD(UTC)；需 wasm.delta_t_seconds。 */
+function jdTtToUtc(wasm: LunarBackend, jdTt: number): number {
+  const dt = wasm.delta_t_seconds?.(jdTt) ?? 0
+  return jdTt - dt / 86400
+}
+/** 平气：从岁首冬至起等分 365.25/24 日（TT），返回第 k 个中气的平气 JD(TT)。 */
+function pingQiJdTt(zhongQi0JdTt: number, k: number): number {
+  return zhongQi0JdTt + k * (365.25 / 24)
+}
+const PING_QI_DIFF_THRESHOLD_DAYS = 0.01
 
 /** 常用时区；若环境支持则用 Intl.supportedValuesOf('timeZone') 提供完整列表 */
 const COMMON_TIMEZONES = [
@@ -251,6 +334,7 @@ function App() {
   const [error, setError] = useState<string | null>(null)
   const [ganzhiOptions, setGanzhiOptions] = useState<GanzhiOptionsTuple>(() => GANZHI_PRESET_OPTIONS[2]!)
   const [optionsPanelOpen, setOptionsPanelOpen] = useState(false)
+  const [displayLayersPanelOpen, setDisplayLayersPanelOpen] = useState(false)
   /** 仅小时变化时更新，用于年月日时与农历/八字；不每秒更新避免整页重算 */
   const [nowForLunar, setNowForLunar] = useState(() => new Date())
   const lastHourKeyRef = useRef<string>('')
@@ -262,8 +346,17 @@ function App() {
   /** Real 后端：twofloat=高精度，f64=体积/速度；切换后重新加载 WASM */
   const [realBackendVariant, setRealBackendVariant] = useState<RealBackendVariant>(getStoredRealBackend)
   const [ephemerisSource, setEphemerisSource] = useState<EphemerisDataSource | null>(null)
-  /** 章动表/拟合表加载状态（由 WASM get_repo_aux_* 提供，仅文本/混合路径有值；全二进制为 77 项+未加载） */
-  const [repoAux, setRepoAux] = useState<{ nutationFull: boolean; patchIcrs: boolean } | null>(null)
+  /** 章动表/地球改正加载状态（由 WASM get_repo_aux_* 提供，仅文本/混合路径有值；全二进制为 77 项+未加载） */
+  const [repoAux, setRepoAux] = useState<{ nutationFull: boolean; earthPatch: boolean } | null>(null)
+  /** 单日信息卡片按域分组的可选显示项（天文事件层/历法派生层/工程仲裁层状态），见 DAY_INFO_LAYER_GROUPS */
+  const [dayInfoLayers, setDayInfoLayers] = useState<Record<DayInfoLayerKey, boolean>>(getStoredDayInfoLayers)
+  const toggleDayInfoLayer = (key: DayInfoLayerKey) => {
+    setDayInfoLayers((prev) => {
+      const next = { ...prev, [key]: !prev[key] }
+      try { localStorage.setItem(DAY_INFO_LAYERS_STORAGE_KEY, JSON.stringify(next)) } catch {}
+      return next
+    })
+  }
   const [timeZone, setTimeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone)
   const prevTimeZoneRef = useRef<string | null>(null)
 
@@ -295,8 +388,8 @@ function App() {
       return
     }
     const nutationFull = typeof wasm.get_repo_aux_nutation_full === 'function' ? wasm.get_repo_aux_nutation_full() : false
-    const patchIcrs = typeof wasm.get_repo_aux_patch_icrs === 'function' ? wasm.get_repo_aux_patch_icrs() : false
-    setRepoAux({ nutationFull, patchIcrs })
+    const earthPatch = typeof wasm.get_repo_aux_earth_patch === 'function' ? wasm.get_repo_aux_earth_patch() : false
+    setRepoAux({ nutationFull, earthPatch })
   }, [wasm, ephemerisSource])
 
   const presetSelectValue = getPresetIndexFromOptions(ganzhiOptions)
@@ -507,6 +600,43 @@ function App() {
       ? ZODIAC_BY_BRANCH[selectedGanzhi.yearName[1]!]
       : null
 
+  const selectedYearData = selectedLunarSlot != null ? panelYearDataList.find((d) => d.lunarYear === selectedLunarSlot.lunarYear) : null
+  const newMoonJdUtcOnDay: number | null =
+    wasm && selectedLunarSlot?.dayOfMonth === 1 && selectedYearData && typeof wasm.delta_t_seconds === 'function'
+      ? (() => {
+          const target = { y: displayY, m: displayM, d: displayD }
+          for (let i = 0; i < selectedYearData.newMoonJds.length; i++) {
+            const jdUtc = jdTtToUtc(wasm, selectedYearData.newMoonJds[i]!)
+            const day = beijingDayFromJdUtc(jdUtc)
+            if (day.y === target.y && day.m === target.m && day.d === target.d) return jdUtc
+          }
+          return null
+        })()
+      : null
+  const zhongQiOnDay: { name: string; jdUtc: number; pingQiJdUtc: number | null }[] =
+    wasm && selectedYearData && typeof wasm.delta_t_seconds === 'function'
+      ? (() => {
+          const target = { y: displayY, m: displayM, d: displayD }
+          const zq0 = selectedYearData.zhongQiJds[0]!
+          const out: { name: string; jdUtc: number; pingQiJdUtc: number | null }[] = []
+          for (let k = 0; k < 12; k++) {
+            const jdTt = selectedYearData.zhongQiJds[k]!
+            const jdUtc = jdTtToUtc(wasm, jdTt)
+            const day = beijingDayFromJdUtc(jdUtc)
+            if (day.y !== target.y || day.m !== target.m || day.d !== target.d) continue
+            const pingTt = pingQiJdTt(zq0, k)
+            const pingUtc = jdTtToUtc(wasm, pingTt)
+            const diffDays = Math.abs(pingUtc - jdUtc)
+            out.push({
+              name: ZHONG_QI_NAMES[k]!,
+              jdUtc,
+              pingQiJdUtc: diffDays > PING_QI_DIFF_THRESHOLD_DAYS ? pingUtc : null,
+            })
+          }
+          return out
+        })()
+      : []
+
   const hourGanzhi = selectedGanzhi?.dayName && /^[\u4e00-\u9fa5]{2}$/.test(selectedGanzhi.dayName)
     ? getHourGanzhi(selectedGanzhi.dayName, displayHour)
     : ''
@@ -515,7 +645,15 @@ function App() {
     ? '' /* 实时模式用 LiveClock 组件显示 */
     : `${selectedTime.hour.toString().padStart(2, '0')}:${selectedTime.minute.toString().padStart(2, '0')}:${selectedTime.second.toString().padStart(2, '0')} ${timeZone}`
 
-  const yearOptions = Array.from({ length: 21 }, (_, i) => ({ label: `${today.year - 10 + i}年`, value: today.year - 10 + i }))
+  const yearOptions = useMemo(() => {
+    const start = -2000
+    const end = Math.max(2100, today.year + 50)
+    return Array.from({ length: end - start + 1 }, (_, i) => {
+      const y = start + i
+      const label = y < 0 ? `公元前${-y}年` : y === 0 ? '公元元年' : `${y}年`
+      return { label, value: y }
+    })
+  }, [today.year])
   const timeZoneOptions = useMemo(() => getTimeZoneOptions(), [])
   const weekStartOptions = WEEKDAY_NAMES.map((name, idx) => ({ label: `周${name}`, value: idx }))
   const ganzhiPresetOptions = [
@@ -591,9 +729,130 @@ function App() {
                 </div>
                 <Text type="secondary" style={{ fontSize: 11 }}>第{dayOfYear}天，第{weekOfYear}周</Text>
                 {!isLiveMode && isSelectedToday && <Tag color="blue" style={{ marginTop: 6 }}>今天</Tag>}
+                {/* 统一格式：政权 · 帝号 年号 月日（主表）/ 政权 · 历法名 月日（推步） */}
+                {(() => {
+                  const lines: React.ReactNode[] = []
+                  const monthDayMain = selectedLunarSlot != null
+                    ? `${selectedLunarSlot.isLeapMonth ? '闰' : ''}${LUNAR_MONTH_NAMES[selectedLunarSlot.lunarMonth - 1]}月${lunarDayStr(selectedLunarSlot.dayOfMonth)}日`
+                    : ''
+                  if (dayInfoLayers.calendar_eraNames && selectedLunarSlot != null && (wasm?.get_era_name_parts_for_day != null || wasm?.get_era_name_parts != null)) {
+                    try {
+                      const partsJson = wasm.get_era_name_parts_for_day != null
+                        ? wasm.get_era_name_parts_for_day(
+                            selectedLunarSlot.lunarYear,
+                            displayY,
+                            displayM,
+                            displayD,
+                            selectedLunarSlot.lunarMonth,
+                            selectedLunarSlot.isLeapMonth,
+                            selectedLunarSlot.dayOfMonth,
+                          )
+                        : wasm.get_era_name_parts!(selectedLunarSlot.lunarYear, true)
+                      const parts = JSON.parse(partsJson) as {
+                        regime: string
+                        emperor: string
+                        era_name: string
+                        era_year: string
+                        era: string
+                        gaiyuan_prev_era_name?: string
+                        gaiyuan_prev_era_year?: string
+                        has_gaiyuan?: boolean
+                        gaiyuan_resolved?: boolean
+                        gaiyuan_on_this_day?: boolean
+                      }
+                      const regime = parts.regime || '实历'
+                      const eraStr = [parts.era_name, parts.era_year].filter(Boolean).join('') || parts.era
+                      const prevEraStr = [parts.gaiyuan_prev_era_name, parts.gaiyuan_prev_era_year].filter(Boolean).join('')
+                      let mid: string
+                      if (parts.gaiyuan_on_this_day && prevEraStr) {
+                        mid = [parts.emperor, `${prevEraStr}→${eraStr}`].filter(Boolean).join(' ')
+                      } else if (parts.has_gaiyuan && parts.gaiyuan_resolved === false && prevEraStr) {
+                        mid = [parts.emperor, `${prevEraStr}/${eraStr}`].filter(Boolean).join(' ')
+                      } else {
+                        mid = [parts.emperor, eraStr].filter(Boolean).join(' ')
+                      }
+                      const hint = parts.gaiyuan_on_this_day
+                        ? ' 改元'
+                        : parts.has_gaiyuan && parts.gaiyuan_resolved === false
+                          ? ' 改元日未补'
+                          : ''
+                      lines.push(<div key="main">{regime} · {mid || '—'} {monthDayMain}{hint}</div>)
+                    } catch {
+                      if (wasm?.get_era_name != null) {
+                        const era = wasm.get_era_name(selectedLunarSlot.lunarYear, true)
+                        lines.push(<div key="main">实历 · {era || '—'} {monthDayMain}</div>)
+                      }
+                    }
+                  } else if (dayInfoLayers.calendar_eraNames && selectedLunarSlot != null && wasm?.get_era_name != null) {
+                    const era = wasm.get_era_name(selectedLunarSlot.lunarYear, true)
+                    lines.push(<div key="main">实历 · {era || '—'} {monthDayMain}</div>)
+                  }
+                  // 同一农历年若有并存政权（如三国魏蜀吴、五代十国），主线之外的都在这里列出，不二选一
+                  if (dayInfoLayers.calendar_eraNames && selectedLunarSlot != null && wasm?.get_era_name_parts_all != null) {
+                    try {
+                      const allJson = wasm.get_era_name_parts_all(selectedLunarSlot.lunarYear)
+                      const all = JSON.parse(allJson) as {
+                        regime: string
+                        emperor: string
+                        era_name: string
+                        era_year: string
+                        era: string
+                        is_primary?: boolean
+                      }[]
+                      const concurrent = Array.isArray(all)
+                        ? all.filter((p) => !p.is_primary && p.regime)
+                        : []
+                      for (const p of concurrent) {
+                        const eraStr = [p.era_name, p.era_year].filter(Boolean).join('') || p.era
+                        const mid = [p.emperor, eraStr].filter(Boolean).join(' ')
+                        lines.push(
+                          <div key={`concurrent-${p.regime}`} style={{ color: 'rgba(0,0,0,0.45)', fontSize: 12 }}>
+                            {p.regime} · {mid || '—'}
+                          </div>,
+                        )
+                      }
+                    } catch {
+                      // 并存政权是锦上添花的补充信息，解析失败不影响主线展示，静默忽略。
+                    }
+                  }
+                  if (dayInfoLayers.calendar_regimeCalendars && wasm?.get_regimes_lunar_for_day != null) {
+                    try {
+                      const json = wasm.get_regimes_lunar_for_day(displayY, displayM, displayD)
+                      const arr = JSON.parse(json) as { region: string; calendar_name: string; lunar_year: number; month: number; is_leap: boolean; day: number }[]
+                      if (Array.isArray(arr)) {
+                        for (const e of arr) {
+                          const monthDay = `${e.is_leap ? '闰' : ''}${LUNAR_MONTH_NAMES[e.month - 1]}月${lunarDayStr(e.day)}日`
+                          lines.push(<div key={`${e.region}-${e.calendar_name}`}>{e.region} · {e.calendar_name} {monthDay}</div>)
+                        }
+                      }
+                    } catch { /* ignore */ }
+                  }
+                  return lines.length > 0 ? <div style={{ fontSize: 12, marginTop: 6, color: 'rgba(0,0,0,0.65)' }}>{lines}</div> : null
+                })()}
+                {/* 朔日：合朔时刻（天文，非实历） */}
+                {dayInfoLayers.astro_synodic && selectedLunarSlot?.dayOfMonth === 1 && newMoonJdUtcOnDay != null && (
+                  <div style={{ fontSize: 11, marginTop: 6, color: 'rgba(0,0,0,0.6)' }}>
+                    合朔 {formatJdUtcInZone(newMoonJdUtcOnDay, timeZone)}（天文，古代可能算不准）
+                  </div>
+                )}
+                {/* 节气：交节时刻（定气）；若与平气不一致则显示平气 */}
+                {dayInfoLayers.astro_solarTerm && zhongQiOnDay.length > 0 && (
+                  <div style={{ fontSize: 11, marginTop: 6, color: 'rgba(0,0,0,0.6)' }}>
+                    {zhongQiOnDay.map((q) => (
+                      <div key={q.name}>
+                        {q.name} 交节 {formatJdUtcInZone(q.jdUtc, timeZone)}（天文，古代或有用平气）
+                        {q.pingQiJdUtc != null && (
+                          <span>；平气 {formatJdUtcInZone(q.pingQiJdUtc, timeZone)}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              {/* 底部：干支历、时宪历（紧凑网格块） */}
-              <div style={{ padding: '10px 12px 12px', display: 'grid', gap: '8px 12px', gridTemplateColumns: '1fr 1fr', alignItems: 'start' }}>
+              {/* 底部：干支历、时宪历（各占一行，按显示图层可分别关闭） */}
+              {(dayInfoLayers.calendar_ganzhi || dayInfoLayers.calendar_shixian) && (
+              <div style={{ padding: '10px 12px 12px', display: 'grid', gap: 8 }}>
+                {dayInfoLayers.calendar_ganzhi && (
                 <div>
                   <Text type="secondary" style={{ fontSize: 10, display: 'block', marginBottom: 2 }}>干支历</Text>
                   <div style={{ fontSize: 12, lineHeight: 1.5, fontVariantNumeric: 'tabular-nums' }}>
@@ -605,13 +864,17 @@ function App() {
                     ].join(' ')}
                   </div>
                 </div>
+                )}
+                {dayInfoLayers.calendar_shixian && (
                 <div>
                   <Text type="secondary" style={{ fontSize: 10, display: 'block', marginBottom: 2 }}>时宪历</Text>
                   <div style={{ fontSize: 12, lineHeight: 1.5, fontVariantNumeric: 'tabular-nums' }}>
                     {isLiveMode ? <ShixianFromLiveTime /> : formatShixianKe(displayHour, displayMinute, displaySecond)}
                   </div>
                 </div>
+                )}
               </div>
+              )}
             </Card>
           </Flex>
           </LiveTimeProvider>
@@ -717,7 +980,7 @@ function App() {
                       <Space direction="vertical" style={{ width: '100%' }}>
                         <div>
                           <Text type="secondary" style={{ fontSize: 12 }}>年</Text>
-                          <Select value={year} onChange={handleYearChange} options={yearOptions} style={{ width: '100%', marginTop: 4 }} />
+                          <Select value={year} onChange={handleYearChange} options={yearOptions} showSearch optionFilterProp="label" filterOption={(input, opt) => (opt?.label ?? '').toString().includes(input)} style={{ width: '100%', marginTop: 4 }} />
                         </div>
                         <div>
                           <Text type="secondary" style={{ fontSize: 12 }}>月</Text>
@@ -911,24 +1174,89 @@ function App() {
                 </div>
               </Flex>
             </Modal>
+            <Button
+              type="text"
+              icon={<EyeOutlined />}
+              onClick={() => setDisplayLayersPanelOpen(true)}
+              title="显示图层"
+              style={{ width: '100%' }}
+            >
+              显示图层
+            </Button>
+            <Modal
+              title="显示图层"
+              open={displayLayersPanelOpen}
+              onCancel={() => setDisplayLayersPanelOpen(false)}
+              footer={
+                <Button type="primary" onClick={() => setDisplayLayersPanelOpen(false)}>
+                  确定
+                </Button>
+              }
+              width={360}
+            >
+              <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>
+                按天文/历法/工程分组（见 doc/architecture/three-domains.md），农历本身是骨架信息，不在此列
+              </Text>
+              {DAY_INFO_LAYER_GROUPS.map((group) => (
+                <div key={group.title} style={{ marginTop: 14 }}>
+                  <Text type="secondary" style={{ fontSize: 11, fontWeight: 600 }}>{group.title}</Text>
+                  <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {group.items.map((item) => (
+                      <Checkbox
+                        key={item.key}
+                        checked={dayInfoLayers[item.key]}
+                        onChange={() => toggleDayInfoLayer(item.key)}
+                      >
+                        {item.label}
+                      </Checkbox>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </Modal>
           </Flex>
         </Flex>
+        {dayInfoLayers.repoStatus && (
         <div style={{ marginTop: 12, paddingTop: 8, borderTop: '1px solid #f0f0f0' }}>
           <Text type="secondary" style={{ fontSize: 12 }}>
             {loading === 'WASM' && 'Repo：加载 WASM…'}
             {loading === '数据' && 'Repo：加载历表…'}
             {loading == null && error != null && 'Repo：加载失败'}
             {loading == null && error == null && ephemerisSource != null &&
-              `Repo：已加载 · 格式：${EPHEMERIS_FORMAT_LABELS[ephemerisSource]} · ${EPHEMERIS_SOURCE_LABELS[ephemerisSource]}`}
+              `Repo：已加载 · 格式：${EPHEMERIS_FORMAT_LABELS[ephemerisSource]} · ${EPHEMERIS_SOURCE_LABELS[ephemerisSource]} · 计算后端：${realBackendVariant === 'f64' ? 'f64（体积/速度优先）' : 'TwoFloat（高精度）'}`}
             {loading == null && error == null && ephemerisSource == null && wasm != null && 'Repo：就绪'}
             {loading == null && error == null && wasm == null && 'Repo：—'}
           </Text>
-          {repoAux != null && (
-            <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
-              章动表：{repoAux.nutationFull ? '完整 IAU2000A' : '77 项'} · 拟合表：{repoAux.patchIcrs ? '已加载' : '未加载'}
-            </Text>
+          {ephemerisSource != null && (
+            <div
+              style={{
+                marginTop: 6,
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                rowGap: 2,
+                columnGap: 16,
+              }}
+            >
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                VSOP87（日月地心历）：{ephemerisSource === 'full_text' ? '文本' : '二进制 (.bin/.br)'}
+              </Text>
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                ELPMPP02（月球运动）：{ephemerisSource === 'full_binary' ? '二进制 (.bin/.br)' : '文本'}
+              </Text>
+              {repoAux != null && (
+                <>
+                  <Text type="secondary" style={{ fontSize: 11 }}>
+                    IAU2000 章动表：{repoAux.nutationFull ? '完整 IAU2000A（二进制）' : 'IAU2000B 简版（77 项，回落）'}
+                  </Text>
+                  <Text type="secondary" style={{ fontSize: 11 }}>
+                    VSOP87 地球改正（拟合 {EARTH_PATCH_TARGET.toUpperCase()}）：{repoAux.earthPatch ? '已加载（二进制）' : '未加载'}
+                  </Text>
+                </>
+              )}
+            </div>
           )}
         </div>
+        )}
       </Spin>
     </div>
   )

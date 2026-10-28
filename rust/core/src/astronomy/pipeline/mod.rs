@@ -15,8 +15,8 @@ mod transition;
 mod transform_graph;
 
 pub use chain::Pipeline;
-pub use ephemeris_provider::{Body, EphemerisProvider};
-pub use frame_mapper::{Compose, FrameMapper, Fk5ToIcrsBias, Vsop87FitDe406Equatorial};
+pub use ephemeris_provider::{Body, EphemerisProvider, Planet, Vsop87Elp, Vsop87Planets};
+pub use frame_mapper::{Compose, FrameMapper, Fk5ToIcrsBias};
 pub use light_time::LightTimeCorrector;
 pub use optical::OpticalCorrector;
 pub use state::{CoordinateRepresentation, SphericalCoords, State6};

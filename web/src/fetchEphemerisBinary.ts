@@ -37,6 +37,7 @@ export async function fetchBinaryMaybeBrotli(url: string): Promise<Uint8Array> {
 
 export const VSOP87_MAGIC = new Uint8Array([0x56, 0x53, 0x42, 0x31]) // "VSB1"
 export const ELP_MAGIC = new Uint8Array([0x45, 0x4c, 0x50, 0x31]) // "ELP1"
+export const NUTATION_TAB53A_MAGIC = new Uint8Array([0x4e, 0x35, 0x33, 0x41]) // "N53A"
 
 export function isVsop87Binary(buf: Uint8Array): boolean {
   if (buf.length < 4) return false
@@ -46,4 +47,14 @@ export function isVsop87Binary(buf: Uint8Array): boolean {
 export function isElpBinary(buf: Uint8Array): boolean {
   if (buf.length < 4) return false
   return buf[0] === ELP_MAGIC[0] && buf[1] === ELP_MAGIC[1] && buf[2] === ELP_MAGIC[2] && buf[3] === ELP_MAGIC[3]
+}
+
+export function isNutationTab53aBinary(buf: Uint8Array): boolean {
+  if (buf.length < 4) return false
+  return (
+    buf[0] === NUTATION_TAB53A_MAGIC[0] &&
+    buf[1] === NUTATION_TAB53A_MAGIC[1] &&
+    buf[2] === NUTATION_TAB53A_MAGIC[2] &&
+    buf[3] === NUTATION_TAB53A_MAGIC[3]
+  )
 }

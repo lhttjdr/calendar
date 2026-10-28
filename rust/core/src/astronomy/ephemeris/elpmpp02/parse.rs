@@ -226,7 +226,7 @@ pub fn load_all(
 const ELP_BINARY_MAGIC: &[u8; 4] = b"ELP1";
 const ELP_TERM_SIZE: usize = 8 + 5 * 8 + 4 + 4 * 4; // ci_arcsec f64, fi[5] f64, alpha i32, ilu[4] i32
 
-/// 将一项列表序列化为二进制（与 terms_from_binary 对称）。格式见 doc/13-ephemeris-binary-format.md。
+/// 将一项列表序列化为二进制（与 terms_from_binary 对称）。格式见 doc/engineering/ephemeris-binary-format.md。
 pub fn terms_to_binary(terms: &[Elpmpp02Term]) -> Vec<u8> {
     let mut out = Vec::with_capacity(12 + terms.len() * ELP_TERM_SIZE);
     out.extend_from_slice(ELP_BINARY_MAGIC);

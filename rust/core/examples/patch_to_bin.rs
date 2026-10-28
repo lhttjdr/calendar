@@ -1,22 +1,22 @@
-//! 将 VSOP87–DE406 赤道拟合表文本转为 .bin（共通读写在 repo）。
+//! 将 VSOP87 → DE406/DE441 改正系数表转为 wasm 用的二进制（只含地球 `ear`，节气、定朔只需地球）。
 //! 运行：cargo run -p lunar-core --example patch_to_bin --no-default-features --features twofloat
-//! 读取 data/fit/vsop87-de406-icrs.txt，写出 data/fit/vsop87-de406-icrs.bin。
+//! 读取 data/fit/vsop87-{de406,de441}-planets.txt，写出 data/fit/vsop87-{de406,de441}-earth.bin。
 
 fn main() {
-    use lunar_core::astronomy::frame::vsop87_de406_icrs_patch;
+    use lunar_core::astronomy::ephemeris::vsop87_patch::{PatchTarget, Vsop87DePatch};
     use lunar_core::repo;
     use lunar_core::repo::paths;
 
-    let lines = repo::read_lines(paths::FIT_VSOP87_DE406_ICRS).expect("从 repo 读取拟合表文本失败");
-    let data = vsop87_de406_icrs_patch::parse_patch_lines(&lines).expect("解析拟合表失败");
-    let bin = vsop87_de406_icrs_patch::to_binary(&data);
-    repo::write_bytes(paths::FIT_VSOP87_DE406_ICRS_BIN, &bin).expect("写入 .bin 失败");
-    println!(
-        "拟合表 (RA {} 项, Dec {} 项, R {} 项) -> {} ({} bytes)",
-        data.ra_terms.len(),
-        data.dec_terms.len(),
-        data.r_terms.len(),
-        paths::FIT_VSOP87_DE406_ICRS_BIN,
-        bin.len()
-    );
+    for (target, out) in [
+        (PatchTarget::De406, paths::FIT_VSOP87_DE406_EARTH_BIN),
+        (PatchTarget::De441, paths::FIT_VSOP87_DE441_EARTH_BIN),
+    ] {
+        let mut patch = Vsop87DePatch::from_repo(target).unwrap_or_else(|e| panic!("{}: {e}", target.repo_path()));
+        patch.retain(&["ear"]);
+        let bin = patch.to_binary();
+        let back = Vsop87DePatch::from_binary(&bin).expect("二进制往返失败");
+        assert!(back.body("ear").is_some(), "二进制中无地球段");
+        repo::write_bytes(out, &bin).expect("写入 .bin 失败");
+        println!("{} → {} ({} bytes)", target.repo_path(), out, bin.len());
+    }
 }

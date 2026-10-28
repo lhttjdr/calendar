@@ -1,0 +1,64 @@
+Position and physical ephemeris test data from HORIZONS plus pre-computed magnitudes from Astronomical Almanac paper
+.
+MERCURY
+ Date__(UT)__HR:MN      APmag  S-brt               r        rdot            delta      deldot    S-T-O   new_ap_mag
+Very bright due to small phase angle and small solar distance
+ 2006-May-19 00:00       n.a.   n.a.  0.310295423552  -3.2280288 1.32182643625754  -3.5460646   1.1677   -2.477
+Medium brightness at medium phase angle
+ 2006-Jun-15 00:00       0.05   3.34  0.413629222334   8.6861102 0.92644808718613 -31.6716289  90.1662    0.181
+Very faint due to large phase angle
+ 2003-May-07 00:00       n.a.   n.a.  0.448947624811   5.3431877 0.56004973217883  -5.5036795 178.7284    7.167
+.
+VENUS
+ Date__(UT)__HR:MN      APmag  S-brt               r        rdot            delta      deldot    S-O-T /r    S-T-O   new_ap_mag
+Near inferior conjunction & phase angle > 163.7
+ 2004-Jun-09 00:00       n.a.   n.a.  0.726276608877   0.1885334 0.28896166401584   0.3857322   1.0604 /L 178.5189   -3.210
+Near superior conjunction & phase angle < 163.7
+ 2006-Oct-28 00:00       n.a.   n.a.  0.722722540169   0.2352037 1.71607489554051  -0.2245835   0.9623 /T   1.3232   -3.917
+Greatest brilliancy
+ 2005-Dec-14 00:00      -4.89   1.43  0.721480714554  -0.2201808 0.37762511206278 -10.7457589  37.3504 /T 124.1348   -4.916
+.
+MARS
+ Date__(UT)__HR:MN      APmag  S-brt Ob-lon Ob-lat Sl-lon Sl-lat hEcl-Lon hEcl-Lat               r        rdot            delta      deldot    S-O-T /r    S-T-O   new_ap_mag
+Very bright
+ 2003-Aug-28 00:00      -2.88   3.85 329.27 -19.00 330.76 -23.74 334.4996  -1.7867  1.381191244505  -0.0618672 0.37274381097911   0.1468765 173.3016 /L   4.8948   -2.862
+Medium magnitude
+ 2004-Jan-30 00:00       0.70   4.47 299.37 -22.63 261.18  -7.79  66.6920   0.5455  1.511929848730   2.2666083 1.37449373635865  15.9340305  77.7771 /T  39.5418    0.683
+Very faint
+ 2004-Jul-19 00:00       1.84   4.35  76.84  20.10  64.66  22.38 147.3485   1.8322  1.664150453905   0.3435431 2.58995164518460   5.4339789  19.2022 /T  11.5877    1.788
+.
+JUPITER
+ Date__(UT)__HR:MN      APmag  S-brt               r        rdot            delta      deldot    S-T-O   new_ap_mag
+Large Earth-Jupiter distance & small phase angle (faint)
+ 2004-Sep-21 00:00      -1.67   5.49  5.446231815414   0.1733433 6.44985867459088   0.0403956   0.2446   -1.667
+Small Earth-Jupiter distance & small phase angle (bright)
+ 2010-Sep-21 00:00      -2.94   5.29  4.957681473205  -0.1794054 3.95393078136013   0.0584851   0.3431   -2.934
+Medium Earth-Jupiter distance & large phase angle (medium brightness)
+ 2011-Aug-01 00:00      -2.43   5.33  4.953861708035   0.1367018 4.85804197691094 -26.4018041  11.8264   -2.406
+.
+SATURN
+ Date__(UT)__HR:MN      APmag  S-brt Ob-lon Ob-lat Sl-lon Sl-lat               r        rdot            delta      deldot    S-O-T /r    S-T-O   new_ap_mag
+Very bright due to large inclination angle of rings
+ 2032-Dec-25 00:00       0.42   6.71 285.41 -31.19 285.39 -31.31  9.014989659493   0.0084488 8.03160470546889   0.1126724 179.0312 /T   0.1055   -0.552
+Medium brightess
+ 2026-Sep-18 00:00       0.72   6.91 169.17  -9.82 170.95  -9.14  9.438629261423  -0.5266652 8.47601935508925  -8.6318015 162.3420 /L   1.8569    0.403
+Very faint due to small inclination angle of rings
+ 2025-Apr-20 00:00       1.27   7.02 124.91  -1.79 127.75   0.30  9.597320474058  -0.5296766 10.4186312718542 -15.9152317  33.5326 /L   3.3119    1.172
+.
+URANUS
+ Date__(UT)__HR:MN      APmag  S-brt Ob-lon Ob-lat Sl-lon Sl-lat               r        rdot            delta      deldot    S-T-O   new_ap_mag
+Brightest because near perihelion and moderate sub-lat
+ 1970-Mar-28 00:00       5.32   8.10 341.21 -20.28 341.26 -20.29 18.321003215845   0.0869935 17.3229728525108  -0.3379465   0.0410    5.381
+Faintest because near superior conjunction and small sub-lat
+ 2008-Mar-08 00:00       5.95   8.30  26.79   0.97  26.76   1.02 20.096361095266   0.0237484 21.0888470145276   0.8871883   0.0568    6.025
+Intermediate brightness
+ 1996-Jun-03 00:00       5.70   8.26 201.32 -44.00 200.72 -46.27 19.768203378266   0.2439621 19.1224410673806 -22.6504332   2.3102    5.740
+.
+NEPTUNE
+ Date__(UT)__HR:MN      APmag  S-brt Ob-lon Ob-lat Sl-lon Sl-lat               r        rdot            delta      deldot    S-T-O   new_ap_mag
+Faint before year 1980
+ 1970-Nov-23 00:00       8.02   9.45 352.24  -7.59 352.25  -7.65 30.322109867761  -0.0095967 31.3091610098214  -0.1615328   0.0549    7.997
+Medium brightness between 1980 and 2000
+ 1990-Apr-27 00:00       7.90   9.44 254.53 -24.85 256.37 -24.29 30.207767693725  -0.0397635 29.8172370857530 -27.4944543   1.7741    7.827
+Bright after year 2000
+ 2009-Aug-17 00:00       7.83   9.42 130.44 -28.73 130.47 -28.75 30.028181709541  -0.0463382 29.0158521665744  -0.1622130   0.0381    7.701

@@ -12,6 +12,55 @@ use super::state::State6;
 pub enum Body {
     Sun,
     Moon,
+    Planet(Planet),
+}
+
+/// 大行星（不含地球）。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Planet {
+    Mercury,
+    Venus,
+    Mars,
+    Jupiter,
+    Saturn,
+    Uranus,
+    Neptune,
+}
+
+impl Planet {
+    pub const ALL: [Planet; 7] =
+        [Planet::Mercury, Planet::Venus, Planet::Mars, Planet::Jupiter, Planet::Saturn, Planet::Uranus, Planet::Neptune];
+
+    /// NAIF 系统质心编号（DE406 BSP 只给各行星系质心，水星、金星无卫星，质心即行星本体）。
+    pub fn naif_barycenter(self) -> i32 {
+        match self {
+            Planet::Mercury => 1,
+            Planet::Venus => 2,
+            Planet::Mars => 4,
+            Planet::Jupiter => 5,
+            Planet::Saturn => 6,
+            Planet::Uranus => 7,
+            Planet::Neptune => 8,
+        }
+    }
+
+    /// VSOP87 数据文件扩展名（`VSOP87B.mer` 等）。
+    pub fn vsop87_suffix(self) -> &'static str {
+        match self {
+            Planet::Mercury => "mer",
+            Planet::Venus => "ven",
+            Planet::Mars => "mar",
+            Planet::Jupiter => "jup",
+            Planet::Saturn => "sat",
+            Planet::Uranus => "ura",
+            Planet::Neptune => "nep",
+        }
+    }
+
+    /// 是否为地内行星（有大距、无冲）。
+    pub fn is_inferior(self) -> bool {
+        matches!(self, Planet::Mercury | Planet::Venus)
+    }
 }
 
 /// 历表提供者：在给定时刻返回天体的 6D 状态（文档 3.1）。标量 Real。
@@ -30,7 +79,7 @@ pub trait EphemerisProvider {
 ///
 /// **日心→地心平移**：VSOP87 历表给出的是**地球**在日心架下的位置与速度（`position_and_velocity_jd` = 地球）。
 /// 地心太阳 = 太阳 − 地心 = 0 − 地心（日心架下原点为太阳），故对地球位置/速度取负即得地心太阳状态。
-/// 该平移在此处完成，之后管线（岁差、章动等）的起点即为地心坐标。见 doc/2-reference-frames.md §历表对齐到 ICRS 与地心坐标。
+/// 该平移在此处完成，之后管线（岁差、章动等）的起点即为地心坐标。见 doc/astronomy/reference-frames.md §历表对齐到 ICRS 与地心坐标。
 impl EphemerisProvider for Vsop87 {
     // VSOP87 约定：历表时间 TDB。
     fn evaluation_time_scale(&self) -> TimeScale {
@@ -40,37 +89,17 @@ impl EphemerisProvider for Vsop87 {
     fn compute_state(&self, body: Body, epoch: TimePoint) -> State6 {
         match body {
             Body::Sun => {
-                let (pos, vel) = self.position_and_velocity_jd(epoch.jd_tdb());
-                let l = pos.L.rad();
-                let b = pos.B.rad();
-                let au_m = crate::astronomy::constant::AU_METERS;
-                let r_au = pos.R.meters() / au_m;
-                let (cl, sl) = (l.cos(), l.sin());
-                let (cb, sb) = (b.cos(), b.sin());
-                let x_earth = r_au * cb * cl;
-                let y_earth = r_au * cb * sl;
-                let z_earth = r_au * sb;
-                let dl = vel.d_l.rad_per_day();
-                let db = vel.d_b.rad_per_day();
-                let dr = vel.d_r.au_per_day(au_m);
-                let day_s = 86400.0;
-                let vxe = (dr * cb * cl - r_au * sb * cl * db - r_au * cb * sl * dl) * au_m / day_s;
-                let vye = (dr * cb * sl - r_au * sb * sl * db + r_au * cb * cl * dl) * au_m / day_s;
-                let vze = (dr * sb + r_au * cb * db) * au_m / day_s;
-                let frame = ReferenceFrame::MeanEcliptic(Epoch::j2000());
                 // 地心太阳 = -地心（日心架），见上方 doc 注释
-                let position = Position::from_si_meters_in_frame(
-                    frame,
-                    -x_earth * au_m,
-                    -y_earth * au_m,
-                    -z_earth * au_m,
-                );
-                let velocity = Velocity::from_si_m_per_s_in_frame(frame, -vxe, -vye, -vze);
+                let (p, v) = self.heliocentric_rectangular(epoch.jd_tdb());
+                let frame = ReferenceFrame::MeanEcliptic(Epoch::j2000());
+                let position = Position::from_si_meters_in_frame(frame, -p[0], -p[1], -p[2]);
+                let velocity = Velocity::from_si_m_per_s_in_frame(frame, -v[0], -v[1], -v[2]);
                 State6::new(position, velocity)
             }
             Body::Moon => {
                 panic!("Vsop87 does not provide Moon; use Elpmpp02Data with MoonProvider")
             }
+            Body::Planet(p) => panic!("单个 Vsop87（地球）不提供 {p:?}；用 Vsop87Planets"),
         }
     }
 }
@@ -88,6 +117,65 @@ impl EphemerisProvider for Elpmpp02Data {
                 State6::new(pos, vel)
             }
             Body::Sun => panic!("Elpmpp02Data does not provide Sun; use Vsop87"),
+            Body::Planet(p) => panic!("Elpmpp02Data does not provide {p:?}; use Vsop87Planets"),
+        }
+    }
+}
+
+/// VSOP87 行星（地心）：地心行星 = 日心行星 − 日心地球，均为 VSOP87B 的 J2000 动力学黄道与春分点（与地球同一架）；
+/// 各 [`Vsop87`] 若带改正（[`Vsop87::patch`]，拟合到 DE406/DE441，Chapront 2000 方法）则自动施加。
+/// 光行时由 [`LightTimeCorrector`](super::LightTimeCorrector) 对该地心矢量迭代（行星在 t−τ、地球在 t−τ，即一阶含周年光行差
+/// 的「行星光行差」做法，与现有太阳管线一致）。也提供 `Body::Sun`（同 [`Vsop87`]），便于同一提供者算距角。
+pub struct Vsop87Planets<'a> {
+    pub earth: &'a Vsop87,
+    pub planets: Vec<(Planet, &'a Vsop87)>,
+}
+
+impl Vsop87Planets<'_> {
+    fn planet(&self, p: Planet) -> &Vsop87 {
+        self.planets.iter().find(|(q, _)| *q == p).map(|(_, v)| *v).unwrap_or_else(|| panic!("未加载 {p:?} 的 VSOP87"))
+    }
+}
+
+impl EphemerisProvider for Vsop87Planets<'_> {
+    fn evaluation_time_scale(&self) -> TimeScale {
+        TimeScale::TDB
+    }
+
+    fn compute_state(&self, body: Body, epoch: TimePoint) -> State6 {
+        match body {
+            Body::Planet(p) => {
+                let jd = epoch.jd_tdb();
+                let (pp, pv) = self.planet(p).heliocentric_rectangular(jd);
+                let (ep, ev) = self.earth.heliocentric_rectangular(jd);
+                let frame = ReferenceFrame::MeanEcliptic(Epoch::j2000());
+                State6::new(
+                    Position::from_si_meters_in_frame(frame, pp[0] - ep[0], pp[1] - ep[1], pp[2] - ep[2]),
+                    Velocity::from_si_m_per_s_in_frame(frame, pv[0] - ev[0], pv[1] - ev[1], pv[2] - ev[2]),
+                )
+            }
+            Body::Sun => self.earth.compute_state(Body::Sun, epoch),
+            Body::Moon => panic!("Vsop87Planets does not provide Moon"),
+        }
+    }
+}
+
+/// VSOP87 日、行星 + ELPMPP02 月的组合提供者：同一管线下算日、月、行星（如月与行星的近距）。ELPMPP02 求值内部自换 TT，
+/// 故整体按 TDB 约定传入即可。
+pub struct Vsop87Elp<'a> {
+    pub planets: Vsop87Planets<'a>,
+    pub moon: &'a Elpmpp02Data,
+}
+
+impl EphemerisProvider for Vsop87Elp<'_> {
+    fn evaluation_time_scale(&self) -> TimeScale {
+        TimeScale::TDB
+    }
+
+    fn compute_state(&self, body: Body, epoch: TimePoint) -> State6 {
+        match body {
+            Body::Moon => self.moon.compute_state(Body::Moon, epoch),
+            _ => self.planets.compute_state(body, epoch),
         }
     }
 }
