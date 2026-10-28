@@ -247,3 +247,10 @@ CALENDAR_DATA_PATH=/tmp/ChineseCalendar/src/calendarData.js node scripts/calenda
 列：regime、era、year_in_era、year（天文纪年）、month（所记月序，闰月前加「闰」）、month_name、leap、ganzhi、calendar（该政权所用历表）、
 in_month（日干支在该历所记之月）、jdn、julian、text。用于 `scripts/calendar_data/discriminating_records.py` 以一手日期检验主表与各推步表，
 结论见 `doc/calendar/push-algorithms.md` §3.3。本纪月份更替常不书，in_month = 0 者多为此，非历表之误（在各表下同样不在月）。
+
+
+## 敦煌历日（`敦煌历日.csv`）
+
+敦煌出土北魏太平真君十一年、十二年（450、451）历日逐月（月大小、朔干支、建除、历注节气），据邓文宽《敦煌天文历法文献辑校》（1996）
+书页 101—103 录文转录（原卷敦煌研究院藏；451 年十至十二月原卷残缺，据苏、刘两钞本补）。实物历日，为当时行用之历的一手证据。
+比对见 `scripts/calendar_data/check_dunhuang_calendar.py` 与 `doc/calendar/push-algorithms.md` §3.5。
