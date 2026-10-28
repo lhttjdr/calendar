@@ -1,0 +1,92 @@
+[
+  {
+    "dynasty_or_state": "后梁",
+    "founder": "朱温",
+    "years": "907—923",
+    "conquered_by": "后唐"
+  },
+  {
+    "dynasty_or_state": "后唐",
+    "founder": "李存勗",
+    "years": "923—936",
+    "conquered_by": "后晋"
+  },
+  {
+    "dynasty_or_state": "后晋",
+    "founder": "石敬瑭",
+    "years": "936—946",
+    "conquered_by": "契丹"
+  },
+  {
+    "dynasty_or_state": "后汉",
+    "founder": "刘知远",
+    "years": "947—950",
+    "conquered_by": "后周"
+  },
+  {
+    "dynasty_or_state": "后周",
+    "founder": "郭威",
+    "years": "951—960",
+    "conquered_by": "宋"
+  },
+  {
+    "dynasty_or_state": "吴",
+    "founder": "杨行密",
+    "years": "902—937",
+    "conquered_by": "南唐"
+  },
+  {
+    "dynasty_or_state": "南唐",
+    "founder": "徐知诰(即李昪)",
+    "years": "937—975",
+    "conquered_by": "宋"
+  },
+  {
+    "dynasty_or_state": "吴越",
+    "founder": "钱镠",
+    "years": "907—978",
+    "conquered_by": "宋"
+  },
+  {
+    "dynasty_or_state": "楚",
+    "founder": "马殷",
+    "years": "927—951",
+    "conquered_by": "南唐"
+  },
+  {
+    "dynasty_or_state": "闽",
+    "founder": "王审知",
+    "years": "909—945",
+    "conquered_by": "南唐"
+  },
+  {
+    "dynasty_or_state": "南汉",
+    "founder": "刘岩",
+    "years": "917—971",
+    "conquered_by": "宋"
+  },
+  {
+    "dynasty_or_state": "前蜀",
+    "founder": "王建",
+    "years": "907—925",
+    "conquered_by": "后唐"
+  },
+  {
+    "dynasty_or_state": "后蜀",
+    "founder": "孟知祥",
+    "years": "934—965",
+    "conquered_by": "宋"
+  },
+  {
+    "dynasty_or_state": "荆南(南平)",
+    "founder": "高季兴",
+    "years": "924—963",
+    "conquered_by": "宋"
+  },
+  {
+    "dynasty_or_state": "北汉",
+    "founder": "刘旻",
+    "years": "951—979",
+    "conquered_by": "宋"
+  }
+]

@@ -1,0 +1,143 @@
+# 16. 实历模块
+
+历史区间当时行用的是各朝颁行的历法，不是现代定气定朔，所以本仓库用实历表驱动农历换算。**实历表是复原结果，不是史实记录**：它是《三千五百年历日天象》（张培瑜，河南教育出版社 1990；原书扫描本 `doc/references/calendar/[张培瑜1990]三千五百年历日天象.pdf`，PDF 页 = 书页 + 13）按各朝历法推步、据历还原的连续表（经 ytliu0/ChineseCalendar 转录），与当时实际颁行的历日可能有出入；可作独立证据的是史书所记日干支（如「某月某干支朔」），核验见「月序改制」与 doc/astronomy/celestial-phenomena.md 第十节。本仓库，在实历覆盖范围内优先使用实历岁数据，缺省再退回定气定朔计算。历法域内部的四层划分（本模块属第 2 层）及数据对应见 [calendar-layers.md](calendar-layers.md)。
+
+## 有历史朔仍无法唯一定「农历月」：各朝代/政权历法不同
+
+**仅凭历史朔日表，并不能唯一地「算出」某日是该历的几月几日**，因为同一历史时期往往存在多套历法，朔闰、月序甚至年首都因政权而异：
+
+- **三国 220–280**：魏用主表（实历考证），蜀用**四分历**推步，吴用**乾象历**推步——同一天在魏是「正月十五」在蜀/吴可能是十四或十六，闰月也可能不同月。
+- **南北朝**：南朝多用主表或南朝颁历，北朝按政权用**景初、玄始、正光、兴和、天保、天和、大象、开皇**等不同历术，朔日与闰月与「主表」未必一致。
+- **宋辽金元、南明与清**：多政权并存时各有历法，同一儒略日对应的「农历月」需指明是**哪一政权/哪套历**。
+
+因此「农历月」必须明确是**在谁家历法下**的农历月。本仓库当前提供的实历朔日表（`实历朔日表.csv`）即**主表**（[ytliu0/ChineseCalendar](https://github.com/ytliu0/ChineseCalendar) 的 `ChineseToGregorian()` 等，"据历还原"的具体含义见 [data/calendar/README_shuori.md](https://github.com/lhttjdr/calendar/blob/master/data/calendar/README_shuori.md)「主表来源与含义」）；蜀历、吴历、北朝各政权历、南明历等**未**包含在此主表中。若需其他政权的朔闰或农历月，需按政权使用原库的推步（如 `cmonthDate_Shu` / `cmonthDate_Wu`）或另行导出多套朔日。参见 `data/calendar/README_shuori.md`「各朝代历法差异」一节（三国魏蜀吴历法差异见其下「三国魏蜀吴历法差异」小节）及 [push-algorithms.md](push-algorithms.md)。
+
+## 配合各朝代算法即可按政权计算农历月
+
+**可以**：实历（主表）与各朝代/政权的推步算法配合，就能按政权算出该历下的农历月日：
+
+- **主表**：用本仓库**实历模块**（`实历朔日表.csv`）直接提供岁数据，公历↔农历用表内朔日；主表为各朝颁历据历还原推步得出的连续表，年号表按年体现中原政权更替（汉、魏、晋、…、清等）。
+- **蜀、吴、北朝、辽金元、南明等**：用 **各政权对应历术的推步**（平朔+无中气置闰或预表+修正），算法与参数见 `doc/calendar/push-algorithms.md`（历术名、朔策岁实历元、按政权/年份的调用关系及公式）。
+
+原库 [ChineseCalendar](https://github.com/ytliu0/ChineseCalendar) 即按此思路：主表用实历，其它政权用 `cmonthDate_Shu` / `cmonthDate_Wu` / `cmonthDate_WeiZhouSui` 等，网页上切换政权即切换历法。本仓库目前具备**实历模块**（主表）和**各历术算法文档**（推步公式与政权对应）；若要在本仓库代码内按政权输出农历月，需在 core 中实现或接入各历术推步（如 Sifen、Qianxiang、景初、玄始等），并在换算入口增加「政权/历法」参数，按参数选择实历或对应推步。
+
+## 设计原则
+
+- **实历优先**：对实历表覆盖的农历年，公历↔农历换算一律使用表内朔日，不做推步。换算结果为**主表**下的农历月日（主表 = 各朝颁历据历还原推步的连续表），按年对应中原各政权之年号；不适用于蜀、吴、北朝等其它政权历。
+- **接口统一**：实历产出与算历相同的 [ChineseLunarYearData]（14 朔 + 12 中气），沿用 [chinese_lunar] 的 JD↔农历逻辑。
+- **数据来源**：朔日表来自 [ytliu0/ChineseCalendar](https://github.com/ytliu0/ChineseCalendar) 主表；《三千五百年历日天象》按各朝历法据历还原推步编制历表，见 `data/calendar/README_shuori.md`。
+
+## 实现位置
+
+- **Rust**：`rust/core/src/calendar/historical.rs`
+  - [HistoricalCalendar]：从 CSV 解析实历朔日，按农历年索引。
+  - [HistoricalCalendar::from_csv]：解析 `实历朔日表.csv`。
+  - [HistoricalCalendar::year_data]：为指定农历年生成 [ChineseLunarYearData]（岁 = 去年十一月朔～今年十二月朔，与算历一致）。
+- **换算入口**：`rust/core/src/calendar/convert.rs`
+  - [gregorian_to_chinese_lunar_prefer_historical]：公历→农历时若传入 [HistoricalCalendar] 且该年在实历内，用实历岁数据；否则用 [compute_year_data]。
+  - [gregorian_to_chinese_lunar_calc] 内部改为调用上述函数（实历传 `None`，即纯算历）。
+
+## 数据范围
+
+- **实历表覆盖**：农历年约 **-105 ～ 2200**（见 `vendor/calendar/chinese_calendar/实历朔日表.csv`）。
+- 常量 [HISTORICAL_LUNAR_YEAR_MIN] / [HISTORICAL_LUNAR_YEAR_MAX] 仅作文档约定；实际范围以加载的 CSV 为准，可用 [HistoricalCalendar::year_range] 查询。
+
+## 已知异说
+
+- **430 年（宋元嘉七年）二月朔**：实历朔日表作戊午（3 月 11 日），同汪曰桢《历代长术辑要》、陈垣《二十史朔闰表》、
+  方诗铭《中国史历日和中西历日对照表》、张培瑜书；按景初历平朔推步为丁巳（3 月 10 日），司马光《资治通鉴目录》
+  （刘羲叟《长历》）亦作「二丁巳」，方诗铭注出此异文而未判误。无一手史料可定，详见 `doc/calendar/push-algorithms.md` 3.1。
+  vendor 原表不改。
+
+## 月序改制：主表建寅月 ↔ 当时月名
+
+主表 `vendor/calendar/chinese_calendar/实历朔日表.csv` 的 `lunar_year`/`lunar_month` **一律按建寅（夏正）编号**，不是史书实际使用的月名。
+下列时期当时政权的岁首、月名与建寅不同。朔日、月长仍取主表；月名换算在第 3 层 `calendar::month_labels`
+（[`MonthLabelReforms`]）做，数据 `data/calendar/month_label_reforms.csv` 由 `scripts/calendar_data/build_month_label_reforms.py`
+按下表规则生成，只列与建寅月名不同的月份。vendor 原文件不改。
+
+| 时期 | 政权 | 主表月份范围（建寅） | 规则 | 史料 |
+|---|---|---|---|---|
+| 新莽 始建国元年—地皇四年 | 新 | 8 年十二月—23 年十一月 | 建丑：月名 = 表月 + 1，表十二月为次年正月 | 《汉书·王莽传上》「以十二月朔癸酉為建國元年正月之朔」 |
+| 魏 景初元年—三年 | 魏 | 237 年三月—239 年十二月 | 建丑；景初元年无三月；景初三年末月为「后十二月」 | 《三国志·明帝纪》「三月，定曆改年為孟夏四月」；《齐王芳纪》「其以建寅之月為正始元年正月，以建丑月為後十二月」 |
+| 武周 载初元年—久视元年十月 | 武周 | 689 年十一月—700 年十月 | 建子：表十一月 → 次年「正月」，十二月 → 次年「腊月」，正月 → 「一月」，余月同名 | 《旧唐书·则天皇后纪》「依周制建子月為正月，改永昌元年十一月為載初元年正月，十二月為臘月，改舊正月為一月」；久视元年「冬十月甲寅，復舊正朔，改一月為正月，仍以為歲首，正月依舊為十一月」 |
+| 唐肃宗末—代宗初 | 唐 | 761 年十一月—762 年四月 | 建子、以斗建为月名：建子月、建丑月、建寅月、建卯月、建辰月、建巳月（建巳月改称四月） | 《新唐书·肃宗纪》「去上元號，稱元年，以十一月為歲首，月以斗所建辰為名」；《代宗纪》「改元年為寶應元年，復以正月為歲首，建巳月為四月」 |
+
+要点：
+
+- **按政权区分**：同一年可有并存政权用不同月序。地皇四年新莽建丑，而更始政权「更始元年二月辛巳」立刘玄，辛巳为主表 23 年二月朔，
+  即更始用建寅；景初年间吴、蜀仍建寅。查询须给政权，改制表里没有的政权按建寅。
+- **名义岁可多于 12 个月**：景初三年 13 个月（含后十二月），武周久视元年 14 个月（正月、腊月、一月……十二月），宝应元年 14 个月。
+- **当时并无的月名**返回空：景初元年「三月」、武周「十一月」「十二月」（以「正月」「腊月」代之）。
+- 年号表（`era_names_merged.csv`）载初元年至长寿年间的政权记为「唐」、久视元年记为「武周」，两种写法并存；月序改制表用「武周」。
+  按政权查改制前须统一政权名，此项待年号表侧统一。
+
+检验（`calendar::month_labels` 测试）：按当时月名查主表，史志所记朔日干支一致——始建国元年正月癸酉朔、地皇四年十月戊申朔
+（《汉书·王莽传下》「十月戊申朔，兵從宣平城門入」）、建辰月庚辰朔、建巳月庚戌朔（《旧唐书·肃宗纪》）；改制表全部月份往返一致。
+《晋书·天文志》「景初元年十月丁未，月犯荧惑」按建寅不在十月，按景初月序落在主表九月（乙未朔，丁未为十三日）。
+天象核验脚本经 `scripts/calendar_data/gaiyuan_date.py` 的 `table_month` 读同一张表。
+
+## 日期约定：民用历与日干支
+
+- **主表日期是民用历**：1582-10-15 以前为儒略历，以后为格里高利历（与 NASA 日月食典、改元日表一致）。`HistoricalCalendar`
+  经 `gregorian::civil_to_julian_day` 换成儒略日；前推格里高利历的 `Gregorian::to_julian_day` 只用于前端输入的公历日期。
+  两者相差：公元前 100 年前后 −3 日、公元 9 年 −2 日、1582 年 +10 日。2026-10-27 以前 `year_data` 误把表中日期当前推格里高利历，
+  1582 年以前的朔日 JD 因此偏了上述日数，已修正。
+- **日干支** = (JDN + 49) mod 60（甲子 = 0）；2000-01-01 为戊午日。此前 `gan_zhi.rs` 把该日当作庚辰（庚辰是 2000 年的**年**干支），
+  所有日干支偏 38 日，已修正，并以史志朔日干支（始建国元年正月癸酉朔、建巳月庚戌朔）检验。
+- 前端传入的公历日期为前推格里高利历；wasm 查改元日表前先换成民用历再比较。
+
+## 使用方式
+
+1. **加载实历**：读取 `vendor/calendar/chinese_calendar/实历朔日表.csv` 文本，调用 `HistoricalCalendar::from_csv(&str)`。
+2. **公历→农历（优先实历）**：调用 `gregorian_to_chinese_lunar_prefer_historical(Some(&historical), year, month, day, vsop, elp, tolerance, max_iterations)`；无实历时传 `None` 即退化为算历。
+3. **仅要岁数据**：`historical.year_data(lunar_year)`，得到 [ChineseLunarYearData] 后，用 [from_gregorian_day_in_year] / [to_julian_day] 做换算。
+4. **主表某月朔日**：`historical.new_moon_date(lunar_year, month, is_leap)`，返回民用历日期。
+5. **史书月名**：`MonthLabelReforms::table_of(政权, 月名)` 换成主表建寅月，再查主表；反向用 `label_of`。
+
+前端/WASM 层可按需在启动时拉取 CSV 或嵌入片段，构建 [HistoricalCalendar] 后传入上述接口，即可在历史区间使用实历。
+
+---
+
+## 年号模块
+
+年号表由**年号模块**加载，按农历年查政权/帝号/年号及是否改元年，用于展示或与实历搭配。**同一年可能有多个
+并存政权**（如三国期间魏/蜀/吴），本模块按年份索引一组记录而不是单条。
+
+数据来源是跨来源汇总表 `data/calendar/汇总/era_names_merged.csv`（不是直接读 vendor 原始的
+`vendor/calendar/chinese_calendar/年号表.csv`）——由 `vendor/.../年号表.csv`（ytliu0，"正统主线"，每年一条）
+与 `data/calendar/fang_shiming/`（方诗铭转录，并存政权）合并生成，表结构、合并方法、已知的真实史料分歧
+（两说并存、不做取舍）见 `data/calendar/汇总/README.md`。
+
+### 实现位置
+
+- **Rust**：`rust/core/src/calendar/era_names.rs`
+  - **EraNames**：从 CSV 解析年号表，按农历年索引一组 **EraEntry**（可能多条并存政权）。
+  - **EraNames::from_csv**：解析 `era_names_merged.csv`（12 列：`lunar_year,regime,emperor,era_name,era_year,
+    is_primary,has_gaiyuan,gaiyuan_prev_era_name,gaiyuan_prev_era_year,gaiyuan_month,source,note`）。
+  - **EraNames::get_all(lunar_year)**：返回该年**全部**并存政权的记录（`&[EraEntry]`）。
+  - **EraNames::get_primary(lunar_year)**：返回该年"正统主线"（`is_primary=true`）的一条；无记录为 `None`。
+  - **EraNames::get_primary_or_default(lunar_year)**：无记录时返回空 `EraEntry`。
+  - **EraNames::year_range()**：表覆盖的农历年范围。
+  - **EraEntry** 的 `era_year`/`gaiyuan_prev_era_year` 是整数（`Option<u32>`），不是中文数字文本；
+    `era_simp()` 用 `year_to_cn()` 换算成"五年"这样的展示文本。`gaiyuan_month`（`Option<u8>`）是改元/建号
+    所在的农历月份（仅精确到月；精确到日的改元时间是另一套独立机制，见 `era_gaiyuan` 模块）。
+
+### 使用方式
+
+1. 加载年号表：`EraNames::from_csv(&csv_str)`，数据来源见 `data/calendar/汇总/README.md`。
+2. 公历→农历得到 `lunar_year` 后：只要单一"主线"展示，用 `era_names.get_primary(lunar_year)`（行为对齐旧的
+   单一年号表）；要列出该年全部并存政权，用 `era_names.get_all(lunar_year)`。改元年可用 `has_gaiyuan` 提示
+   （精确到日的改元时间见 `era_gaiyuan` 模块：`data/calendar/era_gaiyuan_day.csv` 已据
+   `data/calendar/era_gaiyuan_sources.csv` 逐条查证的正史本纪记载填入，详见 `data/calendar/汇总/README.md`）。
+
+---
+
+## 历史的气数据
+
+**目前没有**像朔日那样的「历史气数据」表。
+
+- **朔日**：《三千五百年历日天象》按各朝代颁行历法**据历还原**、用推步公式推算历日；ChineseCalendar 的 `calendarData.js` 里是**预存实历表**（该连续表），我们已提取为 `实历朔日表.csv`。
+- **节气/中气**：在 [ytliu0/ChineseCalendar](https://github.com/ytliu0/ChineseCalendar) 里节气是**算出来的**（`decompressSunMoonData.js` 的 `decompress_solarTerms`：用 DE431/DE441 的节气系数 + 每年压缩偏移），不是从史料整理的「某年冬至在哪一天」的逐条表。史料里也较少见到按年逐条记载的节气日期，多为朔闰记载。
+
+因此当前策略是：**朔用实历表，气用计算**。实历岁数据里的 12 个「中气」仅用于无中气置闰的月序标记（在实历模块内由相邻朔日中点合成），不表示历史记载的节气时刻。若将来有专著或数据源给出历史节气表，可再增加「历史气」模块与数据文件；在此之前，历史区间的节气展示只能依赖本仓库的定气计算（或平气公式）。

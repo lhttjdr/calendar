@@ -35,6 +35,34 @@ impl ChineseLunarYearData {
             zhong_qi_jds,
         }
     }
+
+    /// 主表朔日 + 修正表（辽金元等）：deltas[i] 为第 i 个朔的日数修正。中气取相邻朔修正之半。
+    pub fn apply_shuori_correction(&self, deltas: &[i32]) -> Option<Self> {
+        if deltas.len() != self.new_moon_jds.len() {
+            return None;
+        }
+        let new_moon_jds: Vec<Real> = self
+            .new_moon_jds
+            .iter()
+            .zip(deltas.iter())
+            .map(|(jd, &d)| *jd + real(d))
+            .collect();
+        let zhong_qi_jds: Vec<Real> = self
+            .zhong_qi_jds
+            .iter()
+            .enumerate()
+            .map(|(j, zq)| {
+                let d0 = deltas.get(j).copied().unwrap_or(0);
+                let d1 = deltas.get(j + 1).copied().unwrap_or(0);
+                *zq + real((d0 + d1) / 2)
+            })
+            .collect();
+        Some(Self {
+            lunar_year: self.lunar_year,
+            new_moon_jds,
+            zhong_qi_jds,
+        })
+    }
 }
 
 /// 公历与农历均按 UTC+8 日界，时区一致；公历日 (y,m,d) 用 JDN，朔日等用 JD→日号。

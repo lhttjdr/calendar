@@ -1,0 +1,162 @@
+[
+  {
+    "regime": "卫",
+    "period_bc": "前十一世纪—前209",
+    "destroyed_by": "秦"
+  },
+  {
+    "regime": "西周",
+    "period_bc": "前440(?)—前256",
+    "destroyed_by": "秦"
+  },
+  {
+    "regime": "齐",
+    "period_bc": "前十一世纪—前221",
+    "destroyed_by": "秦"
+  },
+  {
+    "regime": "东周",
+    "period_bc": "前367—前249",
+    "destroyed_by": "秦"
+  },
+  {
+    "regime": "晋",
+    "period_bc": "前十一世纪—前369",
+    "destroyed_by": "韩、赵、魏"
+  },
+  {
+    "regime": "东虢",
+    "period_bc": "?—前767",
+    "destroyed_by": "郑"
+  },
+  {
+    "regime": "燕",
+    "period_bc": "前十一世纪—前222",
+    "destroyed_by": "秦"
+  },
+  {
+    "regime": "北虢",
+    "period_bc": "?—前655",
+    "destroyed_by": "晋"
+  },
+  {
+    "regime": "鲁",
+    "period_bc": "前十一世纪—前256",
+    "destroyed_by": "楚"
+  },
+  {
+    "regime": "韩",
+    "period_bc": "前403—前230",
+    "destroyed_by": "秦"
+  },
+  {
+    "regime": "宋",
+    "period_bc": "前十一世纪—前286",
+    "destroyed_by": "齐"
+  },
+  {
+    "regime": "赵",
+    "period_bc": "前403—前222",
+    "destroyed_by": "秦"
+  },
+  {
+    "regime": "蔡",
+    "period_bc": "前十一世纪—前447",
+    "destroyed_by": "楚"
+  },
+  {
+    "regime": "魏",
+    "period_bc": "前403—前225",
+    "destroyed_by": "秦"
+  },
+  {
+    "regime": "陈",
+    "period_bc": "前十一世纪—前479",
+    "destroyed_by": "楚"
+  },
+  {
+    "regime": "芮",
+    "period_bc": "?—前640",
+    "destroyed_by": "秦"
+  },
+  {
+    "regime": "许",
+    "period_bc": "前十一世纪—前400(?)",
+    "destroyed_by": "楚(一说魏)"
+  },
+  {
+    "regime": "滕",
+    "period_bc": "?—前300(?)",
+    "destroyed_by": "宋"
+  },
+  {
+    "regime": "邢",
+    "period_bc": "前十一世纪—前635",
+    "destroyed_by": "卫"
+  },
+  {
+    "regime": "息",
+    "period_bc": "?—前680",
+    "destroyed_by": "楚"
+  },
+  {
+    "regime": "曹",
+    "period_bc": "前十一世纪—前487",
+    "destroyed_by": "宋"
+  },
+  {
+    "regime": "莒",
+    "period_bc": "?—前431",
+    "destroyed_by": "楚"
+  },
+  {
+    "regime": "杞",
+    "period_bc": "前十一世纪—前445",
+    "destroyed_by": "楚"
+  },
+  {
+    "regime": "邓",
+    "period_bc": "?—前678",
+    "destroyed_by": "楚"
+  },
+  {
+    "regime": "楚",
+    "period_bc": "?—前223",
+    "destroyed_by": "秦"
+  },
+  {
+    "regime": "黄",
+    "period_bc": "?—前648",
+    "destroyed_by": "楚"
+  },
+  {
+    "regime": "徐",
+    "period_bc": "?—前512后",
+    "destroyed_by": "吴、楚"
+  },
+  {
+    "regime": "郳(邹)",
+    "period_bc": "?—前281后",
+    "destroyed_by": "楚"
+  },
+  {
+    "regime": "吴",
+    "period_bc": "?—前473",
+    "destroyed_by": "越"
+  },
+  {
+    "regime": "郑",
+    "period_bc": "前806—前375",
+    "destroyed_by": "韩"
+  },
+  {
+    "regime": "越",
+    "period_bc": "?—前306(?)",
+    "destroyed_by": "楚"
+  },
+  {
+    "regime": "中山",
+    "period_bc": "?—前296",
+    "destroyed_by": "赵"
+  }
+]

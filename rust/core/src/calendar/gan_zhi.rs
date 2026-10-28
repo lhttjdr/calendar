@@ -1,6 +1,7 @@
 //! 干支历：干支纪日（天干地支 60 日循环）。
 //!
-//! 历元：公历 2000-01-01 为 庚辰日（序 16）。日界按 0h UT，JD 取整为 floor(JD + 0.5)。
+//! 历元：公历 2000-01-01 为戊午日（序 54），即干支序 = (JDN + 49) mod 60。日界按 0h UT，JD 取整为 floor(JD + 0.5)。
+//! （2000 年为庚辰年，庚辰是**年**干支，不是该日的日干支。）
 
 use crate::math::real::{real, RealOps, ToReal};
 
@@ -14,9 +15,9 @@ pub const GAN_ZHI_60: [&str; 60] = [
     "甲寅", "乙卯", "丙辰", "丁巳", "戊午", "己未", "庚申", "辛酉", "壬戌", "癸亥",
 ];
 
-/// 2000-01-01 0h UT 的「日号」= floor(JD+0.5) = 2451545，该日为庚辰（序 16）。
+/// 2000-01-01 0h UT 的「日号」= floor(JD+0.5) = 2451545，该日为戊午（序 54）。
 const EPOCH_DAY_2000_01_01: i32 = 2451545;
-const EPOCH_GAN_ZHI_INDEX: i32 = 16;
+const EPOCH_GAN_ZHI_INDEX: i32 = 54;
 
 /// 儒略日（0h UT）对应的干支日序（0..60）。JD 支持 Real。
 #[inline]
@@ -44,10 +45,21 @@ mod tests {
     use crate::calendar::gregorian::Gregorian;
 
     #[test]
-    fn year_2000_jan_1_is_geng_chen() {
+    fn year_2000_jan_1_is_wu_wu() {
         let jd = Gregorian::to_julian_day(2000, 1, 1);
-        let idx = jd_to_gan_zhi_index(jd);
-        assert_eq!(idx, 16, "2000-01-01 应为庚辰(16)");
-        assert_eq!(jd_to_gan_zhi_day(jd), "庚辰");
+        assert_eq!(jd_to_gan_zhi_index(jd), 54, "2000-01-01 应为戊午(54)");
+        assert_eq!(jd_to_gan_zhi_day(jd), "戊午");
+    }
+
+    /// 史志所记朔日干支（日期为实历朔日表的儒略历日期）。
+    #[test]
+    fn historical_records() {
+        use crate::calendar::gregorian::civil_to_julian_day;
+        // 《汉书·王莽传上》：以十二月朔癸酉为建国元年正月之朔（公元 9 年 1 月 15 日）
+        assert_eq!(jd_to_gan_zhi_day(civil_to_julian_day(9, 1, 15)), "癸酉");
+        // 《旧唐书·肃宗纪》：建巳月庚戌朔（762 年 4 月 29 日）
+        assert_eq!(jd_to_gan_zhi_day(civil_to_julian_day(762, 4, 29)), "庚戌");
+        // 1949-10-01 为甲子日
+        assert_eq!(gregorian_to_gan_zhi_day(1949, 10, 1), "甲子");
     }
 }

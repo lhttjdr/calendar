@@ -1,0 +1,230 @@
+[
+  {
+    "gregorian_year": 1912,
+    "ganzhi": "壬子",
+    "minguo_year": 1,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1913,
+    "ganzhi": "癸丑",
+    "minguo_year": 2,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1914,
+    "ganzhi": "甲寅",
+    "minguo_year": 3,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1915,
+    "ganzhi": "乙卯",
+    "minguo_year": 4,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1916,
+    "ganzhi": "丙辰",
+    "minguo_year": 5,
+    "remarks": "袁世凯洪宪①1③（复核确认无误，原书圆圈数字：正月建元，③=三月即取消，民国五年洪宪帝制存续于1—3月）"
+  },
+  {
+    "gregorian_year": 1917,
+    "ganzhi": "丁巳",
+    "minguo_year": 6,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1918,
+    "ganzhi": "戊午",
+    "minguo_year": 7,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1919,
+    "ganzhi": "己未",
+    "minguo_year": 8,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1920,
+    "ganzhi": "庚申",
+    "minguo_year": 9,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1921,
+    "ganzhi": "辛酉",
+    "minguo_year": 10,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1922,
+    "ganzhi": "壬戌",
+    "minguo_year": 11,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1923,
+    "ganzhi": "癸亥",
+    "minguo_year": 12,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1924,
+    "ganzhi": "甲子",
+    "minguo_year": 13,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1925,
+    "ganzhi": "乙丑",
+    "minguo_year": 14,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1926,
+    "ganzhi": "丙寅",
+    "minguo_year": 15,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1927,
+    "ganzhi": "丁卯",
+    "minguo_year": 16,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1928,
+    "ganzhi": "戊辰",
+    "minguo_year": 17,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1929,
+    "ganzhi": "己巳",
+    "minguo_year": 18,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1930,
+    "ganzhi": "庚午",
+    "minguo_year": 19,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1931,
+    "ganzhi": "辛未",
+    "minguo_year": 20,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1932,
+    "ganzhi": "壬申",
+    "minguo_year": 21,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1933,
+    "ganzhi": "癸酉",
+    "minguo_year": 22,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1934,
+    "ganzhi": "甲戌",
+    "minguo_year": 23,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1935,
+    "ganzhi": "乙亥",
+    "minguo_year": 24,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1936,
+    "ganzhi": "丙子",
+    "minguo_year": 25,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1937,
+    "ganzhi": "丁丑",
+    "minguo_year": 26,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1938,
+    "ganzhi": "戊寅",
+    "minguo_year": 27,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1939,
+    "ganzhi": "己卯",
+    "minguo_year": 28,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1940,
+    "ganzhi": "庚辰",
+    "minguo_year": 29,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1941,
+    "ganzhi": "辛巳",
+    "minguo_year": 30,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1942,
+    "ganzhi": "壬午",
+    "minguo_year": 31,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1943,
+    "ganzhi": "癸未",
+    "minguo_year": 32,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1944,
+    "ganzhi": "甲申",
+    "minguo_year": 33,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1945,
+    "ganzhi": "乙酉",
+    "minguo_year": 34,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1916,
+    "ganzhi": "丙戌",
+    "minguo_year": 35,
+    "remarks": "复核确认为原书印刷错误（非转录/扫描误读）：经原图及PDF内嵌高分辨率原始扫描反复放大核对，此行公元栏第三位数字确为「1」字形（与相邻「6」及「1916」年行的「1」字形一致），原书此行公元栏确实印作\"1916\"，与同行干支\"丙戌\"、中华民国纪年\"35\"及上下文顺序（前一行1945、后一行1947）不符，据此推定应为公元1946年，原书此处系印刷误植，非转录笔误（未擅自改动数值，如需下游使用建议按1946处理并保留此说明）。"
+  },
+  {
+    "gregorian_year": 1947,
+    "ganzhi": "丁亥",
+    "minguo_year": 36,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1948,
+    "ganzhi": "戊子",
+    "minguo_year": 37,
+    "remarks": ""
+  },
+  {
+    "gregorian_year": 1949,
+    "ganzhi": "己丑",
+    "minguo_year": 38,
+    "remarks": "*本年10月1日中华人民共和国成立，采用公历纪年（原书页末星号注）。"
+  }
+]

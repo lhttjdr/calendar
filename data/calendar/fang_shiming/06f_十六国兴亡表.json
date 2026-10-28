@@ -1,0 +1,128 @@
+[
+  {
+    "name": "汉、前赵",
+    "founder": "刘渊",
+    "ethnicity": "匈奴",
+    "years": "304—329",
+    "conquered_by": "后赵"
+  },
+  {
+    "name": "成汉",
+    "founder": "李雄",
+    "ethnicity": "巴氐",
+    "years": "304—347",
+    "conquered_by": "东晋"
+  },
+  {
+    "name": "前凉",
+    "founder": "张寔",
+    "ethnicity": "汉",
+    "years": "317—376",
+    "conquered_by": "前秦"
+  },
+  {
+    "name": "后赵",
+    "founder": "石勒",
+    "ethnicity": "羯",
+    "years": "319—351",
+    "conquered_by": "冉魏"
+  },
+  {
+    "name": "冉魏",
+    "founder": "冉闵",
+    "ethnicity": "汉",
+    "years": "350—352",
+    "conquered_by": "前燕"
+  },
+  {
+    "name": "前燕",
+    "founder": "慕容皝",
+    "ethnicity": "鲜卑",
+    "years": "337—370",
+    "conquered_by": "前秦"
+  },
+  {
+    "name": "前秦",
+    "founder": "苻洪",
+    "ethnicity": "氐",
+    "years": "350—394",
+    "conquered_by": "后秦"
+  },
+  {
+    "name": "后秦",
+    "founder": "姚苌",
+    "ethnicity": "羌",
+    "years": "384—417",
+    "conquered_by": "东晋"
+  },
+  {
+    "name": "后燕",
+    "founder": "慕容垂",
+    "ethnicity": "鲜卑",
+    "years": "384—407",
+    "conquered_by": "北燕"
+  },
+  {
+    "name": "西燕",
+    "founder": "慕容泓",
+    "ethnicity": "鲜卑",
+    "years": "384—394",
+    "conquered_by": "后燕"
+  },
+  {
+    "name": "西秦",
+    "founder": "乞伏国仁",
+    "ethnicity": "鲜卑",
+    "years": "385—431",
+    "conquered_by": "夏"
+  },
+  {
+    "name": "后凉",
+    "founder": "吕光",
+    "ethnicity": "氐",
+    "years": "386—403",
+    "conquered_by": "后秦"
+  },
+  {
+    "name": "南凉",
+    "founder": "秃发乌孤",
+    "ethnicity": "鲜卑",
+    "years": "397—414",
+    "conquered_by": "西秦"
+  },
+  {
+    "name": "南燕",
+    "founder": "慕容德",
+    "ethnicity": "鲜卑",
+    "years": "398—410",
+    "conquered_by": "东晋"
+  },
+  {
+    "name": "西凉",
+    "founder": "李暠",
+    "ethnicity": "汉",
+    "years": "400—421",
+    "conquered_by": "北凉"
+  },
+  {
+    "name": "夏",
+    "founder": "赫连勃勃",
+    "ethnicity": "匈奴",
+    "years": "407—431",
+    "conquered_by": "吐谷浑"
+  },
+  {
+    "name": "北燕",
+    "founder": "冯跋",
+    "ethnicity": "汉",
+    "years": "407—436",
+    "conquered_by": "北魏"
+  },
+  {
+    "name": "北凉",
+    "founder": "沮渠蒙逊",
+    "ethnicity": "匈奴",
+    "years": "397—439",
+    "conquered_by": "北魏"
+  }
+]

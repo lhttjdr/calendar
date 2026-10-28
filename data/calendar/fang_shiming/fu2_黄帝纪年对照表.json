@@ -1,0 +1,56 @@
+[
+  {
+    "gregorian_year": 1903,
+    "minbao_huangdi_year": null,
+    "huangdihun_huangdi_year": 4614,
+    "jiangsu_etc_huangdi_year": 4394
+  },
+  {
+    "gregorian_year": 1904,
+    "minbao_huangdi_year": null,
+    "huangdihun_huangdi_year": 4615,
+    "jiangsu_etc_huangdi_year": 4395
+  },
+  {
+    "gregorian_year": 1905,
+    "minbao_huangdi_year": 4603,
+    "huangdihun_huangdi_year": 4616,
+    "jiangsu_etc_huangdi_year": 4396
+  },
+  {
+    "gregorian_year": 1906,
+    "minbao_huangdi_year": 4604,
+    "huangdihun_huangdi_year": 4617,
+    "jiangsu_etc_huangdi_year": 4397
+  },
+  {
+    "gregorian_year": 1907,
+    "minbao_huangdi_year": 4605,
+    "huangdihun_huangdi_year": 4618,
+    "jiangsu_etc_huangdi_year": 4398
+  },
+  {
+    "gregorian_year": 1908,
+    "minbao_huangdi_year": 4606,
+    "huangdihun_huangdi_year": 4619,
+    "jiangsu_etc_huangdi_year": 4399
+  },
+  {
+    "gregorian_year": 1909,
+    "minbao_huangdi_year": 4607,
+    "huangdihun_huangdi_year": 4620,
+    "jiangsu_etc_huangdi_year": 4400
+  },
+  {
+    "gregorian_year": 1910,
+    "minbao_huangdi_year": 4608,
+    "huangdihun_huangdi_year": 4621,
+    "jiangsu_etc_huangdi_year": 4401
+  },
+  {
+    "gregorian_year": 1911,
+    "minbao_huangdi_year": 4609,
+    "huangdihun_huangdi_year": 4622,
+    "jiangsu_etc_huangdi_year": 4402
+  }
+]

@@ -2,11 +2,12 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use once_cell::sync::Lazy;
 use wasm_bindgen::prelude::*;
+use lunar_core::calendar::era_gaiyuan::GaiyuanDays;
+use lunar_core::calendar::era_names::EraEntry;
 use lunar_core::math::real::{real, RealOps};
 use lunar_core::platform::{DataLoader, LoadError};
 use lunar_core::astronomy::ephemeris::{load_all, load_all_from_binary, load_earth_vsop87_from_repo, Elpmpp02Correction, Vsop87};
 use lunar_core::astronomy::frame::nutation;
-use lunar_core::astronomy::frame::vsop87_de406_icrs_patch;
 
 /// Wasm 侧 DataLoader 实现（与 core 的 DataLoaderNative 对称）。path → 文件内容，文本用 files，二进制用 binary（如 fetch 的 .bin）。
 struct DataLoaderWasm {
@@ -37,14 +38,31 @@ impl DataLoader for DataLoaderWasm {
     }
 }
 
-const VSOP87_EAR_PATH: &str = "data/vsop87/VSOP87B.ear";
-const ELP_BASE: &str = "data/elpmpp02";
+const VSOP87_EAR_PATH: &str = "vendor/vsop87/VSOP87B.ear";
+const ELP_BASE: &str = "vendor/elpmpp02";
 
 /// 缓存已解析的 VSOP87，避免日历每格调用时重复解析 300KB+ 文本（节气派干支历）。
 static VSOP87_CACHE: Lazy<Mutex<Option<Arc<Vsop87>>>> = Lazy::new(|| Mutex::new(None));
 
-/// 上次岁数据计算时的 repo 辅助数据加载状态（章动表、拟合表），供状态栏展示。
+/// 上次岁数据计算时的 repo 辅助数据加载状态（章动表、地球改正），供状态栏展示。
 static REPO_AUX_STATUS: Lazy<Mutex<(bool, bool)>> = Lazy::new(|| Mutex::new((false, false)));
+
+/// VSOP87 地球的 DE406/DE441 拟合改正（Chapront 2000 方法，`data/fit/vsop87-<目标>-earth.bin`），由
+/// [`init_vsop87_earth_patch_from_binary`] 设置；之后本模块构造的地球 VSOP87 都附上它。
+static EARTH_PATCH: Lazy<Mutex<Option<lunar_core::astronomy::ephemeris::vsop87_patch::LbrPatch>>> =
+    Lazy::new(|| Mutex::new(None));
+
+/// 给地球 VSOP87 附上已加载的改正（若有）。
+fn with_earth_patch(vsop: Vsop87) -> Vsop87 {
+    match EARTH_PATCH.lock().unwrap().as_ref() {
+        Some(p) => vsop.with_patch(p.clone()),
+        None => vsop,
+    }
+}
+
+fn earth_patch_loaded() -> bool {
+    EARTH_PATCH.lock().unwrap().is_some()
+}
 
 #[wasm_bindgen]
 pub fn gregorian_to_jd(year: i32, month: i32, day: i32) -> f64 {
@@ -237,6 +255,143 @@ pub fn delta_t_seconds(jd_tt: f64) -> f64 {
     lunar_core::astronomy::time::delta_t(real(jd_tt)).seconds().as_f64()
 }
 
+// ---------- 年号：跨来源汇总表 era_names_merged.csv（主线 + 并存政权，见 data/calendar/汇总/README.md）----------
+use lunar_core::calendar::era_names::{year_to_cn, EraNames};
+
+static GAIYUAN_DAYS: Lazy<GaiyuanDays> = Lazy::new(|| {
+    GaiyuanDays::from_csv(include_str!("../../../data/calendar/era_gaiyuan_day.csv")).unwrap_or_default()
+});
+
+static ERA_NAMES: Lazy<EraNames> = Lazy::new(|| {
+    EraNames::from_csv(include_str!("../../../data/calendar/汇总/era_names_merged.csv")).unwrap_or_default()
+});
+
+/// 按农历年查"正统主线"年号（对应旧单一年号表的等价行为）。同一年若有并存政权，见 [get_era_name_parts_all]。
+#[wasm_bindgen(js_name = get_era_name)]
+pub fn get_era_name(lunar_year: i32, _simp: bool) -> String {
+    ERA_NAMES.get_primary(lunar_year).map(|e| e.era_simp()).unwrap_or_default()
+}
+
+fn json_era_parts_ext(
+    e: &EraEntry,
+    gaiyuan_resolved: bool,
+    gaiyuan_on_this_day: bool,
+    gaiyuan_precision: &str,
+) -> String {
+    let era_year = e.era_year.map(year_to_cn).unwrap_or_default();
+    let gaiyuan_prev_year = e.gaiyuan_prev_era_year.map(year_to_cn).unwrap_or_default();
+    let era = format!("{}{}", e.era_name_simp, era_year);
+    let esc = |s: &str| s.replace('\\', "\\\\").replace('"', "\\\"");
+    format!(
+        r#"{{"regime":"{}","emperor":"{}","era_name":"{}","era_year":"{}","era":"{}","gaiyuan_prev_era_name":"{}","gaiyuan_prev_era_year":"{}","has_gaiyuan":{},"gaiyuan_resolved":{},"gaiyuan_on_this_day":{},"gaiyuan_precision":"{}","is_primary":{}}}"#,
+        esc(&e.regime_simp),
+        esc(&e.emperor_simp),
+        esc(&e.era_name_simp),
+        esc(&era_year),
+        esc(&era),
+        esc(&e.gaiyuan_prev_era_name_simp),
+        esc(&gaiyuan_prev_year),
+        e.has_gaiyuan,
+        gaiyuan_resolved,
+        gaiyuan_on_this_day,
+        esc(gaiyuan_precision),
+        e.is_primary,
+    )
+}
+
+fn json_era_parts_empty() -> String {
+    json_era_parts_ext(&EraEntry::default(), true, false, "unknown")
+}
+
+/// 按农历年查"正统主线"年号并拆分为 政权、帝号、年号名、年数；改元时含 gaiyuan_prev_era_name/year。返回 JSON。
+#[wasm_bindgen(js_name = get_era_name_parts)]
+pub fn get_era_name_parts(lunar_year: i32, _simp: bool) -> String {
+    match ERA_NAMES.get_primary(lunar_year) {
+        Some(e) => json_era_parts_ext(e, !e.has_gaiyuan, false, "unknown"),
+        None => json_era_parts_empty(),
+    }
+}
+
+/// 按农历年查**全部**并存政权（三国魏蜀吴、五代十国等同一年可能有多条），返回 JSON 数组，
+/// 每条形状与 [get_era_name_parts] 相同（含 `is_primary` 标出哪条是"正统主线"）。
+#[wasm_bindgen(js_name = get_era_name_parts_all)]
+pub fn get_era_name_parts_all(lunar_year: i32) -> String {
+    let all = ERA_NAMES.get_all(lunar_year);
+    let parts: Vec<String> = all
+        .iter()
+        .map(|e| json_era_parts_ext(e, !e.has_gaiyuan, false, "unknown"))
+        .collect();
+    format!("[{}]", parts.join(","))
+}
+
+/// 按农历年 + 公历日 + 农历月日解析"正统主线"现行年号。改元日已补则按日切换；未补则前年号/新年号并列。
+#[wasm_bindgen(js_name = get_era_name_parts_for_day)]
+pub fn get_era_name_parts_for_day(
+    lunar_year: i32,
+    g_year: i32,
+    g_month: i32,
+    g_day: i32,
+    lunar_month: i32,
+    lunar_is_leap: bool,
+    lunar_day: i32,
+) -> String {
+    let Some(entry) = ERA_NAMES.get_primary(lunar_year) else {
+        return json_era_parts_empty();
+    };
+    let lunar_md = u8::try_from(lunar_month).ok().zip(u8::try_from(lunar_day).ok()).map(|(m, d)| (m, lunar_is_leap, d));
+    // 前端日期为前推格里高利历；改元日表按民用历（1582-10-15 前儒略历）记，先换成民用历再比较。
+    let civil = lunar_core::calendar::gregorian::civil_from_julian_day(
+        lunar_core::calendar::gregorian::Gregorian::to_julian_day(g_year, g_month, g_day),
+    );
+    let on = GAIYUAN_DAYS.resolve(
+        entry,
+        lunar_year,
+        Some(civil),
+        lunar_md,
+    );
+    // GaiyuanDays::resolve 返回的 EraOnDay 用的是中文数字年数文本（跟 era_gaiyuan_day.csv 的列一致），
+    // 这里桥接回 json_era_parts_ext 需要的整数年数字段——用 parse_cn_era_year 转一次。
+    use lunar_core::calendar::era_names::{gregorian_civil_year_era_year, parse_cn_era_year};
+    // 近现代政权（如中华民国）按公历年纪年，CSV 里存的 era_year 是按农历正月初一取的近似值；
+    // 这里既然已经有具体公历年份，就用精确公式覆盖，不依赖 era_gaiyuan_day.csv 机制
+    // （那套是给"某具体历史事件哪天改元"用的，公历跨年这种规律性换算不需要逐年録入事件表）。
+    let era_year = gregorian_civil_year_era_year(&on.regime_simp, g_year)
+        .or_else(|| parse_cn_era_year(&on.era_year_simp));
+    let resolved_entry = EraEntry {
+        is_primary: entry.is_primary,
+        has_gaiyuan: on.has_gaiyuan,
+        regime_simp: on.regime_simp,
+        emperor_simp: on.emperor_simp,
+        era_name_simp: on.era_name_simp,
+        era_year,
+        gaiyuan_prev_era_name_simp: on.gaiyuan_prev_era_name_simp,
+        gaiyuan_prev_era_year: parse_cn_era_year(&on.gaiyuan_prev_era_year_simp),
+        gaiyuan_month: entry.gaiyuan_month,
+    };
+    json_era_parts_ext(&resolved_entry, on.gaiyuan_resolved, on.gaiyuan_on_this_day, on.precision.as_str())
+}
+
+
+/// 公历 (y,m,d) 下各推步政权（蜀、吴等）的农历月日，返回 JSON 数组 [{ region, calendar_name, lunar_year, month, is_leap, day }]。主表由前端提供。
+#[wasm_bindgen(js_name = get_regimes_lunar_for_day)]
+pub fn get_regimes_lunar_for_day(g_year: i32, g_month: i32, g_day: i32) -> String {
+    let entries = lunar_core::calendar::push_calendar::gregorian_to_all_regimes_lunar(
+        g_year, g_month, g_day,
+    );
+    let parts: Vec<String> = entries
+        .iter()
+        .map(|e| {
+            let region = e.region.replace('\\', "\\\\").replace('"', "\\\"");
+            let cal = e.calendar_name.replace('\\', "\\\\").replace('"', "\\\"");
+            format!(
+                r#"{{"region":"{}","calendar_name":"{}","lunar_year":{},"month":{},"is_leap":{},"day":{}}}"#,
+                region, cal, e.lunar_year, e.month, e.is_leap, e.day
+            )
+        })
+        .collect();
+    format!("[{}]", parts.join(","))
+}
+
 /// 公历 (年, 月, 日) → 干支日名称（如「庚辰」）
 #[wasm_bindgen]
 pub fn gregorian_to_gan_zhi_day(year: i32, month: i32, day: i32) -> String {
@@ -337,7 +492,7 @@ pub fn ganzhi_from_jd_solar_wasm(
             files.insert(VSOP87_EAR_PATH.to_string(), vsop87_ear.to_string());
             let loader = DataLoaderWasm::new(files);
             lunar_core::repo::set_loader(Box::new(loader));
-            let parsed = load_earth_vsop87_from_repo().map_err(|e| JsValue::from_str(&e.to_string()))?;
+            let parsed = with_earth_patch(load_earth_vsop87_from_repo().map_err(|e| JsValue::from_str(&e.to_string()))?);
             let arc = Arc::new(parsed);
             *guard = Some(Arc::clone(&arc));
             arc
@@ -470,7 +625,7 @@ pub fn ganzhi_for_gregorian_month_wasm(
             files.insert(VSOP87_EAR_PATH.to_string(), vsop87_ear.to_string());
             let loader = DataLoaderWasm::new(files);
             lunar_core::repo::set_loader(Box::new(loader));
-            match load_earth_vsop87_from_repo() {
+            match load_earth_vsop87_from_repo().map(with_earth_patch) {
                 Ok(parsed) => {
                     let arc = Arc::new(parsed);
                     *guard = Some(Arc::clone(&arc));
@@ -599,6 +754,7 @@ pub fn compute_year_data_wasm(
     elp_pert_s1: &str,
     elp_pert_s2: &str,
     elp_pert_s3: &str,
+    nutation_tab53a_bin: &[u8],
 ) -> Result<YearDataResult, JsValue> {
     let mut files = HashMap::new();
     files.insert(VSOP87_EAR_PATH.to_string(), vsop87_ear.to_string());
@@ -610,10 +766,13 @@ pub fn compute_year_data_wasm(
     files.insert(format!("{}/ELP_PERT.S3", ELP_BASE), elp_pert_s3.to_string());
     let loader = DataLoaderWasm::new(files);
     lunar_core::repo::set_loader(Box::new(loader));
-    let nutation_ok = nutation::try_init_full_nutation_from_repo();
-    let patch_ok = vsop87_de406_icrs_patch::try_init_de406_patch_from_repo();
-    *REPO_AUX_STATUS.lock().unwrap() = (nutation_ok, patch_ok);
-    let vsop = load_earth_vsop87_from_repo().map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let nutation_ok = if !nutation_tab53a_bin.is_empty() {
+        nutation::try_init_full_nutation_from_binary(nutation_tab53a_bin)
+    } else {
+        nutation::try_init_full_nutation_from_repo()
+    };
+    *REPO_AUX_STATUS.lock().unwrap() = (nutation_ok, earth_patch_loaded());
+    let vsop = with_earth_patch(load_earth_vsop87_from_repo().map_err(|e| JsValue::from_str(&e.to_string()))?);
     let elp = load_all(lunar_core::repo::get_loader().unwrap(), ELP_BASE, Elpmpp02Correction::DE406)
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
     let year_data = lunar_core::calendar::chinese_lunar::compute_year_data(
@@ -643,8 +802,9 @@ pub fn compute_year_data_from_binary(
     elp_pert_s1: &str,
     elp_pert_s2: &str,
     elp_pert_s3: &str,
+    nutation_tab53a_bin: &[u8],
 ) -> Result<YearDataResult, JsValue> {
-    let vsop = Vsop87::from_binary(vsop87_ear_bin).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let vsop = with_earth_patch(Vsop87::from_binary(vsop87_ear_bin).map_err(|e| JsValue::from_str(&e.to_string()))?);
     let mut files = HashMap::new();
     files.insert(format!("{}/ELP_MAIN.S1", ELP_BASE), elp_main_s1.to_string());
     files.insert(format!("{}/ELP_MAIN.S2", ELP_BASE), elp_main_s2.to_string());
@@ -654,9 +814,12 @@ pub fn compute_year_data_from_binary(
     files.insert(format!("{}/ELP_PERT.S3", ELP_BASE), elp_pert_s3.to_string());
     let loader = DataLoaderWasm::new(files);
     lunar_core::repo::set_loader(Box::new(loader));
-    let nutation_ok = nutation::try_init_full_nutation_from_repo();
-    let patch_ok = vsop87_de406_icrs_patch::try_init_de406_patch_from_repo();
-    *REPO_AUX_STATUS.lock().unwrap() = (nutation_ok, patch_ok);
+    let nutation_ok = if !nutation_tab53a_bin.is_empty() {
+        nutation::try_init_full_nutation_from_binary(nutation_tab53a_bin)
+    } else {
+        nutation::try_init_full_nutation_from_repo()
+    };
+    *REPO_AUX_STATUS.lock().unwrap() = (nutation_ok, earth_patch_loaded());
     let elp = load_all(lunar_core::repo::get_loader().unwrap(), ELP_BASE, Elpmpp02Correction::DE406)
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
     let year_data = lunar_core::calendar::chinese_lunar::compute_year_data(
@@ -675,6 +838,7 @@ pub fn compute_year_data_from_binary(
 }
 
 /// 全二进制岁数据：VSOP87 + 6 个 ELP 均为二进制，零解析。前端 fetch 全部 .bin 时调用。
+/// nutation_tab53a_bin：章动完整表二进制（tab5.3a.bin），传空切片则不启用完整章动（回落 77 项/零，见 REPO_AUX_STATUS）。
 #[wasm_bindgen]
 pub fn compute_year_data_full_binary(
     lunar_year: i32,
@@ -685,8 +849,9 @@ pub fn compute_year_data_full_binary(
     elp_pert_s1_bin: &[u8],
     elp_pert_s2_bin: &[u8],
     elp_pert_s3_bin: &[u8],
+    nutation_tab53a_bin: &[u8],
 ) -> Result<YearDataResult, JsValue> {
-    let vsop = Vsop87::from_binary(vsop87_ear_bin).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let vsop = with_earth_patch(Vsop87::from_binary(vsop87_ear_bin).map_err(|e| JsValue::from_str(&e.to_string()))?);
     let elp = load_all_from_binary(
         elp_main_s1_bin,
         elp_main_s2_bin,
@@ -697,8 +862,12 @@ pub fn compute_year_data_full_binary(
         Elpmpp02Correction::DE406,
     )
     .map_err(|e| JsValue::from_str(&e.to_string()))?;
-    let patch_ok = vsop87_de406_icrs_patch::is_de406_patch_loaded();
-    *REPO_AUX_STATUS.lock().unwrap() = (false, patch_ok);
+    let nutation_ok = if !nutation_tab53a_bin.is_empty() {
+        nutation::try_init_full_nutation_from_binary(nutation_tab53a_bin)
+    } else {
+        false
+    };
+    *REPO_AUX_STATUS.lock().unwrap() = (nutation_ok, earth_patch_loaded());
     let year_data = lunar_core::calendar::chinese_lunar::compute_year_data(
         &vsop,
         &elp,
@@ -714,20 +883,30 @@ pub fn compute_year_data_full_binary(
     })
 }
 
-/// 从二进制加载拟合表（.bin 或解压后的 .br）。在全二进制历表路径下，前端可先 fetch patch.bin 再调用本函数，再调用 compute_year_data_full_binary，则状态栏显示「拟合表: 已加载」。
+/// 加载 VSOP87 地球的 DE406/DE441 拟合改正（`data/fit/vsop87-<目标>-earth.bin`，或解压后的 .br）。前端在计算前调用；
+/// 之后构造的地球 VSOP87 都施加此改正，状态栏显示「地球改正: 已加载」。清空 VSOP87 缓存以免沿用未改正的对象。
 #[wasm_bindgen]
-pub fn init_de406_patch_from_binary(bytes: &[u8]) -> bool {
-    vsop87_de406_icrs_patch::try_init_de406_patch_from_binary(bytes)
+pub fn init_vsop87_earth_patch_from_binary(bytes: &[u8]) -> bool {
+    let Ok(patch) = lunar_core::astronomy::ephemeris::vsop87_patch::Vsop87DePatch::from_binary(bytes) else {
+        return false;
+    };
+    let Some(earth) = patch.body("ear").cloned() else {
+        return false;
+    };
+    *EARTH_PATCH.lock().unwrap() = Some(earth);
+    *VSOP87_CACHE.lock().unwrap() = None;
+    true
 }
 
-/// 上次岁数据计算时的 repo 辅助数据加载状态，供状态栏展示。全二进制路径下章动未从 repo 加载；拟合表若已通过 init_de406_patch_from_binary 加载则为 true。
+/// 上次岁数据计算时的 repo 辅助数据加载状态，供状态栏展示。全二进制路径下章动未从 repo 加载；地球改正若已通过
+/// init_vsop87_earth_patch_from_binary 加载则为 true。
 #[wasm_bindgen]
 pub fn get_repo_aux_nutation_full() -> bool {
     REPO_AUX_STATUS.lock().unwrap().0
 }
 
 #[wasm_bindgen]
-pub fn get_repo_aux_patch_icrs() -> bool {
+pub fn get_repo_aux_earth_patch() -> bool {
     REPO_AUX_STATUS.lock().unwrap().1
 }
 
