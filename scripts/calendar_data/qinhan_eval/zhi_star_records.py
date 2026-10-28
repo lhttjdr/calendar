@@ -550,6 +550,7 @@ def main(book):
         return rec
 
     dates = []
+    leap_marks = []
 
     def add_date(sent):
         """纪日：当前上下文带日干支者记一条（本纪记事日期，检验各历表用）。"""
@@ -702,6 +703,11 @@ def main(book):
                         elif m["era"]:
                             yr = None
                         if m["mon"] or m["leap"]:
+                            if date_only and m["leap"] and not m["mon"] and era_start is not None and yr is not None and mon:
+                                # 本纪「六月……閏月……」：閏月接在所记前一月之后，为闰位的直接证据
+                                leap_marks.append(dict(regime=cur_regime or regime_of(era_start + yr - 1, cfg["regimes"]),
+                                                       era=era_label.translate(S2T), year_in_era=yr, year=era_start + yr - 1,
+                                                       leap_after=mon, text=sent.strip()[:60]))
                             leap = bool(m["leap"])
                             if m["mon"] and m["mon"][0] == "建":  # 肃宗元年以斗建名月（建子月=十一月）
                                 mon = "寅卯辰巳午未申酉戌亥子丑".index(m["mon"][1]) + 1
@@ -848,6 +854,12 @@ def main(book):
             w.writeheader()
             w.writerows([{k: (v.replace(",", "，") if isinstance(v, str) else v) for k, v in d.items()} for d in dates])
         print(f"本纪纪日/{book}.csv", len(dates), "条，干支不在月", sum(not d["in_month"] for d in dates))
+    if leap_marks:
+        with open(ROOT / "data/calendar/本纪纪日" / f"{book}_閏月.csv", "w", encoding="utf-8", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=list(leap_marks[0].keys()))
+            w.writeheader()
+            w.writerows([{k: (v.replace(",", "，") if isinstance(v, str) else v) for k, v in d.items()} for d in leap_marks])
+        print(f"本纪纪日/{book}_閏月.csv", len(leap_marks), "条")
     for kind, recs in eclipses.items() if cfg.get("eclipses", True) else ():
         dst = ROOT / f"data/phenomena/{book}_{kind}_eclipses.csv"
         if not recs:

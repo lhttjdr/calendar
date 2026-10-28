@@ -153,5 +153,43 @@ def main():
         print(f"异说之月 {reg} {y} 年 {m} 月：", disputed_hits.get((reg, y, m)) or "无记录")
 
 
+def leap_evidence():
+    """本纪「閏月」所接之月（zhi_star_records.py 纪日模式输出的 *_閏月.csv）与各历表当年闰位逐条比对。"""
+    tabs = tables()
+    leaps = {name: {k[0]: k[1] for k in tab if k[2]} for name, tab in tabs.items()}
+    out = []
+    for path in sorted(glob.glob(str(ROOT / "data/calendar/本纪纪日/*_閏月.csv"))):
+        book = Path(path).stem.replace("_閏月", "")
+        for r in csv.DictReader(open(path, encoding="utf-8")):
+            y, after, regime = int(r["year"]), int(r["leap_after"]), r["regime"]
+            fam = FAMILY.get(regime)
+            row = {"书": book, "政权": regime, "年": y, "纪年": f"{r['era']}{r['year_in_era']}年", "本纪闰位": f"闰{after}"}
+            for col, name in (("主表", "主表"), ("本项目推步", f"推步:{fam}"), ("上游推步", f"上游:{fam}")):
+                if name not in leaps:
+                    row[col] = ""
+                    continue
+                lp = leaps[name].get(y)
+                covered = any(k[0] == y for k in tabs[name])
+                row[col] = "" if not covered else (f"闰{lp}" + ("（合）" if lp == after else "（不合）") if lp else "无闰（不合）")
+            row["原文"] = r["text"][:40]
+            out.append(row)
+    dst = ROOT / "data/calendar/leap_evidence.csv"
+    with open(dst, "w", encoding="utf-8", newline="") as f:
+        f.write("# 本纪「閏月」所接之月与各历表闰位（scripts/calendar_data/discriminating_records.py）；空格为该表当年无数据。\n")
+        w = csv.DictWriter(f, fieldnames=list(out[0].keys()))
+        w.writeheader()
+        w.writerows(out)
+    summ = defaultdict(lambda: [0, 0])
+    for o in out:
+        for col in ("主表", "本项目推步", "上游推步"):
+            if o[col]:
+                summ[(o["政权"], col)][0] += 1
+                summ[(o["政权"], col)][1] += "（合）" in o[col]
+    print(dst, len(out), "条")
+    for (reg, col), (n, ok) in sorted(summ.items()):
+        print(f"  {reg} {col}：{ok}/{n} 合")
+
+
 if __name__ == "__main__":
     main()
+    leap_evidence()
