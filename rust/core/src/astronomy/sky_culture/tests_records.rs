@@ -211,7 +211,6 @@ fn check_book(book: &'static str, title: &str) {
     let asterisms: HashMap<String, Asterism> =
         load_asterisms_from_repo().unwrap().into_iter().filter(|a| a.system == "chenzhuo").map(|a| (a.id.clone(), a)).collect();
     let systems = load_lunar_mansion_systems_from_repo().unwrap();
-    let chenzhuo = systems.iter().find(|s| s.id == "chenzhuo").unwrap();
     let recs = read_records(&format!("data/phenomena/{book}_star_records.csv"));
     let opts = ApparentPipelineOptions::default();
     let tp = |t: f64| TimePoint::new(TimeScale::TT, real(t));
