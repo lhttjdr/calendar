@@ -238,3 +238,12 @@ CALENDAR_DATA_PATH=/tmp/ChineseCalendar/src/calendarData.js node scripts/calenda
 
 本仓库 Rust 核心库中解析、使用这两张表的**实历模块**与**年号模块**，其接口、设计原则与用法见
 [doc/calendar/historical-calendar.md](../../doc/calendar/historical-calendar.md)，不在本文重复。
+
+
+## 本纪纪日（`本纪纪日/<书>.csv`）
+
+`scripts/calendar_data/qinhan_eval/zhi_star_records.py` 的纪日模式（`date_sections`，每卷指定政权）从本纪抽取带日干支的记事日期：
+《三国志》（`sanguozhi`）、《魏书》（`weishu_benji`）、《北齐书》（`beiqishu_benji`）、《周书》（`zhoushu_benji`）、《隋书》（`suishu_benji`）。
+列：regime、era、year_in_era、year（天文纪年）、month（所记月序，闰月前加「闰」）、month_name、leap、ganzhi、calendar（该政权所用历表）、
+in_month（日干支在该历所记之月）、jdn、julian、text。用于 `scripts/calendar_data/discriminating_records.py` 以一手日期检验主表与各推步表，
+结论见 `doc/calendar/push-algorithms.md` §3.3。本纪月份更替常不书，in_month = 0 者多为此，非历表之误（在各表下同样不在月）。

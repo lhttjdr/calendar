@@ -68,6 +68,12 @@ def records():
             if r.get("ganzhi") not in g.GANZHI or not r.get("year"):
                 continue
             yield book, kind, r
+    # 本纪记事日期（zhi_star_records.py 的 date_sections 输出）
+    for path in sorted(glob.glob(str(ROOT / "data/calendar/本纪纪日/*.csv"))):
+        book = Path(path).stem
+        for r in csv.DictReader(open(path, encoding="utf-8")):
+            if r.get("ganzhi") in g.GANZHI and r.get("year"):
+                yield book, "纪事", r
 
 
 # 政权 → 推步/上游表中的政权名（同一系）；主表外只取同系历表，不拿吴历判刘宋之类
@@ -116,6 +122,25 @@ def main():
                         "上游推步": verdicts.get("上游", ("", ""))[0],
                         "主表日 JDN": verdicts.get("主表", ("", ""))[1], "推步日 JDN": verdicts.get("推步", ("", ""))[1],
                         "bodies": r.get("bodies", ""), "target_id": r.get("target_id", ""), "原文": r["text"][:50]})
+    # 各政权纪日/天象记录在各历表下的在月率（同系比较）
+    stat = defaultdict(lambda: [0, 0])
+    for book, kind, r in records():
+        fam = FAMILY.get(r.get("regime", ""))
+        label = r["month"]
+        if not fam or not label.lstrip("闰").isdigit():
+            continue
+        y, leap, num = int(r["year"]), label.startswith("闰"), int(label.lstrip("闰"))
+        t = g.table_month(r["regime"], y, g.MONTH_NAMES[num - 1], leap) or (y, num, leap)
+        names = ("主表", f"推步:{fam}", f"上游:{fam}")
+        if not all(t in tabs.get(n, {}) for n in names):
+            continue
+        for n in names:
+            s0, e0 = tabs[n][t]
+            off = (g.GANZHI.index(r["ganzhi"]) - (s0 + 49) % 60) % 60
+            stat[(fam, n.split(":")[0])][0] += 1
+            stat[(fam, n.split(":")[0])][1] += s0 + off < e0
+    for (fam, n), (tot, ok) in sorted(stat.items()):
+        print(f"{fam} {n}: {ok}/{tot} 在月（{100 * ok / tot:.1f}%）")
     dst = ROOT / "data/calendar/discriminating_records.csv"
     with open(dst, "w", encoding="utf-8", newline="") as f:
         f.write("# 史书天象记录中主表与同系推步表判断不一者（scripts/calendar_data/discriminating_records.py）：「在月」指日干支落在所记之月；")
