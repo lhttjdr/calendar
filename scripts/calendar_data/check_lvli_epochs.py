@@ -3,12 +3,11 @@
 《律历志》：
 - 天和历（甄鸾《甲寅元历》）：上元甲寅至天和元年丙戌积 875792 算外，章岁 391，蔀法 23460，日法 290160，朔余 153991，斗分 5731；
 - 大象历（马显《丙寅元历》）：上元丙寅至大象元年己亥积 41554 算上，日法 53563，章岁 448，蔀法 12992，斗分 3167。
-设上元为甲子日夜半、冬至合朔，由积年 × 岁实得天正冬至，冬至前最近之朔为天正朔，与推步常数比较；
-再以《周书》天和年间纪日（data/calendar/本纪纪日/zhoushu_benji.csv）比较两种天和朔历元下的在月率。
+设上元为甲子日夜半、冬至合朔，由积年 × 岁实得天正冬至（取与实际冬至同季之一，甲子约束只定到 60 日周期），
+冬至前最近之朔为天正朔，与推步常数比较。
 
 用法（仓库根）：uv run --project scripts python scripts/calendar_data/check_lvli_epochs.py
 """
-import csv
 import math
 import sys
 from fractions import Fraction as F
@@ -48,32 +47,6 @@ def main():
         diff = float(push_epoch + k * L - shuo)
         rows.append((name, float(sol), g.ganzhi_of_jdn(math.floor(sol + F(1, 2))), float(shuo), diff))
         print(f"{name}：律历志天正冬至 {g.ganzhi_of_jdn(math.floor(sol + F(1, 2)))}，天正朔 JD {float(shuo):.4f}；推步朔历元 − 律历志 = {diff:+.4f} 日")
-    # 天和朔历元两种取法下《周书》天和年间纪日的在月率
-    L = 29 + 153991 / 290160
-    e_push = 1928976.5 + 246737 / 290160
-    shift = -rows[0][4]
-    t = d.tables()["推步:北魏/西魏/北周/隋"]
-    sub = {k: v for k, v in t.items() if 565 <= k[0] <= 579}
-    alt = {}
-    for key, s in sub.items():
-        k = round((s - e_push) / L)
-        kk = next(x for x in (k - 1, k, k + 1) if math.floor(e_push + x * L + 0.5) == s)
-        alt[key] = math.floor(e_push + shift + kk * L + 0.5)
-    res = {}
-    for label, sp in (("推步", d.spans(sub)), ("律历志历元", d.spans(alt))):
-        n = ok = 0
-        for r in csv.DictReader(open("data/calendar/本纪纪日/zhoushu_benji.csv", encoding="utf-8")):
-            y, lab = int(r["year"]), r["month"]
-            if not 566 <= y <= 578 or not lab.lstrip("闰").isdigit():
-                continue
-            key = (y, int(lab.lstrip("闰")), lab.startswith("闰"))
-            if key not in sp:
-                continue
-            s0, e0 = sp[key]
-            off = (g.GANZHI.index(r["ganzhi"]) - (s0 + 49) % 60) % 60
-            n, ok = n + 1, ok + (s0 + off < e0)
-        res[label] = (ok, n)
-        print(f"《周书》天和年间纪日在月（{label}）：{ok}/{n}")
 
 
 if __name__ == "__main__":
