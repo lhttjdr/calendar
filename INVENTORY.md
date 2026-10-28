@@ -107,7 +107,7 @@
 
 | 项 | 内容 |
 |----|------|
-| `<书>_star_records.csv` | 正史天文志月五星凌犯、合聚解析结果（晋书至清史稿 14 部由 `scripts/calendar_data/qinhan_eval/zhi_star_records.py <书>` 生成，汉书、后汉书另有脚本）；列见 `data/phenomena/README.md` |
+| `<书>_star_records.csv` | 正史天文志月五星凌犯、合聚解析结果（汉书至清史稿 16 部均由 `scripts/calendar_data/qinhan_eval/zhi_star_records.py <书>` 生成）；列见 `data/phenomena/README.md` |
 | `<书>_{solar,lunar}_eclipses.csv` | 同一解析器提取的日月食，逐行带都城经纬度；`《清史稿》` 日食由 `qingshigao_eclipses.py` 生成 |
 | `capitals.csv` | 各政权都城（观测地），Rust 凌犯检验（`tests_records.rs`）与 Python 日月食表共用 |
 | `checks/` | 逐条检验结果：`<书>_star_records`（Rust `<书>_star_records_check`，`PHENOMENA_CHECKS=1` 时写出）、`<书>_date_shift`、`recorded_distances`（尺寸与角距）、`lodge_degrees`（入宿度）、`qingshigao_eclipses`、`qingshigao_moon_fullday` |
@@ -138,7 +138,7 @@
 | `calendar_data/refactor_era_names_csv.mjs` | 年号 CSV 重构（含改元列） |
 | `calendar_data/era_names_to_base_csv.mjs` | 裁成 6/8 列基础表 |
 | `ephemeris/compress_ephemeris_brotli.mjs` | 历表压缩 |
-| `calendar_data/qinhan_eval/zhi_star_records.py` | 正史天文志通用解析（`BOOKS` 按书配置节、年号政权、历表、默认主语、日月食节）；年号繁体用 OpenCC（scripts 工程依赖 `opencc-python-reimplemented`） |
+| `calendar_data/qinhan_eval/zhi_star_records.py` | 正史天文志通用解析（汉书至清史稿 16 部；`BOOKS` 按书配置节、年号政权、帝号纪年、历表（含太初前复原历）、默认主语、日月食节）；`houhanshu_star_records.py` 为其共用工具库；年号繁体用 OpenCC（scripts 工程依赖 `opencc-python-reimplemented`） |
 | `calendar_data/qinhan_eval/qingshigao_eclipses.py` | 《清史稿》日食（时辰、食分、所次宿） |
 | `calendar_data/build_era_names_merged.py` | 合并年号表 `data/calendar/汇总/era_names_merged.csv`（主线 + 方诗铭并存政权） |
 | `calendar_data/check_dated_inscriptions.py` | 出土纪日对各历表核对 |
@@ -164,7 +164,7 @@
 - [ ] 古历复原：ziOffset 建正映射与春秋历、HanZhuanXu 完整 Rust 移植  
 - [ ] 与 `实历朔日表.csv` 批量对历验证脚本  
 - [ ] `push_calendar` 与 `ancient_restore` 分数版结果对照测试  
-- [ ] 天象：《明史》、清代日月食在本纪，未提取；《汉书》《后汉书》并入 `zhi_star_records.py` 通用规则  
+- [ ] 天象：《明史》、清代日月食在本纪，未提取  
 - [ ] 天象：金历（大明历）朔日表缺，《金史》暂按宋历；清初 1645—1673 距星以《灵台仪象志》近似  
 - [ ] 历法：北魏推步对敦煌太平真君历日（需邓文宽书）；推步参数对《律历志》；判别历表版本的史书记录筛选工具；《通鉴目录》对主表逐年  
 - [ ] Web：wasm 重建（日干支纪元、推步置闰修正）  

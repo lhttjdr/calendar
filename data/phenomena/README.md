@@ -94,9 +94,9 @@ Schaefer B.E. 1987, Heliacal rise phenomena（*JHA* 18, Archaeoastronomy 11, S19
 ## hanshu_star_records.csv、jinshu_star_records.csv
 
 格式同 `houhanshu_star_records.csv`（列 `bodies` 可含多个天体，`jdn_start`—`jdn_end` 为日期范围：记日干支者为当日，只记到月、旬者为整月、整旬）。
-- 《汉书·天文志》（卷二十六，`scripts/calendar_data/qinhan_eval/hanshu_star_records.py`）：
-  - 汉初帝号纪年（孝文後二年、孝景中三年……）；
-  - 太初以前月份按秦汉初复原历（`hzx.py`，十月岁首），以后按实历朔日表；
+- 《汉书·天文志》（卷二十六，`zhi_star_records.py hanshu`；2026-10-28 前为专用脚本 `hanshu_star_records.py`，改用后 20 条结果逐条相同，旧脚本已删）：
+  - 汉初帝号纪年（漢、孝惠、高后、孝文、孝景，`reigns`）；文景「中」「後」分段（孝文後二年、孝景中三年、「後元年」）规范为年号表的「中元」「後元」（`sub_era`），按前文就近取元年；
+  - 太初以前月份按秦汉初复原历（历表名「复原历」，`hzx.py`，十月岁首、闰为後九月），以后按实历朔日表；
   - 多星相合（「水、木、火三合於東井」）作一条；
   - 每段开始时日期上下文恢复为上一段段首纪年，以免占辞后的应验叙述（「至河平元年三月，旱」）改写下一段的日期。
 - 《晋书·天文志》（卷十二「月奄犯五纬」「五星聚舍」、卷十三「月五星犯列舍经星变附见」，`zhi_star_records.py jinshu`）：

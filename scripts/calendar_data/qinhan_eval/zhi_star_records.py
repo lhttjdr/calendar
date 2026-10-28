@@ -11,7 +11,7 @@
   取「不早于前文年份 − 2 年、且最近」者（志文按时间顺序叙事）；年号末年取年号表与改元日表（era_gaiyuan_day.csv）的较晚者；
 - 当时政权月名与建寅不同的时期（魏景初建丑）经 data/calendar/month_label_reforms.csv（`gaiyuan_date.table_month`，与
   rust/core calendar::month_labels 同源）换算到实历朔日表的建寅月；「後十二月」亦然；
-- 多天体相合、单天体凌犯、段落日期上下文的处理同 hanshu_star_records.py；「奄」同「掩」；
+- 多天体相合作一条（「水、木、火三合於東井」）；每段开始时日期上下文恢复为上一段段首纪年（可按书关闭）；「奄」同「掩」；
 - 年数超出当前年号、且同段先前另有年号时，回到先前年号（占辞后应验叙述改写了年号，如「青龙二年……景初元年……四年三月」）；
 - 只按历法换算日期，不用天象。
 
@@ -28,8 +28,8 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 sys.path.insert(0, str(HERE))
 import gaiyuan_date as g  # noqa: E402
-import hanshu_star_records as hs  # noqa: E402
 import houhanshu_star_records as hh  # noqa: E402
+import hzx  # noqa: E402
 
 ROOT = HERE.parents[2]
 ERA_TABLE = ROOT / "vendor/calendar/chinese_calendar/年号表.csv"
@@ -146,13 +146,16 @@ MON = "正|臘|十二|十一|十|[一二三四五六七八九]|建[子丑寅卯�
 def date_re(era_re, emp_re=None):
     emp = rf"(?P<emp>{emp_re})?" if emp_re else "(?P<emp>(?!))?"
     return re.compile(
-    rf"^(?!自)(?:至其年|至是年|其年|是年|是歲|其歲|至|其)?(?:[^\s，。]{{0,6}}?(?:帝|公|王)$|(?:[^\s，。]{{0,6}}?(?=(?:{era_re}))))?{emp}(?P<era>{era_re})?(?:(?P<yr>{NUM})[年載])?[春夏秋冬]?"
+    rf"^(?!自)(?:至其年|至是年|其年|是年|是歲|其歲|至其|至|其)?(?:[^\s，。]{{0,6}}?(?:帝|公|王)$|(?:[^\s，。]{{0,6}}?(?=(?:{era_re}))))?{emp}(?P<era>{era_re})?(?:(?P<yr>{NUM})[年載])?[春夏秋冬]?"
         rf"(?:(?P<leap>閏)?(?P<hou>後)?(?P<mon>{MON})?月)?(?P<xun>[上中下]旬)?(?P<day0>[初]?[一二三四五六七八九十廿卅]+日)?(?P<gz>{GZ})?(?P<day>[初]?[一二三四五六七八九十廿卅]+日)?(?:晦|朔|[甲乙丙丁戊]夜|夕|晨|旦|昏|夜|晝|[初一二三四五]更|初昏|夜半|[一二三四五]鼓|[一二三四五六七八九十]+籌|[子丑寅卯辰巳午未申酉戌亥]時|後)*$"
     )
 # 天体名：另收《旧唐书》简称「歲」「鎮」（「歲、太白、熒惑合于東井」「歲掩房星」）
-NAMES = {**hs.NAMES, "歲": "Jupiter", "鎮": "Saturn", "太陰": "Moon"}  # 太陰：《元史》称月
+NAMES = {"月": "Moon", "熒惑": "Mars", "火": "Mars", "太白": "Venus", "金": "Venus", "歲星": "Jupiter", "木": "Jupiter",
+         "填星": "Saturn", "鎮星": "Saturn", "土": "Saturn", "辰星": "Mercury", "水": "Mercury",
+         "歲": "Jupiter", "鎮": "Saturn", "太陰": "Moon"}  # 太陰：《元史》称月
 BODY_RE = "|".join(sorted(NAMES, key=len, reverse=True))
-MULTI = re.compile(hs.MULTI.pattern.replace(hs.BODY_RE, BODY_RE))
+# 多天体：「水、木、火三合於東井」「金、木俱在東井」作一条
+MULTI = re.compile(rf"^(?P<bodies>(?:(?:{BODY_RE})[、與与]?)+?)(?:[二三四五]|俱)?(?P<verb>合|在)[於于]?(?P<target>.+)$")
 # 動詞「去／近／逼」：《旧唐书》記距離（「月去東井一尺」「熒惑去南斗五寸」），距離記入 qualifier
 # 動詞前可有運行狀態（《宋史》「退行入氐」「順行，又犯」）；「淩」同「犯」類
 SINGLE = re.compile(rf"^(?P<body>{BODY_RE})?(?:星)?(?:退行|逆行|順行|退|又|復)?(?P<verb>逆行守|入犯|掩食|犯|入|乘|守|掩|奄|食|在|貫|觸|去|近|逼|淩|凌|距)[于於]?(?P<target>.+)$")
@@ -282,6 +285,16 @@ BOOKS = {
         sections=[("清史稿/卷36", None, None), ("清史稿/卷37", "月五星淩犯掩距天官書", "太白晝見")],
         years=(1615, 1912), start_year=1644, regimes=[(1644, "清")], era_regimes=["清"], para_reset=False,
     ),
+    # 《汉书·天文志》（卷二十六，自「漢元年十月」起至校勘记）：太初以前按秦汉初复原历（hzx.py，十月岁首、闰为後九月），
+    # 以后按实历朔日表；汉初以帝号纪年（漢、孝惠、高后、孝文、孝景），文景「中」「後」分段按年号表「中元」「後元」
+    "hanshu": dict(
+        sections=[("漢書/卷026", "@漢元年十月", "==校勘記==")],
+        years=(-210, 25), start_year=-206, regimes=[(-205, "西汉"), (9, "新"), (23, "东汉")],
+        calendars=[(-10000, "复原历"), (-103, "主表")],
+        reigns={"漢": ("西汉", -205), "高皇帝": ("西汉", -205), "高帝": ("西汉", -205), "孝惠": ("西汉", -193),
+                "高后": ("西汉", -186), "孝文": ("西汉", -178), "孝景": ("西汉", -155)},
+        era_regimes=["汉", "新"], sub_era=True, eclipses=False,
+    ),
     # 《后汉书·天文志》（续汉书志，今本卷一百至一百二）：正文与刘昭注引《古今注》（source 列）；止于校勘记；
     # 日月食另由 houhanshu_eclipse_dates.py 从五行志整理，此处不输出
     "houhanshu": dict(
@@ -364,6 +377,8 @@ def expand_together(clauses, date_re_):
 
 def calendar_label(table):
     """记录表 calendar 列：主表记「实历朔日表」，推步历记「推步:政权」（data/calendar/推步政权朔日表.csv 的 regime）。"""
+    if table == "复原历":
+        return "复原历"
     return "实历朔日表" if table == "主表" else f"推步:{table}"
 
 
@@ -393,7 +408,8 @@ def section_text(title, head, stop, corrections=()):
             assert t.count(old) == 1, f"校改原文须在 {title} 中恰出现一次：{old}"
             t = t.replace(old, new)
     if head is not None or stop:
-        i = t.index(head) + len(head) if head is not None else 0
+        # 起始标记以「@」开头者本身含在节内（《汉书》自「漢元年十月」起）
+        i = (t.index(head[1:]) if head.startswith("@") else t.index(head) + len(head)) if head is not None else 0
         j = t.find("\n" + stop, i)
         t = t[i : j if j > 0 else len(t)]
     # 干支形讹：阳干后「戍」为「戌」，阴干后「已」为「巳」（「丙戍」「癸已」）
@@ -426,6 +442,13 @@ def main(book):
     def month_span_of(year, mon, mon_name, hou, leap, cur_regime):
         """所记之月（当时月名）→ (朔 JDN, 下月朔 JDN, 表月)；无此月抛异常。"""
         t = None
+        if calendar_of(year, cfg, cur_regime) == "复原历":
+            # 太初以前：秦汉初复原历（hzx.year，十月岁首，闰为「後九月」），year 为汉历年
+            labs = hzx.year(year)
+            keys = [lab for lab, _ in labs]
+            i = keys.index("后9" if (hou or leap) else str(mon))
+            nxt = labs[i + 1][1] if i + 1 < len(labs) else hzx.year(year + 1)[0][1]
+            return labs[i][1], nxt, None
         if mon is not None:
             name = ("后" if hou else "") + mon_name
             rg = cur_regime or regime_of(year, cfg["regimes"])
@@ -528,6 +551,10 @@ def main(book):
                     clause = clause.strip("　 ")
                     if not clause:
                         continue
+                    if cfg.get("sub_era"):
+                        # 汉初帝号纪年分段：「孝文後二年」「中三年」「後元年」→ 年号表的「後元」「中元」
+                        clause = re.sub(rf"(?<![元年])([中後])(?!元)({NUM}年)", r"\1元\2", clause)
+                        clause = re.sub(r"(?<![元年])([中後])元年", r"\1元元年", clause)
                     if para_first_clause:
                         para_first_clause = False
                         for mk, rg in markers:
