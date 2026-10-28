@@ -129,6 +129,8 @@ RECORDS = [
     ("@data/phenomena/houhanshu_solar_eclipses_check.csv", "《后汉书·五行志》", "日食", "year"),
     ("@data/phenomena/houhanshu_lunar_eclipses_check.csv", "《后汉书》", "月食", "year"),
     ("@data/phenomena/qingshigao_solar_eclipses_check.csv", "《清史稿·天文志》", "日食", "year"),
+    ("@data/phenomena/mingshi_solar_eclipses_check.csv", "《明史·本纪》", "日食", "year"),
+    ("@data/phenomena/qingshigao_benji_solar_eclipses_check.csv", "《清史稿·本纪》", "日食", "year"),
     ("@data/phenomena/jinshu_solar_eclipses_check.csv", "《晋书·天文志》", "日食", "year"),
     ("@data/phenomena/jinshu_lunar_eclipses_check.csv", "《晋书·天文志》", "月食", "year"),
     ("@data/phenomena/songshu_solar_eclipses_check.csv", "《宋书·五行志》", "日食", "year"),
