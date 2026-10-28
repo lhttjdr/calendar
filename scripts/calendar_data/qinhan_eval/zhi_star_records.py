@@ -282,6 +282,13 @@ BOOKS = {
         sections=[("清史稿/卷36", None, None), ("清史稿/卷37", "月五星淩犯掩距天官書", "太白晝見")],
         years=(1615, 1912), start_year=1644, regimes=[(1644, "清")], era_regimes=["清"], para_reset=False,
     ),
+    # 《后汉书·天文志》（续汉书志，今本卷一百至一百二）：正文与刘昭注引《古今注》（source 列）；止于校勘记；
+    # 日月食另由 houhanshu_eclipse_dates.py 从五行志整理，此处不输出
+    "houhanshu": dict(
+        sections=[("後漢書/卷100", None, "==校勘記=="), ("後漢書/卷101", None, "==校勘記=="), ("後漢書/卷102", None, "==校勘記==")],
+        years=(23, 221), start_year=25, regimes=[(25, "东汉")], notes_prefix="古今注", eclipses=False, para_reset=False,
+        simplified=True,  # 维基文库卷一百二桓帝以下为简体，统一转繁
+    ),
     "xinwudaishi": dict(
         sections=[("新五代史/卷59", None, None)],
         years=(905, 960), start_year=907, regimes=[(907, "后梁"), (923, "后唐"), (936, "后晋"), (947, "后汉"), (951, "后周")],
@@ -385,10 +392,13 @@ def section_text(title, head, stop, corrections=()):
         if juan == title:
             assert t.count(old) == 1, f"校改原文须在 {title} 中恰出现一次：{old}"
             t = t.replace(old, new)
-    if head is not None:
-        i = t.index(head) + len(head)
+    if head is not None or stop:
+        i = t.index(head) + len(head) if head is not None else 0
         j = t.find("\n" + stop, i)
         t = t[i : j if j > 0 else len(t)]
+    # 干支形讹：阳干后「戍」为「戌」，阴干后「已」为「巳」（「丙戍」「癸已」）
+    t = re.sub(r"(?<=[甲丙戊庚壬])戍", "戌", t)
+    t = re.sub(r"(?<=[乙丁己辛癸])已", "巳", t)
     return re.sub(r"^=+[^=\n]+=+[ \t]*$", "\n", t, flags=re.M)  # 节标题单独成段（「==日蝕==\n魏文帝……」不并入首句）
 
 
@@ -505,7 +515,12 @@ def main(book):
                 outer_era = None  # 年数越界只回退到同段内先前的年号（段内占应叙述），不跨段
                 continue
             if note:
-                continue
+                # 注文一般不收；配置 notes_prefix 者收以之起头的注文（《后汉书》刘昭注引《古今注》）
+                if not (cfg.get("notes_prefix") and seg.lstrip().startswith(cfg["notes_prefix"])):
+                    continue
+                source = cfg["notes_prefix"]
+            else:
+                source = "正文"
             seg = hh.drop_other_quotes(seg)
             for sent in re.split(r"[。！？]", seg):
                 sent_no += 1
@@ -670,7 +685,7 @@ def main(book):
                     y0, m0, d0 = g.from_jdn(j0)
                     era_name = era_label.translate(S2T)
                     rows.append(dict(
-                        juan=title.split("卷")[-1].zfill(3), reign="", regime=cur_regime or regime_of(year, cfg["regimes"]), era=era_name, year_in_era=yr, year=year,
+                        juan=title.split("卷")[-1].zfill(3), source=source, reign="", regime=cur_regime or regime_of(year, cfg["regimes"]), era=era_name, year_in_era=yr, year=year,
                         month=("闰" if leap else "") + ("后" if hou else "") + ((str(mon) if t is None or t[:2] == (year, mon) else mon_name[:-1]) if mon else "") + ("" if xun is None else "上中下"[xun] + "旬"),
                         ganzhi=gz or (f"{day}日" if day else ""), calendar=calendar_label(calendar_of(year, cfg, cur_regime)), jdn_start=j0, jdn_end=j1, julian=f"{y0}-{m0:02d}-{d0:02d}",
                         in_month=int(in_month), bodies=" ".join(bodies), verb=verb.translate(hh.T2S), target_kind=kind,
@@ -686,7 +701,7 @@ def main(book):
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         w.writeheader()
         w.writerows(rows)
-    for kind, recs in eclipses.items():
+    for kind, recs in eclipses.items() if cfg.get("eclipses", True) else ():
         dst = ROOT / f"data/phenomena/{book}_{kind}_eclipses.csv"
         if not recs:
             continue

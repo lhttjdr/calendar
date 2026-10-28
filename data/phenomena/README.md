@@ -82,8 +82,9 @@ Schaefer B.E. 1987, Heliacal rise phenomena（*JHA* 18, Archaeoastronomy 11, S19
 
 ## houhanshu_star_records.csv
 
-《后汉书·天文志》（志第十至十二，维基文库 `後漢書/卷100–102`）中月与五星「犯、入、乘、守、掩、食、在」记录，由
-`scripts/calendar_data/qinhan_eval/houhanshu_star_records.py` 解析：
+《后汉书·天文志》（志第十至十二，维基文库 `後漢書/卷100–102`）中月与五星「犯、入、乘、守、掩、食、在」记录，由通用解析器
+`scripts/calendar_data/qinhan_eval/zhi_star_records.py houhanshu` 解析（2026-10-28 起；此前的专用脚本 `houhanshu_star_records.py`
+改为共用工具库。改用后 150 条，旧脚本 116 条全部包含在内，新增多为多天体同在一宿与桓帝以下简体段；`source` 列记「正文」或「古今注」）：
 - 收正文与刘昭注所引《古今注》；日期须与事件同句（或与上一条记录同句），占辞复述不收；
 - 日期按实历朔日表换算（`in_month = 0` 表示日干支不在所记之月，取最近同名日）；
 - 目标匹配陈卓体系星官（`target_id` 对应 `data/sky_culture/chinese_asterisms.csv`）；「在某宿某度」另记 `lodge`、`lodge_deg`。
@@ -192,7 +193,7 @@ Schaefer B.E. 1987, Heliacal rise phenomena（*JHA* 18, Archaeoastronomy 11, S19
 - 年号的简繁对照用 OpenCC（`opencc-python-reimplemented`）逐字转换，再叠加一简多繁的手工表。此前只有约 80 字的手工表，
   漏了「賜」「龜」「監」「開」「業」等字，致《魏书》天賜、神龜（27 条记录误归前一年号，年份差 2—6 年）、《隋书》天監、開皇、
   大業未被识别；已改正。
-- 史书惯用名的别名表见 `houhanshu_star_records.py` 的 `ALIASES`：
+- 史书惯用名的别名表见 `houhanshu_star_records.py`（共用工具库）的 `ALIASES` 与 `zhi_star_records.py` 的 `EXTRA_ALIASES`：
   - 太微、天市、紫宫为两垣合成，按两垣成员合集比对；
   - 婺女对须女，斗对南斗，积尸对舆鬼积尸气；
   - 带括注的星官以主名匹配，如「钺(附东井)」可用「钺」匹配。

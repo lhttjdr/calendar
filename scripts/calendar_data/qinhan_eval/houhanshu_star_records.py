@@ -1,15 +1,9 @@
-"""《后汉书·天文志》（续汉书志第十至十二，今本卷100–102）月与五星「犯、入、乘、守、掩、食、在」记录：逐条解析纪年与日干支，
-按实历朔日表换算为儒略日数（JDN），并把目标匹配到陈卓体系星官（data/sky_culture/chinese_asterisms.csv，system = chenzhuo）。
-写出 data/phenomena/houhanshu_star_records.csv，供 rust/core 检验（天体与星官成员星的角距、入宿度）。
+"""史书天象记录解析的共用工具：维基文库原文抓取与缓存（fetch）、注文与正文分段（segments）、占辞剔除（drop_other_quotes）、
+星官与天体目标匹配（match_target、ALIASES、T2S）、入宿度解析（lodge_degree）、中文数字（cnnum）。
 
-- 正文与刘昭注所引《古今注》都收（source 列区分）；注文多只写月日，年月从正文上下文继承。
-- 日期有效规则：日干支与事件同句，或事件与上一条记录同句（以「。」为界）；否则不收（如「是岁太白经太微」、
-  「荧惑犯舆鬼质星之应也」之类占辞复述）。
-- 主语省略（「壬寅，犯心大星」）沿用上一条的天体。
-- 「在某宿若干度」另记入宿度（lodge、lodge_deg）。
-- 只按历法换算日期，不用天象。
-
-用法（仓库根）：uv run --project scripts python scripts/calendar_data/qinhan_eval/houhanshu_star_records.py
+原为《后汉书·天文志》专用解析脚本；2026-10-28 起《后汉书》改由通用解析器
+scripts/calendar_data/qinhan_eval/zhi_star_records.py houhanshu 生成（正文与刘昭注引《古今注》都收，
+多天体同在一宿作一条，桓帝以下简体段转繁后解析），本文件只保留上述函数，供 zhi_star_records.py、hanshu_star_records.py 等引用。
 维基文库原文缓存于 scripts/sky_culture/_cache/。
 """
 import csv
@@ -25,7 +19,6 @@ import gaiyuan_date as g  # noqa: E402
 
 ROOT = HERE.parents[2]
 CACHE = ROOT / "scripts/sky_culture/_cache"
-OUT = ROOT / "data/phenomena/houhanshu_star_records.csv"
 ASTERISMS = ROOT / "data/sky_culture/chinese_asterisms.csv"
 
 # 繁→简（只收星官名、天体名、动词中出现的字）
@@ -186,113 +179,3 @@ def lodge_degree(target):
     d = 0.0 if m.group(2) == "初" else float(cnnum(m.group(2)))
     d += {"半": 0.5, "少": 0.25, "太": 0.75}.get(m.group(3) or "", 0.0)
     return lodge, d
-
-
-def main():
-    ast = load_asterisms()
-    rows = []
-    for juan in ("100", "101", "102"):
-        text = fetch(f"後漢書/卷{juan}")
-        era = yr = mon = gz = None
-        leap = False
-        last_body = None
-        fresh = False
-        fresh_sentence = -1
-        last_sentence = -1
-        sent_no = 0
-        for seg, note in segments(text):
-            # 校勘记之后不再收
-            if "==校勘記==" in seg or "==校勘记==" in seg:
-                break
-            if note and not seg.lstrip().startswith("古今注"):
-                continue  # 非《古今注》的注文（占辞、训诂）
-            seg = drop_other_quotes(seg)
-            for sent in re.split(r"[。！？]", seg):
-                sent_no += 1
-                for clause in re.split(r"[，；：「」『』、\s]", sent):
-                    clause = clause.strip("　 ")
-                    if not clause or clause.startswith("=="):
-                        continue
-                    # 子句内带帝号的纪年（「孝和永元元年」「延熹四年」）：先取年号与年，再把前缀剥去
-                    ey = ERA_YEAR.search(clause)
-                    if ey:
-                        clause = clause[ey.start():]
-                    m = DATE.match(clause)
-                    if m and any(m.group(k) for k in ("era", "yr", "mon", "gz")) and m.group(0):
-                        if m["era"]:
-                            era = m["era"]
-                        if m["yr"]:
-                            yr, mon, gz = cnnum(m["yr"]), None, None
-                        if m["mon"]:
-                            leap = m["mon"] in ("閏", "闰")
-                            mon = None if leap else (1 if m["mon"] == "正" else cnnum(m["mon"]))
-                            if leap:
-                                mon = "leap"
-                            gz = None
-                        if m["gz"]:
-                            gz = m["gz"].replace("已", "巳").replace("戍", "戌")
-                            fresh = True
-                            fresh_sentence = sent_no
-                        continue
-                    # 日期与事件同在一个子句（如「元年三月甲寅月犯…」少见），先剥日期前缀
-                    e = EVENT.match(clause)
-                    if not e:
-                        continue
-                    # 省略主语：只在与上一条记录同句时沿用其天体
-                    body = e["body"] or (last_body if sent_no == last_sentence else None)
-                    if not body:
-                        continue
-                    # 日期须与事件同句（或与上一条记录同句，如「甲子，月犯…，壬寅，犯…」）；否则多为占辞对前事的复述
-                    if not ((fresh and fresh_sentence == sent_no) or sent_no == last_sentence):
-                        continue
-                    if era is None or yr is None or mon is None or gz is None:
-                        continue
-                    year = ERA[era] + yr - 1
-                    try:
-                        if mon == "leap":
-                            lm = next(lm for ly, lm, lp, _ in g._months() if ly == year and lp)
-                            start, end = g.month_span(year, lm, True)
-                            month_label = f"闰{lm}"
-                        else:
-                            start, end = g.month_span(year, mon, False)
-                            month_label = str(mon)
-                    except Exception:
-                        continue
-                    off = (g.GANZHI.index(gz) - (start + 49) % 60) % 60
-                    in_month = start + off < end
-                    jdn = start + off if in_month else min((start + off - 60, start + off), key=lambda x: abs(x - (start + end) // 2))
-                    kind, tid, tname, qual = match_target(e["target"], ast)
-                    ld = lodge_degree(e["target"]) if e["verb"] == "在" else None
-                    if e["verb"] == "在" and not ld:
-                        if kind != "asterism":
-                            continue
-                    if kind == "unknown" and not ld:
-                        continue
-                    yy, mm, dd = g.from_jdn(jdn)
-                    rows.append(dict(
-                        juan=juan, source="古今注" if note else "正文", era=era, year_in_era=yr, year=year, month=month_label,
-                        ganzhi=gz, jdn_start=jdn, jdn_end=jdn, julian=f"{yy}-{mm:02d}-{dd:02d}", in_month=int(in_month),
-                        bodies=BODY[body] if body in BODY else body, verb=e["verb"].translate(T2S), target_kind=kind, target_id=tid,
-                        target_name=tname, qualifier=qual[:12], lodge=ld[0] if ld else "", lodge_deg=ld[1] if ld else "",
-                        text=sent.strip()[:120],
-                    ))
-                    last_body = body
-                    last_sentence = sent_no
-                    fresh = False
-    # 字段内不留半角逗号、引号，便于下游按逗号切分
-    for r in rows:
-        for k, v in r.items():
-            if isinstance(v, str):
-                r[k] = v.replace(",", "，").replace('"', "＂").replace("\n", " ").replace("\r", "")
-    cols = list(rows[0].keys())
-    with open(OUT, "w", encoding="utf-8", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=cols)
-        w.writeheader()
-        w.writerows(rows)
-    from collections import Counter
-    print(len(rows), "条", Counter(r["bodies"] for r in rows), Counter(r["target_kind"] for r in rows), Counter(r["verb"] for r in rows))
-    print("干支不在该月：", sum(1 for r in rows if not r["in_month"]))
-
-
-if __name__ == "__main__":
-    main()
