@@ -1,0 +1,6 @@
+# 默认使用清华 PyPI 镜像（与 pypi.org 同源包，仅换下载节点）。
+# 若仍超时，可改为你司/本机可用的 index，或设置环境变量 UV_INDEX_URL。
+[[index]]
+name = "tuna"
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true

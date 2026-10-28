@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # 使用 cargo-llvm-cov 生成覆盖率：人类可读的 HTML 报告（默认），可选在浏览器中打开。
-# 用法：从仓库根目录执行 scripts/coverage_html.sh [--open]
+# 用法：从仓库根目录执行 scripts/dev/coverage_html.sh [--open]
 # 依赖：cargo install cargo-llvm-cov，且 rustup component add llvm-tools-preview
-#       若需跑全量测试（含 Python 对比）：先 uv venv .venv 且 uv pip install jplephem，本脚本会复用 .venv 环境。
+#       若需跑全量测试（含 Python 对比）：先 uv --project scripts venv 且 uv --project scripts pip install jplephem，本脚本会复用 scripts/.venv 环境。
 
 set -e
 
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 RUST_DIR="${REPO_ROOT}/rust"
-VENV_PYTHON="${REPO_ROOT}/.venv/bin/python"
+VENV_PYTHON="${REPO_ROOT}/scripts/.venv/bin/python"
 
 OPEN_BROWSER=""
 for arg in "$@"; do
@@ -26,9 +26,9 @@ if [[ -x "$VENV_PYTHON" ]]; then
   if [[ -n "$LIBDIR" ]]; then
     export LD_LIBRARY_PATH="${LIBDIR}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
   fi
-  echo "Using .venv for PYO3 (full test set including Python comparison)."
+  echo "Using scripts/.venv for PYO3 (full test set including Python comparison)."
 else
-  echo "No .venv found; running without Python tests (use: uv venv .venv && uv pip install jplephem for full coverage)."
+  echo "No scripts/.venv found; running without Python tests (use: uv --project scripts venv && uv --project scripts pip install jplephem for full coverage)."
 fi
 
 cd "$RUST_DIR"

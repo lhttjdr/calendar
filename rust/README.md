@@ -1,6 +1,6 @@
 # Lunar Calendar — Rust 工作区
 
-与 [doc/11-project-and-implementation.md](../doc/11-project-and-implementation.md) §11.3 Rust 迁移方案配套的迁移骨架。
+与 [doc/engineering/project-and-implementation.md](../doc/engineering/project-and-implementation.md) §11.3 Rust 迁移方案配套的迁移骨架。
 
 ## 结构
 
@@ -21,7 +21,7 @@ cargo build -p lunar-core --no-default-features --features real-f64
 cargo test -p lunar-core --no-default-features --features real-f64
 ```
 
-实现见 `core/src/math/real.rs`（Backend trait + RealInner\<R\>）；方案对比见 [doc/11-project-and-implementation.md](../doc/11-project-and-implementation.md) §11.4。
+实现见 `core/src/math/real.rs`（Backend trait + RealInner\<R\>）；方案对比见 [doc/engineering/project-and-implementation.md](../doc/engineering/project-and-implementation.md) §11.4。
 
 ## 命令（需先安装 Rust：<https://rustup.rs>）
 

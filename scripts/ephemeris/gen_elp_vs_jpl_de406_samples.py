@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Generate data/jpl/elp_vs_jpl_de406_samples.csv for Rust test elpmpp02_vs_jpl_de406_samples.
+# Generate vendor/jpl/elp_vs_jpl_de406_samples.csv for Rust test elpmpp02_vs_jpl_de406_samples.
 # Usage: pip install jplephem, then place DE406 file and run this script.
 
 import math
@@ -32,7 +32,7 @@ def main():
         return 1
     ephem_path = os.environ.get("JPLEPHEM_DE406", "de406")
     for name in ["de406.bsp", "linux_p1550p2650.406"]:
-        p = os.path.join(os.path.dirname(__file__), "..", "data", "jpl", name)
+        p = os.path.join(os.path.dirname(__file__), "..", "..", "vendor", "jpl", name)
         if os.path.exists(p):
             ephem_path = p
             break
@@ -41,7 +41,7 @@ def main():
         return 1
     eph = jplephem.Ephemeris.open(ephem_path)
     moon_geo = 10
-    out_dir = os.path.join(os.path.dirname(__file__), "..", "data", "jpl")
+    out_dir = os.path.join(os.path.dirname(__file__), "..", "..", "vendor", "jpl")
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, "elp_vs_jpl_de406_samples.csv")
     with open(out_path, "w") as f:

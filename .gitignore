@@ -11,7 +11,9 @@
 
 data/**/*.bin
 data/**/*.br
-data/elpmpp02/elpmpp02_exe
+vendor/**/*.bin
+vendor/**/*.br
+vendor/elpmpp02/elpmpp02_exe
 
 # JVM 构建产物
 *.class
@@ -40,3 +42,26 @@ node_modules
 
 .venv
 .vscode
+
+# mise 个人本地覆盖（不提交，团队 pin 在 mise.toml）
+mise.local.toml
+.mise.local.toml
+
+# VitePress 构建产物
+doc/.vitepress/dist
+doc/.vitepress/cache
+
+# Manim 渲染中间产物（最终 .mp4/.jpg 复制到 doc/public/media/ 后提交，见 scripts/manim/README.md）
+scripts/manim/_build/
+scripts/manim/**/__pycache__/
+# JPL DE441（3 GB，仅本地验证用，不入库；下载见 vendor/jpl/de441/README.md）
+vendor/jpl/de441/*.bsp
+# JPL DE431（3.4 GB，Morrison–Stephenson 2016/2021 ΔT 所配历表，仅本地验证用，不入库；见 vendor/jpl/de431/README.md）
+vendor/jpl/de431/*.bsp
+# Hipparcos 主表原版（53 MB，只用于生成 data/stars/hipparcos_bright.csv；下载见 vendor/hipparcos/README.md）
+vendor/hipparcos/I_239/hip_main.dat
+# 维基文库原文缓存（scripts/sky_culture/lunar_mansions.py 自动下载）
+scripts/sky_culture/_cache/
+
+# Python 字节码缓存
+**/__pycache__/

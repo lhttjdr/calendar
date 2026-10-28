@@ -5,7 +5,7 @@ JPL 星历数据目录（供 OreKit 读取，用于 ELPMPP02 vs DE405 对比测�
 OreKit 的 JPLEphemeridesLoader 读取的是 JPL DE 的“原始二进制”格式，不是 NAIF 的 SPK/BSP 格式。
 - de405.bsp、de406.bsp 等是 SPK 格式，OreKit 不能直接读取。
 - OreKit 识别的文件名模式为：[lu]nx[mp]####.ddd（例如 lnx1600.405、lnxp1600p2200.405）。
-- 仅有 header.406、testpo.406（ASCII 头/测试）不够，OreKit 需要二进制历表文件（如 lnx*.406、lnxp*.406）。DE406 二进制可从 https://ssd.jpl.nasa.gov/ftp/eph/planets/Linux/de406/ 下载到 data/jpl/de406。
+- 仅有 header.406、testpo.406（ASCII 头/测试）不够，OreKit 需要二进制历表文件（如 lnx*.406、lnxp*.406）。DE406 二进制可从 https://ssd.jpl.nasa.gov/ftp/eph/planets/Linux/de406/ 下载到 vendor/jpl/de406。
 
 体积对比（DE405）
 --------------------------------------
@@ -17,11 +17,11 @@ OreKit 的 JPLEphemeridesLoader 读取的是 JPL DE 的“原始二进制”格�
 --------------------------------------
 FTP 站点：ftp://ssd.jpl.nasa.gov/
   路径示例：pub/eph/planets/Linux/de405/（若不存在可试 eph/planets/Linux/de405/）
-  wget 示例：wget -P data/jpl ftp://ssd.jpl.nasa.gov/pub/eph/planets/Linux/de405/lnxp1600p2200.405
+  wget 示例：wget -P vendor/jpl ftp://ssd.jpl.nasa.gov/pub/eph/planets/Linux/de405/lnxp1600p2200.405
 
 - Linux 小端二进制（OreKit 可直接用）：
   HTTPS：https://ssd.jpl.nasa.gov/ftp/eph/planets/Linux/de405/
-  推荐：下载 lnxp1600p2200.405（约 53 MB）和 header.405（约 6 KB），放入本目录 data/jpl。
+  推荐：下载 lnxp1600p2200.405（约 53 MB）和 header.405（约 6 KB），放入本目录 vendor/jpl。
 - 或分段：lnx1600.405、lnx1750.405、lnx1900.405、lnx2050.405（各约 13 MB）+ header.405。
 - ASCII 源（需自行转二进制）：https://ssd.jpl.nasa.gov/ftp/eph/planets/ascii/de405/
   FTP：ftp://ssd.jpl.nasa.gov/pub/eph/planets/ascii/de405/
@@ -66,7 +66,7 @@ DE405 时间与坐标系（官方与 OreKit）
 
 测试
 --------------------------------------
-本仓库测试：Elpmpp02VsJplTest 用 data/jpl（或 data/jpl/de405）下的 DE405 二进制，按上述步骤与 ELPMPP02(DE405) 在若干 JD 上对比。测试前需保证 data/jpl 存在且含匹配文件；可通过 -Dorekit.data.path 指定此目录路径。
+本仓库测试：Elpmpp02VsJplTest 用 vendor/jpl（或 vendor/jpl/de405）下的 DE405 二进制，按上述步骤与 ELPMPP02(DE405) 在若干 JD 上对比。测试前需保证 vendor/jpl 存在且含匹配文件；可通过 -Dorekit.data.path 指定此目录路径。
 
 Rust 测试（两种方式二选一或并存）：
   (1) 实时 Python 插件（推荐）：elpmpp02_vs_jpl_de406_python。Rust 通过 pyo3 在进程内调用 Python/jplephem 算 DE406 月球位置，内存传递，无需 CSV。
@@ -81,6 +81,6 @@ Rust 测试（两种方式二选一或并存）：
         export PYTHONPATH=$($PYO3_PYTHON -c "import site; print(site.getsitepackages()[0])")
         export LD_LIBRARY_PATH=$($PYO3_PYTHON -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR') or '')"):${LD_LIBRARY_PATH:-}
         cargo test -p lunar-core --manifest-path rust/Cargo.toml elpmpp02_vs_jpl_de406_python
-      - 可选 DE406_PATH=data/jpl 指定历表目录。
-  (2) CSV 方案：elpmpp02_vs_jpl_de406_samples 读取 elp_vs_jpl_de406_samples.csv（格式 jd_tdb,x_km,y_km,z_km）。生成：scripts/gen_elp_vs_jpl_de406_samples.py（需 jplephem+DE406）。无需 feature，默认 cargo test 即会运行。
-  (3) VSOP87 vs DE406：vsop87_vs_jpl_de406_python。Rust VSOP87B 地心太阳（J2000 平黄道）与 jplephem DE406 同框架比较；需 data/vsop87/VSOP87B.ear、de406.bsp，容差 12 000 km。默认参与 cargo test，无 PYO3_PYTHON/DE406 时运行时跳过。运行方式同 (1)，测试名改为 vsop87_vs_jpl_de406_python。
+      - 可选 DE406_PATH=vendor/jpl 指定历表目录。
+  (2) CSV 方案：elpmpp02_vs_jpl_de406_samples 读取 elp_vs_jpl_de406_samples.csv（格式 jd_tdb,x_km,y_km,z_km）。生成：scripts/ephemeris/gen_elp_vs_jpl_de406_samples.py（需 jplephem+DE406）。无需 feature，默认 cargo test 即会运行。
+  (3) VSOP87 vs DE406：vsop87_vs_jpl_de406_python。Rust VSOP87B 地心太阳（J2000 平黄道）与 jplephem DE406 同框架比较；需 vendor/vsop87/VSOP87B.ear、de406.bsp，容差 12 000 km。默认参与 cargo test，无 PYO3_PYTHON/DE406 时运行时跳过。运行方式同 (1)，测试名改为 vsop87_vs_jpl_de406_python。

@@ -1,0 +1,4 @@
+[tools]
+"cargo:wasm-pack" = "0.14.0"
+node = "22.23.2"
+rust = "1.93.1"

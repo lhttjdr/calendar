@@ -17,3 +17,8 @@
 *.sqlite filter=lfs diff=lfs merge=lfs -text
 *.bsp filter=lfs diff=lfs merge=lfs -text
 *.csv filter=lfs diff=lfs merge=lfs -text
+# 参考资料与转录来源的扫描页图片
+doc/references/**/*.png filter=lfs diff=lfs merge=lfs -text
+doc/references/**/*.jpg filter=lfs diff=lfs merge=lfs -text
+vendor/calendar/**/*.png filter=lfs diff=lfs merge=lfs -text
+vendor/calendar/**/*.jpg filter=lfs diff=lfs merge=lfs -text

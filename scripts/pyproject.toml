@@ -1,0 +1,31 @@
+[project]
+name = "calendar"
+version = "0.1.0"
+description = "天文历算与历法（VSOP87/ELPMPP02/章动/岁差/公历农历）"
+readme = "../README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "opencc-python-reimplemented>=0.1.7",
+    "openpyxl>=3.1",
+]
+
+# 本 uv 工程仅服务于 scripts/ 下的辅助脚本（数据生成/转换），非本项目（Rust + Web）主工具链，故与
+# pyproject.toml/uv.lock/uv.toml 一起放在 scripts/ 下而非仓库根。脚本内部路径假定工作目录为仓库根，
+# 故用 `uv run --project scripts ...`（而非 cd 到 scripts 后再跑）以保持工作目录不变。
+#
+# VSOP87 → DE406/DE441 改正（Chapront 2000 方法，各行星含地球）：需 vendor/vsop87/VSOP87B.*、对应 BSP
+# （vendor/jpl/de406/de406.bsp；DE441 见 vendor/jpl/de441/README.md）
+#   uv run --project scripts --only-group chapront-fit python scripts/ephemeris/vsop87_de_planet_fit.py [de406|de441]
+# 输出 data/fit/vsop87-<目标>-planets.txt（提交入库；wasm 用二进制由 examples/patch_to_bin.rs 生成）
+[dependency-groups]
+chapront-fit = [
+    "numpy>=1.20",
+    "scipy>=1.7",
+    "jplephem>=2.15",
+]
+# 文档配图/动画（Manim）：scripts/manim/ 下的 Scene，渲染产物提交到 doc/public/media/，不进 CI 构建。
+# 需系统装 ffmpeg + cairo + pango（见 scripts/manim/README.md），故单列一组，不随主依赖安装。
+# 渲染：uv run --project scripts --only-group manim-docs scripts/render_manim.sh
+manim-docs = [
+    "manim>=0.18",
+]

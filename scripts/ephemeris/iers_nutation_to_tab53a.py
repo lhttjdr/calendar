@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-从 IERS 官方 Table 5.3a / 5.3b 生成 data/IAU2000/tab5.3a.txt（合并格式，仅月日项）。
-用法：在仓库根目录执行 python3 scripts/iers_nutation_to_tab53a.py
-输出覆盖 data/IAU2000/tab5.3a.txt。
+从 IERS 官方 Table 5.3a / 5.3b 生成 vendor/IAU2000/tab5.3a.txt（合并格式，仅月日项）。
+用法：在仓库根目录执行 python3 scripts/ephemeris/iers_nutation_to_tab53a.py
+输出覆盖 vendor/IAU2000/tab5.3a.txt。
 """
 import urllib.request
 import re
@@ -144,8 +144,8 @@ def find_section(lines, marker: str) -> int:
 
 
 def main():
-    repo = Path(__file__).resolve().parent.parent
-    out_path = repo / "data" / "IAU2000" / "tab5.3a.txt"
+    repo = Path(__file__).resolve().parent.parent.parent
+    out_path = repo / "vendor" / "IAU2000" / "tab5.3a.txt"
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     print("Fetching IERS tab5.3a ...")
