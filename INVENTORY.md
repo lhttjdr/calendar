@@ -142,6 +142,7 @@
 | `calendar_data/qinhan_eval/qingshigao_eclipses.py` | 《清史稿》日食（时辰、食分、所次宿） |
 | `calendar_data/build_era_names_merged.py` | 合并年号表 `data/calendar/汇总/era_names_merged.csv`（主线 + 方诗铭并存政权） |
 | `calendar_data/check_dated_inscriptions.py` | 出土纪日对各历表核对 |
+| `calendar_data/discriminating_records.py`、`phenomena/discriminating_records_sky.py` | 主表与同系推步表判断不一的史书天象记录，及以天象判定哪一历为真 |
 | `phenomena/record_date_shift.py` | 行星记录日期偏移、干支可落之月（skyfield + DE441/DE406） |
 | `phenomena/recorded_distances.py`、`lodge_degrees.py` | 所记尺寸、入宿度与推算对照 |
 | `phenomena/qingshigao_eclipse_compare.py`、`qingshigao_moon_fullday.py` | 清代日食时辰食分、相距书全天地心角距 |
@@ -164,10 +165,8 @@
 - [ ] 古历复原：ziOffset 建正映射与春秋历、HanZhuanXu 完整 Rust 移植  
 - [ ] 与 `实历朔日表.csv` 批量对历验证脚本  
 - [ ] `push_calendar` 与 `ancient_restore` 分数版结果对照测试  
-- [ ] 天象：《明史》、清代日月食在本纪，未提取  
 - [ ] 天象：金历（大明历）朔日表缺，《金史》暂按宋历；清初 1645—1673 距星以《灵台仪象志》近似  
-- [ ] 历法：北魏推步对敦煌太平真君历日（需邓文宽书）；推步参数对《律历志》；判别历表版本的史书记录筛选工具；《通鉴目录》对主表逐年  
-- [ ] Web：wasm 重建（日干支纪元、推步置闰修正）  
+- [ ] 历法：北魏推步对敦煌太平真君历日（需邓文宽书）；推步参数对《律历志》（太和十五年置闰与天象记录不合，见 push-algorithms.md §3.2）；《通鉴目录》对主表逐年  
 
 ---
 
