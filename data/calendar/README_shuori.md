@@ -243,10 +243,24 @@ CALENDAR_DATA_PATH=/tmp/ChineseCalendar/src/calendarData.js node scripts/calenda
 ## 本纪纪日（`本纪纪日/<书>.csv`）
 
 `scripts/calendar_data/qinhan_eval/zhi_star_records.py` 的纪日模式（`date_sections`，每卷指定政权）从本纪抽取带日干支的记事日期：
-《三国志》（`sanguozhi`）、《魏书》（`weishu_benji`）、《北齐书》（`beiqishu_benji`）、《周书》（`zhoushu_benji`）、《隋书》（`suishu_benji`）。
+《三国志》（`sanguozhi`）、《晋书》（`jinshu_benji`）、《宋书》（`songshu_benji`）、《南齐书》（`nanqishu_benji`）、《梁书》（`liangshu_benji`）、
+《陈书》（`chenshu_benji`）、《魏书》（`weishu_benji`）、《北齐书》（`beiqishu_benji`）、《周书》（`zhoushu_benji`）、《隋书》（`suishu_benji`）、
+《旧唐书》（`jiutangshu_benji`）、《新唐书》（`xintangshu_benji`）。
 列：regime、era、year_in_era、year（天文纪年）、month（所记月序，闰月前加「闰」）、month_name、leap、ganzhi、calendar（该政权所用历表）、
-in_month（日干支在该历所记之月）、jdn、julian、text。用于 `scripts/calendar_data/discriminating_records.py` 以一手日期检验主表与各推步表，
-结论见 `doc/calendar/push-algorithms.md` §3.3。本纪月份更替常不书，in_month = 0 者多为此，非历表之误（在各表下同样不在月）。
+in_month（日干支在该历所记之月）、jdn、julian、position（原文明书「朔」者为「朔」）、text。`<书>_閏月.csv` 记本纪「閏月」及其前所记之月
+（leap_after）。用于 `scripts/calendar_data/discriminating_records.py` 以一手日期检验主表与各推步表（结论见 `doc/calendar/push-algorithms.md`
+§3.3—3.6），及 `scripts/calendar_data/verify_main_table.py` 以明书朔日与閏月位置核验主表（见下）。本纪月份更替常不书，in_month = 0 者多为此，
+非历表之误（在各表下同样不在月）；《旧唐书》本纪略书月份尤多。
+
+## 主表核验（`main_table_check.csv`、`main_table_leaps.csv`、`main_table_shuo_sky.csv`、`main_table_shuo_baseline.csv`）
+
+- `main_table_check.csv`：本纪明书朔日逐条（书、朝代、政权、年、纪年、月、本纪朔、主表〔合或差几日〕、主表朔/本纪朔 JDN、类〔朔差一二日、
+  差一月、其他〕、日食、本项目推步、上游推步、原文、旁证〔他书同月记日落在主表该月/本纪朔起 30 日内者〕、他书同记）。
+- `main_table_leaps.csv`：本纪「閏月」位置与主表闰位（合、略书相容、矛盾）。
+- `main_table_shuo_sky.csv`：朔差一二日者的实际合朔（DE441，都城地方平时）与判定；`main_table_shuo_baseline.csv`：相合者朔日与合朔日之差的分布
+  （唐代朔在合朔次日者为进朔）。
+- 由 `verify_main_table.py`、`scripts/phenomena/main_table_shuo_sky.py` 生成，`main_table_checks_to_md.py` 汇为
+  `doc/calendar/main-table-checks.md`；方法与结论见 `doc/calendar/historical-calendar.md`「以本纪核验主表」。
 
 
 ## 敦煌历日（`敦煌历日.csv`）
@@ -254,3 +268,11 @@ in_month（日干支在该历所记之月）、jdn、julian、text。用于 `scr
 敦煌出土北魏太平真君十一年、十二年（450、451）历日逐月（月大小、朔干支、建除、历注节气），据邓文宽《敦煌天文历法文献辑校》（1996）
 书页 101—103 录文转录（原卷敦煌研究院藏；451 年十至十二月原卷残缺，据苏、刘两钞本补）。实物历日，为当时行用之历的一手证据。
 比对见 `scripts/calendar_data/check_dunhuang_calendar.py` 与 `doc/calendar/push-algorithms.md` §3.5。
+
+## 敦煌历日比较表（`敦煌历日_比较表.csv`、`dunhuang_vs_main.csv`）
+
+邓文宽《敦煌天文历法文献辑校》（1996）附录一「中原曆、敦煌具注曆日比較表」逐格转录：北魏 450—451 与唐元和三年（808）至宋淳化四年
+（993）共 35 年、447 行（书页 701—735，PDF 页 = 书页 + 36）。列：文书、纪年、公元、行月序（中原曆月序）、中原大小、中原朔、敦煌月序
+（与中原不同时）、敦煌大小、敦煌朔、二历相差、备注、书页；原书括号格（据残历条件推算）照录括号，「?」为月大小不明。中原曆一栏据陈垣
+《廿史朔闰表》（复原），与主表逐格全合；敦煌曆一栏为出土历日（当地自造之历）。`scripts/calendar_data/check_dunhuang_comparison.py`
+自校（月大小与相邻朔差全合）并写 `dunhuang_vs_main.csv`（敦煌有据之月与主表逐月日差），汇入 `doc/calendar/main-table-checks.md` 第三节。
