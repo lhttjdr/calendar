@@ -21,7 +21,16 @@ import gaiyuan_date as g  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 DYN = {"魏": "三国", "蜀": "三国", "吴": "三国", "晋": "晋", "宋": "南朝", "齐": "南朝", "梁": "南朝", "陈": "南朝",
-       "北魏": "北朝", "东魏": "北朝", "西魏": "北朝", "北齐": "北朝", "北周": "北朝", "隋": "隋", "唐": "唐", "武周": "唐"}
+       "北魏": "北朝", "东魏": "北朝", "西魏": "北朝", "北齐": "北朝", "北周": "北朝", "隋": "隋", "唐": "唐", "武周": "唐",
+       "后梁": "五代", "后唐": "五代", "后晋": "五代", "后汉": "五代", "后周": "五代", "宋": "宋", "辽": "辽", "金": "金", "元": "元", "明": "明"}
+
+
+def dyn_of(regime, year):
+    """政权 → 汇总朝代；刘宋与赵宋同名「宋」，按年分（960 年前为南朝）。"""
+    return "南朝" if regime == "宋" and year < 960 else DYN.get(regime, regime)
+
+
+ORDER = ("三国", "晋", "南朝", "北朝", "隋", "唐", "五代", "宋", "辽", "金", "元", "明")
 
 
 def kind(main, t, gz, diff):
@@ -54,7 +63,7 @@ def main():
             seen.add(key)
             leap, num = lab.startswith("闰"), int(lab.lstrip("闰"))
             t = g.table_month(regime, y, g.MONTH_NAMES[num - 1], leap) or (y, num, leap)
-            row = {"书": book, "朝代": DYN.get(regime, regime), "政权": regime, "年": y, "纪年": f"{r['era']}{r['year_in_era']}年",
+            row = {"书": book, "朝代": dyn_of(regime, y), "政权": regime, "年": y, "纪年": f"{r['era']}{r['year_in_era']}年",
                    "月": lab, "本纪朔": r["ganzhi"]}
             fam = d.FAMILY.get(regime)
             for col, name in (("主表", "主表"), ("本项目推步", f"推步:{fam}" if fam else None), ("上游推步", f"上游:{fam}" if fam else None)):
@@ -90,7 +99,7 @@ def main():
                 continue
             y, leap, num = int(r["year"]), lab.startswith("闰"), int(lab.lstrip("闰"))
             t = g.table_month(r["regime"], y, g.MONTH_NAMES[num - 1], leap) or (y, num, leap)
-            others[(DYN.get(r["regime"], r["regime"]), t)].append((Path(path).stem, g.GANZHI.index(r["ganzhi"])))
+            others[(dyn_of(r["regime"], y), t)].append((Path(path).stem, g.GANZHI.index(r["ganzhi"])))
     sp = d.spans(tabs["主表"])
     for o in out:
         o["旁证（主表/本纪朔）"] = ""
@@ -117,7 +126,7 @@ def main():
         w.writeheader()
         w.writerows(out)
     print("一、明书朔日")
-    for dyn in ("三国", "晋", "南朝", "北朝", "隋", "唐"):
+    for dyn in ORDER:
         cells = "；".join(f"{col} {ok}/{n}" + (f"（不合者：朔差一二日 {a}、差一月 {b}、其他 {c}）" if col == "主表" else "")
                          for col, (n, ok, a, b, c) in stat[dyn].items())
         print(f"  {dyn}：{cells}")
@@ -131,7 +140,7 @@ def main():
             lp = leaps["主表"].get(y)
             # 本纪只保证闰月在所记最后一月之后：主表闰位更晚为「略书相容」（宋元嘉二十七年「冬閏月」承七月），更早或无闰才是矛盾
             v = "合" if lp == after else ("略书相容" if lp and lp > after else ("主表无闰" if not lp else f"主表闰{lp}（早于所记之月）"))
-            dyn = DYN.get(regime, regime)
+            dyn = dyn_of(regime, y)
             lstat[dyn][0] += 1
             lstat[dyn][1] += v == "合"
             lstat[dyn][2] += v == "略书相容"
@@ -143,7 +152,7 @@ def main():
         w.writeheader()
         w.writerows(lout)
     print("二、閏月位置（主表）")
-    for dyn in ("三国", "晋", "南朝", "北朝", "隋", "唐"):
+    for dyn in ORDER:
         n, ok, maybe = lstat[dyn]
         print(f"  {dyn}：{n} 条，合 {ok}，略书相容 {maybe}，矛盾 {n - ok - maybe}")
 

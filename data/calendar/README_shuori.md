@@ -245,7 +245,8 @@ CALENDAR_DATA_PATH=/tmp/ChineseCalendar/src/calendarData.js node scripts/calenda
 `scripts/calendar_data/qinhan_eval/zhi_star_records.py` 的纪日模式（`date_sections`，每卷指定政权）从本纪抽取带日干支的记事日期：
 《三国志》（`sanguozhi`）、《晋书》（`jinshu_benji`）、《宋书》（`songshu_benji`）、《南齐书》（`nanqishu_benji`）、《梁书》（`liangshu_benji`）、
 《陈书》（`chenshu_benji`）、《魏书》（`weishu_benji`）、《北齐书》（`beiqishu_benji`）、《周书》（`zhoushu_benji`）、《隋书》（`suishu_benji`）、
-《旧唐书》（`jiutangshu_benji`）、《新唐书》（`xintangshu_benji`）。
+《旧唐书》（`jiutangshu_benji`）、《新唐书》（`xintangshu_benji`）、《旧五代史》（`jiuwudaishi_benji`）、《新五代史》（`xinwudaishi_benji`）、
+《宋史》（`songshi_benji`）、《辽史》（`liaoshi_benji`）、《金史》（`jinshi_benji`）、《元史》（`yuanshi_benji`）、《明史》（`mingshi_benji`）。
 列：regime、era、year_in_era、year（天文纪年）、month（所记月序，闰月前加「闰」）、month_name、leap、ganzhi、calendar（该政权所用历表）、
 in_month（日干支在该历所记之月）、jdn、julian、position（原文明书「朔」者为「朔」）、text。`<书>_閏月.csv` 记本纪「閏月」及其前所记之月
 （leap_after）。用于 `scripts/calendar_data/discriminating_records.py` 以一手日期检验主表与各推步表（结论见 `doc/calendar/push-algorithms.md`

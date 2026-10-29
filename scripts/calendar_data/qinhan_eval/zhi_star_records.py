@@ -63,6 +63,8 @@ def era_starts(y0, y1):
 
 _OPENCC = opencc.OpenCC("s2t")
 # 史书用的异体（《宋史》熙甯、崇甯；OpenCC 只给正体「寧」）
+# 年号异名：史书所用写法与年号表（方诗铭）不同者。《辽史》道宗末年号作「壽隆」，方诗铭表作「寿昌」（辽碑与《东都事略》）
+ERA_ALIASES = {"寿昌": ("寿隆",)}
 EXTRA_VARIANTS = {"宁": ("甯",), "升": ("昇",), "启": ("啟",)}  # 甯：熙甯、咸甯；昇：昇明；啟：光啟（OpenCC 作「啓」）
 _OPENCC_T2S = opencc.OpenCC("t2s")
 # 目标位置上的天体简称（「太白犯歲」「太白犯木」「熒惑、歲相犯」）：单字或后接「于/於/在」时视为天体
@@ -113,8 +115,9 @@ def era_starts_merged(regimes, y0, y1):
         start = y - int(r["era_year"]) + 1
         ERA_LAST[start] = max(ERA_LAST.get(start, start), y)
         starts_by_regime.setdefault(r["regime"], set()).add(start)
-        for nm in trad_variants(r["era_name"]):
-            out.setdefault(nm, set()).add(start)
+        for name in (r["era_name"],) + ERA_ALIASES.get(r["era_name"], ()):
+            for nm in trad_variants(name):
+                out.setdefault(nm, set()).add(start)
         # 年内改元前的年号（如意、證聖只行用于改元之年，主年号列不出现）
         if r.get("gaiyuan_prev_era_name") and r.get("gaiyuan_prev_era_year", "").isdigit():
             ps = y - int(r["gaiyuan_prev_era_year"]) + 1
@@ -338,6 +341,53 @@ BOOKS = {
         regime_era_extra={"魏": ["汉"], "晋": ["魏"]},
     ),
     # 南朝四史本纪：宋（卷一至十）、南齐（卷一至八）、梁（卷一至六）、陈（卷一至六）；开国诸卷以前朝年号纪年
+    # 五代至明本纪纪日（以本纪核验主表，verify_main_table.py）。卷首传记常书前朝年号，故各政权另许前代年号（regime_era_extra）
+    "jiuwudaishi_benji": dict(
+        sections=[], carry_context=True, para_reset=False,
+        date_sections=[(f"舊五代史/卷{j}", None, None, "后梁") for j in range(1, 11)]
+        + [(f"舊五代史/卷{j}", None, None, "后唐") for j in range(25, 49)]
+        + [(f"舊五代史/卷{j}", None, None, "后晋") for j in range(75, 86)]
+        + [(f"舊五代史/卷{j}", None, None, "后汉") for j in range(99, 104)]
+        + [(f"舊五代史/卷{j}", None, None, "后周") for j in range(110, 121)],
+        years=(850, 960), start_year=852, regimes=[(907, "后梁"), (923, "后唐"), (936, "后晋"), (947, "后汉"), (951, "后周")],
+        era_regimes=["唐", "后梁", "后唐", "后晋", "后汉", "后周"],
+        regime_era_extra={"后梁": ["唐"], "后唐": ["唐", "后梁"], "后晋": ["后唐"], "后汉": ["后晋"], "后周": ["后汉"]},
+    ),
+    "xinwudaishi_benji": dict(
+        sections=[], carry_context=True, para_reset=False,
+        date_sections=[(f"新五代史/卷{j:02d}", None, None, r) for j, r in
+                       ((1, "后梁"), (2, "后梁"), (3, "后梁"), (4, "后唐"), (5, "后唐"), (6, "后唐"), (7, "后唐"), (8, "后晋"), (9, "后晋"),
+                        (10, "后汉"), (11, "后周"), (12, "后周"))],
+        years=(850, 960), start_year=852, regimes=[(907, "后梁"), (923, "后唐"), (936, "后晋"), (947, "后汉"), (951, "后周")],
+        era_regimes=["唐", "后梁", "后唐", "后晋", "后汉", "后周"],
+        regime_era_extra={"后梁": ["唐"], "后唐": ["唐", "后梁"], "后晋": ["后唐"], "后汉": ["后晋"], "后周": ["后汉"]},
+    ),
+    "songshi_benji": dict(
+        sections=[], carry_context=True, para_reset=False,
+        date_sections=[(f"宋史/卷{j:03d}", None, None, "宋") for j in range(1, 48)],
+        years=(920, 1280), start_year=927, regimes=[(960, "宋")], era_regimes=["后唐", "后晋", "后汉", "后周", "宋"],
+        regime_era_extra={"宋": ["后唐", "后晋", "后汉", "后周"]},
+    ),
+    "liaoshi_benji": dict(
+        sections=[], carry_context=True, para_reset=False,
+        date_sections=[(f"遼史/卷{j}", None, None, "辽") for j in range(1, 31)],
+        years=(900, 1130), start_year=907, regimes=[(907, "辽")], era_regimes=["辽"],
+    ),
+    "jinshi_benji": dict(
+        sections=[], carry_context=True, para_reset=False,
+        date_sections=[(f"金史/卷{j}", None, None, "金") for j in range(2, 19)],
+        years=(1100, 1235), start_year=1113, regimes=[(1115, "金")], era_regimes=["辽", "金"], regime_era_extra={"金": ["辽"]},
+    ),
+    "yuanshi_benji": dict(
+        sections=[], carry_context=True, para_reset=False,
+        date_sections=[(f"元史/卷{j:03d}", None, None, "元") for j in range(4, 48)],
+        years=(1250, 1370), start_year=1260, regimes=[(1260, "元")], era_regimes=["蒙古", "元"], regime_era_extra={"元": ["蒙古"]},
+    ),
+    "mingshi_benji": dict(
+        sections=[], carry_context=True, para_reset=False, simplified=True,
+        date_sections=[(f"明史/卷{j}", None, None, "明") for j in range(1, 25)],
+        years=(1340, 1645), start_year=1352, regimes=[(1368, "明")], era_regimes=["元", "明"], regime_era_extra={"明": ["元"]},
+    ),
     "songshu_benji": dict(
         sections=[], carry_context=True, para_reset=False,
         date_sections=[(f"宋書/卷{j}", None, None, "宋") for j in range(1, 11)],
@@ -503,6 +553,7 @@ def regime_of(year, regimes):
 def section_text(title, head, stop, corrections=()):
     t = hh.fetch(title)
     t = re.sub(r"-\{([^{}]*)\}-", r"\1", t)  # 维基文库繁简转换标记「-{丑}-」
+    t = re.sub(r"\[\[(?:[^\[\]|]*\|)?([^\[\]|]*)\]\]", r"\1", t)  # 维基链接「改元[[w:乾統|乾統]]」「[[w:韓綜|綜]]」取显示文字
     t = t.replace("{{gap}}", "")  # 段首缩进模板（《三国志》），留着会使「{{gap}}五鳳元年」超出日期前缀长度
     # 点校本改字：「十（二）〔一〕月」删圆括号内字、补方括号内字，取改正后文字
     t = re.sub(r"（[^（）〔〕\n]{1,8}）(?=〔)", "", t)
