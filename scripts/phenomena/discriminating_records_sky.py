@@ -55,6 +55,8 @@ def main():
     for r in rows("data/calendar/discriminating_records.csv"):
         if r["类"] == "日食":
             a, targets = "Sun", [eph["moon"]]
+        elif not r["bodies"].split():
+            continue  # 本纪纪事日期无天象可验（其判别见 discriminating_records.csv 在月统计）
         else:
             a = r["bodies"].split()[0]
             tid = r["target_id"]
