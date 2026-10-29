@@ -24,6 +24,7 @@
 | `gaiyuan_month` | 改元/继位所在的**农历月份**（1-12），仅在该年是某年号第一年时有值。来自 fang_shiming 转录里的圈码标注，来源为年号表.csv 的主线行（年号表.csv 本身不含月份）此列恒为空。**只精确到月，不到日**——精确到日的改元时间是另一套独立机制，见下「已知局限」 |
 | `source` | 数据来源：`era_names_csv` 或 `fang_shiming:<章节文件名>` |
 | `note` | 校勘/异说说明，见下 |
+| `gaiyuan_earlier_eras` | 一年三号以上者，除 `era_name` 与 `gaiyuan_prev_era_name` 外本年行用过的年号，「名年数」以 `/` 相隔、按先后（528 北魏 `武泰1`，304 晋 `永安1/建武1`）。来自方诗铭表三段以上的单元格与 `data/calendar/era_gaiyuan_day.csv`；次年元年的年号不计（武周建子，改元表记在上年十一月者）。末列追加：Rust `era_names` 按位置读到 `gaiyuan_month` 为止，不受影响 |
 
 ### 已知的真实史料分歧（不做取舍，两说都保留）
 

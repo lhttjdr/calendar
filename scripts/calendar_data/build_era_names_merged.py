@@ -406,6 +406,11 @@ def forward_fill_column(
             if e and e != era:
                 prev_era, prev_num = e, n
                 break
+        # 一年三号以上（528 年北魏「武泰1 / 孝庄帝建义1 / 永安1」）：改元前年号之前更早的年号，依次记下
+        earlier = []
+        for e, n in seg_states[:-1]:
+            if e and e not in (era, prev_era) and (e, n) not in earlier:
+                earlier.append((e, n))
         out[y] = {
             "ruler": ruler,
             "era": era,
@@ -416,6 +421,7 @@ def forward_fill_column(
             "surname": surname,
             "prev_era": prev_era,
             "prev_num": prev_num,
+            "earlier": earlier,
         }
     return out
 
@@ -931,6 +937,7 @@ def main() -> None:
                         "gaiyuan_prev_era_name": st.get("prev_era") or "" if not primary else "",
                         "gaiyuan_prev_era_year": (st.get("prev_num") or "") if not primary and st.get("prev_era") else "",
                         "gaiyuan_month": month if month is not None else "",
+                        "gaiyuan_earlier_eras": "" if primary else "/".join(f"{e}{n or ''}" for e, n in st.get("earlier", [])),
                         "source": f"fang_shiming:{fname}",
                         "note": note,
                     }
@@ -1125,6 +1132,7 @@ def main() -> None:
         print(f"注意：{conflict_count} 处章节交界年份的政权记录内容有出入，两条都保留并加了 note，见上说明。")
 
     rows.sort(key=lambda r: (r["lunar_year"], 0 if r["is_primary"] else 1, r["regime"]))
+    fill_earlier_eras_from_gaiyuan_day(rows)
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     csv_path = OUT_DIR / "era_names_merged.csv"
@@ -1133,6 +1141,8 @@ def main() -> None:
     fieldnames = [
         "lunar_year", "regime", "emperor", "era_name", "era_year", "is_primary", "has_gaiyuan",
         "gaiyuan_prev_era_name", "gaiyuan_prev_era_year", "gaiyuan_month", "source", "note",
+        # 追加在末列：Rust era_names 按位置读到 gaiyuan_month 为止，末列不影响
+        "gaiyuan_earlier_eras",
     ]
     with open(csv_path, "w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -1146,6 +1156,36 @@ def main() -> None:
     print(f"Wrote {csv_path} and {json_path}")
     print(f"总行数 {len(rows)}（主线 is_primary=1: {n_primary}，并存补充 is_primary=0: {len(rows) - n_primary}，"
           f"其中来自 fang_shiming 补充列的: {supplement_count}）")
+
+
+def fill_earlier_eras_from_gaiyuan_day(rows: list[dict]) -> None:
+    """gaiyuan_earlier_eras：该年除主年号（era_name）与改元前年号（gaiyuan_prev_era_name）之外行用过的年号，「名年数」以 / 相隔、
+    按先后。方诗铭表单元格三段以上者已在 forward_fill_column 取得；此处再按改元日表 data/calendar/era_gaiyuan_day.csv 补
+    一年数改者（304 年晋惠帝太安→永安→建武→永安→永兴，主年号永兴、改元前年号太安，另有永安、建武）。"""
+    chains: dict[tuple[int, str], list[tuple[str, int | None]]] = {}
+    with open(ROOT / "data/calendar/era_gaiyuan_day.csv", encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            key = (int(r["lunar_year"]), r["regime_simp"])
+            ch = chains.setdefault(key, [])
+            for name, yr in ((r["from_era_name_simp"], r["from_era_year_simp"]), (r["to_era_name_simp"], r["to_era_year_simp"])):
+                if name and (name, cn_year_to_int(yr)) not in ch:
+                    ch.append((name, cn_year_to_int(yr)))
+    # 次年元年的主年号不算本年行用：武周建子，改元表把「神功二年→圣历元年」记在 697 年十一月，实为 698 年（武周历）正月
+    # （次年的改元前年号亦然：证圣元年为 695 年行 gaiyuan_prev；不论政权：王莽建丑，始建国元年在 9 年「新」行）
+    next_first = {(r["lunar_year"] - 1, r["era_name"]) for r in rows if str(r["era_year"]) == "1"} | \
+        {(r["lunar_year"] - 1, r["gaiyuan_prev_era_name"]) for r in rows if str(r["gaiyuan_prev_era_year"]) == "1"}
+    for r in rows:
+        r.setdefault("gaiyuan_earlier_eras", "")
+        ch = chains.get((r["lunar_year"], r["regime"]))
+        if not ch:
+            continue
+        have = [x for x in r["gaiyuan_earlier_eras"].split("/") if x]
+        for name, yr in ch:
+            item = f"{name}{yr or ''}"
+            if name not in (r["era_name"], r["gaiyuan_prev_era_name"]) and item not in have \
+                    and (r["lunar_year"], name) not in next_first:
+                have.append(item)
+        r["gaiyuan_earlier_eras"] = "/".join(have)
 
 
 if __name__ == "__main__":
