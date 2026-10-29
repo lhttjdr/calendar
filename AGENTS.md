@@ -20,7 +20,7 @@
 计算逻辑分三个大域，依赖单向：**天文**（astronomy，朔望/节气/月相/日月食）→ **历法**（calendar，干支历/农历各版本/政权年号）→ **民俗**（folk，八字/黄道黑道/吉凶星，尚未实现）。三个域内部都是同一种四段形状：独立基础层→聚合/实算层→派生层→仲裁/路由层（横切，职责是"选"不是"算"，不要和前三层的计算逻辑混在同一处，否则会像 `historical.rs`/`convert.rs` 那样难以复用）。完整说明见 [doc/architecture/three-domains.md](doc/architecture/three-domains.md)。
 
 `rust/core/src/calendar/` 内文件对应四层：
-- **1 独立基础层**：`gregorian`（前推格里高利历 `to_julian_day`；民用历 `civil_to_julian_day`，1582-10-15 前儒略历——史料与 `实历朔日表` 日期用后者）、`ancient_restore`（古历复原：分数推步、平朔平气，仅作验证）、`push_calendar`（历谱生成）、`gan_zhi`（干支纯循环命名）、`options`。
+- **1 独立基础层**：`gregorian`（前推格里高利历 `to_julian_day`；民用历 `civil_to_julian_day`，1582-10-15 前儒略历——史料与 `实历朔日表` 日期用后者）、`ancient_restore`（古历复原：分数推步、平朔平气，仅作验证）、`push_calendar`（历谱生成；定朔的金重修大明历在 `daming_li`）、`gan_zhi`（干支纯循环命名）、`options`。
 - **2 聚合/实算层**：`chinese_lunar`（现算真朔真气）、`historical`（`HistoricalCalendar`，查历史朔日表为主表提供岁数据）。
 - **3 派生层**：`era_names`（`EraNames` 解析 `data/calendar/汇总/era_names_merged.csv`，同一年可能有多个并存政权）、`era_gaiyuan`（处理改元）、`month_labels`（历史月序改制：主表一律建寅编月，新莽/景初建丑、武周/肃宗末建子的当时月名经 `data/calendar/month_label_reforms.csv` 换算）。
 - **4 仲裁/路由层**：`lifa`（`LifaRegistry` 解析 `data/calendar/汇总/lifa_summary.csv`）、`convert`（"实历优先、缺省退回定气定朔"判断）。

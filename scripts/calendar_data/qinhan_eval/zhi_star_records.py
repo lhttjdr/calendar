@@ -276,6 +276,7 @@ BOOKS = {
         sections=[("金史/卷20", "==月五星淩犯及星變==", "@@")],
         corrections=[("金史/卷20", "九年二年癸亥", "九年二月癸亥", "「二年」為「二月」之訛（上承八年閏八月至十二月，下接七月）")],
         years=(1113, 1235), start_year=1115, regimes=[(1115, "金")], era_regimes=["金"], para_reset=False,
+        calendars=[(-10000, "主表"), (1137, "金")],  # 天会十五年颁大明历起用金历推步（calendar::daming_li）
     ),
     # 《元史·天文志》（卷四十八「月五星凌犯及星變上」、卷四十九「下」）：月称「太陰」；点校本改字（「十（二）〔一〕月」）照改
     "yuanshi": dict(
@@ -377,6 +378,7 @@ BOOKS = {
         sections=[], carry_context=True, para_reset=False,
         date_sections=[(f"金史/卷{j}", None, None, "金") for j in range(2, 19)],
         years=(1100, 1235), start_year=1113, regimes=[(1115, "金")], era_regimes=["辽", "金"], regime_era_extra={"金": ["辽"]},
+        calendars=[(-10000, "主表"), (1137, "金")],
     ),
     "yuanshi_benji": dict(
         sections=[], carry_context=True, para_reset=False,

@@ -7,7 +7,7 @@
 
 | 层 | 内容 | 文件 |
 |----|------|------|
-| 1 独立基础层（不依赖天文） | JD↔儒略历/格里高利历；各朝代古历分数推步（平朔平气，仅作验证）；干支纯循环命名；历法换算选项 | `gregorian.rs`、`ancient_restore.rs`、`push_calendar.rs`、`gan_zhi.rs`、`options.rs` |
+| 1 独立基础层（不依赖天文） | JD↔儒略历/格里高利历；各朝代古历分数推步（平朔平气，仅作验证）；干支纯循环命名；历法换算选项 | `gregorian.rs`、`ancient_restore.rs`、`push_calendar.rs`、`daming_li.rs`、`gan_zhi.rs`、`options.rs` |
 | 2 聚合/实算层（依赖天文的朔、气） | 现算或查表得到某历法某农历年的岁数据（朔+中气） | `chinese_lunar.rs`（现算真朔真气）、`historical.rs`（查历史朔日表）；干支历"节气派"（`gan_zhi_options.rs` 一支） |
 | 3 派生层（依赖第 2 层产出） | 政权·帝王·年号纪年；干支历"农历派" | `era_names.rs`、`era_gaiyuan.rs`、`month_labels.rs`；干支历"农历派"（`gan_zhi_options.rs` 另一支） |
 | 4 仲裁/路由层 | 某农历年该用哪种历法实现；实历覆盖范围内是否优先用实历 | `lifa.rs`（`LifaRegistry`）；`convert.rs`（"优先实历、缺省退回定气定朔"判断，见下方「已知问题」） |
@@ -23,6 +23,7 @@
 - **格里高利历**（及此前之儒略历）：公历体系，1582 年前儒略历、其后格里高利历。
 - **古历复原**（`ancient_restore.rs`）：分数推步（`BigRational`），平朔平气、历谱生成；**仅作验证古历用**，不作为实际换算依据（与下面"实历优先"的换算路径是两条不同路径，见 [ancient-calendar-restore.md](ancient-calendar-restore.md)）。
 - **推步历**（`push_calendar.rs`）：各政权历法（蜀四分、吴乾象等）的平朔+无中气置闰实现，算法与参数见 [push-algorithms.md](push-algorithms.md)。
+  定朔历金重修大明历（`daming_li.rs`，有理数推步定朔、进朔）经同一政权表（`regime_calendars`）导出，见 [historical-calendar.md](historical-calendar.md)「金大明历」。
 - **干支纯循环命名**（`gan_zhi.rs`）：甲子…癸亥 60 日循环，只依赖儒略日整数，不依赖任何历法边界规则（边界规则在第 2/3 层的 `gan_zhi_options.rs`）。
 
 **对应数据**：

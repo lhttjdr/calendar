@@ -2,7 +2,7 @@
 //!
 //! **四层结构**（见 `doc/calendar/calendar-layers.md`、跨域关系见 `doc/architecture/three-domains.md`）：
 //! - **第 1 层·独立基础层**（不查天文）：[gregorian]（儒略历/格里高利历）、[ancient_restore]（古历复原：分数推步、
-//!   平朔平气，仅作验证）、[push_calendar]（历谱生成）、[gan_zhi]（干支纯循环命名）。
+//!   平朔平气，仅作验证）、[push_calendar]（历谱生成；定朔的金重修大明历在 [daming_li]）、[gan_zhi]（干支纯循环命名）。
 //! - **第 2 层·聚合/实算层**（依赖天文的真朔真气，或查历史表）：[chinese_lunar] 现算；[historical]
 //!   （[HistoricalCalendar]）为主表查表提供朔日岁数据（主表 = 各朝颁历据历还原推步得出的连续表）。
 //! - **第 3 层·派生层**（依赖第 2 层产出）：[era_names]——依附于历法的纪年，按政权分，同一年可能有多个并存政权
@@ -22,6 +22,7 @@
 pub mod ancient_restore;
 pub mod chinese_lunar;
 pub mod convert;
+pub mod daming_li;
 pub mod era_gaiyuan;
 pub mod era_names;
 pub mod gan_zhi;

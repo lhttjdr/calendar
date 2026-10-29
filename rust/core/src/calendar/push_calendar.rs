@@ -1,4 +1,4 @@
-//! 推步历：平朔 + 无中气置闰，用于各政权历法（蜀四分、吴乾象等）。
+//! 推步历：平朔 + 无中气置闰，用于各政权历法（蜀四分、吴乾象等）；定朔的金大明历在 [super::daming_li]，经本模块政权表统一出口。
 //! 算法与参数见 doc/calendar/push-algorithms.md。
 
 use super::gregorian;
@@ -86,29 +86,40 @@ pub fn year_months(params: &LiParams, lunar_year: i32) -> Vec<(i64, u8, bool)> {
 /// 纯按历术推步，不改个别月份：实历朔日表与推步不合处（如 430 年二月）是另一份复原的结果，依据未核，不据以改动。
 pub fn regime_year_months(regime: &str, lunar_year: i32) -> Option<(&'static str, Vec<(i64, u8, bool)>)> {
     let (_, _, _, pick) = regime_calendars().into_iter().find(|(r, y0, y1, _)| *r == regime && (*y0..=*y1).contains(&lunar_year))?;
-    let (cal, params) = pick(lunar_year);
-    Some((cal, year_months(&params, lunar_year)))
+    Some(pick(lunar_year))
 }
 
-/// 推步政权表：(政权, 起年, 止年, 按年选历术)。与 [gregorian_to_all_regimes_lunar] 所用相同。
-pub fn regime_calendars() -> Vec<(&'static str, i32, i32, fn(i32) -> (&'static str, LiParams))> {
-    fn shu(_: i32) -> (&'static str, LiParams) {
-        ("四分历", sifen_params())
+/// 某岁所用历术名与各月 (朔日 JDN, 月序, 闰否)。
+pub type RegimeYearFn = fn(i32) -> (&'static str, Vec<(i64, u8, bool)>);
+
+/// 推步政权表：(政权, 起年, 止年, 按年推步)。平朔历用 [LiParams]，金用定朔的 [super::daming_li]。
+/// 与 [gregorian_to_all_regimes_lunar] 所用相同。
+pub fn regime_calendars() -> Vec<(&'static str, i32, i32, RegimeYearFn)> {
+    fn ping(y: i32, (name, p): (&'static str, LiParams)) -> (&'static str, Vec<(i64, u8, bool)>) {
+        (name, year_months(&p, y))
     }
-    fn wu(_: i32) -> (&'static str, LiParams) {
-        ("乾象历", qianxiang_params())
+    fn shu(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        ping(y, ("四分历", sifen_params()))
     }
-    fn later_qin(_: i32) -> (&'static str, LiParams) {
-        ("三纪历", sanji_params())
+    fn wu(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        ping(y, ("乾象历", qianxiang_params()))
     }
-    fn northern_liang(_: i32) -> (&'static str, LiParams) {
-        ("玄始历", xuanshi_params())
+    fn later_qin(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        ping(y, ("三纪历", sanji_params()))
     }
-    fn wzs(y: i32) -> (&'static str, LiParams) {
-        wei_zhou_sui_params_for_year(y).unwrap()
+    fn northern_liang(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        ping(y, ("玄始历", xuanshi_params()))
     }
-    fn wq(y: i32) -> (&'static str, LiParams) {
-        wei_qi_params_for_year(y).unwrap()
+    fn wzs(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        ping(y, wei_zhou_sui_params_for_year(y).unwrap())
+    }
+    fn wq(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        ping(y, wei_qi_params_for_year(y).unwrap())
+    }
+    // 天会十五年（1137）颁杨级大明历，术不传，以重修大明历代推；大定二十一年（1181）校验后改用赵知微重修大明历，
+    // 行至金亡（1234）。见 doc/calendar/historical-calendar.md「金大明历」
+    fn jin(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        (if y < 1182 { "大明历（杨级，以重修大明历代推）" } else { "重修大明历" }, super::daming_li::year_months(y))
     }
     vec![
         ("蜀", 221, 263, shu),
@@ -117,6 +128,7 @@ pub fn regime_calendars() -> Vec<(&'static str, i32, i32, fn(i32) -> (&'static s
         ("北凉", 398, 439, northern_liang),
         ("北魏/西魏/北周/隋", 398, 590, wzs),
         ("东魏/北齐", 534, 577, wq),
+        ("金", 1137, 1234, jin),
     ]
 }
 

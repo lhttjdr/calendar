@@ -81,7 +81,7 @@ REGIME_TABLE = ROOT / "data/calendar/推步政权朔日表.csv"
 
 @lru_cache(maxsize=None)
 def _regime_months(regime: str) -> list[tuple[int, int, bool, int]]:
-    """推步政权（蜀、吴、后秦、北凉、北魏/西魏/北周/隋、东魏/北齐）按时间排序的 (岁, 月, 闰, 朔日 JDN)。
+    """推步政权（蜀、吴、后秦、北凉、北魏/西魏/北周/隋、东魏/北齐、金）按时间排序的 (岁, 月, 闰, 朔日 JDN)。
     数据由 rust/core examples/export_regime_calendars.rs 从 calendar::push_calendar 导出。"""
     out = []
     with open(REGIME_TABLE, encoding="utf-8") as f:
