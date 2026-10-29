@@ -1,0 +1,126 @@
+"""由 verify_main_table.py 与 scripts/phenomena/main_table_shuo_sky.py 的输出生成 doc/calendar/main-table-checks.md（逐条，勿手改）。
+
+用法（仓库根）：uv run --project scripts python scripts/calendar_data/main_table_checks_to_md.py
+"""
+import csv
+from collections import defaultdict
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+DYNS = ("三国", "晋", "南朝", "北朝", "隋", "唐")
+BOOK = {"sanguozhi": "三国志", "jinshu_benji": "晋书", "songshu_benji": "宋书", "nanqishu_benji": "南齐书", "liangshu_benji": "梁书",
+        "chenshu_benji": "陈书", "weishu_benji": "魏书", "beiqishu_benji": "北齐书", "zhoushu_benji": "周书", "suishu_benji": "隋书",
+        "jiutangshu_benji": "旧唐书", "xintangshu_benji": "新唐书"}
+
+
+def rows(name):
+    p = ROOT / "data/calendar" / name
+    if not p.exists():
+        return []
+    with open(p, encoding="utf-8") as f:
+        return list(csv.DictReader(line for line in f if not line.startswith("#")))
+
+
+def table(head, body):
+    out = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
+    out += ["| " + " | ".join(str(c).replace("|", "／") for c in r) + " |" for r in body]
+    return out
+
+
+def book(b):
+    return "、".join(BOOK.get(x, x) for x in b.split("、")) if b else ""
+
+
+def main():
+    chk, leaps, sky, base = rows("main_table_check.csv"), rows("main_table_leaps.csv"), rows("main_table_shuo_sky.csv"), \
+        rows("main_table_shuo_baseline.csv")
+    sky_by = {(s["书"], s["年"], s["月"], s["本纪朔"]): s for s in sky}
+    L = ["# 以本纪核验主表：逐条结果", "",
+         "由 `scripts/calendar_data/verify_main_table.py`、`scripts/phenomena/main_table_shuo_sky.py` 计算，"
+         "`scripts/calendar_data/main_table_checks_to_md.py` 生成，**勿手改**。方法与结论见 "
+         "[historical-calendar.md](./historical-calendar.md)「以本纪核验主表」；逐条数据见 `data/calendar/main_table_*.csv`，"
+         "本纪纪日由 `scripts/calendar_data/qinhan_eval/zhi_star_records.py` 的纪日模式（`*_benji` 配置）抽取，见 `data/calendar/本纪纪日/`。", ""]
+    # 一、明书朔日
+    st = defaultdict(lambda: defaultdict(int))
+    for r in chk:
+        s = st[r["朝代"]]
+        s["n"] += 1
+        s["ok"] += r["主表"] == "合"
+        s[r["类"]] += 1
+        if r["本项目推步"]:
+            s["pn"] += 1
+            s["pok"] += r["本项目推步"] == "合"
+    L += ["## 一、明书朔日（本纪「某月某干支朔」）", "",
+          "不合者分三类：**朔差一二日**（朔日推算之差，主表或本纪有一误）、**差一月**（所书干支为主表邻月或闰月之朔，闰位或月序不同）、"
+          "**其他**（多为干支传写之误或解析误定年月，不作主表证据）。北朝、隋另列本项目推步表。", ""]
+    L += table(["朝代", "条数", "与主表合", "朔差一二日", "差一月", "其他", "本项目推步合"],
+               [[d, st[d]["n"], st[d]["ok"], st[d]["朔差一二日"], st[d]["差一月"], st[d]["其他"],
+                 f"{st[d]['pok']}/{st[d]['pn']}" if st[d]["pn"] else ""] for d in DYNS if st[d]["n"]])
+    L += ["", "### 朔差一二日：实际合朔判定", "",
+          "合朔为 DE441 视合朔换算为都城地方平时；「日差」= 合朔所在日 − 本纪朔日。日食记录在平朔时代常把食日（即合朔日）书为朔，"
+          "不作历日证据（见 historical-calendar.md）。", ""]
+    body = []
+    for r in chk:
+        if r["类"] != "朔差一二日":
+            continue
+        s = sky_by.get((r["书"], r["年"], r["月"], r["本纪朔"]), {})
+        body.append([BOOK.get(r["书"], r["书"]), r["政权"], r["年"], r["纪年"], r["月"], r["本纪朔"], r["主表"], r["本项目推步"], r["日食"],
+                     s.get("合朔地方时日差（合朔日−本纪朔）", ""), s.get("合朔地方时", ""), s.get("判定", ""), book(r["他书同记"]),
+                     r["旁证（主表/本纪朔）"], r["原文"]])
+    L += table(["书", "政权", "年", "纪年", "月", "本纪朔", "主表", "本项目推步", "日食", "日差", "合朔地方时", "判定", "他书同记",
+                "旁证（主表/本纪朔）", "原文"], body)
+    for kind in ("差一月", "其他"):
+        L += ["", f"### {kind}", "",
+              "「旁证」为他书同月记日干支落在主表该月内者 / 落在以本纪所书朔起算 30 日内者（共几条）。", ""]
+        L += table(["书", "政权", "年", "纪年", "月", "本纪朔", "主表", "本项目推步", "日食", "他书同记", "旁证（主表/本纪朔）", "原文"],
+                   [[BOOK.get(r["书"], r["书"]), r["政权"], r["年"], r["纪年"], r["月"], r["本纪朔"], r["主表"], r["本项目推步"], r["日食"],
+                     book(r["他书同记"]), r["旁证（主表/本纪朔）"], r["原文"]] for r in chk if r["类"] == kind])
+    if base:
+        L += ["", "### 相合者之朔日与实际合朔", "",
+              "本纪明书朔日与主表相合者，合朔（都城地方平时）所在日 − 朔日之分布。−1 即朔在合朔次日；唐代此类合朔时刻几乎都在 16 时以后，为进朔。", ""]
+        by = defaultdict(dict)
+        for b in base:
+            by[b["朝代"]][int(b["差"])] = int(b["次数"])
+        L += table(["朝代", "−1", "0", "+1"], [[d, by[d].get(-1, 0), by[d].get(0, 0), by[d].get(1, 0)] for d in DYNS if d in by])
+    # 二、闰位
+    ls = defaultdict(lambda: defaultdict(int))
+    for r in leaps:
+        ls[r["朝代"]]["n"] += 1
+        ls[r["朝代"]][r["主表"] if r["主表"] in ("合", "略书相容") else "矛盾"] += 1
+    L += ["", "## 二、本纪「閏月」位置", "",
+          "本纪「閏月」只保证在所记最后一月之后：主表闰位更晚为**略书相容**，更早或主表当年无闰为**矛盾**。"
+          "北朝主表本非当时行用之历（北朝推步表闰位见 `data/calendar/leap_evidence.csv` 与 push-algorithms.md §3.4）。", ""]
+    L += table(["朝代", "条数", "合", "略书相容", "矛盾"],
+               [[d, ls[d]["n"], ls[d]["合"], ls[d]["略书相容"], ls[d]["矛盾"]] for d in DYNS if ls[d]["n"]])
+    L += ["", "### 矛盾者", ""]
+    L += table(["书", "朝代", "年", "纪年", "本纪闰位（不早于）", "主表", "原文"],
+               [[BOOK.get(r["书"], r["书"]), r["朝代"], r["年"], r["纪年"], r["本纪闰位"], r["主表"], r["原文"]]
+                for r in leaps if r["主表"] not in ("合", "略书相容")])
+    # 三、敦煌历日（邓文宽 1996 附录一；check_dunhuang_comparison.py）
+    dh = rows("dunhuang_vs_main.csv")
+    if dh:
+        L += ["", "## 三、敦煌历日与主表（邓文宽 1996 附录一）", "",
+              "敦煌出土具注历日为当地自造之历（吐蕃、归义军时期），是独立历表，不据以改主表。转录 `data/calendar/敦煌历日_比较表.csv`"
+              "（中原曆一栏据陈垣，与主表 447 格全合），逐月比较见 `data/calendar/dunhuang_vs_main.csv`。下表只计原文有据之月"
+              "（不含原书括号推算之格）；「日差」= 敦煌朔 − 主表朔。", ""]
+        per = defaultdict(lambda: defaultdict(int))
+        for r in dh:
+            if r["推算"]:
+                continue
+            k = (r["公元"], r["纪年"], r["文书"], r["时期"])
+            per[k]["n"] += 1
+            per[k][int(r["日差"])] += 1
+        body = []
+        for (y, era, doc, p), c in sorted(per.items(), key=lambda kv: int(kv[0][0])):
+            body.append([y, era, doc, p, c["n"], c[0], c[-2] + c[-1], c[1] + c[2]])
+        L += table(["公元", "纪年", "文书", "时期", "有据之月", "与主表同朔", "敦早（1—2 日）", "敦迟（1—2 日）"], body)
+        L += ["", "### 敦煌朔与主表不同之月（有据者）", ""]
+        L += table(["公元", "纪年", "文书", "主表月", "敦煌月", "敦煌朔", "主表朔", "日差", "书页"],
+                   [[r["公元"], r["纪年"], r["文书"], r["主表月"], r["敦煌月"], r["敦煌朔"], r["主表朔"], r["日差"], r["书页"]]
+                    for r in dh if not r["推算"] and r["日差"] != "0"])
+    (ROOT / "doc/calendar/main-table-checks.md").write_text("\n".join(L) + "\n", encoding="utf-8")
+    print("doc/calendar/main-table-checks.md", len(L), "行")
+
+
+if __name__ == "__main__":
+    main()
