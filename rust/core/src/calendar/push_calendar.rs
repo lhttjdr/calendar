@@ -251,7 +251,7 @@ pub fn mingkerang_params() -> LiParams {
     }
 }
 
-/// 历术预设：Xinghe 兴和（东魏 539–550）
+/// 历术预设：Xinghe 兴和（东魏 539–550，北齐沿用至 551）
 pub fn xinghe_params() -> LiParams {
     LiParams {
         lunar: 29.0 + 110647.0 / 208530.0,
@@ -263,7 +263,7 @@ pub fn xinghe_params() -> LiParams {
     }
 }
 
-/// 历术预设：Tianbao 天保（北齐 550–577）
+/// 历术预设：Tianbao 天保（北齐 552–577）
 pub fn tianbao_params() -> LiParams {
     LiParams {
         lunar: 29.0 + 155272.0 / 292635.0,
@@ -346,7 +346,9 @@ fn wei_zhou_sui_params_for_year(g_year: i32) -> Option<(&'static str, LiParams)>
 fn wei_qi_params_for_year(g_year: i32) -> Option<(&'static str, LiParams)> {
     let (name, params) = if (g_year as f64) < 539.5 {
         ("正光历", zhengguang_params())
-    } else if (g_year as f64) < 550.5 {
+    } else if (g_year as f64) < 551.5 {
+        // 天保元年（550）受禅后宋景业造天保历，实际行用自 552 年：《北齐书》天保二年（551）「閏月」在四月后、
+        // 是年 22 个纪日兴和历合 21、天保历合 17，553 年起则天保历全合（doc/calendar/push-algorithms.md §3.5）
         ("兴和历", xinghe_params())
     } else {
         ("天保历", tianbao_params())
@@ -463,7 +465,8 @@ mod tests {
         leap_diff.sort();
         day_diff.sort();
         assert!(n > 4900, "比对月数 {n}");
-        assert_eq!(leap_diff, vec![("吴", 222)], "闰位不同之岁");
+        // 东魏/北齐 551：上游自 551 年用天保历（闰二），本实现据《北齐书》纪日与閏月位置沿用兴和历至 551 年（闰四）
+        assert_eq!(leap_diff, vec![("东魏/北齐", 551), ("吴", 222)], "闰位不同之岁");
         assert_eq!(
             day_diff,
             vec![("北凉", 430, 2, 1), ("北魏/西魏/北周/隋", 430, 2, 1), ("吴", 244, 12, 1), ("吴", 247, 9, -1)],
