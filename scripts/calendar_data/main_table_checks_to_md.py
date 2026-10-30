@@ -1,4 +1,4 @@
-"""由 verify_main_table.py 与 scripts/phenomena/main_table_shuo_sky.py 的输出生成 doc/calendar/main-table-checks.md（逐条，勿手改）。
+"""由 verify_main_table.py、scripts/phenomena/main_table_shuo_sky.py、daming_dingshuo.py、liao_calendar_check.py 等的输出生成 doc/calendar/main-table-checks.md（逐条，勿手改）。
 
 用法（仓库根）：uv run --project scripts python scripts/calendar_data/main_table_checks_to_md.py
 """
@@ -120,6 +120,39 @@ def main():
         L += table(["公元", "纪年", "文书", "主表月", "敦煌月", "敦煌朔", "主表朔", "日差", "书页"],
                    [[r["公元"], r["纪年"], r["文书"], r["主表月"], r["敦煌月"], r["敦煌朔"], r["主表朔"], r["日差"], r["书页"]]
                     for r in dh if not r["推算"] and r["日差"] != "0"])
+    # 四、金大明历（daming_dingshuo.py）
+    jn = rows("daming_dingshuo_check.csv")
+    if jn:
+        L += ["", "## 四、金大明历定朔与本纪明书朔日", "",
+              "重修大明历定朔、进朔（`calendar::daming_li`；1182 年前杨级历以之代推），进朔限为术文原限加校准 0.25 时"
+              "（见 historical-calendar.md「金大明历」）。逐条见 `data/calendar/daming_dingshuo_check.csv`；下表列本纪不合主表、"
+              "或不合金历、或临限（超术文限 0—0.5 时）之条。", ""]
+        n = len(jn)
+        L += [f"共 {n} 条：合主表 {sum(int(r['本纪合主表']) for r in jn)}，合金历不进朔 {sum(int(r['本纪合大明不进朔']) for r in jn)}，"
+              f"合术文进朔 {sum(int(r['本纪合术文进朔']) for r in jn)}，合校准进朔 {sum(int(r['本纪合大明进朔']) for r in jn)}。", ""]
+        L += table(["年", "纪年", "月", "本纪朔", "主表朔", "金定朔", "定朔小余（时）", "术文限（时）", "术文进朔", "校准进朔", "日食", "原文"],
+                   [[r["年"], r["纪年"], r["月"], r["本纪朔"], r["主表朔"], r["大明定朔"], r["定朔小余（时）"], r["术文进朔限（时）"],
+                     r["术文进朔"], r["大明进朔（校准）"], r["日食"], r["原文"]]
+                    for r in jn if r["临限"] or r["本纪合主表"] == "0" or r["本纪合大明进朔"] == "0"])
+    # 五、辽历（liao_calendar_check.py）
+    lc = rows("liao_calendar_check.csv")
+    if lc:
+        L += ["", "## 五、辽历：本纪明书朔日与宋历、祖冲之大明历、金大明历", "",
+              "《辽史·历象志》所载「大明历」为祖冲之法（志自言「歷書法禁不可得……得祖沖之法於外史」），以本纪检之。"
+              "祖冲之平朔与任何定朔历偶合约 68%（994—1125 年主表 1110/1632），辽本纪合平朔之率与之相当，合定朔则在 95% 以上："
+              "辽行定朔之历，非祖冲之法。逐条见 `data/calendar/liao_calendar_check.csv`。", ""]
+        per = defaultdict(lambda: [0, 0, 0, 0])
+        for r in lc:
+            c = per[r["时期"]]
+            c[0] += 1
+            c[1] += int(r["合宋"])
+            c[2] += int(r["合祖冲之"])
+            c[3] += int(r["合金大明"])
+        L += table(["时期", "明书朔日", "合宋历（主表）", "合祖冲之平朔", "合金大明历上推"], [[p, *c] for p, c in per.items()])
+        L += ["", "### 本纪不合宋历之条", ""]
+        L += table(["年", "纪年", "月", "本纪朔", "宋历", "祖冲之平朔", "金定朔", "定朔小余（时）", "进朔限（时）", "金进朔", "原文"],
+                   [[r["年"], r["纪年"], r["月"], r["本纪朔"], r["宋历（主表）"], r["祖冲之平朔"], r["金大明定朔"], r["定朔小余（时）"],
+                     r["进朔限（时）"], r["金大明进朔"], r["原文"]] for r in lc if r["合宋"] == "0"])
     (ROOT / "doc/calendar/main-table-checks.md").write_text("\n".join(L) + "\n", encoding="utf-8")
     print("doc/calendar/main-table-checks.md", len(L), "行")
 
