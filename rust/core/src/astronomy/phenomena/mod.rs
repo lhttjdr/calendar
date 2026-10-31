@@ -2,6 +2,7 @@
 //! 设计见 doc/astronomy/celestial-phenomena.md。
 
 pub mod close_approach;
+pub mod eclipse_list;
 pub mod heliacal;
 pub mod lunar_eclipse;
 pub mod lunar_eclipse_map;
@@ -14,6 +15,7 @@ pub(crate) mod track;
 pub mod visibility;
 
 pub use close_approach::*;
+pub use eclipse_list::*;
 pub use heliacal::*;
 pub use lunar_eclipse::*;
 pub use lunar_eclipse_map::*;
@@ -25,6 +27,8 @@ pub use visibility::{ExtinctionModel, Eye, ScatteringFunction, SkyConditions, Sk
 
 #[cfg(test)]
 mod tests_close_approach;
+#[cfg(test)]
+mod tests_eclipse_sweep;
 #[cfg(test)]
 mod tests_heliacal;
 #[cfg(test)]

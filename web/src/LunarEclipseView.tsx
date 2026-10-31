@@ -230,7 +230,7 @@ export function LunarEclipseView(props: {
           </Flex>
           <Text type="secondary" style={{ fontSize: 12 }}>
             区域按{first.phase === 'U1' ? '初亏、复圆' : '半影食始、半影食终'}。界线为月亮站心几何高度 0°（含视差，不计折射）。拖动旋转（平面图为平移），滚轮缩放，点击地图或都城看该地食况。
-            食甚 {fmtDate(ut(map.eclipse.greatestTt))} {fmtTime(ut(map.eclipse.greatestTt), true)} UT，γ = {map.eclipse.gamma.toFixed(4)}，本影食分 {map.eclipse.umbralMagnitude.toFixed(4)}，半影食分 {map.eclipse.penumbralMagnitude.toFixed(4)}。
+            食甚 {fmtDate(ut(map.eclipse.greatestTt))} {fmtTime(ut(map.eclipse.greatestTt), true)} UT，γ = {map.eclipse.gamma.toFixed(4)}，{map.eclipse.umbralMagnitude > 0 ? `本影食分 ${map.eclipse.umbralMagnitude.toFixed(4)}，` : ''}半影食分 {map.eclipse.penumbralMagnitude.toFixed(4)}。
           </Text>
         </Flex>
       </Card>
@@ -250,7 +250,7 @@ export function LunarEclipseView(props: {
               <Descriptions.Item label="可见">
                 {local.visibleFrom == null
                   ? '全程在地平下'
-                  : `${fmtTime(lmt(local.visibleFrom))}—${fmtTime(lmt(local.visibleTo!))} 地方平时，可见最大本影食分 ${local.maxVisibleUmbral?.toFixed(3)}、半影食分 ${local.maxVisiblePenumbral?.toFixed(3)}`}
+                  : `${fmtTime(lmt(local.visibleFrom))}—${fmtTime(lmt(local.visibleTo!))} 地方平时，可见最大${(local.maxVisibleUmbral ?? 0) > 0 ? `本影食分 ${local.maxVisibleUmbral?.toFixed(3)}、` : ''}半影食分 ${local.maxVisiblePenumbral?.toFixed(3)}`}
               </Descriptions.Item>
             </Descriptions>
           )}

@@ -1113,6 +1113,17 @@ fn ms2021_delta_t(jd_tt: f64) -> (f64, f64) {
     (e.value.seconds().as_f64(), e.sigma.map(|s| s.seconds().as_f64()).unwrap_or(0.0))
 }
 
+/// 民用年（UT，1582-10-15 前儒略历）对应的 TT 区间。年表按 UT 显示日期，年界须加 ΔT：古代 ΔT 约数小时，否则岁末的食会归到下一年。
+fn civil_year_tt_range(year: i32) -> (lunar_core::math::real::Real, lunar_core::math::real::Real) {
+    use lunar_core::calendar::gregorian::civil_to_julian_day;
+    let tt = |ut: lunar_core::math::real::Real| {
+        let u = ut.as_f64();
+        let dt = ms2021_delta_t(u + ms2021_delta_t(u).0 / 86400.0).0;
+        real(u + dt / 86400.0)
+    };
+    (tt(civil_to_julian_day(year, 1, 1)), tt(civil_to_julian_day(year + 1, 1, 1)))
+}
+
 /// ΔT 估计 [中值, 1σ]（秒）：Morrison–Stephenson 2021，已按本仓库月历表配套修正。
 #[wasm_bindgen(js_name = deltaTEstimate)]
 pub fn delta_t_estimate(jd_tt: f64) -> Vec<f64> {
@@ -1155,33 +1166,20 @@ impl EclipseEngine {
     /// [{greatestTt, gamma, magnitude, kind: P/A/T/H, central, deltaT, deltaTSigma}, …]。
     #[wasm_bindgen(js_name = solarEclipsesInYear)]
     pub fn solar_eclipses_in_year(&self, year: i32) -> String {
-        use lunar_core::astronomy::aspects::approximate_new_moon_jd;
-        use lunar_core::calendar::gregorian::civil_to_julian_day;
         let eph = EclipseEphemeris::new(&self.vsop, &self.elp);
-        let (start, end) = (civil_to_julian_day(year, 1, 1).as_f64(), civil_to_julian_day(year + 1, 1, 1).as_f64());
-        let month = 29.530588853;
-        let n0 = ((start - approximate_new_moon_jd(0).as_f64()) / month).floor() as i32 - 1;
-        let mut out = Vec::new();
-        for n in n0..n0 + 16 {
-            let guess = approximate_new_moon_jd(n);
-            let g = guess.as_f64();
-            if g < start - 2.0 || g > end + 2.0 {
-                continue;
-            }
-            let win = eclipse_window(&eph, guess);
-            let Some(e) = solar_eclipse_global_in(&win, guess) else { continue };
-            let t = e.greatest_tt.as_f64();
-            if t < start || t >= end || out.iter().any(|(t0, _): &(f64, String)| (t0 - t).abs() < 5.0) {
-                continue;
-            }
-            let (dt, sigma) = ms2021_delta_t(t);
-            let mut s = json_global(&e);
-            s.pop();
-            s.push_str(&format!(",\"deltaT\":{},\"deltaTSigma\":{}}}", json_f(dt), json_f(sigma)));
-            out.push((t, s));
-        }
-        out.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-        format!("[{}]", out.into_iter().map(|(_, s)| s).collect::<Vec<_>>().join(","))
+        let (a, b) = civil_year_tt_range(year);
+        let list = lunar_core::astronomy::phenomena::solar_eclipses_between(&eph, a, b);
+        let items: Vec<String> = list
+            .iter()
+            .map(|e| {
+                let (dt, sigma) = ms2021_delta_t(e.greatest_tt.as_f64());
+                let mut s = json_global(e);
+                s.pop();
+                s.push_str(&format!(",\"deltaT\":{},\"deltaTSigma\":{}}}", json_f(dt), json_f(sigma)));
+                s
+            })
+            .collect();
+        format!("[{}]", items.join(","))
     }
 
     /// 日食地图，JSON 对象：global、deltaT、p1/p4、centralContacts、greatestPoint、各条界线（折线为 [经°, 纬°, jd_tt] 数组）、
@@ -1240,33 +1238,21 @@ impl EclipseEngine {
     /// 某民用年内的月食列表，JSON 数组：[{greatestTt, gamma, penumbralMagnitude, umbralMagnitude, kind: N/P/T, deltaT, deltaTSigma}, …]。
     #[wasm_bindgen(js_name = lunarEclipsesInYear)]
     pub fn lunar_eclipses_in_year(&self, year: i32) -> String {
-        use lunar_core::astronomy::aspects::approximate_new_moon_jd;
-        use lunar_core::astronomy::phenomena::lunar_eclipse_in;
-        use lunar_core::calendar::gregorian::civil_to_julian_day;
         let eph = EclipseEphemeris::new(&self.vsop, &self.elp);
-        let (start, end) = (civil_to_julian_day(year, 1, 1).as_f64(), civil_to_julian_day(year + 1, 1, 1).as_f64());
-        let n0 = ((start - approximate_new_moon_jd(0).as_f64()) / 29.530588853).floor() as i32 - 2;
-        let mut out: Vec<(f64, String)> = Vec::new();
-        for n in n0..n0 + 17 {
-            let guess = approximate_new_moon_jd(n) + real(14.765);
-            let g = guess.as_f64();
-            if g < start - 2.0 || g > end + 2.0 {
-                continue;
-            }
-            let win = eclipse_window(&eph, guess);
-            let Some(e) = lunar_eclipse_in(&win, guess) else { continue };
-            let t = e.greatest_tt.as_f64();
-            if t < start || t >= end || out.iter().any(|(t0, _)| (t0 - t).abs() < 5.0) {
-                continue;
-            }
-            let (dt, sigma) = ms2021_delta_t(t);
-            out.push((t, format!(
-                "{{\"greatestTt\":{},\"gamma\":{},\"penumbralMagnitude\":{},\"umbralMagnitude\":{},\"kind\":\"{}\",\"deltaT\":{},\"deltaTSigma\":{}}}",
-                json_f(t), json_f(e.gamma.as_f64()), json_f(e.penumbral_magnitude.as_f64()), json_f(e.umbral_magnitude.as_f64()), lunar_kind_code(e.kind), json_f(dt), json_f(sigma)
-            )));
-        }
-        out.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-        format!("[{}]", out.into_iter().map(|(_, s)| s).collect::<Vec<_>>().join(","))
+        let (a, b) = civil_year_tt_range(year);
+        let list = lunar_core::astronomy::phenomena::lunar_eclipses_between(&eph, a, b);
+        let items: Vec<String> = list
+            .iter()
+            .map(|e| {
+                let t = e.greatest_tt.as_f64();
+                let (dt, sigma) = ms2021_delta_t(t);
+                format!(
+                    "{{\"greatestTt\":{},\"gamma\":{},\"penumbralMagnitude\":{},\"umbralMagnitude\":{},\"kind\":\"{}\",\"deltaT\":{},\"deltaTSigma\":{}}}",
+                    json_f(t), json_f(e.gamma.as_f64()), json_f(e.penumbral_magnitude.as_f64()), json_f(e.umbral_magnitude.as_f64()), lunar_kind_code(e.kind), json_f(dt), json_f(sigma)
+                )
+            })
+            .collect();
+        format!("[{}]", items.join(","))
     }
 
     /// 月食图，JSON：eclipse、deltaT、curves（[{phase, jdTt, sublunar, horizon, east°, north°}]，折线同日食图）、

@@ -330,7 +330,7 @@ export function EclipseMapPage() {
                 ? <Tag color={LUNAR_KIND_COLOR[r.kind]}>{LUNAR_KIND_LABEL[r.kind]}</Tag>
                 : <Tag color={KIND_COLOR[r.kind]}>日{KIND_LABEL[r.kind]}{r.central ? '' : '（非中心）'}</Tag> },
               { title: 'γ', render: (_, r) => r.gamma.toFixed(4) },
-              { title: '食分', render: (_, r) => r.body === 'lunar' ? `本影 ${r.umbralMagnitude.toFixed(4)} · 半影 ${r.penumbralMagnitude.toFixed(4)}` : r.magnitude.toFixed(4) },
+              { title: '食分', render: (_, r) => r.body === 'lunar' ? `${r.umbralMagnitude > 0 ? `本影 ${r.umbralMagnitude.toFixed(4)} · ` : ''}半影 ${r.penumbralMagnitude.toFixed(4)}` : r.magnitude.toFixed(4) },
               { title: 'ΔT（s）', render: (_, r) => `${r.deltaT.toFixed(0)} ± ${r.deltaTSigma.toFixed(0)}` },
             ]}
           />

@@ -10,7 +10,7 @@ use crate::astronomy::frame::nutation::try_init_full_nutation_from_repo;
 use crate::math::real::{real, RealOps};
 
 /// 儒略日（正午为整数）：1582-10-15 前为儒略历（NASA 日食典约定），年份为天文纪年。
-fn jd(y: i64, m: i64, d: i64, hms: &str) -> f64 {
+pub(super) fn jd(y: i64, m: i64, d: i64, hms: &str) -> f64 {
     let a = (14 - m) / 12;
     let yy = y + 4800 - a;
     let mm = m + 12 * a - 3;
@@ -23,12 +23,12 @@ fn jd(y: i64, m: i64, d: i64, hms: &str) -> f64 {
     jdn as f64 - 0.5 + (p[0] + p[1] / 60.0 + p[2] / 3600.0) / 24.0
 }
 
-fn month(s: &str) -> i64 {
+pub(super) fn month(s: &str) -> i64 {
     ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].iter().position(|m| *m == s).unwrap() as i64 + 1
 }
 
 /// 目录行：去标签后以 5 位编号开头的行，按空白分词。
-fn catalog_rows(file: &str) -> Vec<Vec<String>> {
+pub(super) fn catalog_rows(file: &str) -> Vec<Vec<String>> {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../vendor/nasa_eclipse").join(file);
     let html = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{path:?}: {e}"));
     let mut text = String::new();
@@ -51,7 +51,7 @@ fn stride() -> usize {
     std::env::var("NASA_ECLIPSE_STRIDE").ok().and_then(|s| s.parse().ok()).unwrap_or(20)
 }
 
-fn load() -> Option<(crate::astronomy::ephemeris::Vsop87, crate::astronomy::ephemeris::Elpmpp02Data)> {
+pub(super) fn load() -> Option<(crate::astronomy::ephemeris::Vsop87, crate::astronomy::ephemeris::Elpmpp02Data)> {
     let vsop = load_earth_vsop87_corrected_from_repo(PatchTarget::De406).ok()?;
     let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE406).ok()?;
     assert!(try_init_full_nutation_from_repo(), "未能加载 IAU 2000A 章动表");
