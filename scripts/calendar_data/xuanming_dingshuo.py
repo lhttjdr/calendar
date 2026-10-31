@@ -2,7 +2,7 @@
 
 志文只载常数、表与「通法曰统法……」之改名（术同大衍历），故定朔用大衍历非交会简法：入定气线性插值损益率、入历线性插值损益率。
 常数：统法 8400，章岁 3068055，章月 248057，历周 231458 秒 19（秒母 100），历中 115729 秒 9.5，上元甲子至长庆二年（822）壬寅积 7070138 算外。
-定气 = 常气「先减、后加」先后数 × 100。历日分两半，各十四日；七日初数 7465、末数 935，十四日初数 6529。志文无进朔法，以 18 时试之。
+定气 = 常气「先减、后加」先后数 × 100。历日分两半，各十四日；七日初数 7465、末数 935，十四日初数 6529。进朔有明文，见 LIM。
 
 用法（仓库根）：uv run --project scripts python scripts/calendar_data/xuanming_dingshuo.py
 """
@@ -72,13 +72,32 @@ def year_moons(y, n=14):
     return [(t0 + m * SHUO, t0 + m * SHUO + sun_def(Fr(t0 + m * SHUO - tong)) + moon_def((t0 % LI_ZHOU + m * SHUO) % LI_ZHOU)) for m in range(n)]
 
 
+# 进朔（卷三十上）：「凡定朔小餘，秋分後，四分之三已上，進一日。春分後，昏明小餘差春分初日者，五而一，以減四分之三。
+# 定朔小餘如此數已上者，進一日。或有交，應見虧初，則否。」春分后限值取张培瑜等《中国古代历法》页 570 所算（气初，气间线性）。
+LIM = {6: Fr(75, 100), 7: Fr(74924, 100000), 8: Fr(74479, 100000), 9: Fr(74276, 100000), 10: Fr(74124, 100000), 11: Fr(74031, 100000), 12: Fr(74005, 100000),
+       13: Fr(74031, 100000), 14: Fr(74124, 100000), 15: Fr(74276, 100000), 16: Fr(74479, 100000), 17: Fr(74924, 100000), 18: Fr(75, 100)}
+
+
+def limit_of(t, off):
+    y = g.from_jdn(int(t // F) + off)[0]
+    for yy in (y + 1, y, y + 2):
+        d = t - SUI * (JI_822 + (yy - 822))
+        if 0 <= d < SUI:
+            break
+    k = int(d // QI)
+    if not 6 <= k < 18:
+        return 18.0
+    x = (d - k * QI) / QI
+    return float((LIM[k] + (LIM[k + 1] - LIM[k]) * x) * 24)
+
+
 def main():
     dz = SUI * JI_822 // F
     off = c.align_offset(dz, g.jdn(821, 12, 19))
     print("822 年天正冬至", g.GANZHI[dz % 60], g.from_jdn(dz + off))
     moons = sorted({dg for y in range(820, 896) for _, dg in year_moons(y)})
     c.compare("宣明", F, off, moons, 822, 892, "xuanming_dingshuo_check.csv",
-              "822—892 年本纪明书朔日与宣明历定朔（scripts/calendar_data/xuanming_dingshuo.py，同大衍简法）、主表比较；进朔以 18 时试之。")
+              "822—892 年本纪明书朔日与宣明历定朔（scripts/calendar_data/xuanming_dingshuo.py，同大衍简法）、主表比较；进朔限据志文。", limit=lambda t: limit_of(t, off))
 
 
 if __name__ == "__main__":
