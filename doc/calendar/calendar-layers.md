@@ -91,4 +91,4 @@
 
 第 3 层依赖第 2 层：某政权的「某年某月某日」由该政权所采用的历法（第 1/2 层）与朔日/推步决定，再落到儒略日或公历上。第 4 层横切前三层，不是被依赖，而是决定"该走第 2 层的哪种实现"。
 
-**数据字段/来源细节**（各 CSV 的具体列、生成脚本、上游出处）见 [../../data/calendar/README_shuori.md](../../data/calendar/README_shuori.md) 与 [../../data/calendar/SOURCES_era_regime.md](../../data/calendar/SOURCES_era_regime.md)；[../../data/calendar/汇总/README.md](../../data/calendar/汇总/README.md) 另有 `era_names_merged.csv` 的汇总方法说明。
+**数据字段/来源细节**（各 CSV 的具体列、生成脚本、上游出处）见 [../../data/calendar/README_shuori.md](https://github.com/lhttjdr/calendar/blob/master/data/calendar/README_shuori.md) 与 [../../data/calendar/SOURCES_era_regime.md](https://github.com/lhttjdr/calendar/blob/master/data/calendar/SOURCES_era_regime.md)；[../../data/calendar/汇总/README.md](https://github.com/lhttjdr/calendar/blob/master/data/calendar/汇总/README.md) 另有 `era_names_merged.csv` 的汇总方法说明。

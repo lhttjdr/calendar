@@ -37,6 +37,8 @@
 | [historical-calendar.md](calendar/historical-calendar.md) | 实历模块：历史朔日表、优先实历的公历↔农历换算 |
 | [main-table-checks.md](calendar/main-table-checks.md) | 以本纪核验主表逐条结果（脚本生成）：明书朔日、实际合朔、閏月位置 |
 | [ancient-calendar-restore.md](calendar/ancient-calendar-restore.md) | 古历复原：分数推步、平朔平气、历谱生成；三千五百年仅作验证 |
+| [calendar-compendium.md](calendar/calendar-compendium.md) | 历代历法总录：总表与已复原定朔历（麟德、大衍、五纪、正元、宣明、崇玄、金大明）的常数、表、算法、检验 |
+| [calendar-source-texts.md](calendar/calendar-source-texts.md) | 历法原文摘录（脚本生成）：唐诸历、重修大明历、庚午元历表、《辽史》大明历 |
 | [push-algorithms.md](calendar/push-algorithms.md) | 各朝代/政权历法推步算法与历术参数总结 |
 | [qin-han-calendar-evaluation.md](calendar/qin-han-calendar-evaluation.md) | 秦与汉初（前221—太初元年四月）历法复原接入评估：与主表衔接、《汉书》检验、待补的日月食与出土材料验证 |
 

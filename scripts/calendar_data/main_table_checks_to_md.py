@@ -3,6 +3,7 @@
 用法（仓库根）：uv run --project scripts python scripts/calendar_data/main_table_checks_to_md.py
 """
 import csv
+import re
 from collections import defaultdict
 from pathlib import Path
 
@@ -25,7 +26,8 @@ def rows(name):
 
 def table(head, body):
     out = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
-    out += ["| " + " | ".join(str(c).replace("|", "／") for c in r) + " |" for r in body]
+    # 原文偶带维基模板残片（「{{Textquality|50」），留着 VitePress 会当 Vue 表达式解析
+    out += ["| " + " | ".join(re.sub(r"\{\{[^}]*\}*", "", str(c)).replace("|", "／") for c in r) + " |" for r in body]
     return out
 
 
@@ -124,13 +126,13 @@ def main():
     jn = rows("daming_dingshuo_check.csv")
     if jn:
         L += ["", "## 四、金大明历定朔与本纪明书朔日", "",
-              "重修大明历定朔、进朔（`calendar::daming_li`；1182 年前杨级历以之代推），进朔限为术文原限加校准 0.25 时"
+              "重修大明历定朔、进朔（`calendar::daming_li`）；1182 年起用术文原限，1182 年前杨级历以之代推，进朔限加经验改正 0.25 时"
               "（见 historical-calendar.md「金大明历」）。逐条见 `data/calendar/daming_dingshuo_check.csv`；下表列本纪不合主表、"
-              "或不合金历、或临限（超术文限 0—0.5 时）之条。", ""]
+              "或不合金历、或临限（1182 年前超术文限 0—0.5 时）之条。", ""]
         n = len(jn)
         L += [f"共 {n} 条：合主表 {sum(int(r['本纪合主表']) for r in jn)}，合金历不进朔 {sum(int(r['本纪合大明不进朔']) for r in jn)}，"
-              f"合术文进朔 {sum(int(r['本纪合术文进朔']) for r in jn)}，合校准进朔 {sum(int(r['本纪合大明进朔']) for r in jn)}。", ""]
-        L += table(["年", "纪年", "月", "本纪朔", "主表朔", "金定朔", "定朔小余（时）", "术文限（时）", "术文进朔", "校准进朔", "日食", "原文"],
+              f"合术文进朔 {sum(int(r['本纪合术文进朔']) for r in jn)}，合缺省进朔 {sum(int(r['本纪合大明进朔']) for r in jn)}。", ""]
+        L += table(["年", "纪年", "月", "本纪朔", "主表朔", "金定朔", "定朔小余（时）", "术文限（时）", "术文进朔", "缺省进朔", "日食", "原文"],
                    [[r["年"], r["纪年"], r["月"], r["本纪朔"], r["主表朔"], r["大明定朔"], r["定朔小余（时）"], r["术文进朔限（时）"],
                      r["术文进朔"], r["大明进朔（校准）"], r["日食"], r["原文"]]
                     for r in jn if r["临限"] or r["本纪合主表"] == "0" or r["本纪合大明进朔"] == "0"])
@@ -153,6 +155,21 @@ def main():
         L += table(["年", "纪年", "月", "本纪朔", "宋历", "祖冲之平朔", "金定朔", "定朔小余（时）", "进朔限（时）", "金进朔", "原文"],
                    [[r["年"], r["纪年"], r["月"], r["本纪朔"], r["宋历（主表）"], r["祖冲之平朔"], r["金大明定朔"], r["定朔小余（时）"],
                      r["进朔限（时）"], r["金大明进朔"], r["原文"]] for r in lc if r["合宋"] == "0"])
+    # 六、唐定朔诸历（linde_dingshuo.py、dayan_dingshuo.py、chongxuan_dingshuo.py）
+    tang = [("麟德历 665—728", "linde_dingshuo_check.csv", "麟德定朔", "本纪合麟德进朔", "本纪合麟德无进朔", "麟德定朔小余（时）"),
+            ("大衍历 729—761", "dayan_dingshuo_check.csv", "大衍定朔", "本纪合进朔", "本纪合不进朔", "定朔小余（时）"),
+            ("五纪历 762—783", "wuji_dingshuo_check.csv", "五纪定朔", "本纪合进朔", "本纪合不进朔", "定朔小余（时）"),
+            ("正元历 784—806", "zhengyuan_dingshuo_check.csv", "正元定朔", "本纪合进朔", "本纪合不进朔", "定朔小余（时）"),
+            ("宣明历 822—892", "xuanming_dingshuo_check.csv", "宣明定朔", "本纪合进朔", "本纪合不进朔", "定朔小余（时）"),
+            ("崇玄历 893—938", "chongxuan_dingshuo_check.csv", "崇玄定朔", "本纪合进朔", "本纪合不进朔", "定朔小余（时）")]
+    L += ["", "## 六、唐定朔诸历与本纪明书朔日", "", "术数见 [calendar-compendium.md](./calendar-compendium.md)。下表列本纪不合主表、或不合进朔限之条（限：麟德、宣明、崇玄试用 18 时，大衍 19 时，五纪、正元据志文随季节变）。"]
+    for title, name, col, jin_, bu, hcol in tang:
+        rs = rows(name)
+        L += ["", f"### {title}", "", f"共 {len(rs)} 条：合主表 {sum(int(r['本纪合主表']) for r in rs)}，合进朔 {sum(int(r[jin_]) for r in rs)}，"
+              f"合不进朔 {sum(int(r[bu]) for r in rs)}。逐条见 `data/calendar/{name}`。", ""]
+        L += table(["书", "年", "纪年", "月", "本纪朔", "主表朔", "定朔", "定朔小余（时）", "日食", "原文"],
+                   [[BOOK.get(r["书"], r["书"]), r["年"], r["纪年"], r["月"], r["本纪朔"], r["主表朔"], r[col], r[hcol], r["日食"], r["原文"]]
+                    for r in rs if r["本纪合主表"] == "0" or r[jin_] == "0"])
     (ROOT / "doc/calendar/main-table-checks.md").write_text("\n".join(L) + "\n", encoding="utf-8")
     print("doc/calendar/main-table-checks.md", len(L), "行")
 

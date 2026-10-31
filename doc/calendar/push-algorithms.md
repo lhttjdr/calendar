@@ -1,5 +1,7 @@
 # 各朝代/政权历法推步算法总结
 
+> 本文的「推步」指今人按术文所作的计算，结果不是史实记录。术语与证据层级见 [历代历法总录](./calendar-compendium.md#术语与证据层级)。
+
 基于 [ytliu0/ChineseCalendar](https://github.com/ytliu0/ChineseCalendar) 源码整理。朔日来源分为三类：**预存实历表**（主表）、**平朔+无中气置闰推步**（历术参数 para）、**古六历/春秋历/秦与汉初历**（各自历元与规则）。下文先给**通用约定与核心算法**，再给**历术参数表**，最后按**时期/政权**对应到具体历术或数据。
 
 ---
@@ -343,7 +345,7 @@ ziOffset 将「子月起」的月序映射到各历正月：-1=正月亥（闰�
 | 北魏/西魏/北周/隋 398–590 | 推步 | 见下「北朝历术分段」；430 年二月朔 +1；565 年岁长 +1 |
 | 东魏/北齐 534–577 | 推步 | y<539.5 Zhengguang；y<551.5 Xinghe；否则 Tianbao（天保历行用年见 3.6） |
 | 辽/金/元 947–1279 | 主表+修正 | LiaoJinYuanCorrection；平气 y<1085.5 Xuanming，否则 RevisedDaming |
-| 金 1137–1234（本项目） | 推步（定朔） | `calendar::daming_li` 重修大明历定朔、进朔（进朔限按本纪校准 +0.25 时），1182 年前杨级历以之代推；见 historical-calendar.md「金大明历」 |
+| 金 1137–1234（本项目） | 推步（定朔） | `calendar::daming_li` 重修大明历定朔、进朔；1182 年前杨级历以之代推（进朔限经验加 0.25 时）；见 historical-calendar.md「金大明历」 |
 | 南明/明郑 1645–1683 | 预表+平气 | southernMingCalendarData 表；平气 Datong；1663 年 J8 修正 -1 |
 
 **北朝历术分段（WeiZhouSui）**：y<451.5 Jingchu → y<522.5 Xuanshi → y<558.5 Zhengguang → y<565.5 fakeMingKeRang → y<578.5 Tianhe → y<583.5 Daxiang → 否则 Kaihuang。换历年在代码中对节气有过渡年处理。

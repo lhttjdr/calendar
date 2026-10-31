@@ -53,6 +53,8 @@ export default defineConfig({
           { text: '农历编算', link: '/calendar/lunar-calendar' },
           { text: '实历模块', link: '/calendar/historical-calendar' },
           { text: '古历复原模块', link: '/calendar/ancient-calendar-restore' },
+          { text: '历代历法总录', link: '/calendar/calendar-compendium' },
+          { text: '历法原文摘录', link: '/calendar/calendar-source-texts' },
           { text: '各朝代历法推步算法', link: '/calendar/push-algorithms' },
         ],
       },
