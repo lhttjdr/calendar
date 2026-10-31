@@ -232,6 +232,10 @@ def main():
         L += ["", "## 九、《左传》传文纪日与春秋历", "", "偏 k：传文 m 月当春秋历 m+k 月。说明见 [calendar-compendium.md](./calendar-compendium.md) §12。偏 0 与偏 +2 几乎同时合或不合，不能分辨岁首差。", ""]
         L += table(["公", "年", "月", "干支", "书朔", "同经", "偏-1", "偏0", "偏+1", "偏+2", "原文"],
                    [[r["公"], r["公年"], r["月"], r["干支"], "朔" if r["朔"] == "1" else "", "同" if r["同经"] == "1" else "", r["偏-1"], r["偏+0"], r["偏+1"], r["偏+2"], r["原文"]] for r in zz])
+    wc = rows("wangtao_compare.csv")
+    if wc:
+        L += ["", "## 十、经传纪日在张培瑜春秋历与王韬谱间判定不同者", "", "王韬逐月朔由正朔均分取整，可差 ±1 日。说明见 [calendar-compendium.md](./calendar-compendium.md) §12。", ""]
+        L += table(["文", "公", "年", "月", "干支", "只合", "原文"], [[r["文"], r["公"], r["公年"], r["月"], r["干支"], r["合"], r["原文"]] for r in wc])
     (ROOT / "doc/calendar/main-table-checks.md").write_text("\n".join(L) + "\n", encoding="utf-8")
     print("doc/calendar/main-table-checks.md", len(L), "行")
 
