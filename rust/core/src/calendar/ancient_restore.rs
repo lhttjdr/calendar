@@ -52,7 +52,7 @@ impl AncientConfig {
     pub fn sifen() -> Self {
         let lunar = BigRational::new(BigInt::from(499), BigInt::from(940))
             + BigRational::from_integer(BigInt::from(29));
-        let solar = BigRational::new(BigInt::from(97), BigInt::from(400))
+        let solar = BigRational::new(BigInt::from(1), BigInt::from(4))
             + BigRational::from_integer(BigInt::from(365));
         let jd_epoch = BigRational::from_integer(BigInt::from(1662610))
             + BigRational::new(BigInt::from(1), BigInt::from(2));
@@ -66,7 +66,7 @@ impl AncientConfig {
     pub fn guliuli_lunar_solar() -> (DayFraction, DayFraction) {
         let lunar = BigRational::new(BigInt::from(499), BigInt::from(940))
             + BigRational::from_integer(BigInt::from(29));
-        let solar = BigRational::new(BigInt::from(97), BigInt::from(400))
+        let solar = BigRational::new(BigInt::from(1), BigInt::from(4))
             + BigRational::from_integer(BigInt::from(365));
         (lunar, solar)
     }
@@ -123,7 +123,7 @@ impl AncientConfig {
         Self::new(jd_epoch_lunar, jdw, lunar, solar)
     }
 
-    /// 古六历·夏历（春秋用，yEpoch=444，建寅）。
+    /// 古六历·夏历冬至版（上游用于战国，yEpoch=444，建寅）：甲子夜半冬至合朔齐同。
     pub fn guliuli_xia1() -> Self {
         let (lunar, solar) = Self::guliuli_lunar_solar();
         let y_epoch = 444i32;
@@ -133,15 +133,16 @@ impl AncientConfig {
         Self::new(jd_epoch.clone(), jdw, lunar, solar)
     }
 
-    /// 古六历·夏历（战国用，yEpoch=444）。冬至历元 jdEpoch=1883590.5，合朔 jdEpoch_lunar = jdEpoch - solar/6。
+    /// 古六历·夏历雨水版（上游用于春秋，yEpoch=444，建寅）：甲子夜半雨水合朔齐同。
+    /// 合朔历元 jdEpoch_lunar=1883650.5，冬至历元 = 合朔历元 - solar/6（上游 guliuli_calendar_parameters）。
     pub fn guliuli_xia2() -> Self {
         let (lunar, solar) = Self::guliuli_lunar_solar();
         let y_epoch = 444i32;
-        let jd_epoch_dongzhi = BigRational::from_integer(BigInt::from(1883590))
+        let jd_epoch_lunar = BigRational::from_integer(BigInt::from(1883650))
             + BigRational::new(BigInt::from(5001), BigInt::from(10000));
-        let jd_epoch = &jd_epoch_dongzhi - &solar / BigRational::from_integer(BigInt::from(6));
+        let jd_epoch_dongzhi = &jd_epoch_lunar - &solar / BigRational::from_integer(BigInt::from(6));
         let jdw = &jd_epoch_dongzhi - BigRational::from_integer(BigInt::from(y_epoch)) * &solar;
-        Self::new(jd_epoch, jdw, lunar, solar)
+        Self::new(jd_epoch_lunar, jdw, lunar, solar)
     }
 }
 
@@ -351,6 +352,20 @@ mod tests {
         for m in &months {
             assert!(m.days == 29 || m.days == 30);
         }
+    }
+
+    #[test]
+    fn guliuli_xia2_is_yushui_epoch() {
+        // 雨水版：合朔历元为甲子日（JDN 1883651），冬至在其前 60.875 日
+        let c = AncientConfig::guliuli_xia2();
+        assert_eq!(jd_to_day_index(&c.jd_epoch), 1883651);
+        let w = &c.jdw + BigRational::from_integer(BigInt::from(444)) * &c.solar;
+        let d = &c.jd_epoch - &w;
+        assert_eq!(d, BigRational::new(BigInt::from(487), BigInt::from(8)));
+        assert_eq!((1883651 + 49) % 60, 0);
+        // 四分术：岁实 365¼，十九年 235 朔
+        let (lunar, solar) = AncientConfig::guliuli_lunar_solar();
+        assert_eq!(solar * BigRational::from_integer(BigInt::from(19)), lunar * BigRational::from_integer(BigInt::from(235)));
     }
 
     #[test]

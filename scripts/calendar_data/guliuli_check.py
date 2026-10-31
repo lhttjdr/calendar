@@ -56,11 +56,11 @@ def check(name, n714):
 def main():
     rows = []
     for name, (n714, gz, *_r) in U.items():
-        cands = [n714] if name != "周" else [n714, n714 + 7]
+        cands = {"周": [n714, n714 + 7], "鲁": [n714, 2761514]}.get(name, [n714])  # 鲁 2761514 据张培瑜（占经数学者已指出有误）
         for n in cands:
             gz_ok, phase, jiazi, shuo = check(name, n)
             rows.append((name, n, gz, gz_ok, phase, jiazi, shuo))
-            print(f"{name} 积年 {n}：上元干支{'合' if gz_ok else '不合'}{gz}；冬至/立春相位差 {phase:+.4f} 日；上元日{'是' if jiazi else '非'}甲子；朔相位差 {shuo:+.4f} 日")
+            print(f"{name} 积年 {n}：上元干支{'合' if gz_ok else '不合'}{gz}；冬至/立春相位差 {phase:+.4f} 日；上元日{'是' if jiazi else '非'}甲子（颛顼元日本为己巳）；朔相位差 {shuo:+.4f} 日")
 
 
 if __name__ == "__main__":

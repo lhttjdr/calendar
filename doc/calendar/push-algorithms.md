@@ -310,14 +310,14 @@
 | Yin 殷 | -47 | 1704250.5001 | 同 jdEpoch | 1（丑） |
 | Lu 鲁 | -481 | 1545730.5001 | jdEpoch - lunar/19 | 0 |
 | Zhuanxu 颛顼 | 14 | jdEpoch_lunar - solar/8 | 1726575.5001 | -1（亥，年终闰） |
-| Xia1 夏(春秋用) | 444 | 1883590.5001 | 同 jdEpoch | 2（寅） |
-| Xia2 夏(战国用) | 444 | jdEpoch_lunar - solar/6 | 1883650.5001 | 2（寅） |
+| Xia1 夏(冬至版，战国用) | 444 | 1883590.5001 | 同 jdEpoch | 2（寅） |
+| Xia2 夏(雨水版，春秋用) | 444 | jdEpoch_lunar - solar/6 | 1883650.5001 | 2（寅） |
 
 ziOffset 将「子月起」的月序映射到各历正月：-1=正月亥（闰在年终），0=子，1=丑，2=寅。
 
 ### 5.2 春秋历（chunqiu_cmonth）
 
-**常数**：`lunar = 30328/1027`，`yEpoch = -721`，`jdEpoch = 1457727.761054236`。**闰年表**：`leapYears[0..239]` 对应 -721～-482。步骤：`accMonths = 12*(y - yEpoch) + accLeaps[i]`，正月朔 `m0 = jdEpoch + accMonths*lunar`，月数 n = 12+leap，第 j 月朔 = `floor(m0 + j*lunar + 0.5) - jdc`。即**固定闰年表 + 朔策 30328/1027**，无中气规则。闰年表所据本项目未查；对《春秋》经文的检验见 [calendar-compendium.md](./calendar-compendium.md) §12。
+**常数**：`lunar = 30328/1027`，`yEpoch = -721`，`jdEpoch = 1457727.761054236`。**闰年表**：`leapYears[0..239]` 对应 -721～-482。步骤：`accMonths = 12*(y - yEpoch) + accLeaps[i]`，正月朔 `m0 = jdEpoch + accMonths*lunar`，月数 n = 12+leap，第 j 月朔 = `floor(m0 + j*lunar + 0.5) - jdc`。即**固定闰年表 + 朔策 30328/1027**，无中气规则。闰年表出自张培瑜《中国古代历法》表 3-7；对《春秋》经文的检验见 [calendar-compendium.md](./calendar-compendium.md) §12。
 
 ### 5.3 秦与汉初历（HanZhuanXu）
 
