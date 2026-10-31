@@ -1058,6 +1058,15 @@ fn kind_code(k: SolarEclipseKind) -> &'static str {
     }
 }
 
+fn lunar_kind_code(k: lunar_core::astronomy::phenomena::LunarEclipseKind) -> &'static str {
+    use lunar_core::astronomy::phenomena::LunarEclipseKind as K;
+    match k {
+        K::Penumbral => "N",
+        K::Partial => "P",
+        K::Total => "T",
+    }
+}
+
 fn json_f(x: f64) -> String {
     if x.is_finite() {
         format!("{x}")
@@ -1226,6 +1235,92 @@ impl EclipseEngine {
             outlines.join(","),
             json_f(shift)
         ))
+    }
+
+    /// 某民用年内的月食列表，JSON 数组：[{greatestTt, gamma, penumbralMagnitude, umbralMagnitude, kind: N/P/T, deltaT, deltaTSigma}, …]。
+    #[wasm_bindgen(js_name = lunarEclipsesInYear)]
+    pub fn lunar_eclipses_in_year(&self, year: i32) -> String {
+        use lunar_core::astronomy::aspects::approximate_new_moon_jd;
+        use lunar_core::astronomy::phenomena::lunar_eclipse_in;
+        use lunar_core::calendar::gregorian::civil_to_julian_day;
+        let eph = EclipseEphemeris::new(&self.vsop, &self.elp);
+        let (start, end) = (civil_to_julian_day(year, 1, 1).as_f64(), civil_to_julian_day(year + 1, 1, 1).as_f64());
+        let n0 = ((start - approximate_new_moon_jd(0).as_f64()) / 29.530588853).floor() as i32 - 2;
+        let mut out: Vec<(f64, String)> = Vec::new();
+        for n in n0..n0 + 17 {
+            let guess = approximate_new_moon_jd(n) + real(14.765);
+            let g = guess.as_f64();
+            if g < start - 2.0 || g > end + 2.0 {
+                continue;
+            }
+            let win = eclipse_window(&eph, guess);
+            let Some(e) = lunar_eclipse_in(&win, guess) else { continue };
+            let t = e.greatest_tt.as_f64();
+            if t < start || t >= end || out.iter().any(|(t0, _)| (t0 - t).abs() < 5.0) {
+                continue;
+            }
+            let (dt, sigma) = ms2021_delta_t(t);
+            out.push((t, format!(
+                "{{\"greatestTt\":{},\"gamma\":{},\"penumbralMagnitude\":{},\"umbralMagnitude\":{},\"kind\":\"{}\",\"deltaT\":{},\"deltaTSigma\":{}}}",
+                json_f(t), json_f(e.gamma.as_f64()), json_f(e.penumbral_magnitude.as_f64()), json_f(e.umbral_magnitude.as_f64()), lunar_kind_code(e.kind), json_f(dt), json_f(sigma)
+            )));
+        }
+        out.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        format!("[{}]", out.into_iter().map(|(_, s)| s).collect::<Vec<_>>().join(","))
+    }
+
+    /// 月食图，JSON：eclipse、deltaT、curves（[{phase, jdTt, sublunar, horizon, east°, north°}]，折线同日食图）、
+    /// umbraRadius、penumbraRadius、moonSemidiameter（度）、shadowPath（[[向东°, 向北°, jd_tt]…]）、lonShiftPerSecond。
+    #[wasm_bindgen(js_name = lunarEclipseMap)]
+    pub fn lunar_eclipse_map(&self, jd_tt_guess: f64, delta_t_s: f64) -> Result<String, JsValue> {
+        let eph = EclipseEphemeris::new(&self.vsop, &self.elp);
+        let win = eclipse_window(&eph, real(jd_tt_guess));
+        let m = lunar_core::astronomy::phenomena::lunar_eclipse_map(&win, real(jd_tt_guess), QDuration::in_seconds(real(delta_t_s)), 180)
+            .ok_or_else(|| JsValue::from_str("该望附近无月食"))?;
+        let d = |x: lunar_core::math::real::Real| json_f(x.as_f64().to_degrees());
+        let curves: Vec<String> = m
+            .curves
+            .iter()
+            .map(|c| {
+                format!(
+                    "{{\"phase\":\"{}\",\"jdTt\":{},\"sublunar\":{},\"horizon\":{},\"east\":{},\"north\":{}}}",
+                    c.phase.code(), json_f(c.jd_tt.as_f64()), json_line(&[c.sublunar]), json_line(&c.horizon), d(c.offset.east), d(c.offset.north)
+                )
+            })
+            .collect();
+        let path: Vec<String> = m.shadow_path.iter().map(|p| format!("[{},{},{}]", d(p.east), d(p.north), json_f(p.jd_tt.as_f64()))).collect();
+        let shift = lunar_core::astronomy::phenomena::longitude_shift_for_delta_t(QDuration::in_seconds(real(1.0))).rad().as_f64().to_degrees();
+        let e = &m.eclipse;
+        Ok(format!(
+            "{{\"eclipse\":{{\"greatestTt\":{},\"gamma\":{},\"penumbralMagnitude\":{},\"umbralMagnitude\":{},\"kind\":\"{}\"}},\"deltaT\":{},\"curves\":[{}],\"umbraRadius\":{},\"penumbraRadius\":{},\"moonSemidiameter\":{},\"shadowPath\":[{}],\"lonShiftPerSecond\":{}}}",
+            json_f(e.greatest_tt.as_f64()), json_f(e.gamma.as_f64()), json_f(e.penumbral_magnitude.as_f64()), json_f(e.umbral_magnitude.as_f64()), lunar_kind_code(e.kind),
+            json_f(delta_t_s), curves.join(","), d(m.umbra_radius), d(m.penumbra_radius), d(m.moon_semidiameter), path.join(","), json_f(shift)
+        ))
+    }
+
+    /// 某地月食情况，JSON：phases（[{phase, jdTt, alt°}]）、visibleFrom、visibleTo、maxVisibleUmbral、maxVisiblePenumbral；无月食返回 "null"。
+    #[wasm_bindgen(js_name = lunarEclipseLocal)]
+    pub fn lunar_eclipse_local(&self, jd_tt_guess: f64, delta_t_s: f64, lon_deg: f64, lat_deg: f64) -> String {
+        use lunar_core::astronomy::geodesy::Observer;
+        use lunar_core::astronomy::phenomena::{lunar_eclipse_in, lunar_eclipse_local_in};
+        use lunar_core::quantity::angle::PlaneAngle;
+        use lunar_core::quantity::length::Length;
+        use lunar_core::quantity::unit::LengthUnit;
+        let eph = EclipseEphemeris::new(&self.vsop, &self.elp);
+        let win = eclipse_window(&eph, real(jd_tt_guess));
+        let Some(e) = lunar_eclipse_in(&win, real(jd_tt_guess)) else { return "null".into() };
+        let obs = Observer::new(PlaneAngle::from_deg(real(lon_deg)), PlaneAngle::from_deg(real(lat_deg)), Length::from_value(real(0.0), LengthUnit::Meter));
+        let l = lunar_eclipse_local_in(&win, &e, &obs, QDuration::in_seconds(real(delta_t_s)));
+        let phases: Vec<String> = l
+            .phases
+            .iter()
+            .map(|(p, t, a)| format!("{{\"phase\":\"{}\",\"jdTt\":{},\"alt\":{}}}", p.code(), json_f(t.as_f64()), json_f(a.rad().as_f64().to_degrees())))
+            .collect();
+        let opt = |x: Option<lunar_core::math::real::Real>| x.map(|v| json_f(v.as_f64())).unwrap_or_else(|| "null".into());
+        format!(
+            "{{\"phases\":[{}],\"visibleFrom\":{},\"visibleTo\":{},\"maxVisibleUmbral\":{},\"maxVisiblePenumbral\":{}}}",
+            phases.join(","), opt(l.visible.map(|v| v.0)), opt(l.visible.map(|v| v.1)), opt(l.max_visible_umbral), opt(l.max_visible_penumbral)
+        )
     }
 
     /// 某地日食局地情况，JSON；无食返回 "null"。时刻为 TT，太阳高度为站心几何高度（度）。

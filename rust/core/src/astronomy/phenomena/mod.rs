@@ -4,6 +4,7 @@
 pub mod close_approach;
 pub mod heliacal;
 pub mod lunar_eclipse;
+pub mod lunar_eclipse_map;
 pub mod occultation;
 pub mod planet_events;
 pub mod search;
@@ -15,6 +16,7 @@ pub mod visibility;
 pub use close_approach::*;
 pub use heliacal::*;
 pub use lunar_eclipse::*;
+pub use lunar_eclipse_map::*;
 pub use occultation::*;
 pub use planet_events::*;
 pub use solar_eclipse::*;

@@ -51,10 +51,11 @@ pub fn horizontal_from_hour_angle(h: PlaneAngle, dec: PlaneAngle, latitude: Plan
     let (sd, cd) = (dec.rad().sin(), dec.rad().cos());
     let (sp, cp) = (latitude.rad().sin(), latitude.rad().cos());
     let sin_alt: Real = sp.clone() * sd.clone() + cp.clone() * cd.clone() * ch.clone();
-    let altitude = PlaneAngle::from_rad(sin_alt.asin());
-    // 方位角自北向东：tan A = −cosδ sinH / (sinδ cosφ − cosδ sinφ cosH)
+    // 方位角自北向东：tan A = −cosδ sinH / (sinδ cosφ − cosδ sinφ cosH)；两者平方和即 cos²h
     let num = -(cd.clone() * sh);
     let den = sd * cp - cd * sp * ch;
+    // 用 atan2 而非 asin：天顶附近 sin h 舍入后可略大于 1，asin 得 NaN
+    let altitude = PlaneAngle::from_rad(sin_alt.atan2((num.clone() * num.clone() + den.clone() * den.clone()).sqrt()));
     HorizontalCoords { azimuth: PlaneAngle::from_rad(num.atan2(den)).wrap_to_2pi(), altitude }
 }
 

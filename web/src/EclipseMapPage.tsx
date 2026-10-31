@@ -1,5 +1,5 @@
 /**
- * 日食图（食带图）：按年列出日食，选中一次后画中心线、本影/半影南北界、带食出没界线、影子轮廓与昼夜界线。
+ * 日月食图：按年列出日食、月食；月食的画法在 LunarEclipseView。日食（食带图）选中一次后画中心线、本影/半影南北界、带食出没界线、影子轮廓与昼夜界线。
  * 可切换「地球」（正射投影，可拖动旋转，缺省从太阳方向看）与「平面」（等距圆柱）；点击地图或都城给出该地食况。
  *
  * 计算全在 Rust（eclipseWorker → EclipseEngine），这里只画。ΔT 只经地球自转进入，换 ΔT 时全图严格沿经度平移
@@ -7,11 +7,10 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, Card, Checkbox, Descriptions, Flex, InputNumber, Radio, Slider, Space, Spin, Table, Tag, Typography } from 'antd'
-import { geoCircle, geoEquirectangular, geoGraticule10, geoOrthographic, geoPath, type GeoProjection } from 'd3-geo'
-import { feature } from 'topojson-client'
-import type { Topology } from 'topojson-specification'
-import type { Feature, FeatureCollection, Geometry, MultiLineString, Point } from 'geojson'
-import land50m from 'world-atlas/land-50m.json'
+import { geoCircle } from 'd3-geo'
+import type { MultiLineString } from 'geojson'
+import { GeoCanvas, type MapView as View } from './GeoCanvas'
+import { LunarEclipseView, type LunarListItem } from './LunarEclipseView'
 import type { EclipseRequest } from './eclipseWorker'
 import { fmtDate, fmtTime, yearLabel } from './civilTime'
 import { useWorkerRpc } from './useWorkerRpc'
@@ -62,19 +61,14 @@ type Local = {
 
 const KIND_LABEL: Record<Kind, string> = { T: '全食', A: '环食', H: '全环食', P: '偏食' }
 const KIND_COLOR: Record<Kind, string> = { T: 'red', A: 'gold', H: 'purple', P: 'default' }
+const LUNAR_KIND_LABEL: Record<string, string> = { T: '月全食', P: '月偏食', N: '半影月食' }
+const LUNAR_KIND_COLOR: Record<string, string> = { T: 'magenta', P: 'blue', N: 'default' }
+type AnyItem = (ListItem & { body: 'solar' }) | (LunarListItem & { body: 'lunar' })
 
 // ---------------------------------------------------------------------------------------------------------------------
 // 绘图
 
-const LAND = feature(land50m as unknown as Topology, (land50m as unknown as Topology).objects.land) as unknown as FeatureCollection
-const GRATICULE = geoGraticule10()
-const SPHERE = { type: 'Sphere' } as const
-
 const COLORS = {
-  ocean: '#dfeaf3',
-  land: '#f4f1e8',
-  landStroke: '#a59f8e',
-  graticule: 'rgba(80,100,120,0.18)',
   night: 'rgba(20,30,60,0.22)',
   penumbraLimit: '#3b6fb6',
   umbraLimit: '#c0392b',
@@ -83,16 +77,12 @@ const COLORS = {
   outlinePen: 'rgba(59,111,182,0.55)',
   outlineUmbra: 'rgba(192,57,43,0.75)',
   sigma: 'rgba(142,27,16,0.45)',
-  capital: '#222',
-  pick: '#d35400',
   magnitude: '#7a5c99',
 }
 
 function shiftLines(lines: Line[], dLon: number): MultiLineString {
   return { type: 'MultiLineString', coordinates: lines.map((l) => l.map((p) => [p[0] + dLon, p[1]])) }
 }
-
-type View = 'globe' | 'flat'
 
 function MapCanvas(props: {
   map: EclipseMap
@@ -105,43 +95,10 @@ function MapCanvas(props: {
   onPick: (lon: number, lat: number) => void
 }) {
   const { map, dLon, sigmaLon, view, layers, capitals, picked, onPick } = props
-  const width = 760
-  const height = view === 'globe' ? 640 : 400
   const sub = map.subsolar[0]
   const gp = map.greatestPoint[0]
-  const [rotate, setRotate] = useState<[number, number]>([-sub[0], -sub[1]])
-  const [zoom, setZoom] = useState(1)
-  const [pan, setPan] = useState<[number, number]>([0, 0])
-  const svgRef = useRef<SVGSVGElement | null>(null)
-
-  // 换日食或视图时复位：地球从太阳方向看；平面以极大食点经度居中
-  useEffect(() => {
-    setRotate(view === 'globe' ? [-(sub[0] + dLon), -sub[1]] : [-(gp[0] + dLon), 0])
-    setZoom(1)
-    setPan([0, 0])
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, view])
-
-  const projection: GeoProjection = useMemo(() => {
-    if (view === 'globe') {
-      return geoOrthographic()
-        .rotate(rotate)
-        .scale((Math.min(width, height) / 2 - 8) * zoom)
-        .translate([width / 2 + pan[0], height / 2 + pan[1]])
-        .clipAngle(90)
-    }
-    return geoEquirectangular()
-      .rotate([rotate[0], 0])
-      .scale((width / (2 * Math.PI)) * zoom)
-      .translate([width / 2 + pan[0], height / 2 + pan[1]])
-  }, [view, rotate, zoom, pan, height])
-  const path = useMemo(() => geoPath(projection), [projection])
-
   // 半径取 89.99° 而非 90°：从太阳方向看时夜半球边界恰在正射投影裁剪圈上，裁剪退化会填满整个圆盘
-  const night = useMemo(
-    () => geoCircle().center([sub[0] + dLon + 180, -sub[1]]).radius(89.99)(),
-    [sub, dLon]
-  )
+  const night = useMemo(() => geoCircle().center([sub[0] + dLon + 180, -sub[1]]).radius(89.99)(), [sub, dLon])
 
   // 中心线上按影子轮廓时刻标 UT
   const centralTicks = useMemo(() => {
@@ -154,93 +111,21 @@ function MapCanvas(props: {
     }).filter((x): x is { p: Pt; label: string } => !!x)
   }, [map])
 
-  // 拖动：地球转动、平面平移；位移很小视为点击
-  const drag = useRef<{ x: number; y: number; rot: [number, number]; pan: [number, number]; moved: boolean } | null>(null)
-  const onPointerDown = (e: React.PointerEvent) => {
-    ;(e.target as Element).setPointerCapture?.(e.pointerId)
-    drag.current = { x: e.clientX, y: e.clientY, rot: rotate, pan, moved: false }
-  }
-  const onPointerMove = (e: React.PointerEvent) => {
-    const d = drag.current
-    if (!d) return
-    const dx = e.clientX - d.x
-    const dy = e.clientY - d.y
-    if (Math.abs(dx) + Math.abs(dy) > 3) d.moved = true
-    if (!d.moved) return
-    if (view === 'globe') {
-      const k = 90 / (projection.scale() * 1.5)
-      setRotate([d.rot[0] + dx * k * 1.5, Math.max(-90, Math.min(90, d.rot[1] - dy * k * 1.5))])
-    } else {
-      setPan([d.pan[0] + dx, d.pan[1] + dy])
-    }
-  }
-  const onPointerUp = (e: React.PointerEvent) => {
-    const d = drag.current
-    drag.current = null
-    if (!d || d.moved || !svgRef.current) return
-    const rect = svgRef.current.getBoundingClientRect()
-    const x = ((e.clientX - rect.left) / rect.width) * width
-    const y = ((e.clientY - rect.top) / rect.height) * height
-    const ll = projection.invert?.([x, y])
-    if (!ll || !Number.isFinite(ll[0])) return
-    // 正射投影 invert 对背面点也有解，用前向投影回验
-    const back = projection(ll)
-    if (!back || Math.hypot(back[0] - x, back[1] - y) > 1) return
-    const lon = ((ll[0] + 540) % 360) - 180
-    onPick(lon, ll[1])
-  }
-  // 滚轮缩放：平面图以鼠标处为中心（该点位置不动），地球以球心为中心。用原生非 passive 监听以阻止页面跟着滚动
-  const view_ = useRef({ zoom, pan, view })
-  view_.current = { zoom, pan, view }
-  useEffect(() => {
-    const el = svgRef.current
-    if (!el) return
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault()
-      const { zoom: z, pan: p, view: v } = view_.current
-      const z2 = Math.max(0.6, Math.min(40, z * (e.deltaY < 0 ? 1.15 : 1 / 1.15)))
-      if (v === 'flat') {
-        const rect = el.getBoundingClientRect()
-        const cx = ((e.clientX - rect.left) / rect.width) * width
-        const cy = ((e.clientY - rect.top) / rect.height) * height
-        const k = z2 / z
-        const tx = width / 2 + p[0]
-        const ty = height / 2 + p[1]
-        setPan([cx - k * (cx - tx) - width / 2, cy - k * (cy - ty) - height / 2])
-      }
-      setZoom(z2)
-    }
-    el.addEventListener('wheel', onWheel, { passive: false })
-    return () => el.removeEventListener('wheel', onWheel)
-  }, [height])
-
-  const pt = (lon: number, lat: number) => {
-    const g: Point = { type: 'Point', coordinates: [lon, lat] }
-    return path.centroid(g as unknown as Feature<Geometry>) // 被裁掉时为 NaN
-  }
-
-  const line = (lines: Line[], stroke: string, w: number, dash?: string, key?: string) => (
-    <path key={key} d={path(shiftLines(lines, dLon)) ?? ''} fill="none" stroke={stroke} strokeWidth={w} strokeDasharray={dash} />
-  )
-
   return (
-    <svg
-      ref={svgRef}
-      viewBox={`0 0 ${width} ${height}`}
-      style={{ width: '100%', maxWidth: width, touchAction: 'none', cursor: 'grab', userSelect: 'none', display: 'block' }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-    >
-      <defs>
-        <clipPath id="eclipse-map-clip">
-          <rect x={0} y={0} width={width} height={height} />
-        </clipPath>
-      </defs>
-      <g clipPath="url(#eclipse-map-clip)">
-        <path d={path(SPHERE) ?? ''} fill={COLORS.ocean} stroke="#8aa" strokeWidth={0.8} />
-        <path d={path(GRATICULE) ?? ''} fill="none" stroke={COLORS.graticule} strokeWidth={0.6} />
-        <path d={path(LAND) ?? ''} fill={COLORS.land} stroke={COLORS.landStroke} strokeWidth={0.5} />
+    <GeoCanvas
+      view={view}
+      resetKey={map}
+      globeCenter={[sub[0] + dLon, sub[1]]}
+      flatLon={gp[0] + dLon}
+      capitals={layers.has('capitals') ? capitals : []}
+      picked={picked}
+      onPick={onPick}
+      overlay={({ path, pt }) => {
+        const line = (lines: Line[], stroke: string, w: number, dash?: string) => (
+          <path d={path(shiftLines(lines, dLon)) ?? ''} fill="none" stroke={stroke} strokeWidth={w} strokeDasharray={dash} />
+        )
+        return (
+          <>
         {layers.has('night') && <path d={path(night) ?? ''} fill={COLORS.night} stroke="none" />}
         {layers.has('outlines') &&
           map.outlines.map((o, i) => (
@@ -258,7 +143,7 @@ function MapCanvas(props: {
                 const [x, y] = pt(p[0] + dLon, p[1])
                 return Number.isFinite(x) ? (
                   <text key={i} x={x} y={y} fontSize={9} fill={COLORS.magnitude} textAnchor="middle" dy={-2}
-                    style={{ paintOrder: 'stroke', stroke: COLORS.land, strokeWidth: 2.5 }}>{c.level.toFixed(1)}</text>
+                    style={{ paintOrder: 'stroke', stroke: '#f4f1e8', strokeWidth: 2.5 }}>{c.level.toFixed(1)}</text>
                 ) : null
               })}
             </g>
@@ -293,23 +178,10 @@ function MapCanvas(props: {
             </g>
           ) : null
         })()}
-        {layers.has('capitals') &&
-          capitals.map((c) => {
-            const [x, y] = pt(c.lon, c.lat)
-            return Number.isFinite(x) ? (
-              <g key={c.name} style={{ cursor: 'pointer' }} onPointerUp={(e) => { e.stopPropagation(); drag.current = null; onPick(c.lon, c.lat) }}>
-                <rect x={x - 2.5} y={y - 2.5} width={5} height={5} fill={COLORS.capital} />
-                {zoom >= 2.5 && <text x={x + 5} y={y + 4} fontSize={11} fill={COLORS.capital}>{c.name}</text>}
-                <title>{`${c.name}（${c.regimes.join('、')}）`}</title>
-              </g>
-            ) : null
-          })}
-        {picked && (() => {
-          const [x, y] = pt(picked[0], picked[1])
-          return Number.isFinite(x) ? <circle cx={x} cy={y} r={4} fill={COLORS.pick} stroke="#fff" strokeWidth={1.2} /> : null
-        })()}
-      </g>
-    </svg>
+          </>
+        )
+      }}
+    />
   )
 }
 
@@ -340,8 +212,8 @@ function Legend() {
 export function EclipseMapPage() {
   const call = useWorkerRpc<EclipseRequest>(() => new Worker(new URL('./eclipseWorker.ts', import.meta.url), { type: 'module' }))
   const [year, setYear] = useState(-180)
-  const [list, setList] = useState<ListItem[] | null>(null)
-  const [selected, setSelected] = useState<ListItem | null>(null)
+  const [list, setList] = useState<AnyItem[] | null>(null)
+  const [selected, setSelected] = useState<AnyItem | null>(null)
   const [map, setMap] = useState<EclipseMap | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -359,10 +231,14 @@ export function EclipseMapPage() {
 
   const query = useCallback(
     async (y: number) => {
-      setBusy('计算日食表')
+      setBusy('计算日月食表')
       setError(null)
       try {
-        const r = await call<ListItem[]>({ type: 'list', year: y })
+        const [sol, lun] = await Promise.all([call<ListItem[]>({ type: 'list', year: y }), call<LunarListItem[]>({ type: 'listLunar', year: y })])
+        const r: AnyItem[] = [
+          ...sol.map((x) => ({ ...x, body: 'solar' as const })),
+          ...lun.map((x) => ({ ...x, body: 'lunar' as const })),
+        ].sort((a, b) => a.greatestTt - b.greatestTt)
         setList(r)
         setSelected(r[0] ?? null)
       } catch (e) {
@@ -380,7 +256,7 @@ export function EclipseMapPage() {
   }, [])
 
   useEffect(() => {
-    if (!selected) {
+    if (!selected || selected.body === 'lunar') {
       setMap(null)
       return
     }
@@ -401,7 +277,7 @@ export function EclipseMapPage() {
   const sigma = selected?.deltaTSigma ?? 0
 
   useEffect(() => {
-    if (!picked || !selected) return
+    if (!picked || !selected || selected.body === 'lunar') return
     let cancelled = false
     call<Local | null>({ type: 'local', jd: selected.greatestTt, deltaT, lon: picked[0], lat: picked[1] })
       .then((r) => !cancelled && setLocal(r))
@@ -435,12 +311,12 @@ export function EclipseMapPage() {
       {error && <Alert type="error" message={error} showIcon closable onClose={() => setError(null)} />}
       <Spin spinning={!!busy} tip={busy ?? undefined}>
         {list && (
-          <Table<ListItem>
+          <Table<AnyItem>
             size="small"
             pagination={false}
             rowKey={(r) => String(r.greatestTt)}
             dataSource={list}
-            locale={{ emptyText: `${yearLabel(year)} 年无日食` }}
+            locale={{ emptyText: `${yearLabel(year)} 年无日月食` }}
             rowSelection={{
               type: 'radio',
               selectedRowKeys: selected ? [String(selected.greatestTt)] : [],
@@ -450,14 +326,19 @@ export function EclipseMapPage() {
             columns={[
               { title: '日期', render: (_, r) => fmtDate(r.greatestTt - r.deltaT / 86400) },
               { title: '食甚 UT', render: (_, r) => fmtTime(r.greatestTt - r.deltaT / 86400) },
-              { title: '类型', render: (_, r) => <Tag color={KIND_COLOR[r.kind]}>{KIND_LABEL[r.kind]}{r.central ? '' : '（非中心）'}</Tag> },
+              { title: '类型', render: (_, r) => r.body === 'lunar'
+                ? <Tag color={LUNAR_KIND_COLOR[r.kind]}>{LUNAR_KIND_LABEL[r.kind]}</Tag>
+                : <Tag color={KIND_COLOR[r.kind]}>日{KIND_LABEL[r.kind]}{r.central ? '' : '（非中心）'}</Tag> },
               { title: 'γ', render: (_, r) => r.gamma.toFixed(4) },
-              { title: '食分', render: (_, r) => r.magnitude.toFixed(4) },
+              { title: '食分', render: (_, r) => r.body === 'lunar' ? `本影 ${r.umbralMagnitude.toFixed(4)} · 半影 ${r.penumbralMagnitude.toFixed(4)}` : r.magnitude.toFixed(4) },
               { title: 'ΔT（s）', render: (_, r) => `${r.deltaT.toFixed(0)} ± ${r.deltaTSigma.toFixed(0)}` },
             ]}
           />
         )}
-        {map && selected && (
+        {selected?.body === 'lunar' && (
+          <LunarEclipseView key={selected.greatestTt} item={selected} call={call} capitals={capitals} onBusy={setBusy} onError={setError} />
+        )}
+        {map && selected?.body === 'solar' && (
           <Card size="small" style={{ marginTop: 12 }}>
             <Flex vertical gap={10}>
               <Flex gap={16} align="center" wrap="wrap">
@@ -478,7 +359,7 @@ export function EclipseMapPage() {
                 <Text type="secondary">（MS2021 {selected.deltaT.toFixed(0)} ± {sigma.toFixed(0)} s；偏移 {sigma > 0 ? (dtOffset / sigma).toFixed(2) : '0'}σ，全图东移 {dLon.toFixed(3)}°）</Text>
                 <div style={{ flex: '1 1 240px', minWidth: 200 }}>
                   <Slider min={-3 * Math.max(sigma, 1)} max={3 * Math.max(sigma, 1)} step={1} value={dtOffset} onChange={setDtOffset}
-                    marks={sigma > 0 ? { [-2 * sigma]: '−2σ', [-sigma]: '−σ', 0: '0', [sigma]: '+σ', [2 * sigma]: '+2σ' } : undefined}
+                    marks={sigma >= 5 ? { [-2 * sigma]: '−2σ', [-sigma]: '−σ', 0: '0', [sigma]: '+σ', [2 * sigma]: '+2σ' } : undefined}
                     tooltip={{ formatter: (v) => `${(v ?? 0) >= 0 ? '+' : ''}${v} s` }} />
                 </div>
               </Flex>
@@ -496,7 +377,7 @@ export function EclipseMapPage() {
             </Flex>
           </Card>
         )}
-        {picked && map && (
+        {picked && map && selected?.body === 'solar' && (
           <Card size="small" style={{ marginTop: 12 }}
             title={`${pickedCapital ? `${pickedCapital.name}（${pickedCapital.regimes.join('、')}）` : '所选地点'} ${picked[0].toFixed(2)}°${picked[0] >= 0 ? 'E' : 'W'} ${Math.abs(picked[1]).toFixed(2)}°${picked[1] >= 0 ? 'N' : 'S'}，ΔT ${deltaT.toFixed(0)} s`}>
             {local === undefined ? <Spin size="small" /> : local === null ? <Text>该地无食。</Text> : (

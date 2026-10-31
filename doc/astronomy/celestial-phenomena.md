@@ -171,6 +171,7 @@ Almanac* 第 3 版、JPL 历表、经同行评议的 ΔT 与星表）；许剑�
 | 日食全球情况：贝塞尔根数 x、y、d、l1、l2、tan f1、tan f2，极大食、γ、食分、类型（偏/环/全/全环）[12][20] | `phenomena::solar_eclipse::{besselian, solar_eclipse_global}` | 对照 NASA 日食典，见下表 |
 | 日食某地情况：站心日月角距、初亏/食甚/复圆、食既/生光、带食出没、地平以上最大食分 | `phenomena::solar_eclipse::solar_eclipse_local` | 《汉书》西汉日食，见下 |
 | 月食：Danjon 地影 [18][21]，半影/本影食分、γ、P1–P4/U1–U4，月亮地平高度 | `phenomena::lunar_eclipse` | 对照 NASA 月食典，见下表 |
+| 月食图：各食相月出月没界线（站心几何高度 0，含视差）、月下点、某地食况、穿影路径；与日食同在前端「日月食图」页 | `phenomena::lunar_eclipse_map` | 界线上月亮高度偏差 < 1e-4°（2018 年、前 200 年前后各一次）；ΔT 变化为纯经度平移；各时刻同月食典检验 |
 | 日食地图（食带图）：中心线、本影南北界、半影界、带食出没界线、可见极大食分等值线、影子轮廓、日下点；前端「日食图」页（地球/平面两种投影） | `phenomena::solar_eclipse_map` | 见下「日食地图」 |
 
 **日食地图**（`phenomena::solar_eclipse_map`，测试 `tests_solar_eclipse_map`；前端 `web/src/EclipseMapPage.tsx`）。

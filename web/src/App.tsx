@@ -672,7 +672,7 @@ function App() {
         视位置变换图
       </Button>
       <Button type={view === 'eclipse' ? 'primary' : 'link'} icon={<GlobalOutlined />} onClick={() => setView('eclipse')}>
-        日食图
+        日月食图
       </Button>
       <Button type={view === 'stars' ? 'primary' : 'link'} icon={<StarOutlined />} onClick={() => setView('stars')}>
         星图

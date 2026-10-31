@@ -1,5 +1,5 @@
 /**
- * Web Worker：日食计算。首次请求时 fetch 全二进制历表并构造常驻的 EclipseEngine（wasm-lib-f64），之后的
+ * Web Worker：日月食计算。首次请求时 fetch 全二进制历表并构造常驻的 EclipseEngine（wasm-lib-f64），之后的
  * 年表、地图、某地食况都在 Worker 内算，避免阻塞 UI。数据源取舍沿用 ephemerisSourceRegistry.ts（只走全二进制一级）。
  */
 
@@ -9,6 +9,9 @@ type Engine = {
   solarEclipsesInYear(year: number): string
   solarEclipseMap(jdTtGuess: number, deltaTS: number, stepS: number, outlineIntervalS: number): string
   solarEclipseLocal(jdTtGuess: number, deltaTS: number, lonDeg: number, latDeg: number): string
+  lunarEclipsesInYear(year: number): string
+  lunarEclipseMap(jdTtGuess: number, deltaTS: number): string
+  lunarEclipseLocal(jdTtGuess: number, deltaTS: number, lonDeg: number, latDeg: number): string
 }
 
 type WasmModule = {
@@ -32,6 +35,9 @@ export type EclipseRequest =
   | { id: number; type: 'map'; jd: number; deltaT: number; stepS: number; outlineS: number }
   | { id: number; type: 'local'; jd: number; deltaT: number; lon: number; lat: number }
   | { id: number; type: 'deltaT'; jd: number }
+  | { id: number; type: 'listLunar'; year: number }
+  | { id: number; type: 'lunarMap'; jd: number; deltaT: number }
+  | { id: number; type: 'lunarLocal'; jd: number; deltaT: number; lon: number; lat: number }
 
 let enginePromise: Promise<{ wasm: WasmModule; engine: Engine }> | null = null
 
@@ -69,6 +75,15 @@ self.onmessage = async (ev: MessageEvent<EclipseRequest>) => {
         break
       case 'local':
         result = JSON.parse(engine.solarEclipseLocal(req.jd, req.deltaT, req.lon, req.lat))
+        break
+      case 'listLunar':
+        result = JSON.parse(engine.lunarEclipsesInYear(req.year))
+        break
+      case 'lunarMap':
+        result = JSON.parse(engine.lunarEclipseMap(req.jd, req.deltaT))
+        break
+      case 'lunarLocal':
+        result = JSON.parse(engine.lunarEclipseLocal(req.jd, req.deltaT, req.lon, req.lat))
         break
       case 'deltaT':
         result = Array.from(wasm.deltaTEstimate(req.jd))
