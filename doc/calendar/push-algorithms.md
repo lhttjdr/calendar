@@ -317,7 +317,7 @@ ziOffset 将「子月起」的月序映射到各历正月：-1=正月亥（闰�
 
 ### 5.2 春秋历（chunqiu_cmonth）
 
-**常数**：`lunar = 30328/1027`，`yEpoch = -721`，`jdEpoch = 1457727.761054236`。**闰年表**：`leapYears[0..239]` 对应 -721～-482。步骤：`accMonths = 12*(y - yEpoch) + accLeaps[i]`，正月朔 `m0 = jdEpoch + accMonths*lunar`，月数 n = 12+leap，第 j 月朔 = `floor(m0 + j*lunar + 0.5) - jdc`。即**固定闰年表 + 朔策 30328/1027**，无中气规则。
+**常数**：`lunar = 30328/1027`，`yEpoch = -721`，`jdEpoch = 1457727.761054236`。**闰年表**：`leapYears[0..239]` 对应 -721～-482。步骤：`accMonths = 12*(y - yEpoch) + accLeaps[i]`，正月朔 `m0 = jdEpoch + accMonths*lunar`，月数 n = 12+leap，第 j 月朔 = `floor(m0 + j*lunar + 0.5) - jdc`。即**固定闰年表 + 朔策 30328/1027**，无中气规则。闰年表所据本项目未查；对《春秋》经文的检验见 [calendar-compendium.md](./calendar-compendium.md) §12。
 
 ### 5.3 秦与汉初历（HanZhuanXu）
 

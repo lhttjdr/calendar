@@ -192,6 +192,45 @@ def main():
               "第 1 级资料（当时历日的清钞本，转录 `data/calendar/会天历_1256.csv`）。会天历术不传，开禧为上一部历，上推只作对照。", ""]
         L += table(["月", "会天历一日", "主表", "开禧定朔（上推）", "小余（时）", "进朔限（时）", "开禧进朔"],
                    [[r["月"], r["会天历一日"], r["主表"], r["开禧定朔（上推）"], r["小余（时）"], r["进朔限（时）"], r["开禧进朔"]] for r in ht])
+    # 八、《春秋》经文纪日（chunqiu_check.py、chunqiu_jianzheng.py）
+    cq = rows("chunqiu_check.csv")
+    if cq:
+        models = [k for k in cq[0] if "·" in k or k == "春秋历"]
+        early = {"隱公", "桓公", "莊公", "閔公"}
+        L += ["", "## 八、《春秋》经文纪日与春秋历、古六历", "",
+              "经文取自维基文库《春秋左氏傳》經节（未对校点校本）。任意干支落入一个月的机会约 49%，这是「在月内」的基线；书朔恰合的偶合机会约 1/60。"
+              "春秋历的闰年表是今人排定的，合经文不是独立证据。说明见 [calendar-compendium.md](./calendar-compendium.md) §12。", "",
+              "### 汇总", ""]
+        L += table(["历", "隐—闵在月内", "僖—哀在月内", "全部", "书朔恰合"],
+                   [[m, f"{sum(r[m] != '外' for r in cq if r['公'] in early)}/{sum(r['公'] in early for r in cq)}",
+                     f"{sum(r[m] != '外' for r in cq if r['公'] not in early)}/{sum(r['公'] not in early for r in cq)}",
+                     f"{sum(r[m] != '外' for r in cq)}/{len(cq)}", f"{sum(r[m] == '朔' for r in cq if r['朔'] == '1')}/{sum(r['朔'] == '1' for r in cq)}"] for m in models])
+        jz = rows("chunqiu_jianzheng.csv")
+        L += ["", "### 春秋历正月之建（真冬至定子月）", ""]
+        dukes = list(dict.fromkeys(r["公"] for r in jz))
+        L += table(["公", "年数", "亥", "子", "丑", "寅"],
+                   [[d, sum(r["公"] == d for r in jz)] + [sum(r["公"] == d and r["建"] == k for r in jz) for k in "亥子丑寅"] for d in dukes])
+        with open(ROOT / "data/phenomena/chunqiu_solar_eclipses_check.csv", encoding="utf-8") as f:
+            ec = list(csv.DictReader(f))
+        with open(ROOT / "data/phenomena/chunqiu_solar_eclipses.csv", encoding="utf-8") as f:
+            for r, src in zip(ec, csv.DictReader(f)):
+                r["note"] = src["note"]
+        L += ["", "### 日食（曲阜，东经 116.98°、北纬 35.6°）", "", "记录日由春秋历换算，未书干支者取该月朔，这几条不独立。「无日食」指记录日前后无日食。", ""]
+        L += table(["公", "年", "公历年", "月", "干支", "书朔", "记录日（儒略历）", "食型", "γ", "曲阜食分", "判定", "附注"],
+                   [[r["emp"], r["year_in_era"], r["year"], r["month"], r["ganzhi"], r["position"], r["julian"], r["kind"], r["gamma"], r["site_magnitude_0"], r["verdict"], r.get("note", "")] for r in ec])
+        with open(ROOT / "data/phenomena/chunqiu_eclipse_candidates_check.csv", encoding="utf-8") as f:
+            cd = list(csv.DictReader(f))
+        with open(ROOT / "data/phenomena/chunqiu_eclipse_candidates.csv", encoding="utf-8") as f:
+            for r, src in zip(cd, csv.DictReader(f)):   # 检验结果不带 note 列，从输入逐行取
+                r["note"] = src["note"]
+        cd = [r for r in cd if r["verdict"] != "无日食"]
+        L += ["", "### 无日食者的候选（事后搜索）", "", "有干支者前后移 60 日的倍数，未书干支者前后移一至三朔望月；襄公二十七年另试《左传》之「十一月乙亥朔」。这是候选，不是定论。", ""]
+        L += table(["公", "年", "原记月", "干支", "移动", "候选日（儒略历）", "食型", "γ", "日差", "曲阜食分", "判定"],
+                   [[r["emp"], r["year_in_era"], r["month"], r["ganzhi"], r["note"], r["julian"], r["kind"], r["gamma"], r["day_offset"], r["site_magnitude_0"], r["verdict"]] for r in cd])
+        L += ["", "### 逐条（朔：恰为朔日；内：在月内；外：不在月内）", ""]
+        pick = ["春秋历", "周·建子", "周·建丑", "鲁·建子", "鲁·建丑", "殷·建子"]
+        L += table(["公", "年", "月", "干支", "书朔", "日食"] + pick + ["原文"],
+                   [[r["公"], r["公年"], r["月"], r["干支"], "朔" if r["朔"] == "1" else "", "食" if r["日食"] == "1" else ""] + [r[m] for m in pick] + [r["原文"]] for r in cq])
     (ROOT / "doc/calendar/main-table-checks.md").write_text("\n".join(L) + "\n", encoding="utf-8")
     print("doc/calendar/main-table-checks.md", len(L), "行")
 

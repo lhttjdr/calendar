@@ -210,3 +210,7 @@ Schaefer B.E. 1987, Heliacal rise phenomena（*JHA* 18, Archaeoastronomy 11, S19
 另有 `checks/<book>_date_shift.csv`（hanshu、houhanshu、jinshu），由 `scripts/phenomena/record_date_shift.py`（Skyfield + DE441）写出：
 行星凌犯记录在记载日 ±4 年内与目标地心角距 <1° 的全部时段及距记载日最近的一段；日干支不在所记之月者，同一干支可落在的邻近月份。
 用来区分「日期记错（换个年、月就合）」与「换日期也不合」。
+
+## chunqiu_solar_eclipses.csv、chunqiu_eclipse_candidates.csv
+
+《春秋》经文日食 37 条，由 `scripts/calendar_data/chunqiu_check.py` 生成（维基文库《春秋左氏傳》經节）。日期由上游春秋历换算，未书干支者取该月朔，观测地为曲阜。`chunqiu_eclipse_candidates.csv` 是无日食者的移月候选，事后搜索，不是定论。结果见 [main-table-checks.md](../../doc/calendar/main-table-checks.md) 第八节。
