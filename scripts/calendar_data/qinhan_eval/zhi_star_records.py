@@ -333,6 +333,20 @@ BOOKS = {
         regime_era_extra={"魏": ["汉"], "蜀": ["汉"], "吴": ["汉"]},  # 魏纪、先主传、吴主传前段以汉年号纪年
         regime_calendars={"魏": [(-10000, "主表")], "蜀": [(-10000, "主表"), (221, "蜀")], "吴": [(-10000, "主表"), (222, "吴")]},
     ),
+    # 《汉书》本纪卷六至十二（武帝至平帝）：太初元年（前 104）以前已由 check_hanshu.py 检验，此处按主表；武帝纪前段太初前诸条仍用复原历
+    "hanshu_benji": dict(
+        sections=[], carry_context=True, para_reset=False,
+        date_sections=[(f"漢書/卷{j:03d}", None, None, "西汉") for j in range(6, 13)],
+        years=(-141, 6), start_year=-140, regimes=[(-140, "西汉")], era_regimes=["汉"],
+        calendars=[(-10000, "复原历"), (-103, "主表")],
+    ),
+    # 《后汉书》本纪卷一至九（光武至献帝）
+    "houhanshu_benji": dict(
+        sections=[], carry_context=True, para_reset=False,
+        date_sections=[(f"後漢書/卷{j}", None, None, "东汉") for j in ("1上", "1下", "2", "3", "4", "5", "6", "7", "8", "9")],
+        years=(22, 221), start_year=23, regimes=[(25, "东汉")], era_regimes=["汉", "新"], regime_era_extra={"东汉": ["新"]},
+        simplified=True,
+    ),
     # ——以本纪核验主表（主表即该政权所行之历的复原）——
     # 《晋书》本纪（卷一至十）：卷一、二宣、景、文帝以魏年号纪年
     "jinshu_benji": dict(

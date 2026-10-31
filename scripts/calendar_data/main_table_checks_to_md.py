@@ -8,8 +8,8 @@ from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DYNS = ("三国", "晋", "南朝", "北朝", "隋", "唐", "五代", "宋", "辽", "金", "元", "明")
-BOOK = {"sanguozhi": "三国志", "jinshu_benji": "晋书", "songshu_benji": "宋书", "nanqishu_benji": "南齐书", "liangshu_benji": "梁书",
+DYNS = ("汉", "三国", "晋", "南朝", "北朝", "隋", "唐", "五代", "宋", "辽", "金", "元", "明")
+BOOK = {"hanshu_benji": "汉书", "houhanshu_benji": "后汉书", "sanguozhi": "三国志", "jinshu_benji": "晋书", "songshu_benji": "宋书", "nanqishu_benji": "南齐书", "liangshu_benji": "梁书",
         "chenshu_benji": "陈书", "weishu_benji": "魏书", "beiqishu_benji": "北齐书", "zhoushu_benji": "周书", "suishu_benji": "隋书",
         "jiutangshu_benji": "旧唐书", "xintangshu_benji": "新唐书",
         "jiuwudaishi_benji": "旧五代史", "xinwudaishi_benji": "新五代史", "songshi_benji": "宋史", "liaoshi_benji": "辽史",
