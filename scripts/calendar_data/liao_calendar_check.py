@@ -75,7 +75,7 @@ def main():
                     "原文": r["原文"]})
     with open(ROOT / "data/calendar/liao_calendar_check.csv", "w", encoding="utf-8", newline="") as f:
         f.write("# 《辽史》本纪明书朔日与宋历（主表）、祖冲之大明历平朔（历象志所载）、金重修大明历定朔上推之比较"
-                "（scripts/calendar_data/liao_calendar_check.py）；进朔限为术文原限加校准 0.25 时。\n")
+                "（scripts/calendar_data/liao_calendar_check.py）；进朔限为术文原限加经验改正 0.25 时（同 1182 年前代推）。\n")
         w = csv.DictWriter(f, fieldnames=list(out[0].keys()))
         w.writeheader()
         w.writerows(out)

@@ -371,7 +371,8 @@ def dynasty_part():
 
 
 def md_table(header, rows):
-    esc = lambda s: s.replace("|", "\\|")
+    # 原文偶带维基模板（「{{*|注」），留着 VitePress 会当 Vue 表达式解析
+    esc = lambda s: s.replace("{{", "{ {").replace("}}", "} }").replace("|", "\\|")
     lines = ["| " + " | ".join(esc(h) for h in header) + " |", "|" + "---|" * len(header)]
     for r in rows:
         lines.append("| " + " | ".join(esc(c) for c in r) + " |")

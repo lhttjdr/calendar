@@ -190,7 +190,7 @@ Almanac* 第 3 版、JPL 历表、经同行评议的 ΔT 与星表）；许剑�
   γ ≤ 1e-3，食分 ≤ 5e-3），类型须全部一致。
 - 耗时：TwoFloat 下每次日月食约 30 次完整视位置求值，release 构建每次约 5 s；debug 构建慢一个量级，对照测试宜用 `--release`。
 
-**《汉书·五行志》西汉日食检验**（`examples/historical_eclipses.rs`；数据与列说明见 [data/phenomena/README.md](../../data/phenomena/README.md)）。
+**《汉书·五行志》西汉日食检验**（`examples/historical_eclipses.rs`；数据与列说明见 [data/phenomena/README.md](https://github.com/lhttjdr/calendar/blob/master/data/phenomena/README.md)）。
 
 做法：记录日只用历法换算（太初以前用秦汉初复原历，以后用实历朔日表），再独立计算该日 ±1.5 日内有无日食，以及长安
 （108.88°E，34.30°N）所见。ΔT 取 Morrison–Stephenson 2021 [1]，按 ELPMPP02 的 ṅ = −25.857″/cy² [9] 做潮汐修正（2026-10-26 改为按 ELPMPP02 − DE431 实测月亮黄经差配套，ΔT 减少 10–14 s，三份检验结论、日差全部不变，都城食分最大变化 0.005，见 §九 P3），长安所见

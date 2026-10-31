@@ -65,3 +65,6 @@ scripts/sky_culture/_cache/
 
 # Python 字节码缓存
 **/__pycache__/
+
+# 点校本二十四史（本地参考，体积大，不入库；需要的页单独摘录）
+/doc/references/history/点校本二十四史精装版*/
