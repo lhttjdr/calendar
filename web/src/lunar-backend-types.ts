@@ -118,6 +118,8 @@ export interface LunarBackend {
   delta_t_seconds?(jd_tt: number): number
   /** 主线该农历年行用之历的名称（麟德历、时宪历……）。 */
   get_calendar_name?(lunar_year: number): string
+  /** 该农历年通行的计时写法；时制不明的年代返回空串。 */
+  format_time_for_lunar_year?(lunar_year: number, hour: number, minute: number, second: number): string
   /** 按农历年查主表年号（中原正朔），simp=true 简体。 */
   get_era_name?(lunar_year: number, simp: boolean): string
   /** 按农历年查主表年号拆分：JSON { regime, emperor, era_name, era_year, era }（汉/武帝/元封/五年），用于统一格式展示。 */

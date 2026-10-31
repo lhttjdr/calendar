@@ -278,6 +278,12 @@ pub fn get_calendar_name(lunar_year: i32) -> String {
     PERIODS.with(|p| p.as_ref().map_or("农历", |p| p.name_for_lunar_year(lunar_year)).to_string())
 }
 
+/// 该农历年通行的计时写法（辰刻、时宪刻分秒、24 小时制等）；时制不明的年代返回空串。
+#[wasm_bindgen(js_name = format_time_for_lunar_year)]
+pub fn format_time_for_lunar_year(lunar_year: i32, hour: u32, minute: u32, second: u32) -> String {
+    lunar_core::calendar::timekeeping::format_time_for_lunar_year(lunar_year, hour, minute, second)
+}
+
 /// 按农历年查"正统主线"年号（对应旧单一年号表的等价行为）。同一年若有并存政权，见 [get_era_name_parts_all]。
 #[wasm_bindgen(js_name = get_era_name)]
 pub fn get_era_name(lunar_year: i32, _simp: bool) -> String {

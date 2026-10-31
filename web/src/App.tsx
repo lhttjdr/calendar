@@ -53,7 +53,6 @@ type DayInfoLayerKey =
   | 'calendar_eraNames' // 历法·派生层：政权·帝王·年号（含并存政权）
   | 'calendar_regimeCalendars' // 历法·独立基础层：其它政权推步历（蜀汉四分、东吴乾象等）
   | 'calendar_ganzhi' // 历法：干支历四柱
-  | 'calendar_shixian' // 历法：时宪历刻分秒
   | 'repoStatus' // 工程：天文仲裁层状态（历表/章动表/地球改正加载情况）
 
 const DAY_INFO_LAYERS_STORAGE_KEY = 'lunar-day-info-layers'
@@ -72,7 +71,6 @@ const DAY_INFO_LAYER_GROUPS: { title: string; items: { key: DayInfoLayerKey; lab
       { key: 'calendar_eraNames', label: '政权·年号（含并存政权）' },
       { key: 'calendar_regimeCalendars', label: '其它政权推步历（蜀汉/东吴等）' },
       { key: 'calendar_ganzhi', label: '干支历四柱' },
-      { key: 'calendar_shixian', label: '时宪历' },
     ],
   },
   {
@@ -87,7 +85,6 @@ const DEFAULT_DAY_INFO_LAYERS: Record<DayInfoLayerKey, boolean> = {
   calendar_eraNames: true,
   calendar_regimeCalendars: true,
   calendar_ganzhi: true,
-  calendar_shixian: true,
   repoStatus: true,
 }
 
@@ -101,7 +98,7 @@ function getStoredDayInfoLayers(): Record<DayInfoLayerKey, boolean> {
 
 const { Text } = Typography
 
-/** 实时时间 Context：仅在 enabled 时每秒更新，供 LiveClock 与时宪历联动 */
+/** 实时时间 Context：仅在 enabled 时每秒更新，供各日期行的时刻联动 */
 const LiveTimeContext = createContext<Date | null>(null)
 function LiveTimeProvider({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
   const [t, setT] = useState(() => new Date())
@@ -166,24 +163,19 @@ function utcFromLocalInZone(y: number, m: number, d: number, h: number, min: num
   return new Date((lo + hi) / 2)
 }
 
-/** 实时时钟：与 LiveTimeProvider 联动，按所选时区只显示时分秒+时区（年月日在卡片顶部/日区已展示） */
-function LiveClock({ timeZone }: { timeZone: string }) {
+/** 日期行末尾的时刻：实时模式下随 LiveTimeProvider 每秒更新，写法由 format 决定 */
+function LineTime({ format, live, timeZone, hour, minute, second }: {
+  format: (hour: number, minute: number, second: number) => string
+  live: boolean
+  timeZone: string
+  hour: number
+  minute: number
+  second: number
+}) {
   const t = useLiveTime()
-  if (t == null) return null
-  const p = formatDateInTimeZone(t, timeZone)
-  return (
-    <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
-      {p.hour.toString().padStart(2, '0')}:{p.minute.toString().padStart(2, '0')}:{p.second.toString().padStart(2, '0')}
-      {' '}<Text type="secondary" style={{ fontSize: 12 }}>{timeZone}</Text>
-    </span>
-  )
-}
-
-/** 时宪历：与 LiveClock 共用同一实时时间 */
-function ShixianFromLiveTime() {
-  const t = useLiveTime()
-  if (t == null) return null
-  return <div style={{ marginTop: 2 }}>{formatShixianKe(t.getHours(), t.getMinutes(), t.getSeconds())}</div>
+  const p = live && t != null ? formatDateInTimeZone(t, timeZone) : { hour, minute, second }
+  const s = format(p.hour, p.minute, p.second)
+  return s ? <span style={{ fontVariantNumeric: 'tabular-nums' }}> {s}</span> : null
 }
 
 /** 岁数据中 12 中气顺序：zhongQiJds[0]=冬至,…,zhongQiJds[11]=小雪 */
@@ -260,36 +252,6 @@ function getHourGanzhi(dayGanzhi: string, hour: number): string {
 function yearToChinese(n: number): string {
   const digits = '〇一二三四五六七八九'
   return String(n).replace(/[0-9]/g, (d) => digits[parseInt(d, 10)]!)
-}
-
-/** 0~99 转汉字（时宪历分、秒用）：0→零，1→一，10→十，83→八十三 */
-function numToChineseSmall(n: number): string {
-  if (n < 0 || n > 99) return String(n)
-  const digits = '零一二三四五六七八九'
-  if (n === 0) return '零'
-  if (n < 10) return digits[n]!
-  const tens = Math.floor(n / 10)
-  const ones = n % 10
-  const tenStr = tens === 1 ? '十' : digits[tens]! + '十'
-  return ones === 0 ? tenStr : tenStr + digits[ones]
-}
-
-/** 时宪历（日96刻，每时辰8刻；《御制数理精蕴》每刻15分、每分60秒）将时分秒转为「刻+零+分秒」全汉字（不重复显示地支，四柱已有）。 */
-function formatShixianKe(hour: number, minute: number, second: number): string {
-  const fromMidnight = hour * 3600 + minute * 60 + second
-  const fromZichu = (fromMidnight + 3600) % 86400 // 子初=23:00 为 0，与干支历一致
-  const keIndex = Math.min(95, Math.floor(fromZichu / 900)) // 0~95，每刻900秒=15分
-  const keInZhi = keIndex % 8 // 时辰内刻 0~7
-  const keNames = ['初初刻', '初一刻', '初二刻', '初三刻', '正初刻', '正一刻', '正二刻', '正三刻']
-  const withinKeSeconds = fromZichu % 900
-  const fen = Math.floor(withinKeSeconds / 60) // 0~14
-  const miao = Math.floor(withinKeSeconds % 60) // 0~59
-  const keName = keNames[keInZhi]!
-  if (fen === 0 && miao === 0) return keName
-  const fenStr = numToChineseSmall(fen)
-  const miaoStr = numToChineseSmall(miao)
-  const fenMiao = miao > 0 ? `${fenStr}分${miaoStr}秒` : `${fenStr}分`
-  return `${keName}零${fenMiao}`
 }
 
 function getWeekday(y: number, m: number, d: number): number {
@@ -643,16 +605,13 @@ function App() {
     ? getHourGanzhi(selectedGanzhi.dayName, displayHour)
     : ''
 
-  const timeStr = isLiveMode
-    ? '' /* 实时模式用 LiveClock 组件显示 */
-    : `${selectedTime.hour.toString().padStart(2, '0')}:${selectedTime.minute.toString().padStart(2, '0')}:${selectedTime.second.toString().padStart(2, '0')} ${timeZone}`
-
   const yearOptions = useMemo(() => {
     const start = -2000
     const end = Math.max(2100, today.year + 50)
     return Array.from({ length: end - start + 1 }, (_, i) => {
       const y = start + i
-      const label = y < 0 ? `公元前${-y}年` : y === 0 ? '公元元年' : `${y}年`
+      // y 是天文年号：0 为公元前 1 年，-1 为公元前 2 年
+      const label = y <= 0 ? `公元前${1 - y}年` : `${y}年`
       return { label, value: y }
     })
   }, [today.year])
@@ -714,7 +673,7 @@ function App() {
         {error && <Alert type="error" message={error} showIcon style={{ marginBottom: 16 }} />}
 
         <Flex gap={24} align="flex-start" wrap="wrap">
-          {/* 左侧：单日信息（合并）。LiveTimeProvider 使实时模式下时钟与时宪历共用同一时间源 */}
+          {/* 左侧：单日信息（合并）。LiveTimeProvider 使实时模式下各行时刻共用同一时间源 */}
           <LiveTimeProvider enabled={isLiveMode}>
           <Flex vertical gap={12} style={{ width: 260, flexShrink: 0, overflow: 'visible' }}>
             <Card size="small" style={{ width: '100%', overflow: 'visible' }} styles={{ body: { padding: 0, overflow: 'visible' } }}>
@@ -727,130 +686,131 @@ function App() {
                 <div style={{ fontSize: 48, fontWeight: 700, lineHeight: 1, color: 'rgba(0,0,0,0.88)', fontVariantNumeric: 'tabular-nums' }}>
                   {sel.day}
                 </div>
-                {isLiveMode && (
-                  <div style={{ fontSize: 13, marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>
-                    <LiveClock timeZone={timeZone} />
-                  </div>
-                )}
-                {!isLiveMode && (
-                  <Text type="secondary" style={{ fontSize: 12, marginTop: 4 }}>{timeStr}</Text>
-                )}
+                <Text type="secondary" style={{ fontSize: 12, marginTop: 4 }}>{timeZone}</Text>
               </div>
-              {/* 农历年月日 + 星期 */}
+              {/* 各行统一为：历法 纪元 月 日 时刻 */}
               <div style={{ padding: '0 12px 12px', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
-                  {selectedLunarSlot != null ? (
-                    <>{wasm?.get_calendar_name?.(selectedLunarSlot.lunarYear) ?? '农历'} {yearToChinese(selectedLunarSlot.lunarYear)}年{selectedLunarSlot.isLeapMonth ? '闰' : ''}{LUNAR_MONTH_NAMES[selectedLunarSlot.lunarMonth - 1]}月{selectedLunarSlot.daysInMonth === 30 ? '大' : '小'} {lunarDayStr(selectedLunarSlot.dayOfMonth)}日</>
-                  ) : selectedLunar != null ? (
-                    <>{selectedLunar}</>
-                  ) : (
-                    <Text type="secondary">历日 —</Text>
-                  )}
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>
-                  星期{WEEKDAY_NAMES[weekdayIndex]}
-                </div>
-                <Text type="secondary" style={{ fontSize: 11 }}>第{dayOfYear}天，第{weekOfYear}周</Text>
-                {!isLiveMode && isSelectedToday && <Tag color="blue" style={{ marginTop: 6 }}>今天</Tag>}
-                {/* 统一格式：政权 · 帝号 年号 月日（主表）/ 政权 · 历法名 月日（推步） */}
                 {(() => {
+                  const timeProps = { live: isLiveMode, timeZone, hour: displayHour, minute: displayMinute, second: displaySecond }
+                  const clock = (h: number, m: number, s: number) =>
+                    [h, m, s].map((n) => n.toString().padStart(2, '0')).join(':')
+                  const timeOf = selectedLunarSlot != null && wasm?.format_time_for_lunar_year != null
+                    ? (h: number, m: number, s: number) => wasm.format_time_for_lunar_year!(selectedLunarSlot.lunarYear, h, m, s)
+                    : clock
+                  const beforeReform = displayY < 1582 || (displayY === 1582 && (displayM < 10 || (displayM === 10 && displayD < 15)))
+                  const gregorianName = beforeReform ? '前推格里高利历' : '格里高利历'
+                  const gregorianMonthDay = `${displayM}月${displayD}日`
+                  const yearName = (y: number) => (y > 0 ? `${yearToChinese(y)}年` : `西元前${yearToChinese(1 - y)}年`)
+
+                  type Era = { regime: string; emperor: string; era_name: string; era_year: string; era: string; is_primary?: boolean }
+                  const eraMid = (p: Era) => [p.emperor, [p.era_name, p.era_year].filter(Boolean).join('') || p.era].filter(Boolean).join(' ')
+
                   const lines: React.ReactNode[] = []
-                  const monthDayMain = selectedLunarSlot != null
-                    ? `${selectedLunarSlot.isLeapMonth ? '闰' : ''}${LUNAR_MONTH_NAMES[selectedLunarSlot.lunarMonth - 1]}月${lunarDayStr(selectedLunarSlot.dayOfMonth)}日`
-                    : ''
-                  if (dayInfoLayers.calendar_eraNames && selectedLunarSlot != null && (wasm?.get_era_name_parts_for_day != null || wasm?.get_era_name_parts != null)) {
-                    try {
-                      const partsJson = wasm.get_era_name_parts_for_day != null
-                        ? wasm.get_era_name_parts_for_day(
-                            selectedLunarSlot.lunarYear,
-                            displayY,
-                            displayM,
-                            displayD,
-                            selectedLunarSlot.lunarMonth,
-                            !!selectedLunarSlot.isLeapMonth,
-                            selectedLunarSlot.dayOfMonth,
-                          )
-                        : wasm.get_era_name_parts!(selectedLunarSlot.lunarYear, true)
-                      const parts = JSON.parse(partsJson) as {
-                        regime: string
-                        emperor: string
-                        era_name: string
-                        era_year: string
-                        era: string
-                        gaiyuan_prev_era_name?: string
-                        gaiyuan_prev_era_year?: string
-                        has_gaiyuan?: boolean
-                        gaiyuan_resolved?: boolean
-                        gaiyuan_on_this_day?: boolean
-                      }
-                      const regime = parts.regime || '实历'
-                      const eraStr = [parts.era_name, parts.era_year].filter(Boolean).join('') || parts.era
-                      const prevEraStr = [parts.gaiyuan_prev_era_name, parts.gaiyuan_prev_era_year].filter(Boolean).join('')
-                      let mid: string
-                      if (parts.gaiyuan_on_this_day && prevEraStr) {
-                        mid = [parts.emperor, `${prevEraStr}→${eraStr}`].filter(Boolean).join(' ')
-                      } else if (parts.has_gaiyuan && parts.gaiyuan_resolved === false && prevEraStr) {
-                        mid = [parts.emperor, `${prevEraStr}/${eraStr}`].filter(Boolean).join(' ')
-                      } else {
-                        mid = [parts.emperor, eraStr].filter(Boolean).join(' ')
-                      }
-                      const hint = parts.gaiyuan_on_this_day
-                        ? ' 改元'
-                        : parts.has_gaiyuan && parts.gaiyuan_resolved === false
-                          ? ' 改元日未补'
-                          : ''
-                      lines.push(<div key="main">{regime} · {mid || '—'} {monthDayMain}{hint}</div>)
-                    } catch {
-                      if (wasm?.get_era_name != null) {
-                        const era = wasm.get_era_name(selectedLunarSlot.lunarYear, true)
-                        lines.push(<div key="main">实历 · {era || '—'} {monthDayMain}</div>)
-                      }
+                  lines.push(
+                    <div key="gregorian" style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
+                      {gregorianName} 西元 {displayY > 0 ? `${displayY}年` : `前${1 - displayY}年`}{gregorianMonthDay}<LineTime format={clock} {...timeProps} />
+                    </div>,
+                  )
+
+                  // 主线
+                  if (selectedLunarSlot != null) {
+                    const monthDay = `${selectedLunarSlot.isLeapMonth ? '闰' : ''}${LUNAR_MONTH_NAMES[selectedLunarSlot.lunarMonth - 1]}月 ${lunarDayStr(selectedLunarSlot.dayOfMonth)}日`
+                    let era = yearName(selectedLunarSlot.lunarYear)
+                    let hint = ''
+                    if (dayInfoLayers.calendar_eraNames && (wasm?.get_era_name_parts_for_day != null || wasm?.get_era_name_parts != null)) {
+                      try {
+                        const partsJson = wasm.get_era_name_parts_for_day != null
+                          ? wasm.get_era_name_parts_for_day(
+                              selectedLunarSlot.lunarYear,
+                              displayY,
+                              displayM,
+                              displayD,
+                              selectedLunarSlot.lunarMonth,
+                              !!selectedLunarSlot.isLeapMonth,
+                              selectedLunarSlot.dayOfMonth,
+                            )
+                          : wasm.get_era_name_parts!(selectedLunarSlot.lunarYear, true)
+                        const parts = JSON.parse(partsJson) as Era & {
+                          gaiyuan_prev_era_name?: string
+                          gaiyuan_prev_era_year?: string
+                          has_gaiyuan?: boolean
+                          gaiyuan_resolved?: boolean
+                          gaiyuan_on_this_day?: boolean
+                        }
+                        const eraStr = [parts.era_name, parts.era_year].filter(Boolean).join('') || parts.era
+                        const prevEraStr = [parts.gaiyuan_prev_era_name, parts.gaiyuan_prev_era_year].filter(Boolean).join('')
+                        const shown = parts.gaiyuan_on_this_day && prevEraStr
+                          ? `${prevEraStr}→${eraStr}`
+                          : parts.has_gaiyuan && parts.gaiyuan_resolved === false && prevEraStr
+                            ? `${prevEraStr}/${eraStr}`
+                            : eraStr
+                        // 没有年号也没有年数（如中华人民共和国）时写年份，否则这一行缺「年」
+                        const mid = [parts.emperor, shown || yearName(selectedLunarSlot.lunarYear)].filter(Boolean).join(' ')
+                        era = parts.regime ? `${parts.regime} · ${mid}` : mid
+                        hint = parts.gaiyuan_on_this_day ? ' 改元' : parts.has_gaiyuan && parts.gaiyuan_resolved === false ? ' 改元日未补' : ''
+                      } catch { /* 年号解析失败时退回只写年份 */ }
                     }
-                  } else if (dayInfoLayers.calendar_eraNames && selectedLunarSlot != null && wasm?.get_era_name != null) {
-                    const era = wasm.get_era_name(selectedLunarSlot.lunarYear, true)
-                    lines.push(<div key="main">实历 · {era || '—'} {monthDayMain}</div>)
+                    lines.push(
+                      <div key="main" style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
+                        {wasm?.get_calendar_name?.(selectedLunarSlot.lunarYear) ?? '农历'} {era} {monthDay}<LineTime format={timeOf} {...timeProps} />{hint}
+                      </div>,
+                    )
+                  } else if (selectedLunar != null) {
+                    lines.push(<div key="main" style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{selectedLunar}</div>)
+                  } else {
+                    lines.push(<div key="main" style={{ marginBottom: 4 }}><Text type="secondary">历日 —</Text></div>)
                   }
-                  // 同一农历年若有并存政权（如三国魏蜀吴、五代十国），主线之外的都在这里列出，不二选一
+
+                  // 并存政权与分政权推步
+                  type RegimeDay = { region: string; calendar_name: string; lunar_year: number; month: number; is_leap: boolean; day: number }
+                  let regimeDays: RegimeDay[] = []
+                  if (wasm?.get_regimes_lunar_for_day != null) {
+                    try {
+                      const arr = JSON.parse(wasm.get_regimes_lunar_for_day(displayY, displayM, displayD))
+                      if (Array.isArray(arr)) regimeDays = arr as RegimeDay[]
+                    } catch { /* 推步是补充信息，解析失败不影响主线 */ }
+                  }
+                  const regimeMonthDay = (e: RegimeDay) => `${e.is_leap ? '闰' : ''}${LUNAR_MONTH_NAMES[e.month - 1]}月 ${lunarDayStr(e.day)}日`
+                  const usedRegions = new Set<string>()
+                  const secondary: React.ReactNode[] = []
                   if (dayInfoLayers.calendar_eraNames && selectedLunarSlot != null && wasm?.get_era_name_parts_all != null) {
                     try {
-                      const allJson = wasm.get_era_name_parts_all(selectedLunarSlot.lunarYear)
-                      const all = JSON.parse(allJson) as {
-                        regime: string
-                        emperor: string
-                        era_name: string
-                        era_year: string
-                        era: string
-                        is_primary?: boolean
-                      }[]
-                      const concurrent = Array.isArray(all)
-                        ? all.filter((p) => !p.is_primary && p.regime)
-                        : []
-                      for (const p of concurrent) {
-                        const eraStr = [p.era_name, p.era_year].filter(Boolean).join('') || p.era
-                        const mid = [p.emperor, eraStr].filter(Boolean).join(' ')
-                        lines.push(
-                          <div key={`concurrent-${p.regime}`} style={{ color: 'rgba(0,0,0,0.45)', fontSize: 12 }}>
-                            {p.regime} · {mid || '—'}
+                      const all = JSON.parse(wasm.get_era_name_parts_all(selectedLunarSlot.lunarYear)) as Era[]
+                      for (const p of Array.isArray(all) ? all.filter((x) => !x.is_primary && x.regime) : []) {
+                        const own = regimeDays.find((e) => e.region.split('/').includes(p.regime))
+                        if (own != null) usedRegions.add(own.region)
+                        const era = `${p.regime} · ${eraMid(p) || '—'}`
+                        // 民国纪年配格里高利历；其余政权没有推步数据时不套用主线月日，如实写历未详
+                        secondary.push(
+                          <div key={`concurrent-${p.regime}`}>
+                            {p.regime === '中华民国'
+                              ? <>格里高利历 {era} {gregorianMonthDay}<LineTime format={clock} {...timeProps} /></>
+                              : own != null
+                                ? <>{own.calendar_name} {era} {regimeMonthDay(own)}<LineTime format={timeOf} {...timeProps} /></>
+                                : <>历未详 {era}</>}
                           </div>,
                         )
                       }
-                    } catch {
-                      // 并存政权是锦上添花的补充信息，解析失败不影响主线展示，静默忽略。
+                    } catch { /* 并存政权是补充信息，解析失败不影响主线 */ }
+                  }
+                  if (dayInfoLayers.calendar_regimeCalendars) {
+                    for (const e of regimeDays.filter((x) => !usedRegions.has(x.region))) {
+                      secondary.push(
+                        <div key={`${e.region}-${e.calendar_name}`}>
+                          {e.calendar_name} {e.region} {regimeMonthDay(e)}<LineTime format={timeOf} {...timeProps} />
+                        </div>,
+                      )
                     }
                   }
-                  if (dayInfoLayers.calendar_regimeCalendars && wasm?.get_regimes_lunar_for_day != null) {
-                    try {
-                      const json = wasm.get_regimes_lunar_for_day(displayY, displayM, displayD)
-                      const arr = JSON.parse(json) as { region: string; calendar_name: string; lunar_year: number; month: number; is_leap: boolean; day: number }[]
-                      if (Array.isArray(arr)) {
-                        for (const e of arr) {
-                          const monthDay = `${e.is_leap ? '闰' : ''}${LUNAR_MONTH_NAMES[e.month - 1]}月${lunarDayStr(e.day)}日`
-                          lines.push(<div key={`${e.region}-${e.calendar_name}`}>{e.region} · {e.calendar_name} {monthDay}</div>)
-                        }
-                      }
-                    } catch { /* ignore */ }
-                  }
-                  return lines.length > 0 ? <div style={{ fontSize: 12, marginTop: 6, color: 'rgba(0,0,0,0.65)' }}>{lines}</div> : null
+                  return (
+                    <>
+                      {lines}
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>星期{WEEKDAY_NAMES[weekdayIndex]}</div>
+                      <Text type="secondary" style={{ fontSize: 11 }}>第{dayOfYear}天，第{weekOfYear}周</Text>
+                      {!isLiveMode && isSelectedToday && <Tag color="blue" style={{ marginTop: 6 }}>今天</Tag>}
+                      {secondary.length > 0 && <div style={{ fontSize: 12, marginTop: 6, color: 'rgba(0,0,0,0.65)' }}>{secondary}</div>}
+                    </>
+                  )
                 })()}
                 {/* 朔日：合朔时刻（天文，非实历） */}
                 {dayInfoLayers.astro_synodic && selectedLunarSlot?.dayOfMonth === 1 && newMoonJdUtcOnDay != null && (
@@ -872,8 +832,8 @@ function App() {
                   </div>
                 )}
               </div>
-              {/* 底部：干支历、时宪历（各占一行，按显示图层可分别关闭） */}
-              {(dayInfoLayers.calendar_ganzhi || dayInfoLayers.calendar_shixian) && (
+              {/* 底部：干支历 */}
+              {dayInfoLayers.calendar_ganzhi && (
               <div style={{ padding: '10px 12px 12px', display: 'grid', gap: 8 }}>
                 {dayInfoLayers.calendar_ganzhi && (
                 <div>
@@ -885,14 +845,6 @@ function App() {
                       selectedGanzhi?.dayName != null && /^[\u4e00-\u9fa5]{2}$/.test(selectedGanzhi?.dayName ?? '') ? `${selectedGanzhi.dayName}日` : '—',
                       hourGanzhi ? `${hourGanzhi}时` : '—',
                     ].join(' ')}
-                  </div>
-                </div>
-                )}
-                {dayInfoLayers.calendar_shixian && (
-                <div>
-                  <Text type="secondary" style={{ fontSize: 10, display: 'block', marginBottom: 2 }}>时宪历</Text>
-                  <div style={{ fontSize: 12, lineHeight: 1.5, fontVariantNumeric: 'tabular-nums' }}>
-                    {isLiveMode ? <ShixianFromLiveTime /> : formatShixianKe(displayHour, displayMinute, displaySecond)}
                   </div>
                 </div>
                 )}
