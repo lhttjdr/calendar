@@ -218,15 +218,11 @@ def main():
         L += ["", "### 日食（曲阜，东经 116.98°、北纬 35.6°）", "", "记录日由春秋历换算，未书干支者取该月朔，这几条不独立。「无日食」指记录日前后无日食。", ""]
         L += table(["公", "年", "公历年", "月", "干支", "书朔", "记录日（儒略历）", "食型", "γ", "曲阜食分", "判定", "附注"],
                    [[r["emp"], r["year_in_era"], r["year"], r["month"], r["ganzhi"], r["position"], r["julian"], r["kind"], r["gamma"], r["site_magnitude_0"], r["verdict"], r.get("note", "")] for r in ec])
-        with open(ROOT / "data/phenomena/chunqiu_eclipse_candidates_check.csv", encoding="utf-8") as f:
-            cd = list(csv.DictReader(f))
-        with open(ROOT / "data/phenomena/chunqiu_eclipse_candidates.csv", encoding="utf-8") as f:
-            for r, src in zip(cd, csv.DictReader(f)):   # 检验结果不带 note 列，从输入逐行取
-                r["note"] = src["note"]
-        cd = [r for r in cd if r["verdict"] != "无日食"]
-        L += ["", "### 无日食者的候选（事后搜索）", "", "有干支者前后移 60 日的倍数，未书干支者前后移一至三朔望月；襄公二十七年另试《左传》之「十一月乙亥朔」。这是候选，不是定论。", ""]
-        L += table(["公", "年", "原记月", "干支", "移动", "候选日（儒略历）", "食型", "γ", "日差", "曲阜食分", "判定"],
-                   [[r["emp"], r["year_in_era"], r["month"], r["ganzhi"], r["note"], r["julian"], r["kind"], r["gamma"], r["day_offset"], r["site_magnitude_0"], r["verdict"]] for r in cd])
+        with open(ROOT / "data/phenomena/chunqiu_zhang_3_1.csv", encoding="utf-8") as f:
+            z31 = list(csv.DictReader(f))
+        L += ["", "### 与张培瑜表 3-1 对照（在书给的日子重算）", ""]
+        L += table(["公", "年", "经月", "经干支", "书儒略日", "书干支", "书食分", "本项目判定", "食型", "本项目食分", "差", "春秋历换算同日", "书注"],
+                   [[r["公"], r["年"], r["经月"], r["经干支"], r["书儒略日"], r["书干支"], r["书食分"], r["本项目判定（书之日）"], r["食型"], r["本项目食分"], r["差"], "同" if r["同日"] == "1" else "异", r["书注"]] for r in z31])
         L += ["", "### 逐条（朔：恰为朔日；内：在月内；外：不在月内）", ""]
         pick = ["春秋历", "周·建子", "周·建丑", "鲁·建子", "鲁·建丑", "殷·建子"]
         L += table(["公", "年", "月", "干支", "书朔", "日食"] + pick + ["原文"],

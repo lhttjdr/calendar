@@ -11,7 +11,7 @@
 用法（仓库根）：uv run --project scripts python scripts/calendar_data/chunqiu_check.py <缓存目录>
 然后（rust 目录）：cargo run --release -p lunar-core --example historical_eclipses --no-default-features --features real-f64 -- solar
 ../data/phenomena/chunqiu_solar_eclipses.csv ../data/phenomena/chunqiu_solar_eclipses_check.csv 116.98 35.6；
-第二遍本脚本生成 chunqiu_eclipse_candidates.csv（无日食者的移月候选），同法算 chunqiu_eclipse_candidates_check.csv。
+无日食者与张培瑜表 3-1 的对照见 scripts/phenomena/chunqiu_table31.py。
 缓存目录下缺文件时自动从维基文库下载。
 """
 import csv
@@ -221,29 +221,6 @@ def write_eclipses(ecl):
         w = csv.DictWriter(f, fieldnames=list(out[0].keys()))
         w.writeheader()
         w.writerows(out)
-    # 无日食者的候选：有干支者前后移 60 日倍数（月份抄误），未书干支者前后移一至三朔望月；襄公二十七年另试《左传》「乙亥」
-    chk = ROOT / "data/phenomena/chunqiu_solar_eclipses_check.csv"
-    if chk.exists():
-        with open(chk, encoding="utf-8") as f:
-            miss = {(r["emp"], r["year_in_era"], r["month"]) for r in csv.DictReader(f) if r["verdict"] == "无日食"}
-        cand = []
-        for o in out:
-            if (o["emp"], str(o["year_in_era"]), str(o["month"])) not in miss:
-                continue
-            for k in (-3, -2, -1, 1, 2, 3):
-                cand.append({**o, "jdn": o["jdn"] + (60 * k if o["ganzhi"] else round(k * 29.53059)), "note": f"移{k}"})
-            if o["emp"] == "襄公" and o["ganzhi"] == "乙卯":
-                j0 = o["jdn"]
-                for j in range(j0 - 90, j0 + 60):
-                    if (j + 49) % 60 == g.GANZHI.index("乙亥"):
-                        cand.append({**o, "jdn": j, "ganzhi": "乙亥", "note": "传文异文乙亥"})
-        for c in cand:
-            yy, mm, dd = g.from_jdn(c["jdn"])
-            c["julian"], c["lunar_day"] = f"{yy}-{mm:02d}-{dd:02d}", ""
-        with open(ROOT / "data/phenomena/chunqiu_eclipse_candidates.csv", "w", encoding="utf-8", newline="") as f:
-            w = csv.DictWriter(f, fieldnames=list(out[0].keys()))
-            w.writeheader()
-            w.writerows(cand)
     print(f"日食 {len(out)} 条：书朔 {sum(1 for o in out if o['position'])}，书干支 {sum(1 for o in out if o['ganzhi'])}")
 
 
