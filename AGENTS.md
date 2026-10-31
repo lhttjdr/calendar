@@ -74,5 +74,7 @@ cd .. && ./scripts/dev/build_wasm.sh # 同时构建 wasm-lib 与 wasm-lib-f64
 
 ## 其它
 
+- 资料可靠性有明确排序（实物历日 > 史书明书日期 > 史志术文 > 按术文的推算 > 今人历表 > 天文计算；问天象时天文计算最高），见 [doc/calendar/calendar-compendium.md](doc/calendar/calendar-compendium.md)「资料可靠性排序」；证据只能由上往下检验。
+
 - 提交信息、文档、注释使用中文，与仓库现有风格一致。
 - 大改动前先看 [doc/index.md](doc/index.md) 定位对应章节文档，避免与已有设计冲突；数据格式变更需同步更新对应 `data/calendar/README_shuori.md`（或 `data/calendar/fang_shiming/README.md` 等按来源整理的子目录 README）。
