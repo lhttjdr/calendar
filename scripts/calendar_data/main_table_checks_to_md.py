@@ -163,8 +163,10 @@ def main():
             ("五纪历 762—783", "wuji_dingshuo_check.csv", "五纪定朔", "本纪合进朔", "本纪合不进朔", "定朔小余（时）"),
             ("正元历 784—806", "zhengyuan_dingshuo_check.csv", "正元定朔", "本纪合进朔", "本纪合不进朔", "定朔小余（时）"),
             ("宣明历 822—892", "xuanming_dingshuo_check.csv", "宣明定朔", "本纪合进朔", "本纪合不进朔", "定朔小余（时）"),
-            ("崇玄历 893—938", "chongxuan_dingshuo_check.csv", "崇玄定朔", "本纪合进朔", "本纪合不进朔", "定朔小余（时）")]
-    L += ["", "## 六、唐定朔诸历与本纪明书朔日", "", "术数见 [calendar-compendium.md](./calendar-compendium.md)。下表列本纪不合主表、或不合进朔限之条（限：麟德、宣明、崇玄试用 18 时，大衍 19 时，五纪、正元据志文随季节变）。"]
+            ("崇玄历 893—938", "chongxuan_dingshuo_check.csv", "崇玄定朔", "本纪合进朔", "本纪合不进朔", "定朔小余（时）"),
+            ("崇天历 1024—1064（《宋史》）", "song_崇天_check.csv", "崇天定朔", "本纪合进朔", "本纪合不进朔", "定朔小余（时）"),
+            ("纪元历 1106—1135（《宋史》）", "song_纪元_check.csv", "纪元定朔", "本纪合进朔", "本纪合不进朔", "定朔小余（时）")]
+    L += ["", "## 六、唐宋定朔诸历与本纪明书朔日", "", "术数见 [calendar-compendium.md](./calendar-compendium.md)。下表列本纪不合主表、或不合进朔限之条（限：麟德、宣明、崇玄试用 18 时，大衍 19 时，五纪、正元据志文随季节变，崇天日入分，纪元 3/4 日法并春分后减限）。"]
     for title, name, col, jin_, bu, hcol in tang:
         rs = rows(name)
         L += ["", f"### {title}", "", f"共 {len(rs)} 条：合主表 {sum(int(r['本纪合主表']) for r in rs)}，合进朔 {sum(int(r[jin_]) for r in rs)}，"
