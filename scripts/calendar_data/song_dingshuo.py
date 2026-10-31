@@ -72,7 +72,7 @@ def pick(cell, v):
 
 
 class Li:
-    def __init__(self, name, title_sun, title_moon, f, sui, shuo, zhuan, ji, y_ji, day0, inits=None, rinru=False, fix_moon=None, v=None, delta=None, end14=None, sun_fn=None, cha=None):
+    def __init__(self, name, title_sun, title_moon, f, sui, shuo, zhuan, ji, y_ji, day0, inits=None, rinru=False, fix_moon=None, v=None, delta=None, end14=None, sun_fn=None, cha=None, fix_sun=None):
         self.sun_fn, self.cha = sun_fn, cha or {}
         self.rinru = rinru
         self.name, self.f, self.sui, self.shuo, self.zhuan, self.ji, self.y_ji, self.day0 = name, f, sui, shuo, zhuan, ji, y_ji, day0
@@ -81,6 +81,8 @@ class Li:
             sun = next(t for t in wikitables(title_sun) if t[0][0] in ("常氣", "氣節") and any("損益" in h for h in t[0]))
             col = next(i for i, h in enumerate(sun[0]) if "損益" in h)
             half = [rate(pick(r[col], v))[0][1] for r in sun[1:7]]    # 冬至至惊蛰；其余气与之同数（表中后段偶有错栏、讹字，如统元小满、淳熙小雪）
+            for i, x in (fix_sun or {}).items():
+                half[i] = x
             self.sun_abs = (half + half[::-1]) * 2
         moon = next(t for t in wikitables(title_moon) if len(t) > 1 and any("損益" in h for h in t[0]) and t[1][0] == "一日")
         col = next(i for i, h in enumerate(moon[0]) if "損益" in h)
@@ -199,7 +201,7 @@ class Li:
 
 
 JIYUAN = Li("纪元", "宋史/卷079", "宋史/卷079", 7290, 2662626, 215278, Fr(200873 * 10000 + 990, 10000),
-            28613466, 1106, 15)
+            28613466, 1106, 15, fix_sun={3: 188})   # 立春益 187（点校本册六页 1852 同），朒积 965→1153 须 188，对称之谷雨作 188；本项目校改
 
 
 CHONGTIAN = Li("崇天", "宋史/卷072", "宋史/卷072", 10590, 3867940, 312729, Fr(291803 * 10000 + 594, 10000),
