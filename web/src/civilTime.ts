@@ -66,10 +66,40 @@ export function isFullyGregorianMonth(y: number, m: number): boolean {
   return y > 1582 || (y === 1582 && m > 10)
 }
 
-/** 民用历某月实有的日子。1582 年 10 月没有 5—14 日。 */
+/**
+ * 罗马实际闰年（公元前 45 年—公元 4 年）。祭司误为三年一闰，奥古斯都停闰后才与规则相合。
+ * 哪几年闰学者说法不一，这里取 Bennett（ZPE 142, 2003；147, 2004）：前 44、41……8 年闰，1 月 1 日（前 45）合规则的前 46 年 12 月 31 日。
+ * 其余方案见 doc/calendar/calendar-compendium.md。键为天文纪年。
+ */
+const ROMAN_LEAP_YEARS = new Set([44, 41, 38, 35, 32, 29, 26, 23, 20, 17, 14, 11, 8].map((bc) => 1 - bc))
+const ROMAN_FIRST_YEAR = -44
+const ROMAN_LAST_YEAR = 0
+const isRomanEra = (y: number) => y >= ROMAN_FIRST_YEAR && y <= ROMAN_LAST_YEAR
+
+/** 该年 1 月 1 日的 JD（罗马实际历）。 */
+function romanYearStartJd(y: number): number {
+  let jd = civilToJd(ROMAN_FIRST_YEAR - 1, 12, 31)
+  for (let k = ROMAN_FIRST_YEAR; k < y; k++) jd += ROMAN_LEAP_YEARS.has(k) ? 366 : 365
+  return jd
+}
+
+/**
+ * 日历显示用的民用历 → JD：在 civilToJd 的规则之外还原罗马实际闰年。
+ * 史料与 Rust 侧的日期仍用 civilToJd（实历朔日表约定），不走这里。
+ */
+export function displayCivilToJd(y: number, m: number, d: number): number {
+  if (!isRomanEra(y)) return civilToJd(y, m, d)
+  let jd = romanYearStartJd(y)
+  for (let k = 1; k < m; k++) jd += civilMonthDays(y, k).length
+  return jd + d - 1
+}
+
+/** 民用历某月实有的日子。1582 年 10 月没有 5—14 日；罗马实际闰年见 ROMAN_LEAP_YEARS。 */
 export function civilMonthDays(y: number, m: number): number[] {
   const gregorian = isFullyGregorianMonth(y, m)
-  const leap = gregorian ? (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0 : y % 4 === 0
+  const leap = gregorian
+    ? (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0
+    : isRomanEra(y) ? ROMAN_LEAP_YEARS.has(y) : y % 4 === 0
   const last = m === 2 ? (leap ? 29 : 28) : [4, 6, 9, 11].includes(m) ? 30 : 31
   const all = Array.from({ length: last }, (_, i) => i + 1)
   return y === 1582 && m === 10 ? all.filter((d) => d < 5 || d > 14) : all
@@ -83,7 +113,7 @@ export function clampCivilDay(y: number, m: number, d: number): number {
 
 /** 民用历日期 → 前推格里历日期。内部计算（wasm 的 gregorian_* 接口）都用后者。 */
 export function civilToProleptic(y: number, m: number, d: number): { year: number; month: number; day: number } {
-  const z = Math.floor(civilToJd(y, m, d) + 0.5)
+  const z = Math.floor(displayCivilToJd(y, m, d) + 0.5)
   const alpha = Math.floor((z - 1867216.25) / 36524.25)
   const a = z + 1 + alpha - Math.floor(alpha / 4)
   const b = a + 1524

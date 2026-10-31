@@ -30,7 +30,7 @@ import {
   type GanzhiOptionsTuple,
   type RealBackendVariant,
 } from './useLunarWasm'
-import { civilMonthDays, civilToJd, civilToProleptic, clampCivilDay, isFullyGregorianMonth, isGregorianCivil, localDate } from './civilTime'
+import { civilMonthDays, displayCivilToJd, civilToProleptic, clampCivilDay, isFullyGregorianMonth, isGregorianCivil, localDate } from './civilTime'
 import { EPHEMERIS_SOURCE_LABELS, EPHEMERIS_FORMAT_LABELS, type EphemerisDataSource } from './ephemerisSourceRegistry'
 import { EARTH_PATCH_TARGET } from './ephemerisUrls'
 
@@ -289,11 +289,11 @@ function orderedYearData(list: YearData[], year: number, month: number): YearDat
 }
 
 function getDayOfYear(y: number, m: number, d: number): number {
-  return Math.round(civilToJd(y, m, d) - civilToJd(y, 1, 1)) + 1
+  return Math.round(displayCivilToJd(y, m, d) - displayCivilToJd(y, 1, 1)) + 1
 }
 
 function getWeekOfYear(y: number, m: number, d: number): number {
-  const dow = (Math.floor(civilToJd(y, 1, 1) + 0.5) + 1) % 7
+  const dow = (Math.floor(displayCivilToJd(y, 1, 1) + 0.5) + 1) % 7
   const mon1 = (dow === 0 ? -5 : 2 - dow)
   const doy = getDayOfYear(y, m, d)
   return Math.floor((doy - mon1) / 7) + 1
@@ -387,7 +387,7 @@ function App() {
   // year、month、selectedDate 都是民用历（1582-10-15 前为儒略历）；调 wasm 前换成前推格里历
   const monthDays = civilMonthDays(year, month)
   const days = monthDays[monthDays.length - 1]!
-  const start = ((Math.floor(civilToJd(year, month, 1) + 0.5) + 1) % 7 - weekStart + 7) % 7
+  const start = ((Math.floor(displayCivilToJd(year, month, 1) + 0.5) + 1) % 7 - weekStart + 7) % 7
   const cells: (number | null)[] = Array.from({ length: 42 }, (_, i) => monthDays[i - start] ?? null)
 
   // 整月农历一次 wasm 调用，返回结构化数据，由显示层格式化
