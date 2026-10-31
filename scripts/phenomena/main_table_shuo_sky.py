@@ -72,14 +72,14 @@ def main():
         day, hour = conjunction(rec_j, lon_of(r["政权"], y))
         dingshuo = y >= 619  # 唐戊寅历起行定朔；此前平朔，无进朔之说
         if day == rec_j:
-            v = "本纪合天"
+            v = "合朔在本纪日"
         elif day == main_j:
             # 本纪朔在合朔次日而合朔已晚：历家推算的合朔可晚于实际一二时，本纪或为进朔
-            v = "主表合天；本纪或为进朔" if dingshuo and rec_j == day + 1 and hour >= 15 else "主表合天"
+            v = "合朔在主表日；本纪或为进朔" if dingshuo and rec_j == day + 1 and hour >= 15 else "合朔在主表日"
         elif dingshuo and main_j == day + 1 and hour >= 18:
             v = "主表为进朔"
         else:
-            v = "皆不合天"
+            v = "合朔皆不在二日"
         out.append({k: r[k] for k in ("书", "朝代", "政权", "年", "纪年", "月", "本纪朔", "主表", "日食", "他书同记")} |
                    {"合朔地方时日差（合朔日−本纪朔）": day - rec_j, "合朔地方时": f"{hour:.1f}时", "判定": v, "原文": r["原文"]})
     with open("data/calendar/main_table_shuo_sky.csv", "w", encoding="utf-8", newline="") as f:
