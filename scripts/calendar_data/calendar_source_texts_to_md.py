@@ -1,6 +1,6 @@
 """从维基文库底本摘录各历术文（气朔、日躔、月离及进朔相关段落），生成 doc/calendar/calendar-source-texts.md（勿手改）。
 
-摘录按起止标记原样截取，只做格式转换（表格转 Markdown、注文 {{*|…}} 转（…）、去校勘脚注），不改字。
+摘录按起止标记原样截取，只做格式转换（表格转 Markdown、注文 {{*|…}} 转（…）、校勘脚注移到段末），不改字。
 用法（仓库根）：uv run --project scripts python scripts/calendar_data/calendar_source_texts_to_md.py
 """
 import re
@@ -75,6 +75,7 @@ def excerpt(title, start, end):
     i = t.index(start)
     # end 为整数时取定长（术文段落无现成终止标记者）
     j = min(i + end, len(t)) if isinstance(end, int) else t.index(end, i + len(start))
+    refs = [re.sub(r"\s+", "", note(r)) for r in re.findall(r"<ref[^>]*>(.*?)</ref>", t[i:j], flags=re.S)]
     s = re.sub(r"<ref[^>]*>.*?</ref>", "", t[i:j], flags=re.S)
     s = re.sub(r"\[\[(?:[^\[\]|]*\|)?([^\[\]|]*)\]\]", r"\1", s)
     s = re.sub(r"<table.*?</table>", table, s, flags=re.S)
@@ -82,13 +83,16 @@ def excerpt(title, start, end):
     s = note(s)
     s = re.sub(r"^=+[ \t]*([^=\n]+?)[ \t]*=+[ \t]*$", r"**\1**\n", s, flags=re.M)
     s = re.sub(r"[ \t　]*\n[ \t　]*", "\n", s).strip()
-    return re.sub(r"\n{2,}", "\n\n", re.sub(r"(?<![\n|])\n(?![\n|])", "\n\n", s))
+    s = re.sub(r"\n{2,}", "\n\n", re.sub(r"(?<![\n|])\n(?![\n|])", "\n\n", s))
+    if refs:
+        s += "\n\n**校勘记（底本所录）**\n\n" + "\n".join(f"- {r}" for r in refs)
+    return s
 
 
 def main():
     L = ["# 历法原文摘录", "",
-         "[历代历法总录](./calendar-compendium.md)所用术文的原文，由 `scripts/calendar_data/calendar_source_texts_to_md.py` 从维基文库底本截取（勿手改），只转换格式、不改字；",
-         "术文是一手史料，但有传写之讹；据此所作的推算不是史实记录（见总录「术语与证据层级」）。校勘脚注已去。**底本有讹字，引用前须核点校本**（`doc/references/history/`，本地，不入库）；已核得的改动见各节说明与总录。",
+         "[历代历法总录](./calendar-compendium.md)所用术文的原文，由 `scripts/calendar_data/calendar_source_texts_to_md.py` 从维基文库底本截取（勿手改），只转换格式、不改字；底本所录校勘记移到各段之末；",
+         "术文是一手史料，但有传写之讹；据此所作的推算不是史实记录（见总录「术语与证据层级」）。**底本有讹字，引用前须核点校本**（`doc/references/history/`，本地，不入库）；已核得的改动见各节说明与总录。",
          "《金史》两表与校勘记的点校本书页图在 [doc/references/calendar/[点校本]摘页](https://github.com/lhttjdr/calendar/tree/master/doc/references/calendar)。", ""]
     for head, desc, parts in SECTIONS:
         L += [f"## {head}", ""] + ([desc, ""] if desc else [])
