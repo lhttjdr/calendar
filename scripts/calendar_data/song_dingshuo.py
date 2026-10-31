@@ -227,6 +227,44 @@ GUANTIAN = Li("观天", None, "宋史/卷077", 12030, 4393880, 355253, Fr(331482
 # 统天：转实志作三十二萬六百五十五，与转策 27 余 6655 不合，作 330655；距算 3830 志未明言（取绍熙五年积算），距差小，影响不足 1 分
 TONGTIAN = Li("统天", "宋史/卷084", "宋史/卷084", 12000, 4382910, 354368, 330655, 3835, 1199, 0, v=0, cha={"ju": 3830, "qi": 237811, "run": 21704, "zhuan": 188800},
               delta={8: 360}, end14=260)   # 九日损 44 作 404（朏积 4855→4451），十四日末益 360 作 260（次日朒积 260）
+class Mingtian(Li):
+    """明天历（周琮，1065—1074）：日月皆用公式，不用立成表（《宋史》卷七十四、七十五）。
+    入盈缩：x 距二至度，定差 = 400 × x'(L − x') ÷ 567（x' 取初末，L = 二至限）。
+    入转：积月 × 朔差 mod 转终分 ÷ 转度母 = 度；中度以下为疾；x' 取初末，定差 = 10000 × x'(201.09 − x') ÷ 6773.5。"""
+    moon_sign = 1       # 从注文「疾加、遲減」；反号则本纪只合 10/25
+
+    def __init__(self):
+        self.name, self.f, self.sui, self.shuo, self.ji, self.y_ji, self.day0 = "明天", 39000, 14244500, 1151693, 711760, 1064, 0
+        self.qi, self.cha, self.rinru, self.closure = Fr(14244500, 24), {}, False, 0
+        self.l = Fr(182 * 39000 + 24250, 39000)
+
+    def sun_def(self, t):
+        d = Fr(t % self.sui) / self.f
+        half = 1 if d < self.l else -1
+        x = d if d < self.l else d - self.l
+        x = min(x, self.l - x)
+        return half * Fr(400, 567) * x * (self.l - x)
+
+    def moon_of(self, jiyue):
+        r = Fr(jiyue * 2142887000 % 29882242251, 81120000)
+        zhong = Fr(184) + Fr(15041125 * 2 + 1, 2 * 81120000)
+        fast = r < zhong
+        x = r if fast else r - zhong
+        x = min(x, zhong - x)
+        return (1 if fast else -1) * Fr(10000 * 2, 13547) * x * (Fr(20109, 100) - x)
+
+    def moons(self, y0, y1):
+        out = []
+        for y in range(y0, y1):
+            tong = self.tong(y)
+            jy = tong // self.shuo
+            for m in range(14):
+                jing = (jy + m) * self.shuo
+                out.append(jing + self.sun_def(Fr(jing - tong)) + self.moon_sign * self.moon_of(jy + m))
+        return sorted(set(out))
+
+
+MINGTIAN = Mingtian()
 T83, T84 = "宋史/卷083", "宋史/卷084"
 TONGYUAN = Li("统元", T83, T83, 6930, 2531138, 204647, Fr(190953 * 10000 + 2563, 10000), 94251591, 1135, 0, v=0, delta={0: -72})   # 一日益 608，朏积 680 证作 680
 QIANDAO = Li("乾道", T83, T83, 30000, 10957308, Fr(88591776, 100), Fr(826637 * 10000 + 7395, 10000), 91645823, 1167, 0, v=1, delta={11: -1000, 24: -1000})   # 十二、二十五日损益率差千，朏朒积证之
@@ -248,6 +286,7 @@ def run(li, y0, y1, approx):
 if __name__ == "__main__":
     run(CHONGTIAN, 1024, 1064, (1023, 12, 18))
     run(JIYUAN, 1106, 1135, (1105, 12, 16))
+    run(MINGTIAN, 1065, 1074, (1063, 12, 16))
     run(GUANTIAN, 1094, 1102, (1091, 12, 16))
     run(TONGYUAN, 1136, 1167, (1134, 12, 15))
     run(QIANDAO, 1168, 1176, (1166, 12, 15))
