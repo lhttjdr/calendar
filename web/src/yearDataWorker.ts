@@ -64,10 +64,8 @@ self.onmessage = async (ev: MessageEvent<{ type: string; id: number; lunarYear?:
   try {
     const data = await computeInWorker(lunarYear)
     if (data) {
-      self.postMessage(
-        { id, yearData: data },
-        [data.newMoonJds.buffer, data.zhongQiJds.buffer]
-      )
+      // 用 options 形式传 transfer：tsconfig 只含 DOM 类型（self 按 Window 检查），此形式在 Window 与 Worker 下签名一致
+      self.postMessage({ id, yearData: data }, { transfer: [data.newMoonJds.buffer, data.zhongQiJds.buffer] })
     } else {
       self.postMessage({ id, fallback: true, lunarYear })
     }

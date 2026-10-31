@@ -84,7 +84,6 @@ impl StarCatalog {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 /// 读取仓库内亮星表（[`crate::repo::paths::HIPPARCOS_BRIGHT`]）。
 pub fn load_hipparcos_bright_from_repo() -> Result<StarCatalog, String> {
     let lines = crate::repo::read_lines(crate::repo::paths::HIPPARCOS_BRIGHT).map_err(|e| format!("{e:?}"))?;

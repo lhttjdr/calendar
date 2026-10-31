@@ -14,7 +14,7 @@ export async function fetchBinaryMaybeBrotli(url: string): Promise<Uint8Array> {
   const rBr = await fetch(pathOnly + '.br' + qs)
   if (rBr.ok) {
     const ab = await rBr.arrayBuffer()
-    const stream = new Response(ab).body!.pipeThrough(new DecompressionStream('brotli'))
+    const stream = new Response(ab).body!.pipeThrough(new DecompressionStream('brotli' as CompressionFormat) /* TS 5.3 的 DOM 类型尚未收录 brotli，浏览器已支持 */)
     const reader = stream.getReader()
     const chunks: Uint8Array[] = []
     let len = 0

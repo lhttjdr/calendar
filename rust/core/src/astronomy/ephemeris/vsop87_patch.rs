@@ -242,17 +242,32 @@ mod tests {
         };
         for name in ["ear", "jup", "sat"] {
             let b = p.body(name).unwrap();
+            let tol = if cfg!(feature = "real-f64") { 2e-4 } else { 1e-5 };
+            let mut wr = 0.0_f64;
             for t in [-0.48, -0.2, 0.0, 0.13, 0.29] {
                 // 中心差分截断误差 ~ (f·h)²/6；改正项频率达 ~8×10⁴ rad/千年，h 须足够小（TwoFloat 精度下 1e-9 无舍入问题）
-                let h = 1e-9;
-                let (a0, b0, c0) = b.correction(real(t - h));
-                let (a1, b1, c1) = b.correction(real(t + h));
+                // f64 构建 1e-9 的舍入过大：改用五点差分（截断 ~ (f·h)⁴/30）配较大步长
+                let f64_build = cfg!(feature = "real-f64");
+                let h = if f64_build { 1e-6 } else { 1e-9 };
+                let c = |x: f64| b.correction(real(x));
+                let (a0, b0, c0) = c(t - h);
+                let (a1, b1, c1) = c(t + h);
+                let (m2, p2) = (c(t - 2.0 * h), c(t + 2.0 * h));
+                let diff = |lo2: Real, lo: Real, hi: Real, hi2: Real| {
+                    if f64_build {
+                        (lo2 - hi2 + real(8.0) * (hi - lo)) / real(12.0 * h)
+                    } else {
+                        (hi - lo) / real(2.0 * h)
+                    }
+                };
                 let (da, db, dc) = b.derivative(real(t));
-                for (num, ana) in [((a1 - a0) / real(2.0 * h), da), ((b1 - b0) / real(2.0 * h), db), ((c1 - c0) / real(2.0 * h), dc)] {
+                for (num, ana) in [(diff(m2.0, a0, a1, p2.0), da), (diff(m2.1, b0, b1, p2.1), db), (diff(m2.2, c0, c1, p2.2), dc)] {
                     let (num, ana) = (num.as_f64(), ana.as_f64());
-                    assert!((num - ana).abs() <= 1e-5 * (1.0 + ana.abs()), "{name} t={t}: 数值 {num} 解析 {ana}");
+                    wr = wr.max((num - ana).abs() / (1.0 + ana.abs()));
+                    assert!((num - ana).abs() <= tol * (1.0 + ana.abs()), "{name} t={t}: 数值 {num} 解析 {ana}");
                 }
             }
+            println!("{name}：差分对解析导数最大相对差 {wr:.3e}");
         }
         let q = Vsop87DePatch::from_binary(&p.to_binary()).unwrap();
         for name in ["mer", "ear", "nep"] {

@@ -47,6 +47,8 @@ SECTIONS = [
     ("pannai_table_9_1_4", "潘鼐表 9.1.4：《仪象考成》距星 1744 年位置", [("本模块−今测 RA″", "maxabs"), ("本模块−今测 Dec″", "maxabs")]),
     ("yuanshi_lodge_widths", "《元史》历代实测宿度", "widths"),
     ("yuanshi_winter_solstice", "《元史》历代冬至日躔", None),
+    ("shishi_epoch", "石氏星表按岁差估观测年代", None),
+    ("shishi_xingjing", "石氏星表逐条（《开元占经》四库本）：入宿度、去极度与推算", None),
     ("recorded_distances", "史书所记距离（尺、寸）与推算角距：一尺合多少度", None),
     ("lodge_degrees", "史书所记入宿度与推算入宿度（清时宪历为黄道 360°）", None),
     ("qingshigao_eclipses", "《清史稿》日食在北京：所记时辰、食分与推算", None),

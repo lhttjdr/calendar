@@ -96,16 +96,20 @@ fn interpolation_matches_direct() {
     for center in [1650000.5_f64, 2460000.5] {
         let w = eclipse_window(&eph, real(center));
         let mut worst = 0.0_f64;
+        let mut worst_m = 0.0_f64;
         for k in 0..9 {
             let t = real(center - 1.9 + 0.47 * k as f64);
             let (s1, m1) = eph.sun_moon_m(t);
             let (s2, m2) = w.sun_moon_m(t);
             for i in 0..3 {
                 worst = worst.max((s1[i] - s2[i]).as_f64().abs()).max((m1[i] - m2[i]).as_f64().abs());
+                worst_m = worst_m.max((m1[i] - m2[i]).as_f64().abs());
             }
         }
-        println!("JD {center}：插值最大误差 {worst:.3e} m");
-        assert!(worst < 1.0, "插值误差 {worst} m");
+        println!("JD {center}：插值最大误差 {worst:.3e} m，其中月亮 {worst_m:.3e} m");
+        // f64 构建：太阳约 6 m（1.5e11 m 处约 4e-11 rad，属舍入水平），月亮约 2 cm，容差分开定；double-double 两者都远小于 1 m
+        let (tol, tol_m) = if cfg!(feature = "real-f64") { (20.0, 0.1) } else { (1.0, 1.0) };
+        assert!(worst < tol && worst_m < tol_m, "插值误差 {worst} m，月亮 {worst_m} m");
     }
 }
 

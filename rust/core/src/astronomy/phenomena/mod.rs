@@ -8,6 +8,7 @@ pub mod occultation;
 pub mod planet_events;
 pub mod search;
 pub mod solar_eclipse;
+pub mod solar_eclipse_map;
 pub(crate) mod track;
 pub mod visibility;
 
@@ -17,6 +18,7 @@ pub use lunar_eclipse::*;
 pub use occultation::*;
 pub use planet_events::*;
 pub use solar_eclipse::*;
+pub use solar_eclipse_map::*;
 pub use visibility::{ExtinctionModel, Eye, ScatteringFunction, SkyConditions, SkyModel, ThresholdModel, TwilightDirectionTerm, TwilightModel};
 
 #[cfg(test)]
@@ -29,3 +31,5 @@ mod tests_nasa;
 mod tests_occultation;
 #[cfg(test)]
 mod tests_planet_events;
+#[cfg(test)]
+mod tests_solar_eclipse_map;

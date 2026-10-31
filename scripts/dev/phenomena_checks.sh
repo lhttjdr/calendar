@@ -38,6 +38,7 @@ TESTS=(
   widths_vs_yuanshi_table
   winter_solstice_lodge_positions_vs_yuanshi
   qing_determinatives_vs_pannai_table_9_1_4
+  shishi_catalog_epoch
   houhanshu_star_records_check
   hanshu_star_records_check
   jinshu_star_records_check

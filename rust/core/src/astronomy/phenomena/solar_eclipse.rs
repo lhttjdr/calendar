@@ -60,7 +60,7 @@ impl<'a> EclipseEphemeris<'a> {
     }
 }
 
-type V3 = [Real; 3];
+pub(crate) type V3 = [Real; 3];
 
 /// 日月地心视位置（当日真赤道架，米）的来源：直接计算 [`EclipseEphemeris`] 或其插值 [`InterpolatedSunMoon`]。
 pub trait SunMoonSource {
@@ -185,6 +185,11 @@ impl Besselian {
 
 /// 计算贝塞尔量。
 pub fn besselian(src: &dyn SunMoonSource, jd_tt: Real) -> Besselian {
+    besselian_with_axes(src, jd_tt).0
+}
+
+/// 贝塞尔量及基本面三轴 i、j、k（当日真赤道架单位向量；k 由月指向日，i 在赤道面内，j 向北）。
+pub fn besselian_with_axes(src: &dyn SunMoonSource, jd_tt: Real) -> (Besselian, [V3; 3]) {
     let (s, m) = src.sun_moon_m(jd_tt);
     let g = sub(s, m);
     let dist_sm = norm(g);
@@ -205,7 +210,7 @@ pub fn besselian(src: &dyn SunMoonSource, jd_tt: Real) -> Besselian {
     let (tan_f1, tan_f2) = (sin_f1 / cos_f1, sin_f2 / cos_f2);
     let l1 = (z * ae * tan_f1 + rp / cos_f1) / ae;
     let l2 = (z * ae * tan_f2 - ru / cos_f2) / ae;
-    Besselian { x, y, z, d, l1, l2, tan_f1, tan_f2 }
+    (Besselian { x, y, z, d, l1, l2, tan_f1, tan_f2 }, [i, j, k])
 }
 
 /// 日食类型。

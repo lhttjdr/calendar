@@ -23,6 +23,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 星图、日食图用到的 CSV 及编译时嵌入 WASM 的年号表由 Git LFS 管理；只拉这几个，不拉仓库里的大文件（PDF 等）
+      - name: Pull LFS data for web
+        run: git lfs pull --include="data/phenomena/capitals.csv,data/stars/hipparcos_bright.csv,data/sky_culture/*.csv,data/calendar/era_gaiyuan_day.csv,data/calendar/汇总/era_names_merged.csv"
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:

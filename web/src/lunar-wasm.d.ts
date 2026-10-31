@@ -81,5 +81,5 @@ declare module 'lunar-wasm' {
     readonly label: string | null
   }
 
-  export default function init?(): Promise<void>
+  export default function init(): Promise<void>
 }

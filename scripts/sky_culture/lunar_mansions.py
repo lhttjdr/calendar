@@ -6,6 +6,8 @@
 2. data/sky_culture/yuanshi_lodge_widths.csv：《元史·历志一·授时历议》「周天列宿度」表（汉洛下闳、唐一行、宋皇祐、元丰、
    崇宁、至元六次实测），维基文库 元史/卷052 wikitext 解析；空栏按原文例取左栏之数。自检：汉栏与《汉书·律历志》
    （漢書/卷021）所列宿度、至元栏与《元史·历志三·授时历经》「赤道宿度」（元史/卷054）逐宿一致。
+3. data/sky_culture/chinese_asterisms.csv：各体系全部星官的成员、距星与连线（画星图用）。
+4. data/sky_culture/chinese_star_names.csv：各体系的星名（common_names 中 HIP 星的中文名）。
 
 用法（仓库根）：uv run --project scripts python scripts/sky_culture/lunar_mansions.py
 维基文库原文缓存于 scripts/sky_culture/_cache/（不入库）。
@@ -213,9 +215,11 @@ def asterisms():
         lodge_det = dict(zip(range(28), j["lunar_system"]["defining_stars"]))
         for c in j["constellations"]:
             members = []
+            polylines = []
             for line in c["lines"]:
-                for h in line:
-                    tok = str(h) if isinstance(h, int) and h < 10**7 else (h if isinstance(h, str) else f"GAIA:{h}")
+                toks = [str(h) if isinstance(h, int) and h < 10**7 else (h if isinstance(h, str) else f"GAIA:{h}") for h in line]
+                polylines.append(" ".join(toks))
+                for tok in toks:
                     if tok not in members:
                         members.append(tok)
             hips = [int(t) for t in members if t.isdigit()]
@@ -228,15 +232,40 @@ def asterisms():
                 if len(lodge) == 1 and lodge in LODGES:
                     det = [lodge_det[LODGES.index(lodge)]]
             cn = c["common_name"]
-            lines_out.append((sid, cid, cn.get("native", ""), cn.get("english", "").replace(",", " "), " ".join(members), det[0] if det else ""))
+            lines_out.append(
+                (sid, cid, cn.get("native", ""), cn.get("english", "").replace(",", " "), " ".join(members), det[0] if det else "", ";".join(polylines))
+            )
     with open(OUT / "chinese_asterisms.csv", "w", encoding="utf-8") as f:
         f.write("# 中国星官（各体系）：成员与距星。来源 vendor/stellarium_skycultures/（CC BY-SA 4.0）各 index.json 的星官连线；\n")
         f.write("# members 为连线中出现的天体（HIP 编号；DSO:M44 等深空天体；GAIA: 盖亚编号），按首次出现顺序，空格分隔。\n")
         f.write("# determinative：星名中标「距星」者；二十八宿取 lunar_system.defining_stars；其余未标者为空。生成：scripts/sky_culture/lunar_mansions.py。\n")
-        f.write("system,id,name,english,members,determinative\n")
+        f.write("# lines：原连线（画星图用），各折线以 ; 分隔，折线内天体以空格分隔，记法同 members；单星星官为一个只含一星的折线。\n")
+        f.write("system,id,name,english,members,determinative,lines\n")
         for r in lines_out:
             f.write(",".join(str(x) for x in r) + "\n")
     print(len(lines_out), "个星官")
+
+
+def star_names():
+    """各体系星名：common_names 中 HIP 星的中文名（多名以 / 连接）。"""
+    rows = []
+    for sid, d, _ in SYSTEMS:
+        j = json.load(open(f"vendor/stellarium_skycultures/{d}/index.json", encoding="utf-8"))
+        for k, v in j["common_names"].items():
+            m = re.match(r"HIP\s+(\d+)$", k)
+            if not m:
+                continue
+            names = [e.get("native", "") for e in v if e.get("native")]
+            if names:
+                rows.append((sid, int(m.group(1)), "/".join(n.replace(",", "，") for n in names)))
+    rows.sort(key=lambda r: (r[0], r[1]))
+    with open(OUT / "chinese_star_names.csv", "w", encoding="utf-8") as f:
+        f.write("# 中国星名（各体系）。来源 vendor/stellarium_skycultures/（CC BY-SA 4.0）各 index.json 的 common_names，只取 HIP 星；\n")
+        f.write("# 一星多名以 / 连接（如「距星」注记、方括号内所属宿）。生成：scripts/sky_culture/lunar_mansions.py。\n")
+        f.write("system,hip,name\n")
+        for r in rows:
+            f.write(",".join(str(x) for x in r) + "\n")
+    print(len(rows), "条星名")
 
 
 if __name__ == "__main__":
@@ -245,3 +274,4 @@ if __name__ == "__main__":
     print(len(r), "条距星")
     lodge_widths()
     asterisms()
+    star_names()

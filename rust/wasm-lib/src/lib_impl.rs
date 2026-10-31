@@ -1030,3 +1030,505 @@ pub fn transform_graph_visualization_data() -> TransformGraphViz {
             .collect(),
     }
 }
+
+// ---------------------------------------------------------------------------
+// 日食地图（食带图）
+// ---------------------------------------------------------------------------
+
+use lunar_core::astronomy::ephemeris::Elpmpp02Data;
+use lunar_core::astronomy::phenomena::{
+    eclipse_window, solar_eclipse_global_in, solar_eclipse_local_in, solar_eclipse_map as core_solar_eclipse_map, EclipseEphemeris,
+    MapPoint, SolarEclipseGlobal, SolarEclipseKind, SolarEclipseMapOptions,
+};
+use lunar_core::quantity::duration::Duration as QDuration;
+
+/// 日月历表常驻对象：构造时加载一次 VSOP87（地球，含已注入的 DE 改正）、ELPMPP02 与章动表，之后反复求日食。
+#[wasm_bindgen]
+pub struct EclipseEngine {
+    vsop: Vsop87,
+    elp: Elpmpp02Data,
+}
+
+fn kind_code(k: SolarEclipseKind) -> &'static str {
+    match k {
+        SolarEclipseKind::Partial => "P",
+        SolarEclipseKind::Annular => "A",
+        SolarEclipseKind::Total => "T",
+        SolarEclipseKind::Hybrid => "H",
+    }
+}
+
+fn json_f(x: f64) -> String {
+    if x.is_finite() {
+        format!("{x}")
+    } else {
+        "null".into()
+    }
+}
+
+/// 折线 → [[经度°, 纬度°, jd_tt], …]（经纬度取 4 位小数约 10 m）。
+fn json_line(line: &[MapPoint]) -> String {
+    let pts: Vec<String> = line
+        .iter()
+        .map(|p| {
+            format!(
+                "[{:.4},{:.4},{:.6}]",
+                p.longitude.rad().as_f64().to_degrees(),
+                p.latitude.rad().as_f64().to_degrees(),
+                p.jd_tt.as_f64()
+            )
+        })
+        .collect();
+    format!("[{}]", pts.join(","))
+}
+
+fn json_lines(lines: &[Vec<MapPoint>]) -> String {
+    format!("[{}]", lines.iter().map(|l| json_line(l)).collect::<Vec<_>>().join(","))
+}
+
+fn json_global(g: &SolarEclipseGlobal) -> String {
+    format!(
+        "{{\"greatestTt\":{},\"gamma\":{},\"magnitude\":{},\"kind\":\"{}\",\"central\":{}}}",
+        json_f(g.greatest_tt.as_f64()),
+        json_f(g.gamma.as_f64()),
+        json_f(g.magnitude.as_f64()),
+        kind_code(g.kind),
+        g.central
+    )
+}
+
+/// ΔT 估计（Morrison–Stephenson 2021，按 ELPMPP02 − DE431 实测月亮黄经差配套修正，与 examples/historical_eclipses 同）。
+fn ms2021_delta_t(jd_tt: f64) -> (f64, f64) {
+    use lunar_core::astronomy::time::delta_t::{delta_t_for_lunar_offset, lunar_longitude_offset, MorrisonStephenson2021};
+    let e = delta_t_for_lunar_offset(&MorrisonStephenson2021, real(jd_tt), &lunar_longitude_offset::ELPMPP02_DE406_MINUS_DE431);
+    (e.value.seconds().as_f64(), e.sigma.map(|s| s.seconds().as_f64()).unwrap_or(0.0))
+}
+
+/// ΔT 估计 [中值, 1σ]（秒）：Morrison–Stephenson 2021，已按本仓库月历表配套修正。
+#[wasm_bindgen(js_name = deltaTEstimate)]
+pub fn delta_t_estimate(jd_tt: f64) -> Vec<f64> {
+    let (v, s) = ms2021_delta_t(jd_tt);
+    vec![v, s]
+}
+
+#[wasm_bindgen]
+impl EclipseEngine {
+    /// 全二进制加载（与 compute_year_data_full_binary 相同的 7 个历表文件 + 章动表；章动表可为空）。
+    #[wasm_bindgen(constructor)]
+    pub fn new(
+        vsop87_ear_bin: &[u8],
+        elp_main_s1_bin: &[u8],
+        elp_main_s2_bin: &[u8],
+        elp_main_s3_bin: &[u8],
+        elp_pert_s1_bin: &[u8],
+        elp_pert_s2_bin: &[u8],
+        elp_pert_s3_bin: &[u8],
+        nutation_tab53a_bin: &[u8],
+    ) -> Result<EclipseEngine, JsValue> {
+        let vsop = with_earth_patch(Vsop87::from_binary(vsop87_ear_bin).map_err(|e| JsValue::from_str(&e.to_string()))?);
+        let elp = load_all_from_binary(
+            elp_main_s1_bin,
+            elp_main_s2_bin,
+            elp_main_s3_bin,
+            elp_pert_s1_bin,
+            elp_pert_s2_bin,
+            elp_pert_s3_bin,
+            Elpmpp02Correction::DE406,
+        )
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        if !nutation_tab53a_bin.is_empty() {
+            nutation::try_init_full_nutation_from_binary(nutation_tab53a_bin);
+        }
+        Ok(EclipseEngine { vsop, elp })
+    }
+
+    /// 某民用年（天文纪年；1582-10-15 前儒略历）内的日食列表，JSON 数组：
+    /// [{greatestTt, gamma, magnitude, kind: P/A/T/H, central, deltaT, deltaTSigma}, …]。
+    #[wasm_bindgen(js_name = solarEclipsesInYear)]
+    pub fn solar_eclipses_in_year(&self, year: i32) -> String {
+        use lunar_core::astronomy::aspects::approximate_new_moon_jd;
+        use lunar_core::calendar::gregorian::civil_to_julian_day;
+        let eph = EclipseEphemeris::new(&self.vsop, &self.elp);
+        let (start, end) = (civil_to_julian_day(year, 1, 1).as_f64(), civil_to_julian_day(year + 1, 1, 1).as_f64());
+        let month = 29.530588853;
+        let n0 = ((start - approximate_new_moon_jd(0).as_f64()) / month).floor() as i32 - 1;
+        let mut out = Vec::new();
+        for n in n0..n0 + 16 {
+            let guess = approximate_new_moon_jd(n);
+            let g = guess.as_f64();
+            if g < start - 2.0 || g > end + 2.0 {
+                continue;
+            }
+            let win = eclipse_window(&eph, guess);
+            let Some(e) = solar_eclipse_global_in(&win, guess) else { continue };
+            let t = e.greatest_tt.as_f64();
+            if t < start || t >= end || out.iter().any(|(t0, _): &(f64, String)| (t0 - t).abs() < 5.0) {
+                continue;
+            }
+            let (dt, sigma) = ms2021_delta_t(t);
+            let mut s = json_global(&e);
+            s.pop();
+            s.push_str(&format!(",\"deltaT\":{},\"deltaTSigma\":{}}}", json_f(dt), json_f(sigma)));
+            out.push((t, s));
+        }
+        out.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        format!("[{}]", out.into_iter().map(|(_, s)| s).collect::<Vec<_>>().join(","))
+    }
+
+    /// 日食地图，JSON 对象：global、deltaT、p1/p4、centralContacts、greatestPoint、各条界线（折线为 [经°, 纬°, jd_tt] 数组）、
+    /// outlines（[{jdTt, penumbra, umbra}]）、lonShiftPerSecond（ΔT 每增 1 s 全图东移的度数）。
+    /// `step_s` 扫描步长（秒，缺省 60）；`outline_interval_s` 影子轮廓间隔（秒，≤0 不画）。
+    #[wasm_bindgen(js_name = solarEclipseMap)]
+    pub fn solar_eclipse_map(&self, jd_tt_guess: f64, delta_t_s: f64, step_s: f64, outline_interval_s: f64) -> Result<String, JsValue> {
+        let eph = EclipseEphemeris::new(&self.vsop, &self.elp);
+        let win = eclipse_window(&eph, real(jd_tt_guess));
+        let opts = SolarEclipseMapOptions {
+            step: QDuration::in_seconds(real(if step_s > 0.0 { step_s } else { 60.0 })),
+            outline_interval: (outline_interval_s > 0.0).then(|| QDuration::in_seconds(real(outline_interval_s))),
+            ..Default::default()
+        };
+        let m = core_solar_eclipse_map(&win, real(jd_tt_guess), QDuration::in_seconds(real(delta_t_s)), &opts)
+            .ok_or_else(|| JsValue::from_str("该朔附近无日食"))?;
+        let shift = lunar_core::astronomy::phenomena::longitude_shift_for_delta_t(QDuration::in_seconds(real(1.0)))
+            .rad()
+            .as_f64()
+            .to_degrees();
+        let central_contacts = match m.central_contacts {
+            Some((a, b)) => format!("[{},{}]", json_f(a.as_f64()), json_f(b.as_f64())),
+            None => "null".into(),
+        };
+        let outlines: Vec<String> = m
+            .outlines
+            .iter()
+            .map(|o| format!("{{\"jdTt\":{},\"penumbra\":{},\"umbra\":{}}}", json_f(o.jd_tt.as_f64()), json_lines(&o.penumbra), json_lines(&o.umbra)))
+            .collect();
+        let contours: Vec<String> = m
+            .magnitude_contours
+            .iter()
+            .map(|c| format!("{{\"level\":{},\"lines\":{}}}", json_f(c.level.as_f64()), json_lines(&c.lines)))
+            .collect();
+        Ok(format!(
+            "{{\"global\":{},\"deltaT\":{},\"p1\":{},\"p4\":{},\"centralContacts\":{},\"greatestPoint\":{},\"subsolar\":{},\"centralLine\":{},\
+\"umbraNorth\":{},\"umbraSouth\":{},\"penumbraLimits\":{},\"riseSet\":{},\"magnitudeContours\":[{}],\"outlines\":[{}],\"lonShiftPerSecond\":{}}}",
+            json_global(&m.global),
+            json_f(delta_t_s),
+            json_f(m.penumbra_contacts.0.as_f64()),
+            json_f(m.penumbra_contacts.1.as_f64()),
+            central_contacts,
+            json_line(&[m.greatest_point]),
+            json_line(&[m.subsolar]),
+            json_lines(&m.central_line),
+            json_lines(&m.umbra_north),
+            json_lines(&m.umbra_south),
+            json_lines(&m.penumbra_limits),
+            json_lines(&m.rise_set),
+            contours.join(","),
+            outlines.join(","),
+            json_f(shift)
+        ))
+    }
+
+    /// 某地日食局地情况，JSON；无食返回 "null"。时刻为 TT，太阳高度为站心几何高度（度）。
+    #[wasm_bindgen(js_name = solarEclipseLocal)]
+    pub fn solar_eclipse_local(&self, jd_tt_guess: f64, delta_t_s: f64, lon_deg: f64, lat_deg: f64) -> String {
+        use lunar_core::astronomy::geodesy::Observer;
+        use lunar_core::quantity::angle::PlaneAngle;
+        use lunar_core::quantity::length::Length;
+        use lunar_core::quantity::unit::LengthUnit;
+        let eph = EclipseEphemeris::new(&self.vsop, &self.elp);
+        let win = eclipse_window(&eph, real(jd_tt_guess));
+        let obs = Observer::new(
+            PlaneAngle::from_deg(real(lon_deg)),
+            PlaneAngle::from_deg(real(lat_deg)),
+            Length::from_value(real(0.0), LengthUnit::Meter),
+        );
+        let Some(e) = solar_eclipse_local_in(&win, &obs, real(jd_tt_guess), QDuration::in_seconds(real(delta_t_s))) else {
+            return "null".into();
+        };
+        let opt = |x: Option<lunar_core::math::real::Real>| x.map(|v| json_f(v.as_f64())).unwrap_or_else(|| "null".into());
+        let deg = |a: PlaneAngle| json_f(a.rad().as_f64().to_degrees());
+        let (vis_a, vis_b) = match e.visible {
+            Some((a, b)) => (json_f(a.as_f64()), json_f(b.as_f64())),
+            None => ("null".into(), "null".into()),
+        };
+        format!(
+            "{{\"first\":{},\"second\":{},\"greatest\":{},\"third\":{},\"last\":{},\"magnitude\":{},\"altFirst\":{},\"altGreatest\":{},\
+\"altLast\":{},\"visibleFrom\":{},\"visibleTo\":{},\"maxVisibleMagnitude\":{}}}",
+            json_f(e.first_contact.as_f64()),
+            opt(e.second_contact),
+            json_f(e.greatest.as_f64()),
+            opt(e.third_contact),
+            json_f(e.last_contact.as_f64()),
+            json_f(e.magnitude.as_f64()),
+            deg(e.sun_altitude_first),
+            deg(e.sun_altitude_greatest),
+            deg(e.sun_altitude_last),
+            vis_a,
+            vis_b,
+            opt(e.max_visible_magnitude)
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 星图
+// ---------------------------------------------------------------------------
+
+use lunar_core::astronomy::pipeline::{Body, Planet, Vsop87Elp, Vsop87Planets};
+use lunar_core::astronomy::sky_culture::chinese::{
+    parse_asterisms, parse_lunar_mansion_systems, parse_star_names, Asterism, AsterismMember, LunarMansionSystem, StarName,
+};
+use lunar_core::astronomy::stars::StarCatalog;
+
+const NAKED_EYE_PLANETS: [Planet; 5] = [Planet::Mercury, Planet::Venus, Planet::Mars, Planet::Jupiter, Planet::Saturn];
+
+/// 星图常驻对象：日月五星历表、星表、各体系星官与星名、二十八宿距星。数据由宿主 fetch 后传入，直接用各自的解析函数
+/// （即 `*_from_repo()` 内部所用者）解析，不经全局 repo loader（后者只能设置一次，与本页之外的用途冲突）。
+#[wasm_bindgen]
+pub struct SkyEngine {
+    earth: Vsop87,
+    planets: Vec<(Planet, Vsop87)>,
+    elp: Elpmpp02Data,
+    catalog: StarCatalog,
+    asterisms: Vec<Asterism>,
+    names: Vec<StarName>,
+    mansions: Vec<LunarMansionSystem>,
+    periods: Vec<lunar_core::astronomy::sky_culture::periods::SystemPeriod>,
+    schools: Vec<lunar_core::astronomy::sky_culture::chinese::SchoolAttribution>,
+}
+
+fn text_lines(s: &str) -> Vec<String> {
+    s.lines().map(String::from).collect()
+}
+
+fn body_name(b: Body) -> &'static str {
+    match b {
+        Body::Sun => "sun",
+        Body::Moon => "moon",
+        Body::Planet(Planet::Mercury) => "mercury",
+        Body::Planet(Planet::Venus) => "venus",
+        Body::Planet(Planet::Mars) => "mars",
+        Body::Planet(Planet::Jupiter) => "jupiter",
+        Body::Planet(Planet::Saturn) => "saturn",
+        Body::Planet(Planet::Uranus) => "uranus",
+        Body::Planet(Planet::Neptune) => "neptune",
+    }
+}
+
+fn json_str(s: &str) -> String {
+    let mut o = String::with_capacity(s.len() + 2);
+    o.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => o.push_str("\\\""),
+            '\\' => o.push_str("\\\\"),
+            c if (c as u32) < 0x20 => o.push_str(&format!("\\u{:04x}", c as u32)),
+            c => o.push(c),
+        }
+    }
+    o.push('"');
+    o
+}
+
+#[wasm_bindgen]
+impl SkyEngine {
+    /// `planet_texts`：VSOP87B 的 mer、ven、mar、jup、sat 文本，以 `\u{1e}` 连接；`planet_patch_text`：
+    /// `data/fit/vsop87-de406-planets.txt`（可为空，则行星不施改正）。其余为 data/ 下各 CSV 原文（末两项为体系年代表、三家分属表）。
+    #[wasm_bindgen(constructor)]
+    pub fn new(
+        vsop87_ear_bin: &[u8],
+        elp_main_s1_bin: &[u8],
+        elp_main_s2_bin: &[u8],
+        elp_main_s3_bin: &[u8],
+        elp_pert_s1_bin: &[u8],
+        elp_pert_s2_bin: &[u8],
+        elp_pert_s3_bin: &[u8],
+        nutation_tab53a_bin: &[u8],
+        planet_texts: &str,
+        planet_patch_text: &str,
+        stars_csv: &str,
+        asterisms_csv: &str,
+        star_names_csv: &str,
+        mansions_csv: &str,
+        periods_csv: &str,
+        schools_csv: &str,
+    ) -> Result<SkyEngine, JsValue> {
+        let err = |e: String| JsValue::from_str(&e);
+        let earth = with_earth_patch(Vsop87::from_binary(vsop87_ear_bin).map_err(|e| err(e.to_string()))?);
+        let elp = load_all_from_binary(
+            elp_main_s1_bin,
+            elp_main_s2_bin,
+            elp_main_s3_bin,
+            elp_pert_s1_bin,
+            elp_pert_s2_bin,
+            elp_pert_s3_bin,
+            Elpmpp02Correction::DE406,
+        )
+        .map_err(|e| err(e.to_string()))?;
+        if !nutation_tab53a_bin.is_empty() {
+            nutation::try_init_full_nutation_from_binary(nutation_tab53a_bin);
+        }
+        let patch = if planet_patch_text.is_empty() {
+            None
+        } else {
+            Some(lunar_core::astronomy::ephemeris::vsop87_patch::Vsop87DePatch::parse(planet_patch_text).map_err(|e| err(e.to_string()))?)
+        };
+        let texts: Vec<&str> = planet_texts.split('\u{1e}').collect();
+        if texts.len() != NAKED_EYE_PLANETS.len() {
+            return Err(err(format!("行星历表应为 {} 份，得 {}", NAKED_EYE_PLANETS.len(), texts.len())));
+        }
+        let mut planets = Vec::new();
+        for (p, t) in NAKED_EYE_PLANETS.iter().zip(texts) {
+            let mut v = lunar_core::astronomy::ephemeris::Vsop87Parse::parse_from_lines(&text_lines(t)).map_err(|e| err(e.to_string()))?;
+            if let Some(lbr) = patch.as_ref().and_then(|pa| pa.body(p.vsop87_suffix())) {
+                v = v.with_patch(lbr.clone());
+            }
+            planets.push((*p, v));
+        }
+        Ok(SkyEngine {
+            earth,
+            planets,
+            elp,
+            catalog: StarCatalog::parse_hipparcos_bright(&text_lines(stars_csv)).map_err(err)?,
+            asterisms: parse_asterisms(&text_lines(asterisms_csv)).map_err(err)?,
+            names: parse_star_names(&text_lines(star_names_csv)).map_err(err)?,
+            mansions: parse_lunar_mansion_systems(&text_lines(mansions_csv)).map_err(err)?,
+            periods: lunar_core::astronomy::sky_culture::periods::parse_system_periods(&text_lines(periods_csv)).map_err(err)?,
+            schools: lunar_core::astronomy::sky_culture::chinese::parse_school_attributions(&text_lines(schools_csv)).map_err(err)?,
+        })
+    }
+
+    /// 星官、星名、距星（静态数据），JSON：{asterisms:[{system,id,name,det,lines:[[hip…]…]}], names:[[system,hip,name]…],
+    /// mansions:[{system,determinatives:[28 个 hip]}], schools:[{id,school,basis,source}]（陈卓体系三家分属）}。连线只保留 Hipparcos 星（深空天体、盖亚星不在星表中）。
+    #[wasm_bindgen(js_name = skyCulture)]
+    pub fn sky_culture(&self) -> String {
+        let asterisms: Vec<String> = self
+            .asterisms
+            .iter()
+            .map(|a| {
+                let lines: Vec<String> = a
+                    .lines
+                    .iter()
+                    .map(|l| {
+                        let hips: Vec<String> =
+                            l.iter().filter_map(|m| if let AsterismMember::Hip(h) = m { Some(h.to_string()) } else { None }).collect();
+                        format!("[{}]", hips.join(","))
+                    })
+                    .collect();
+                format!(
+                    "{{\"system\":{},\"id\":{},\"name\":{},\"det\":{},\"lines\":[{}]}}",
+                    json_str(&a.system),
+                    json_str(&a.id),
+                    json_str(&a.name),
+                    a.determinative.map(|d| d.to_string()).unwrap_or_else(|| "null".into()),
+                    lines.join(",")
+                )
+            })
+            .collect();
+        let names: Vec<String> = self.names.iter().map(|n| format!("[{},{},{}]", json_str(&n.system), n.hip, json_str(&n.name))).collect();
+        let mansions: Vec<String> = self
+            .mansions
+            .iter()
+            .map(|m| {
+                let d: Vec<String> = m.determinatives.iter().map(|h| h.to_string()).collect();
+                format!("{{\"system\":{},\"determinatives\":[{}]}}", json_str(&m.id), d.join(","))
+            })
+            .collect();
+        let schools: Vec<String> = self
+            .schools
+            .iter()
+            .map(|a| {
+                format!(
+                    "{{\"id\":{},\"school\":{},\"basis\":{},\"source\":{}}}",
+                    json_str(&a.id),
+                    a.school.map(|s| json_str(s.name())).unwrap_or_else(|| "null".into()),
+                    json_str(&a.basis),
+                    json_str(&a.source)
+                )
+            })
+            .collect();
+        format!(
+            "{{\"asterisms\":[{}],\"names\":[{}],\"mansions\":[{}],\"schools\":[{}]}}",
+            asterisms.join(","),
+            names.join(","),
+            mansions.join(","),
+            schools.join(",")
+        )
+    }
+
+    /// 某年（天文纪年）适用的星官体系，JSON：{system, epoch, basis}；见 `data/sky_culture/system_periods.csv`。
+    #[wasm_bindgen(js_name = systemForYear)]
+    pub fn system_for_year(&self, year: i32) -> String {
+        match lunar_core::astronomy::sky_culture::periods::system_for_year(&self.periods, year) {
+            Some(p) => format!("{{\"system\":{},\"epoch\":{},\"basis\":{}}}", json_str(&p.system), json_str(&p.epoch), json_str(&p.basis)),
+            None => "null".into(),
+        }
+    }
+
+    /// 天空快照，JSON：{jdTt, gastDeg, eclipticPole:[赤经°, 赤纬°], stars:[hip, 赤经°, 赤纬°, V, B−V|null, …]（扁平），
+    /// bodies:[{name, ra, dec, mag, phase}], mansionWidths:{体系: [28 个宿度（度，360° 制）]}}。坐标为当日真赤道与真春分点。
+    /// `delta_t_s` 只用于恒星时（GAST，地平星图用）。
+    #[wasm_bindgen]
+    pub fn snapshot(&self, jd_tt: f64, delta_t_s: f64) -> String {
+        use lunar_core::astronomy::apparent::ApparentPipelineOptions;
+        use lunar_core::astronomy::sky_map::sky_snapshot;
+        use lunar_core::astronomy::time::{TimePoint, TimeScale};
+        let eph = Vsop87Elp {
+            planets: Vsop87Planets { earth: &self.earth, planets: self.planets.iter().map(|(p, v)| (*p, v)).collect() },
+            moon: &self.elp,
+        };
+        let opts = ApparentPipelineOptions::default();
+        let t = TimePoint::new(TimeScale::TT, real(jd_tt));
+        let snap = sky_snapshot(&eph, &self.catalog, t, &opts);
+        let deg = |a: lunar_core::quantity::angle::PlaneAngle| a.rad().as_f64().to_degrees();
+        let mut stars = String::with_capacity(snap.stars.len() * 40);
+        for (k, s) in snap.stars.iter().enumerate() {
+            if k > 0 {
+                stars.push(',');
+            }
+            stars.push_str(&format!(
+                "{},{:.5},{:.5},{:.2},{}",
+                s.hip,
+                deg(s.ra).rem_euclid(360.0),
+                deg(s.dec),
+                s.vmag.as_f64(),
+                s.bv.map(|b| format!("{:.2}", b.as_f64())).unwrap_or_else(|| "null".into())
+            ));
+        }
+        let bodies: Vec<String> = snap
+            .bodies
+            .iter()
+            .map(|b| {
+                format!(
+                    "{{\"name\":\"{}\",\"ra\":{:.5},\"dec\":{:.5},\"mag\":{},\"phase\":{}}}",
+                    body_name(b.body),
+                    deg(b.ra).rem_euclid(360.0),
+                    deg(b.dec),
+                    b.magnitude.map(|m| json_f(m.as_f64())).unwrap_or_else(|| "null".into()),
+                    b.phase_angle.map(|a| json_f(deg(a))).unwrap_or_else(|| "null".into())
+                )
+            })
+            .collect();
+        let widths: Vec<String> = self
+            .mansions
+            .iter()
+            .filter_map(|m| {
+                let w = snap.mansion_frame(m)?.widths(real(360.0));
+                let w: Vec<String> = w.iter().map(|x| format!("{:.4}", x.as_f64())).collect();
+                Some(format!("{}:[{}]", json_str(&m.id), w.join(",")))
+            })
+            .collect();
+        let jd_ut1 = jd_tt - delta_t_s / 86400.0;
+        let gast = lunar_core::astronomy::time::earth_rotation::gast(real(jd_ut1), real(jd_tt));
+        format!(
+            "{{\"jdTt\":{},\"gastDeg\":{},\"eclipticPole\":[{},{}],\"stars\":[{}],\"bodies\":[{}],\"mansionWidths\":{{{}}}}}",
+            json_f(jd_tt),
+            json_f(deg(gast)),
+            json_f(deg(snap.ecliptic_pole.0)),
+            json_f(deg(snap.ecliptic_pole.1)),
+            stars,
+            bodies.join(","),
+            widths.join(",")
+        )
+    }
+}

@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo, useRef, createContext, useContext } from 'react'
 import { Button, Card, Select, Radio, Checkbox, Space, Flex, Typography, Tag, Spin, Alert, Modal, Tabs } from 'antd'
-import { LeftOutlined, RightOutlined, CalendarOutlined, SettingOutlined, ApartmentOutlined, EyeOutlined } from '@ant-design/icons'
+import { LeftOutlined, RightOutlined, CalendarOutlined, SettingOutlined, ApartmentOutlined, EyeOutlined, GlobalOutlined, StarOutlined } from '@ant-design/icons'
 import { TransformGraphPage } from './TransformGraphPage'
+import { EclipseMapPage } from './EclipseMapPage'
+import { StarChartPage } from './StarChartPage'
 import type { LunarBackend } from './lunar-backend-types'
 import {
   getYearDataForDisplay,
@@ -342,7 +344,7 @@ function App() {
   /** 一周起始日：0=周日 1=周一 … 6=周六 */
   const [weekStart, setWeekStart] = useState(1)
   /** 当前视图：日历 | 视位置变换图 */
-  const [view, setView] = useState<'calendar' | 'graph'>('calendar')
+  const [view, setView] = useState<'calendar' | 'graph' | 'eclipse' | 'stars'>('calendar')
   /** Real 后端：twofloat=高精度，f64=体积/速度；切换后重新加载 WASM */
   const [realBackendVariant, setRealBackendVariant] = useState<RealBackendVariant>(getStoredRealBackend)
   const [ephemerisSource, setEphemerisSource] = useState<EphemerisDataSource | null>(null)
@@ -478,7 +480,7 @@ function App() {
         ]).then((res): YearData[] => res[0] ?? [])
       })
       .then((list) => {
-        if (cancelled) return
+        if (cancelled || !list) return
         setYearDataList(list)
         setLoading(null)
       })
@@ -661,32 +663,53 @@ function App() {
     { label: '自定义', value: 4 },
   ]
 
+  const viewNav = (
+    <Flex align="center" gap={12} style={{ marginBottom: 16 }}>
+      <Button type={view === 'calendar' ? 'primary' : 'link'} icon={<CalendarOutlined />} onClick={() => setView('calendar')}>
+        日历
+      </Button>
+      <Button type={view === 'graph' ? 'primary' : 'link'} icon={<ApartmentOutlined />} onClick={() => setView('graph')}>
+        视位置变换图
+      </Button>
+      <Button type={view === 'eclipse' ? 'primary' : 'link'} icon={<GlobalOutlined />} onClick={() => setView('eclipse')}>
+        日食图
+      </Button>
+      <Button type={view === 'stars' ? 'primary' : 'link'} icon={<StarOutlined />} onClick={() => setView('stars')}>
+        星图
+      </Button>
+    </Flex>
+  )
+
   if (view === 'graph') {
     return (
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24, overflow: 'visible' }}>
-        <Flex align="center" gap={12} style={{ marginBottom: 16 }}>
-          <Button type={view === 'calendar' ? 'link' : 'primary'} icon={<CalendarOutlined />} onClick={() => setView('calendar')}>
-            日历
-          </Button>
-          <Button type={view === 'graph' ? 'primary' : 'link'} icon={<ApartmentOutlined />} onClick={() => setView('graph')}>
-            视位置变换图
-          </Button>
-        </Flex>
+        {viewNav}
         <TransformGraphPage wasm={wasm} />
+      </div>
+    )
+  }
+
+  if (view === 'stars') {
+    return (
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24, overflow: 'visible' }}>
+        {viewNav}
+        <StarChartPage />
+      </div>
+    )
+  }
+
+  if (view === 'eclipse') {
+    return (
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24, overflow: 'visible' }}>
+        {viewNav}
+        <EclipseMapPage />
       </div>
     )
   }
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24, overflow: 'visible' }}>
-      <Flex align="center" gap={12} style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<CalendarOutlined />} onClick={() => setView('calendar')}>
-          日历
-        </Button>
-        <Button type="link" icon={<ApartmentOutlined />} onClick={() => setView('graph')}>
-          视位置变换图
-        </Button>
-      </Flex>
+      {viewNav}
       <Spin spinning={!!loading} tip={loading ? `加载${loading}…` : undefined}>
         {error && <Alert type="error" message={error} showIcon style={{ marginBottom: 16 }} />}
 
@@ -744,7 +767,7 @@ function App() {
                             displayM,
                             displayD,
                             selectedLunarSlot.lunarMonth,
-                            selectedLunarSlot.isLeapMonth,
+                            !!selectedLunarSlot.isLeapMonth,
                             selectedLunarSlot.dayOfMonth,
                           )
                         : wasm.get_era_name_parts!(selectedLunarSlot.lunarYear, true)

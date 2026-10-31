@@ -12,31 +12,32 @@ import type { LunarBackend } from './lunar-backend-types'
 const { Text } = Typography
 
 /** WASM 返回的变换图可视化数据。边可能为 getter 方法（from_id()/to_id()/label()）或属性。 */
+type GraphEdgeList = readonly (
+  | { from_id: string; to_id: string; cost: number; label?: string | null }
+  | { from_id: () => string; to_id: () => string; cost: number; label?: () => string | null }
+)[]
 interface TransformGraphViz {
-  readonly nodeIds: string[]
-  readonly edges: readonly ((
-    | { from_id: string; to_id: string; cost: number; label?: string | null }
-    | { from_id: () => string; to_id: () => string; cost: number; label?: () => string | null }
-  ))[]
+  readonly nodeIds: string[] | (() => string[])
+  readonly edges: GraphEdgeList | (() => GraphEdgeList)
 }
 
-function edgeFromId(e: TransformGraphViz['edges'][number] | null | undefined): string {
+function edgeFromId(e: GraphEdgeList[number] | null | undefined): string {
   if (e == null) return ''
   return typeof (e as { from_id: string | (() => string) }).from_id === 'function'
     ? (e as { from_id: () => string }).from_id()
     : (e as { from_id: string }).from_id
 }
-function edgeToId(e: TransformGraphViz['edges'][number] | null | undefined): string {
+function edgeToId(e: GraphEdgeList[number] | null | undefined): string {
   if (e == null) return ''
   return typeof (e as { to_id: string | (() => string) }).to_id === 'function'
     ? (e as { to_id: () => string }).to_id()
     : (e as { to_id: string }).to_id
 }
-function edgeCost(e: TransformGraphViz['edges'][number] | null | undefined): number {
+function edgeCost(e: GraphEdgeList[number] | null | undefined): number {
   if (e == null) return 0
   return (e as { cost: number }).cost
 }
-function edgeLabel(e: TransformGraphViz['edges'][number] | null | undefined): string | null {
+function edgeLabel(e: GraphEdgeList[number] | null | undefined): string | null {
   if (e == null) return null
   try {
     const l = (e as { label?: string | null | (() => string | null) }).label
@@ -168,7 +169,7 @@ function getBestHandlePair(
 }
 
 /** 节点 data：框 = 静态概念（标架·坐标系·历元），连线 = 动作 */
-type BoxNodeData = { label?: string }
+type BoxNodeData = Node<{ label?: string }, 'box'>
 
 /** 自定义节点：框内仅静态概念标题，四向锚点 */
 function BoxNode({ data }: NodeProps<BoxNodeData>) {
@@ -243,18 +244,18 @@ export function TransformGraphPage({ wasm }: { wasm: LunarBackend | null }) {
   let nodeIds: string[] = []
   let edgesData: EdgeRow[] = []
   try {
-    const rawNodeIds = typeof (graphData as { nodeIds: string[] | (() => string[]) }).nodeIds === 'function'
-      ? (graphData as { nodeIds: () => string[] }).nodeIds()
-      : Array.isArray((graphData as { nodeIds: string[] }).nodeIds)
-        ? (graphData as { nodeIds: string[] }).nodeIds
+    const rawNodeIds = typeof graphData.nodeIds === 'function'
+      ? graphData.nodeIds()
+      : Array.isArray(graphData.nodeIds)
+        ? graphData.nodeIds
         : []
     nodeIds = Array.isArray(rawNodeIds)
       ? rawNodeIds.map((id) => (id != null && typeof id === 'string' ? id.trim() : String(id).trim()))
       : []
-    const rawEdges = typeof (graphData as { edges: unknown[] | (() => unknown[]) }).edges === 'function'
-      ? (graphData as { edges: () => TransformGraphViz['edges'] }).edges()
-      : Array.isArray((graphData as { edges: unknown[] }).edges)
-        ? (graphData as { edges: TransformGraphViz['edges'] }).edges
+    const rawEdges: GraphEdgeList = typeof graphData.edges === 'function'
+      ? graphData.edges()
+      : Array.isArray(graphData.edges)
+        ? graphData.edges
         : []
     const rawList = Array.isArray(rawEdges) ? rawEdges.filter((e): e is NonNullable<typeof e> => e != null) : []
     edgesData = rawList.map((e) => {

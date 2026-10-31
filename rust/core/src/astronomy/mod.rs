@@ -37,6 +37,7 @@ pub mod geodesy;
 pub mod phenomena;
 pub mod pipeline;
 pub mod sky_culture;
+pub mod sky_map;
 pub mod stars;
 pub mod time;
 

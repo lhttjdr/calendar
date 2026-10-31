@@ -51,6 +51,12 @@ pub mod paths {
     pub const CHINESE_LUNAR_MANSIONS: &str = "data/sky_culture/chinese_lunar_mansion_determinatives.csv";
     /// 中国星官（各体系），见 astronomy::sky_culture::chinese
     pub const CHINESE_ASTERISMS: &str = "data/sky_culture/chinese_asterisms.csv";
+    /// 中国星名（各体系），见 astronomy::sky_culture::chinese
+    pub const CHINESE_STAR_NAMES: &str = "data/sky_culture/chinese_star_names.csv";
+    /// 中国星官体系的适用年代，见 astronomy::sky_culture::periods
+    pub const CHINESE_SYSTEM_PERIODS: &str = "data/sky_culture/system_periods.csv";
+    /// 陈卓体系星官的三家分属，见 astronomy::sky_culture::chinese::SchoolAttribution
+    pub const SANJIA_SCHOOLS: &str = "data/sky_culture/sanjia_schools.csv";
     /// ELPMPP02 vs JPL DE406 样本 CSV（J2000 平黄道 km）
     pub const JPL_ELP_VS_JPL_SAMPLES_CSV: &str = "vendor/jpl/elp_vs_jpl_de406_samples.csv";
 }

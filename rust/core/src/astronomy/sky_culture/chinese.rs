@@ -56,7 +56,6 @@ pub fn parse_lunar_mansion_systems(lines: &[String]) -> Result<Vec<LunarMansionS
     Ok(out)
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 /// 读取仓库内距星表（[`crate::repo::paths::CHINESE_LUNAR_MANSIONS`]）。
 pub fn load_lunar_mansion_systems_from_repo() -> Result<Vec<LunarMansionSystem>, String> {
     let lines = crate::repo::read_lines(crate::repo::paths::CHINESE_LUNAR_MANSIONS).map_err(|e| format!("{e:?}"))?;
@@ -79,12 +78,18 @@ pub struct Asterism {
     pub english: String,
     pub members: Vec<AsterismMember>,
     pub determinative: Option<u32>,
+    /// 原连线：若干折线，每条为依次相连的天体（单星星官为只含一星的折线）。
+    pub lines: Vec<Vec<AsterismMember>>,
 }
 
 impl Asterism {
     pub fn member_hips(&self) -> impl Iterator<Item = u32> + '_ {
         self.members.iter().filter_map(|m| if let AsterismMember::Hip(h) = m { Some(*h) } else { None })
     }
+}
+
+fn parse_member(t: &str) -> AsterismMember {
+    t.parse::<u32>().map(AsterismMember::Hip).unwrap_or_else(|_| AsterismMember::Other(t.to_string()))
 }
 
 /// 解析星官表 `data/sky_culture/chinese_asterisms.csv`（`#` 开头为注释，首个非注释行为表头）。
@@ -95,26 +100,116 @@ pub fn parse_asterisms(lines: &[String]) -> Result<Vec<Asterism>, String> {
             continue;
         }
         let f: Vec<&str> = line.split(',').collect();
-        if f.len() != 6 {
-            return Err(format!("列数不为 6：{line}"));
+        if f.len() != 7 {
+            return Err(format!("列数不为 7：{line}"));
         }
-        let members = f[4]
-            .split_whitespace()
-            .map(|t| t.parse::<u32>().map(AsterismMember::Hip).unwrap_or_else(|_| AsterismMember::Other(t.to_string())))
-            .collect();
         out.push(Asterism {
             system: f[0].into(),
             id: f[1].into(),
             name: f[2].into(),
             english: f[3].into(),
-            members,
+            members: f[4].split_whitespace().map(parse_member).collect(),
             determinative: if f[5].is_empty() { None } else { Some(f[5].parse().map_err(|e| format!("{e}：{line}"))?) },
+            lines: f[6].split(';').map(|l| l.split_whitespace().map(parse_member).collect()).filter(|l: &Vec<_>| !l.is_empty()).collect(),
         });
     }
     Ok(out)
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+/// 三家星官之家。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum School {
+    Shi,
+    Gan,
+    Wuxian,
+}
+
+impl School {
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "石氏" => Some(School::Shi),
+            "甘氏" => Some(School::Gan),
+            "巫咸" => Some(School::Wuxian),
+            _ => None,
+        }
+    }
+    pub fn name(self) -> &'static str {
+        match self {
+            School::Shi => "石氏",
+            School::Gan => "甘氏",
+            School::Wuxian => "巫咸",
+        }
+    }
+}
+
+/// 陈卓体系某星官的所属之家（`data/sky_culture/sanjia_schools.csv`，据《开元占经》卷六十至七十）。
+#[derive(Clone, Debug)]
+pub struct SchoolAttribution {
+    /// 陈卓体系星官编号（同 [`Asterism::id`]）
+    pub id: String,
+    pub name: String,
+    /// None：三家名录无此官
+    pub school: Option<School>,
+    /// 判定依据：同名、家括注、方位、别名、拆分、附座、二十八宿、推定
+    pub basis: String,
+    /// 所据《开元占经》条目
+    pub source: String,
+}
+
+/// 解析三家分属表。
+pub fn parse_school_attributions(lines: &[String]) -> Result<Vec<SchoolAttribution>, String> {
+    let mut out = vec![];
+    for line in lines.iter().filter(|l| !l.starts_with('#')).skip(1) {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let f: Vec<&str> = line.splitn(5, ',').collect();
+        if f.len() != 5 {
+            return Err(format!("列数不为 5：{line}"));
+        }
+        let school = if f[2].is_empty() { None } else { Some(School::parse(f[2]).ok_or_else(|| format!("未知之家：{line}"))?) };
+        out.push(SchoolAttribution { id: f[0].into(), name: f[1].into(), school, basis: f[3].into(), source: f[4].into() });
+    }
+    Ok(out)
+}
+
+/// 读取仓库内三家分属表（[`crate::repo::paths::SANJIA_SCHOOLS`]）。
+pub fn load_school_attributions_from_repo() -> Result<Vec<SchoolAttribution>, String> {
+    let lines = crate::repo::read_lines(crate::repo::paths::SANJIA_SCHOOLS).map_err(|e| format!("{e:?}"))?;
+    parse_school_attributions(&lines)
+}
+
+/// 一条星名（某体系）。
+#[derive(Clone, Debug)]
+pub struct StarName {
+    pub system: String,
+    pub hip: u32,
+    /// 中文名；一星多名以 / 连接
+    pub name: String,
+}
+
+/// 解析星名表 `data/sky_culture/chinese_star_names.csv`。
+pub fn parse_star_names(lines: &[String]) -> Result<Vec<StarName>, String> {
+    let mut out = vec![];
+    for line in lines.iter().filter(|l| !l.starts_with('#')).skip(1) {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let f: Vec<&str> = line.splitn(3, ',').collect();
+        if f.len() != 3 {
+            return Err(format!("列数不为 3：{line}"));
+        }
+        out.push(StarName { system: f[0].into(), hip: f[1].parse().map_err(|e| format!("{e}：{line}"))?, name: f[2].into() });
+    }
+    Ok(out)
+}
+
+/// 读取仓库内星名表（[`crate::repo::paths::CHINESE_STAR_NAMES`]）。
+pub fn load_star_names_from_repo() -> Result<Vec<StarName>, String> {
+    let lines = crate::repo::read_lines(crate::repo::paths::CHINESE_STAR_NAMES).map_err(|e| format!("{e:?}"))?;
+    parse_star_names(&lines)
+}
+
 /// 读取仓库内星官表（[`crate::repo::paths::CHINESE_ASTERISMS`]）。
 pub fn load_asterisms_from_repo() -> Result<Vec<Asterism>, String> {
     let lines = crate::repo::read_lines(crate::repo::paths::CHINESE_ASTERISMS).map_err(|e| format!("{e:?}"))?;
@@ -240,6 +335,46 @@ mod tests {
             .collect();
         assert_eq!(rows.len(), 28);
         rows
+    }
+
+    /// 星官表：members 恰为 lines 中天体按首次出现去重；星名表各体系都有（陈卓、元、象林仅百余或数十条），且能读到「狼」（天狼，HIP 32349）。
+    #[test]
+    fn asterism_lines_and_star_names() {
+        let all = load_asterisms_from_repo().unwrap();
+        assert!(all.len() > 1400, "{}", all.len());
+        for a in &all {
+            let mut seen: Vec<AsterismMember> = vec![];
+            for m in a.lines.iter().flatten() {
+                if !seen.contains(m) {
+                    seen.push(m.clone());
+                }
+            }
+            assert_eq!(seen, a.members, "{} {} {}", a.system, a.id, a.name);
+            assert!(!a.lines.is_empty(), "{} {} 无连线", a.system, a.id);
+        }
+        let names = load_star_names_from_repo().unwrap();
+        for sys in ["chenzhuo", "song_huangyou", "yuan", "ming_xianglin", "qing"] {
+            // 陈卓、元、象林各体系在 Stellarium 中只给少数星（多为单星星官）起名，仪象考成有三千余条
+            assert!(names.iter().filter(|n| n.system == sys).count() > 50, "{sys} 星名过少");
+        }
+        assert!(names.iter().any(|n| n.system == "chenzhuo" && n.hip == 32349 && n.name.starts_with('狼')));
+    }
+
+    /// 三家分属：覆盖陈卓全部星官（编号一一对应），三家官数与《晋书·天文志》传统数目相合（石氏另含二十八宿及附座、拆分），
+    /// 未归属者只有天库。
+    #[test]
+    fn school_attributions_cover_chenzhuo() {
+        let attr = load_school_attributions_from_repo().unwrap();
+        let cz: Vec<Asterism> = load_asterisms_from_repo().unwrap().into_iter().filter(|a| a.system == "chenzhuo").collect();
+        assert_eq!(attr.len(), cz.len());
+        for (a, c) in attr.iter().zip(&cz) {
+            assert_eq!((a.id.as_str(), a.name.as_str()), (c.id.as_str(), c.name.as_str()));
+        }
+        let none: Vec<&str> = attr.iter().filter(|a| a.school.is_none()).map(|a| a.name.as_str()).collect();
+        assert_eq!(none, ["天库"]);
+        let count = |s: School| attr.iter().filter(|a| a.school == Some(s)).count();
+        println!("石氏 {} 甘氏 {} 巫咸 {}", count(School::Shi), count(School::Gan), count(School::Wuxian));
+        assert_eq!(count(School::Wuxian), 44);
     }
 
     #[test]

@@ -4,23 +4,30 @@
   "scripts": {
     "dev": "vite  --host 0.0.0.0",
     "build": "vite build",
+    "typecheck": "tsc -p .",
     "preview": "vite preview",
-    "copy-data": "mkdir -p public/data/vsop87 public/data/elpmpp02 public/data/IAU2000 public/data/fit && (cp ../vendor/vsop87/VSOP87B.ear public/data/vsop87/ 2>/dev/null || true) && (cp ../vendor/vsop87/VSOP87B.ear.bin public/data/vsop87/ 2>/dev/null || true) && (cp ../vendor/vsop87/VSOP87B.ear.bin.br public/data/vsop87/ 2>/dev/null || true) && for f in ELP_MAIN.S1 ELP_MAIN.S2 ELP_MAIN.S3 ELP_PERT.S1 ELP_PERT.S2 ELP_PERT.S3; do cp ../vendor/elpmpp02/$f public/data/elpmpp02/ 2>/dev/null || true; cp ../vendor/elpmpp02/$f.bin public/data/elpmpp02/ 2>/dev/null || true; cp ../vendor/elpmpp02/$f.bin.br public/data/elpmpp02/ 2>/dev/null || true; done && (cp ../vendor/IAU2000/tab5.3a.txt public/data/IAU2000/ 2>/dev/null || true) && (cp ../vendor/IAU2000/tab5.3b.txt public/data/IAU2000/ 2>/dev/null || true) && (cp ../vendor/IAU2000/tab5.3a.bin public/data/IAU2000/ 2>/dev/null || true) && (cp ../vendor/IAU2000/tab5.3a.bin.br public/data/IAU2000/ 2>/dev/null || true) && for t in de406 de441; do cp ../data/fit/vsop87-$t-earth.bin public/data/fit/ 2>/dev/null || true; cp ../data/fit/vsop87-$t-earth.bin.br public/data/fit/ 2>/dev/null || true; done",
+    "copy-data": "mkdir -p public/data/phenomena public/data/stars public/data/sky_culture public/data/vsop87 public/data/elpmpp02 public/data/IAU2000 public/data/fit && (cp ../vendor/vsop87/VSOP87B.ear public/data/vsop87/ 2>/dev/null || true) && (cp ../vendor/vsop87/VSOP87B.ear.bin public/data/vsop87/ 2>/dev/null || true) && (cp ../vendor/vsop87/VSOP87B.ear.bin.br public/data/vsop87/ 2>/dev/null || true) && for f in ELP_MAIN.S1 ELP_MAIN.S2 ELP_MAIN.S3 ELP_PERT.S1 ELP_PERT.S2 ELP_PERT.S3; do cp ../vendor/elpmpp02/$f public/data/elpmpp02/ 2>/dev/null || true; cp ../vendor/elpmpp02/$f.bin public/data/elpmpp02/ 2>/dev/null || true; cp ../vendor/elpmpp02/$f.bin.br public/data/elpmpp02/ 2>/dev/null || true; done && (cp ../vendor/IAU2000/tab5.3a.txt public/data/IAU2000/ 2>/dev/null || true) && (cp ../vendor/IAU2000/tab5.3b.txt public/data/IAU2000/ 2>/dev/null || true) && (cp ../vendor/IAU2000/tab5.3a.bin public/data/IAU2000/ 2>/dev/null || true) && (cp ../vendor/IAU2000/tab5.3a.bin.br public/data/IAU2000/ 2>/dev/null || true) && for t in de406 de441; do cp ../data/fit/vsop87-$t-earth.bin public/data/fit/ 2>/dev/null || true; cp ../data/fit/vsop87-$t-earth.bin.br public/data/fit/ 2>/dev/null || true; done && cp ../data/phenomena/capitals.csv public/data/phenomena/ && for b in mer ven mar jup sat; do cp ../vendor/vsop87/VSOP87B.$b public/data/vsop87/; done && cp ../data/fit/vsop87-de406-planets.txt public/data/fit/ && cp ../data/stars/hipparcos_bright.csv public/data/stars/ && for f in chinese_asterisms chinese_star_names chinese_lunar_mansion_determinatives system_periods sanjia_schools; do cp ../data/sky_culture/$f.csv public/data/sky_culture/; done",
     "refresh-wasm": "cd ../rust/wasm-lib && wasm-pack build --target web && cd ../../web && rm -rf node_modules/.vite node_modules/lunar-wasm",
     "build:wasm": "cd .. && ./scripts/dev/build_wasm.sh && cd web && rm -rf node_modules/.vite node_modules/lunar-wasm node_modules/lunar-wasm-f64 && npm install"
   },
   "dependencies": {
     "@xyflow/react": "^12.3.0",
     "antd": "^5.22.0",
+    "d3-geo": "^3.1.1",
     "dagre": "^0.8.5",
     "dayjs": "^1.11.19",
     "react": "18.2.0",
-    "react-dom": "18.2.0"
+    "react-dom": "18.2.0",
+    "topojson-client": "^3.1.0",
+    "world-atlas": "^2.0.2"
   },
   "devDependencies": {
+    "@types/d3-geo": "^3.1.0",
     "@types/dagre": "^0.7.52",
+    "@types/geojson": "^7946.0.16",
     "@types/react": "^18.2.48",
     "@types/react-dom": "^18.2.18",
+    "@types/topojson-client": "^3.1.5",
     "@vitejs/plugin-react": "^4.2.1",
     "typescript": "^5.3.3",
     "vite": "^5.0.10"

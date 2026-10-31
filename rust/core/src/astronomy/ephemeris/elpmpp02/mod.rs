@@ -543,14 +543,22 @@ mod tests {
             (2900000.5, [-399714581.42837083, -46283288.500821374, 32225970.291812975], [135.46465167041828, -967.8713692033186, 37.09742508951317]),
         ];
         let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE406).unwrap();
+        // 参考值由 double-double 求得；f64 构建受儒略日舍入（约 40 µs）与级数求和舍入限制，容差另定
+        const TOL_P_F64: f64 = 0.05;
+        const TOL_V_F64: f64 = 2e-7;
+        let (tol_p, tol_v) = if cfg!(feature = "real-f64") { (TOL_P_F64, TOL_V_F64) } else { (1e-6, 1e-12) };
+        let (mut wp, mut wv) = (0.0_f64, 0.0_f64);
         for (jd, p_ref, v_ref) in REF {
             let (p, v) = position_velocity(&elp, TimePoint::new(crate::astronomy::time::TimeScale::TT, real(jd)));
             let (m, vm) = (p.to_meters(), v.to_m_per_s());
             for k in 0..3 {
-                assert!((m[k].as_f64() - p_ref[k]).abs() < 1e-6, "JD {jd} 位置[{k}] {} vs {}", m[k].as_f64(), p_ref[k]);
-                assert!((vm[k].as_f64() - v_ref[k]).abs() < 1e-12, "JD {jd} 速度[{k}] {} vs {}", vm[k].as_f64(), v_ref[k]);
+                wp = wp.max((m[k].as_f64() - p_ref[k]).abs());
+                wv = wv.max((vm[k].as_f64() - v_ref[k]).abs());
+                assert!((m[k].as_f64() - p_ref[k]).abs() < tol_p, "JD {jd} 位置[{k}] {} vs {}", m[k].as_f64(), p_ref[k]);
+                assert!((vm[k].as_f64() - v_ref[k]).abs() < tol_v, "JD {jd} 速度[{k}] {} vs {}", vm[k].as_f64(), v_ref[k]);
             }
         }
+        println!("对参考值最大差：位置 {wp:.3e} m，速度 {wv:.3e} m/s");
     }
 
     #[test]

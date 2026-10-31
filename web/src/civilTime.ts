@@ -1,0 +1,57 @@
+/**
+ * 民用历与儒略日互换（仅显示与输入用）：1582-10-15 起格里历，此前儒略历（与 Rust `calendar::gregorian::civil_to_julian_day`、
+ * 实历朔日表同约定）；年份为天文纪年（0 = 前 1 年）。
+ */
+
+export type Civil = { y: number; m: number; d: number; h: number; mi: number; s: number }
+
+/** JD → 民用历日期时刻（先取整到秒，避免 23:59:59.6 进位丢日）。 */
+export function jdToCivil(jd: number): Civil {
+  const jdRounded = Math.round(jd * 86400) / 86400
+  const z = Math.floor(jdRounded + 0.5)
+  const f = jdRounded + 0.5 - z
+  let a = z
+  if (z >= 2299161) {
+    const alpha = Math.floor((z - 1867216.25) / 36524.25)
+    a = z + 1 + alpha - Math.floor(alpha / 4)
+  }
+  const b = a + 1524
+  const c = Math.floor((b - 122.1) / 365.25)
+  const dd = Math.floor(365.25 * c)
+  const e = Math.floor((b - dd) / 30.6001)
+  const d = b - dd - Math.floor(30.6001 * e)
+  const m = e < 14 ? e - 1 : e - 13
+  const y = m > 2 ? c - 4716 : c - 4715
+  const secs = Math.min(86399, Math.round(f * 86400))
+  return { y, m, d, h: Math.floor(secs / 3600), mi: Math.floor((secs % 3600) / 60), s: secs % 60 }
+}
+
+/** 民用历日期 + 当日小时数 → JD。 */
+export function civilToJd(y: number, m: number, d: number, hours = 0): number {
+  let yy = y
+  let mm = m
+  if (mm <= 2) {
+    yy -= 1
+    mm += 12
+  }
+  const gregorian = y > 1582 || (y === 1582 && (m > 10 || (m === 10 && d >= 15)))
+  const a = Math.floor(yy / 100)
+  const b = gregorian ? 2 - a + Math.floor(a / 4) : 0
+  return Math.floor(365.25 * (yy + 4716)) + Math.floor(30.6001 * (mm + 1)) + d + b - 1524.5 + hours / 24
+}
+
+export function yearLabel(y: number): string {
+  return y <= 0 ? `前${1 - y}` : `${y}`
+}
+
+const pad = (n: number) => n.toString().padStart(2, '0')
+
+export function fmtDate(jd: number): string {
+  const c = jdToCivil(jd)
+  return `${yearLabel(c.y)}-${pad(c.m)}-${pad(c.d)}`
+}
+
+export function fmtTime(jd: number, withSeconds = false): string {
+  const c = jdToCivil(jd)
+  return withSeconds ? `${pad(c.h)}:${pad(c.mi)}:${pad(c.s)}` : `${pad(c.h)}:${pad(c.mi)}`
+}

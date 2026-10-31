@@ -7,7 +7,7 @@ use crate::astronomy::constant::{light_speed_au_per_day, AU_METERS};
 use crate::astronomy::pipeline::{Body, EphemerisProvider, Fk5ToIcrsBias, FrameMapper, State6, TransformGraph};
 use crate::astronomy::stars::CatalogStar;
 use crate::astronomy::time::{TimePoint, TimeScale};
-use crate::math::real::real;
+use crate::math::real::{real, Real};
 use crate::quantity::epoch::Epoch;
 use crate::quantity::position::Position;
 use crate::quantity::reference_frame::ReferenceFrame;
@@ -15,13 +15,17 @@ use crate::quantity::velocity::Velocity;
 
 use super::ApparentPipelineOptions;
 
+fn star_graph(options: &ApparentPipelineOptions) -> TransformGraph {
+    TransformGraph::default_graph()
+        .with_fk5_to_icrs_mapper(|s, jd_tt| Fk5ToIcrsBias.apply(s, TimePoint::new(TimeScale::TT, jd_tt)))
+        .with_precession_model(options.effective_precession_model())
+}
+
 /// 恒星地心视方向（当日真赤道架；矢量长度取 1 AU，仅方向有意义）。
 pub fn star_apparent_equatorial<P: EphemerisProvider>(eph: &P, star: &CatalogStar, t: TimePoint, options: &ApparentPipelineOptions) -> Position {
     let t_tt = t.to_scale(TimeScale::TT);
     let jd = t_tt.jd;
-    let graph = TransformGraph::default_graph()
-        .with_fk5_to_icrs_mapper(|s, jd_tt| Fk5ToIcrsBias.apply(s, TimePoint::new(TimeScale::TT, jd_tt)))
-        .with_precession_model(options.effective_precession_model());
+    let graph = star_graph(options);
     // 地球位置、速度（ICRS）= −地心太阳位置、速度（日心代质心）
     let sun = graph.transform_to(eph.compute_state(Body::Sun, t_tt.to_scale(eph.evaluation_time_scale())), ReferenceFrame::ICRS, jd);
     let (p_sun, v_sun) = (sun.position.to_meters(), sun.velocity.to_m_per_s());
@@ -40,6 +44,51 @@ pub fn star_apparent_equatorial<P: EphemerisProvider>(eph: &P, star: &CatalogSta
 }
 
 
+/// 一批恒星的地心视方向（当日真赤道架；矢量长度取 1 AU）：与逐颗调用 [`star_apparent_equatorial`] 等价，但地球状态与
+/// 「ICRS → 当日真赤道」变换只算一次。该变换由偏差、岁差、章动三个旋转组成，取三个基矢量的像（减去原点之像）为矩阵列。
+/// 星图要一次算近万颗星，逐颗走管线会重复构造岁差章动矩阵。
+pub fn stars_apparent_equatorial<P: EphemerisProvider>(
+    eph: &P,
+    stars: &[CatalogStar],
+    t: TimePoint,
+    options: &ApparentPipelineOptions,
+) -> Vec<Position> {
+    let t_tt = t.to_scale(TimeScale::TT);
+    let jd = t_tt.jd;
+    let graph = star_graph(options);
+    let sun = graph.transform_to(eph.compute_state(Body::Sun, t_tt.to_scale(eph.evaluation_time_scale())), ReferenceFrame::ICRS, jd);
+    let (p_sun, v_sun) = (sun.position.to_meters(), sun.velocity.to_m_per_s());
+    let c = light_speed_au_per_day() * AU_METERS / real(86400.0);
+    let au = AU_METERS;
+    let zero_vel = || Velocity::from_si_m_per_s_in_frame(ReferenceFrame::ICRS, real(0.0), real(0.0), real(0.0));
+    let image = |v: [Real; 3]| {
+        let pos = Position::from_si_meters_in_frame(ReferenceFrame::ICRS, v[0] * au, v[1] * au, v[2] * au);
+        graph.transform_to(State6::new(pos, zero_vel()), ReferenceFrame::TrueEquator(Epoch::new(jd)), jd).position.to_meters()
+    };
+    let o = image([real(0.0), real(0.0), real(0.0)]);
+    let cols: [[Real; 3]; 3] = core::array::from_fn(|k| {
+        let mut e = [real(0.0); 3];
+        e[k] = real(1.0);
+        let m = image(e);
+        [(m[0] - o[0]) / au, (m[1] - o[1]) / au, (m[2] - o[2]) / au]
+    });
+    let frame = ReferenceFrame::TrueEquator(Epoch::new(jd));
+    let plx_unit = real(core::f64::consts::PI / (180.0 * 3600.0 * 1000.0));
+    stars
+        .iter()
+        .map(|star| {
+            let u = star.icrs_direction(jd);
+            let plx = star.parallax_mas * plx_unit;
+            let u = [u[0] + plx * p_sun[0] / AU_METERS, u[1] + plx * p_sun[1] / AU_METERS, u[2] + plx * p_sun[2] / AU_METERS];
+            let w = [u[0] - v_sun[0] / c, u[1] - v_sun[1] / c, u[2] - v_sun[2] / c];
+            let n = (w[0] * w[0] + w[1] * w[1] + w[2] * w[2]).sqrt();
+            let w = [w[0] / n, w[1] / n, w[2] / n];
+            let r: [Real; 3] = core::array::from_fn(|i| cols[0][i] * w[0] + cols[1][i] * w[1] + cols[2][i] * w[2]);
+            Position::from_si_meters_in_frame(frame, o[0] + r[0] * au, o[1] + r[1] * au, o[2] + r[2] * au)
+        })
+        .collect()
+}
+
 /// 恒星平位置：星表方向（含空间运动）→ 当日平赤道与平春分点（只计岁差，不计章动、光行差与视差）。
 /// 古代星表与近代星表校算多用平位置（如潘鼐对《仪象考成》1744.0 的「今测计算值」）。矢量长度取 1 AU，仅方向有意义。
 pub fn star_mean_equatorial(star: &CatalogStar, t: TimePoint, options: &ApparentPipelineOptions) -> Position {
@@ -52,6 +101,35 @@ pub fn star_mean_equatorial(star: &CatalogStar, t: TimePoint, options: &Apparent
     let pos = Position::from_si_meters_in_frame(ReferenceFrame::ICRS, u[0] * au, u[1] * au, u[2] * au);
     let vel = Velocity::from_si_m_per_s_in_frame(ReferenceFrame::ICRS, real(0.0), real(0.0), real(0.0));
     graph.transform_to(State6::new(pos, vel), ReferenceFrame::MeanEquator(Epoch::new(jd)), jd).position
+}
+
+/// 一批恒星的平位置（当日平赤道与平春分点；矢量长度取 1 AU）：与逐颗调用 [`star_mean_equatorial`] 等价，「ICRS → 当日平赤道」
+/// 变换只算一次（偏差、岁差两个旋转，取基矢量之像为矩阵列）。古星表历元拟合要在许多历元上算上百颗星。
+pub fn stars_mean_equatorial(stars: &[CatalogStar], t: TimePoint, options: &ApparentPipelineOptions) -> Vec<Position> {
+    let jd = t.to_scale(TimeScale::TT).jd;
+    let graph = star_graph(options);
+    let au = AU_METERS;
+    let frame = ReferenceFrame::MeanEquator(Epoch::new(jd));
+    let image = |v: [Real; 3]| {
+        let pos = Position::from_si_meters_in_frame(ReferenceFrame::ICRS, v[0] * au, v[1] * au, v[2] * au);
+        let vel = Velocity::from_si_m_per_s_in_frame(ReferenceFrame::ICRS, real(0.0), real(0.0), real(0.0));
+        graph.transform_to(State6::new(pos, vel), frame, jd).position.to_meters()
+    };
+    let o = image([real(0.0), real(0.0), real(0.0)]);
+    let cols: [[Real; 3]; 3] = core::array::from_fn(|k| {
+        let mut e = [real(0.0); 3];
+        e[k] = real(1.0);
+        let m = image(e);
+        [(m[0] - o[0]) / au, (m[1] - o[1]) / au, (m[2] - o[2]) / au]
+    });
+    stars
+        .iter()
+        .map(|star| {
+            let u = star.icrs_direction(jd);
+            let r: [Real; 3] = core::array::from_fn(|i| cols[0][i] * u[0] + cols[1][i] * u[1] + cols[2][i] * u[2]);
+            Position::from_si_meters_in_frame(frame, o[0] + r[0] * au, o[1] + r[1] * au, o[2] + r[2] * au)
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -120,5 +198,53 @@ mod tests {
         }
         tab.write();
         println!("恒星视位置对 Skyfield 最大差 {worst:.3}″");
+    }
+
+    /// 批量与逐颗结果一致（前 500 年、2000 年各取 40 颗星）。
+    #[test]
+    fn batch_matches_single() {
+        let _ = try_init_full_nutation_from_repo();
+        let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::De406).unwrap();
+        let eph = Vsop87Planets { earth: &earth, planets: vec![] };
+        let cat = load_hipparcos_bright_from_repo().unwrap();
+        let opts = ApparentPipelineOptions::default();
+        let stars: Vec<CatalogStar> = cat.stars.iter().step_by(cat.stars.len() / 40).copied().collect();
+        for jd in [1538432.5, 2451545.0] {
+            let t = TimePoint::new(TimeScale::TT, real(jd));
+            let batch = stars_apparent_equatorial(&eph, &stars, t, &opts);
+            let mut worst: f64 = 0.0;
+            for (s, b) in stars.iter().zip(&batch) {
+                let a = star_apparent_equatorial(&eph, s, t, &opts).to_meters();
+                let b = b.to_meters();
+                let na = (a[0] * a[0] + a[1] * a[1] + a[2] * a[2]).sqrt();
+                let nb = (b[0] * b[0] + b[1] * b[1] + b[2] * b[2]).sqrt();
+                let d: f64 = (0..3).map(|i| ((a[i] / na - b[i] / nb).as_f64()).powi(2)).sum::<f64>().sqrt();
+                worst = worst.max(d);
+            }
+            println!("jd {jd}: 批量与逐颗最大差 {:.2e}″", worst * 206264.806);
+            assert!(worst < 1e-12, "jd {jd}: {worst}");
+        }
+    }
+
+    /// 平位置批量与逐颗一致。
+    #[test]
+    fn mean_batch_matches_single() {
+        let cat = load_hipparcos_bright_from_repo().unwrap();
+        let opts = ApparentPipelineOptions::default();
+        let stars: Vec<CatalogStar> = cat.stars.iter().step_by(cat.stars.len() / 40).copied().collect();
+        for jd in [1538432.5, 2451545.0] {
+            let t = TimePoint::new(TimeScale::TT, real(jd));
+            let batch = stars_mean_equatorial(&stars, t, &opts);
+            let mut worst: f64 = 0.0;
+            for (s, b) in stars.iter().zip(&batch) {
+                let a = star_mean_equatorial(s, t, &opts).to_meters();
+                let b = b.to_meters();
+                let na = (a[0] * a[0] + a[1] * a[1] + a[2] * a[2]).sqrt();
+                let nb = (b[0] * b[0] + b[1] * b[1] + b[2] * b[2]).sqrt();
+                let d: f64 = (0..3).map(|i| ((a[i] / na - b[i] / nb).as_f64()).powi(2)).sum::<f64>().sqrt();
+                worst = worst.max(d);
+            }
+            assert!(worst < 1e-12, "jd {jd}: {worst}");
+        }
     }
 }
