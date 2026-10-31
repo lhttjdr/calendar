@@ -72,14 +72,16 @@ def pick(cell, v):
 
 
 class Li:
-    def __init__(self, name, title_sun, title_moon, f, sui, shuo, zhuan, ji, y_ji, day0, inits=None, rinru=False, fix_moon=None, v=None, delta=None, end14=None):
+    def __init__(self, name, title_sun, title_moon, f, sui, shuo, zhuan, ji, y_ji, day0, inits=None, rinru=False, fix_moon=None, v=None, delta=None, end14=None, sun_fn=None, cha=None):
+        self.sun_fn, self.cha = sun_fn, cha or {}
         self.rinru = rinru
         self.name, self.f, self.sui, self.shuo, self.zhuan, self.ji, self.y_ji, self.day0 = name, f, sui, shuo, zhuan, ji, y_ji, day0
         self.qi = Fr(sui, 24)
-        sun = next(t for t in wikitables(title_sun) if t[0][0] in ("常氣", "氣節") and any("損益" in h for h in t[0]))
-        col = next(i for i, h in enumerate(sun[0]) if "損益" in h)
-        half = [rate(pick(r[col], v))[0][1] for r in sun[1:7]]    # 冬至至惊蛰；其余气与之同数（表中后段偶有错栏、讹字，如统元小满、淳熙小雪）
-        self.sun_abs = (half + half[::-1]) * 2
+        if not sun_fn:
+            sun = next(t for t in wikitables(title_sun) if t[0][0] in ("常氣", "氣節") and any("損益" in h for h in t[0]))
+            col = next(i for i, h in enumerate(sun[0]) if "損益" in h)
+            half = [rate(pick(r[col], v))[0][1] for r in sun[1:7]]    # 冬至至惊蛰；其余气与之同数（表中后段偶有错栏、讹字，如统元小满、淳熙小雪）
+            self.sun_abs = (half + half[::-1]) * 2
         moon = next(t for t in wikitables(title_moon) if len(t) > 1 and any("損益" in h for h in t[0]) and t[1][0] == "一日")
         col = next(i for i, h in enumerate(moon[0]) if "損益" in h)
         jcol = next(i for i, h in enumerate(moon[0]) if "朏朒" in h)
@@ -111,7 +113,7 @@ class Li:
             self.mji.append(acc)
             acc += sum(self.split[i]) if i in self.split else x
         self.closure = acc
-        self.sjp = self.sun_table()
+        self.sjp = None if sun_fn else self.sun_table()
 
     def sun_table(self):
         """每气 (朏朒积, 符号, 定初率, 日差)，按术文。"""
@@ -137,6 +139,8 @@ class Li:
         return out
 
     def sun_def(self, t):
+        if self.sun_fn:
+            return self.sun_fn(t % self.sui, self.f)
         k = int(t // self.qi)
         ji, sign, a, cha = self.sjp[k % 24]
         x = t - k * self.qi
@@ -155,16 +159,28 @@ class Li:
         return self.mji[i] + self.moon[i] * r / self.f
 
     def tong(self, y):
-        return self.sui * (self.ji + (y - self.y_ji))
+        """冬至气积分。统天另减气差与躔差（距差 = 积算 − 距算）。"""
+        n = self.ji + (y - self.y_ji)
+        if not self.cha:
+            return self.sui * n
+        ju = n - self.cha["ju"]
+        return self.sui * n - self.cha["qi"] - Fr(127 * ju * ju, 10000)
+
+    def first_shuo(self, y):
+        tong = self.tong(y)
+        if not self.cha:
+            return tong - tong % self.shuo
+        ju = self.ji + (y - self.y_ji) - self.cha["ju"]
+        return tong - (tong - self.cha["run"]) % self.shuo - Fr(105 * ju, 10)
 
     def moons(self, y0, y1):
         out = []
         for y in range(y0, y1):
-            tong = self.tong(y)
-            t0 = tong - tong % self.shuo
+            tong, t0 = self.tong(y), self.first_shuo(y)
+            base = (t0 - self.cha["zhuan"]) % self.zhuan if self.cha else t0 % self.zhuan
             for m in range(14):
                 jing = t0 + m * self.shuo
-                ding = jing + self.sun_def(Fr(jing - tong)) + self.moon_def((t0 % self.zhuan + m * self.shuo) % self.zhuan)
+                ding = jing + self.sun_def(Fr(jing - tong)) + self.moon_def((base + m * self.shuo) % self.zhuan)
                 out.append(ding)
         return sorted(set(out))
 
@@ -191,6 +207,26 @@ CHONGTIAN = Li("崇天", "宋史/卷072", "宋史/卷072", 10590, 3867940, 31272
                fix_moon={17: -601})   # 十八日：宋史作益三百九十一（点校本册五书页 1638 同），朏积 2924→3525 须 601，转定分「增七十五」约 594；本项目校改
 
 
+def guantian_sun(t, f):
+    """观天历：入盈缩限（距天正冬至 t 分）→ 朏朒定数（朒 +）。积 = x(2L − x) × 100 / D，x 为距二至或距二分之全日，日内线性。"""
+    hz = Fr(182 * f + 7480, f)
+    l1, l2 = Fr(88 * f + 10958, f), Fr(93 * f + 8552, f)
+    d = Fr(t) / f
+    half = 1 if d < hz else -1
+    x = d if d < hz else d - hz
+
+    def val(u):
+        if half == 1:      # 盈初（366）、盈末（407，距夏至）
+            return u * (2 * l1 - u) * 100 / 366 if u <= l1 else (hz - u) * (2 * l2 - (hz - u)) * 100 / 407
+        return u * (2 * l2 - u) * 100 / 407 if u <= l2 else (hz - u) * (2 * l1 - (hz - u)) * 100 / 366   # 缩初（407）、缩末（366）
+    i = int(x)
+    return half * (val(Fr(i)) + (val(min(Fr(i + 1), hz)) - val(Fr(i))) * (x - i))
+
+
+GUANTIAN = Li("观天", None, "宋史/卷077", 12030, 4393880, 355253, Fr(331482 * 10000 + 389, 10000), 5944808, 1092, 0, sun_fn=guantian_sun)
+# 统天：转实志作三十二萬六百五十五，与转策 27 余 6655 不合，作 330655；距算 3830 志未明言（取绍熙五年积算），距差小，影响不足 1 分
+TONGTIAN = Li("统天", "宋史/卷084", "宋史/卷084", 12000, 4382910, 354368, 330655, 3835, 1199, 0, v=0, cha={"ju": 3830, "qi": 237811, "run": 21704, "zhuan": 188800},
+              delta={8: 360}, end14=260)   # 九日损 44 作 404（朏积 4855→4451），十四日末益 360 作 260（次日朒积 260）
 T83, T84 = "宋史/卷083", "宋史/卷084"
 TONGYUAN = Li("统元", T83, T83, 6930, 2531138, 204647, Fr(190953 * 10000 + 2563, 10000), 94251591, 1135, 0, v=0, delta={0: -72})   # 一日益 608，朏积 680 证作 680
 QIANDAO = Li("乾道", T83, T83, 30000, 10957308, Fr(88591776, 100), Fr(826637 * 10000 + 7395, 10000), 91645823, 1167, 0, v=1, delta={11: -1000, 24: -1000})   # 十二、二十五日损益率差千，朏朒积证之
@@ -212,9 +248,11 @@ def run(li, y0, y1, approx):
 if __name__ == "__main__":
     run(CHONGTIAN, 1024, 1064, (1023, 12, 18))
     run(JIYUAN, 1106, 1135, (1105, 12, 16))
+    run(GUANTIAN, 1094, 1102, (1091, 12, 16))
     run(TONGYUAN, 1136, 1167, (1134, 12, 15))
     run(QIANDAO, 1168, 1176, (1166, 12, 15))
     run(CHUNXI, 1177, 1190, (1175, 12, 15))
     run(HUIYUAN, 1191, 1198, (1190, 12, 15))
+    run(TONGTIAN, 1199, 1207, (1198, 12, 15))
     run(KAIXI, 1208, 1251, (1206, 12, 15))
     run(CHENGTIAN, 1271, 1276, (1270, 12, 14))
