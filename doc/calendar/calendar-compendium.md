@@ -152,6 +152,8 @@
 
 日历各行统一写作「历法 纪元 月 日 时刻」。没有推步数据的并存政权写「历未详」，不套用主线月日；民国纪年配格里高利历。1582-10-15 以前的公历写「前推格里高利历」。
 
+纪元里的君主写「帝号 本名」，如「玄宗 李隆基」。本名来自整理表 `data/calendar/emperor_personal_names.csv`，由 `build_era_names_merged.py` 并入 `era_names_merged.csv` 的 `emperor_name` 列。逐条与中文维基核对，结果在 `data/calendar/emperor_personal_names_check.csv`；这是防错校验，不是史书考证。春秋战国诸侯、南诏、大理部分年号未补。
+
 时刻按农历年选写法，实现在 `rust/core/src/calendar/timekeeping.rs`。它只换表示法，输入仍是所选时区的钟面时间，不是当时当地的视太阳时。
 
 | 农历年 | 写法 | 例 | 依据 |

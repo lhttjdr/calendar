@@ -201,7 +201,7 @@
 
 - **Rust**：`rust/core/src/calendar/era_names.rs`
   - **EraNames**：从 CSV 解析年号表，按农历年索引一组 **EraEntry**（可能多条并存政权）。
-  - **EraNames::from_csv**：解析 `era_names_merged.csv`（12 列：`lunar_year,regime,emperor,era_name,era_year,
+  - **EraNames::from_csv**：解析 `era_names_merged.csv`（前 12 列：`lunar_year,regime,emperor,era_name,era_year,
     is_primary,has_gaiyuan,gaiyuan_prev_era_name,gaiyuan_prev_era_year,gaiyuan_month,source,note`）。
   - **EraNames::get_all(lunar_year)**：返回该年**全部**并存政权的记录（`&[EraEntry]`）。
   - **EraNames::get_primary(lunar_year)**：返回该年"正统主线"（`is_primary=true`）的一条；无记录为 `None`。

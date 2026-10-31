@@ -303,7 +303,7 @@ fn json_era_parts_ext(
     format!(
         r#"{{"regime":"{}","emperor":"{}","era_name":"{}","era_year":"{}","era":"{}","gaiyuan_prev_era_name":"{}","gaiyuan_prev_era_year":"{}","has_gaiyuan":{},"gaiyuan_resolved":{},"gaiyuan_on_this_day":{},"gaiyuan_precision":"{}","is_primary":{}}}"#,
         esc(&e.regime_simp),
-        esc(&e.emperor_simp),
+        esc(&e.emperor_display()),
         esc(&e.era_name_simp),
         esc(&era_year),
         esc(&era),
@@ -375,7 +375,10 @@ pub fn get_era_name_parts_for_day(
     // （那套是给"某具体历史事件哪天改元"用的，公历跨年这种规律性换算不需要逐年録入事件表）。
     let era_year = gregorian_civil_year_era_year(&on.regime_simp, g_year)
         .or_else(|| parse_cn_era_year(&on.era_year_simp));
+    // 改元日解析可能换了帝号（如新君当年），本名只在帝号未变时沿用
+    let emperor_name = if on.emperor_simp == entry.emperor_simp { entry.emperor_name.clone() } else { String::new() };
     let resolved_entry = EraEntry {
+        emperor_name,
         is_primary: entry.is_primary,
         has_gaiyuan: on.has_gaiyuan,
         regime_simp: on.regime_simp,

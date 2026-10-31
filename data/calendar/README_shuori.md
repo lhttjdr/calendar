@@ -199,6 +199,7 @@ Rust 侧 `calendar::month_labels`，Python 侧 `scripts/calendar_data/gaiyuan_da
 | has_gaiyuan | 是否改元年（1=该年多个年号，0=单一年号） |
 | regime_simp | 政权（简体），如 汉、魏、五代、后梁、宋 |
 | emperor_simp | 帝号/庙号（简体），如 武帝、后梁太祖、太祖（不含政权前缀） |
+| emperor_name | 仅 `era_names_merged.csv`：君主本名，来自 `emperor_personal_names.csv`（整理表，帝号相同者按政权区分，帝号为空者按年号匹配）；帝号已带括号本名的行留空。合写的帝号用 `/` 分隔本名 |
 | era_name_simp | 年号名（简体），如 元封、元凤、开平 |
 | era_year_simp | 年数（简体），如 五年、元年、四年 |
 | gaiyuan_prev_era_name_simp | 改元前年号名（仅改元年有值），如 始元 |

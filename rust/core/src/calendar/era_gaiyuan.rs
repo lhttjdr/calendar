@@ -317,6 +317,7 @@ mod tests {
 
     fn year_entry() -> EraEntry {
         EraEntry {
+            emperor_name: String::new(),
             is_primary: true,
             has_gaiyuan: true,
             regime_simp: "汉".into(),
@@ -375,6 +376,7 @@ mod tests {
 "#;
         let days = GaiyuanDays::from_csv(csv).unwrap();
         let e = EraEntry {
+            emperor_name: String::new(),
             is_primary: true,
             has_gaiyuan: true,
             regime_simp: "晋".into(),

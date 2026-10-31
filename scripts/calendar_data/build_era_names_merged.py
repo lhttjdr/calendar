@@ -1133,6 +1133,7 @@ def main() -> None:
 
     rows.sort(key=lambda r: (r["lunar_year"], 0 if r["is_primary"] else 1, r["regime"]))
     fill_earlier_eras_from_gaiyuan_day(rows)
+    fill_emperor_names(rows)
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     csv_path = OUT_DIR / "era_names_merged.csv"
@@ -1143,6 +1144,8 @@ def main() -> None:
         "gaiyuan_prev_era_name", "gaiyuan_prev_era_year", "gaiyuan_month", "source", "note",
         # 追加在末列：Rust era_names 按位置读到 gaiyuan_month 为止，末列不影响
         "gaiyuan_earlier_eras",
+        # 君主本名，来自 data/calendar/emperor_personal_names.csv；emperor 列已带括号本名的行留空
+        "emperor_name",
     ]
     with open(csv_path, "w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -1156,6 +1159,31 @@ def main() -> None:
     print(f"Wrote {csv_path} and {json_path}")
     print(f"总行数 {len(rows)}（主线 is_primary=1: {n_primary}，并存补充 is_primary=0: {len(rows) - n_primary}，"
           f"其中来自 fang_shiming 补充列的: {supplement_count}）")
+
+
+def fill_emperor_names(rows: list[dict]) -> None:
+    """emperor_name：君主本名。按（政权, 帝号）匹配；帝号为空的行多为一组数帝，按（政权, 年号）匹配。"""
+    by_title: dict[tuple[str, str], str] = {}
+    by_era: dict[tuple[str, str], str] = {}
+    with open(ROOT / "data/calendar/emperor_personal_names.csv", encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            if r["emperor"]:
+                by_title[(r["regime"], r["emperor"])] = r["personal_name"]
+            else:
+                by_era[(r["regime"], r["era_name"])] = r["personal_name"]
+    used = set()
+    for row in rows:
+        row["emperor_name"] = ""
+        if "(" in row["emperor"]:
+            continue
+        key = (row["regime"], row["emperor"]) if row["emperor"] else (row["regime"], row["era_name"])
+        table = by_title if row["emperor"] else by_era
+        if key in table:
+            row["emperor_name"] = table[key]
+            used.add((bool(row["emperor"]), key))
+    unused = [k for k in by_title if (True, k) not in used] + [k for k in by_era if (False, k) not in used]
+    if unused:
+        print("emperor_personal_names.csv 未匹配到任何行（可能是本名表里写错了帝号）：", unused)
 
 
 def fill_earlier_eras_from_gaiyuan_day(rows: list[dict]) -> None:

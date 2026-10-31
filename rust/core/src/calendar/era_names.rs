@@ -3,7 +3,7 @@
 //! 依附于第 4 层（仲裁/路由层）路由到的历法（见 [crate::calendar::lifa]），按政权划分；主表对应 id [lifa::LIFA_ID_ZHONGYUAN_SHILI]（各朝据历还原推步的连续表）。
 //! 基于跨来源汇总的年号表（`data/calendar/汇总/era_names_merged.csv`）按农历年查询年号与改元标记；**同一年
 //! 可能有多个并存政权**（如三国期间魏/蜀/吴），因此按年份索引的是一组 [EraEntry] 而非单条记录。
-//! CSV 含 12 列：lunar_year, regime, emperor, era_name, era_year, is_primary, has_gaiyuan,
+//! CSV 前 12 列（另有 gaiyuan_earlier_eras、emperor_name 两列在末尾）：lunar_year, regime, emperor, era_name, era_year, is_primary, has_gaiyuan,
 //! gaiyuan_prev_era_name, gaiyuan_prev_era_year, gaiyuan_month, source, note。
 //! 表结构、汇总方法、已知局限见 `data/calendar/汇总/README.md`。
 
@@ -21,6 +21,8 @@ pub struct EraEntry {
     pub has_gaiyuan: bool,
     pub regime_simp: String,
     pub emperor_simp: String,
+    /// 君主本名（emperor_simp 已带括号本名的行为空）。
+    pub emperor_name: String,
     pub era_name_simp: String,
     /// 年号第几年，如「元封五年」的 5。
     pub era_year: Option<u32>,
@@ -33,6 +35,17 @@ pub struct EraEntry {
 
 impl EraEntry {
     /// 拼接为年号全称（简体），如 "(汉武帝元封五年)"；改元年为 "(汉昭帝始元七年/元凤元年)"。
+    /// 展示用君主称呼：帝号 本名，如「玄宗 李隆基」；表中「赧王(姬延)」也写成「赧王 姬延」。
+    pub fn emperor_display(&self) -> String {
+        let bracketed = self.emperor_simp.strip_suffix(')').and_then(|s| s.split_once('('));
+        match (bracketed, self.emperor_simp.is_empty(), self.emperor_name.is_empty()) {
+            (Some((title, name)), _, _) => format!("{title} {name}"),
+            (None, true, _) => self.emperor_name.clone(),
+            (None, false, true) => self.emperor_simp.clone(),
+            (None, false, false) => format!("{} {}", self.emperor_simp, self.emperor_name),
+        }
+    }
+
     pub fn era_simp(&self) -> String {
         let era_year_cn = self.era_year.map(year_to_cn).unwrap_or_default();
         let main = format!(
@@ -224,7 +237,8 @@ fn parse_era_row(line: &str) -> Option<(i32, EraEntry)> {
     let gaiyuan_prev_name = fields.next().map(|f| unquote(f.trim()).to_string()).unwrap_or_default();
     let gaiyuan_prev_era_year = parse_opt_u32(fields.next());
     let gaiyuan_month = parse_opt_u32(fields.next()).and_then(|v| u8::try_from(v).ok());
-    // 余下 source, note 两列本次不需要在结构体里保留，读取但忽略。
+    // source、note、gaiyuan_earlier_eras 不进结构体，跳过；末列为君主本名。
+    let emperor_name = fields.nth(3).map(|f| unquote(f.trim()).to_string()).unwrap_or_default();
     Some((
         lunar_year,
         EraEntry {
@@ -232,6 +246,7 @@ fn parse_era_row(line: &str) -> Option<(i32, EraEntry)> {
             has_gaiyuan,
             regime_simp: regime,
             emperor_simp: emperor,
+            emperor_name,
             era_name_simp: era_name,
             era_year,
             gaiyuan_prev_era_name_simp: gaiyuan_prev_name,
@@ -467,5 +482,16 @@ mod tests {
             .filter(|&y| days.events_in_year(y).is_empty())
             .collect();
         assert!(missing.is_empty(), "改元日表缺这些改元年的骨架行，需重跑 sync_era_gaiyuan_day.py：{missing:?}");
+    }
+
+    #[test]
+    fn emperor_display_joins_title_and_personal_name() {
+        let names = EraNames::from_csv(include_str!("../../../../data/calendar/汇总/era_names_merged.csv")).unwrap();
+        let name = |y, r: &str| names.get_all(y).iter().find(|e| e.regime_simp == r).unwrap().emperor_display();
+        assert_eq!(name(713, "唐"), "玄宗 李隆基");
+        assert_eq!(name(-300, "周"), "赧王 姬延");
+        assert_eq!(name(1800, "清"), "仁宗 爱新觉罗·颙琰");
+        assert_eq!(name(1910, "清"), "爱新觉罗·溥仪");
+        assert_eq!(name(2026, "中华人民共和国"), "习近平");
     }
 }
