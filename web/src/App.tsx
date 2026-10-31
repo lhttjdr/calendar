@@ -18,6 +18,7 @@ import {
   GANZHI_PRESET_OPTIONS,
   GANZHI_PRESET_NAMES,
   getPresetIndexFromOptions,
+  getLunarYearsForDisplay,
   GANZHI_YEAR_BOUNDARY_OPTIONS,
   GANZHI_MONTH_BOUNDARY_OPTIONS,
   GANZHI_LEAP_MONTH_OPTIONS,
@@ -29,6 +30,7 @@ import {
   type GanzhiOptionsTuple,
   type RealBackendVariant,
 } from './useLunarWasm'
+import { civilMonthDays, civilToJd, civilToProleptic, clampCivilDay, isFullyGregorianMonth, isGregorianCivil, localDate } from './civilTime'
 import { EPHEMERIS_SOURCE_LABELS, EPHEMERIS_FORMAT_LABELS, type EphemerisDataSource } from './ephemerisSourceRegistry'
 import { EARTH_PATCH_TARGET } from './ephemerisUrls'
 
@@ -262,15 +264,36 @@ function getWeekday(y: number, m: number, d: number): number {
   return (jd + 1) % 7
 }
 
+/** 民用历一个月可能跨前推格里历的两个月，两边的岁数据都要。 */
+async function getYearDataForCivilMonth(
+  year: number,
+  month: number,
+  backend: LunarBackend,
+  onSourceUsed: (source: EphemerisDataSource) => void,
+): Promise<YearData[]> {
+  const days = civilMonthDays(year, month)
+  const first = civilToProleptic(year, month, days[0]!)
+  const last = civilToProleptic(year, month, days[days.length - 1]!)
+  const lists = await Promise.all([
+    getYearDataForDisplay(first.year, first.month, backend, onSourceUsed),
+    getYearDataForDisplay(last.year, last.month, backend, onSourceUsed),
+  ])
+  return [...new Map(lists.flat().map((d) => [d.lunarYear, d])).values()]
+}
+
+/** 按该前推格里历月份的主次顺序排岁数据，主岁在前。 */
+function orderedYearData(list: YearData[], year: number, month: number): YearData[] {
+  return getLunarYearsForDisplay(year, month)
+    .map((ly) => list.find((d) => d.lunarYear === ly))
+    .filter((d): d is YearData => d != null)
+}
+
 function getDayOfYear(y: number, m: number, d: number): number {
-  const start = new Date(y, 0, 1).getTime()
-  const curr = new Date(y, m - 1, d).getTime()
-  return Math.floor((curr - start) / 86400000) + 1
+  return Math.round(civilToJd(y, m, d) - civilToJd(y, 1, 1)) + 1
 }
 
 function getWeekOfYear(y: number, m: number, d: number): number {
-  const jan1 = new Date(y, 0, 1)
-  const dow = jan1.getDay()
+  const dow = (Math.floor(civilToJd(y, 1, 1) + 0.5) + 1) % 7
   const mon1 = (dow === 0 ? -5 : 2 - dow)
   const doy = getDayOfYear(y, m, d)
   return Math.floor((doy - mon1) / 7) + 1
@@ -340,7 +363,8 @@ function App() {
 
   useEffect(() => {
     if (!wasm || yearDataList.length === 0) return
-    const g = getGanzhiForDay(wasm, selectedDate.year, selectedDate.month, selectedDate.day, yearDataList, ganzhiOptions)
+    const p = civilToProleptic(selectedDate.year, selectedDate.month, selectedDate.day)
+    const g = getGanzhiForDay(wasm, p.year, p.month, p.day, yearDataList, ganzhiOptions)
     if (g.yearName && g.monthName) return
     if (isVsop87Cached()) return
     ensureVsop87Cached().then(() => setVsop87Tick((n) => n + 1)).catch(() => {})
@@ -360,32 +384,23 @@ function App() {
   const dropdownValue = presetSelectValue >= 0 ? presetSelectValue : 4
 
   const weekdays = Array.from({ length: 7 }, (_, i) => WEEKDAY_NAMES[(weekStart + i) % 7])
-  const daysInMonth = (y: number, m: number) => {
-    const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0
-    if (m === 2) return leap ? 29 : 28
-    if ([4, 6, 9, 11].includes(m)) return 30
-    return 31
-  }
-  const firstDow = (y: number, m: number) => {
-    const a = Math.floor((14 - m) / 12)
-    const y2 = y + 4800 - a
-    const m2 = m + 12 * a - 3
-    const jd = 1 + Math.floor((153 * m2 + 2) / 5) + 365 * y2 + Math.floor(y2 / 4) - Math.floor(y2 / 100) + Math.floor(y2 / 400) - 32045
-    return (Math.floor(jd + 0.5) + 1) % 7
-  }
-  const days = daysInMonth(year, month)
-  const start = (firstDow(year, month) - weekStart + 7) % 7
-  const cells: (number | null)[] = []
-  let d = 1
-  for (let i = 0; i < 42; i++) {
-    if (i < start || d > days) cells.push(null)
-    else { cells.push(d); d++ }
-  }
+  // year、month、selectedDate 都是民用历（1582-10-15 前为儒略历）；调 wasm 前换成前推格里历
+  const monthDays = civilMonthDays(year, month)
+  const days = monthDays[monthDays.length - 1]!
+  const start = ((Math.floor(civilToJd(year, month, 1) + 0.5) + 1) % 7 - weekStart + 7) % 7
+  const cells: (number | null)[] = Array.from({ length: 42 }, (_, i) => monthDays[i - start] ?? null)
 
   // 整月农历一次 wasm 调用，返回结构化数据，由显示层格式化
   const lunarByDay = useMemo(() => {
     const out: (string | null)[] = []
     if (!wasm || yearDataList.length === 0) return out
+    if (!isFullyGregorianMonth(year, month)) {
+      for (const day of monthDays) {
+        const p = civilToProleptic(year, month, day)
+        out[day] = formatLunarWithFallback(wasm, p.year, p.month, p.day, orderedYearData(yearDataList, p.year, p.month), p.year, p.month) ?? null
+      }
+      return out
+    }
     const primary = yearDataList[0]
     if (!primary || !wasm.gregorian_month_to_lunar) {
       for (let day = 1; day <= days; day++) {
@@ -423,6 +438,14 @@ function App() {
   // 整月干支历：优先批量 WASM 一次调用（ganzhiForGregorianMonthWasm），否则逐日兜底
   const ganzhiByDay = useMemo((): Record<number, GanzhiResult | null> => {
     if (!wasm || yearDataList.length === 0) return {}
+    if (!isFullyGregorianMonth(year, month)) {
+      const out: Record<number, GanzhiResult | null> = {}
+      for (const day of civilMonthDays(year, month)) {
+        const p = civilToProleptic(year, month, day)
+        out[day] = getGanzhiForDay(wasm, p.year, p.month, p.day, orderedYearData(yearDataList, p.year, p.month), ganzhiOptions)
+      }
+      return out
+    }
     return getGanzhiForMonth(wasm, year, month, yearDataList, ganzhiOptions)
   }, [wasm, year, month, yearDataList, ganzhiOptions])
 
@@ -437,7 +460,7 @@ function App() {
         setWasm(w)
         setLoading('数据')
         return Promise.all([
-          getYearDataForDisplay(year, month, w, setEphemerisSource),
+          getYearDataForCivilMonth(year, month, w, setEphemerisSource),
           ensureVsop87Cached().catch(() => {}),
         ]).then((res): YearData[] => res[0] ?? [])
       })
@@ -457,8 +480,9 @@ function App() {
 
   // 当左侧显示日期与日历视图不同月时，单独拉取显示日期所在月的岁数据，否则农历年月日会因无对应气朔而显示为 —
   useEffect(() => {
-    const displayY = (isLiveMode ? nowForLunar : new Date(selectedDate.year, selectedDate.month - 1, selectedDate.day)).getFullYear()
-    const displayM = (isLiveMode ? nowForLunar : new Date(selectedDate.year, selectedDate.month - 1, selectedDate.day)).getMonth() + 1
+    const selected = civilToProleptic(selectedDate.year, selectedDate.month, selectedDate.day)
+    const displayY = isLiveMode ? nowForLunar.getFullYear() : selected.year
+    const displayM = isLiveMode ? nowForLunar.getMonth() + 1 : selected.month
     if (displayY === year && displayM === month) {
       setDisplayDateYearDataList([])
       return
@@ -492,7 +516,7 @@ function App() {
     setSelectedDate((prev) => ({
       year: y,
       month: prev.month,
-      day: Math.min(prev.day, daysInMonth(y, prev.month)),
+      day: clampCivilDay(y, prev.month, prev.day),
     }))
     setIsLiveMode(false)
   }
@@ -503,7 +527,7 @@ function App() {
     setSelectedDate((prev) => ({
       year: newYear,
       month: newMonth,
-      day: Math.min(prev.day, daysInMonth(newYear, newMonth)),
+      day: clampCivilDay(newYear, newMonth, prev.day),
     }))
     setIsLiveMode(false)
   }
@@ -514,7 +538,7 @@ function App() {
     setSelectedDate((prev) => ({
       year: newYear,
       month: newMonth,
-      day: Math.min(prev.day, daysInMonth(newYear, newMonth)),
+      day: clampCivilDay(newYear, newMonth, prev.day),
     }))
     setIsLiveMode(false)
   }
@@ -528,7 +552,12 @@ function App() {
   }
 
   const sel = selectedDate
-  const displayDate = isLiveMode ? nowForLunar : new Date(sel.year, sel.month - 1, sel.day, selectedTime.hour, selectedTime.minute, selectedTime.second)
+  const selProleptic = civilToProleptic(sel.year, sel.month, sel.day)
+  const displayDate = isLiveMode ? nowForLunar : localDate(selProleptic.year, selProleptic.month, selProleptic.day, selectedTime.hour, selectedTime.minute, selectedTime.second)
+  // 显示用民用历；实时模式必在 1582 年之后，两者相同
+  const civilY = isLiveMode ? nowForLunar.getFullYear() : sel.year
+  const civilM = isLiveMode ? nowForLunar.getMonth() + 1 : sel.month
+  const civilD = isLiveMode ? nowForLunar.getDate() : sel.day
   const displayY = displayDate.getFullYear()
   const displayM = displayDate.getMonth() + 1
   const displayD = displayDate.getDate()
@@ -537,8 +566,8 @@ function App() {
   const displaySecond = displayDate.getSeconds()
   const isSelectedToday = displayY === today.year && displayM === today.month && displayD === today.day
   const weekdayIndex = getWeekday(displayY, displayM, displayD)
-  const dayOfYear = getDayOfYear(displayY, displayM, displayD)
-  const weekOfYear = getWeekOfYear(displayY, displayM, displayD)
+  const dayOfYear = getDayOfYear(civilY, civilM, civilD)
+  const weekOfYear = getWeekOfYear(civilY, civilM, civilD)
 
   /** 左侧面板用：显示日期与日历同月时用当前月岁数据，否则用单独拉取的 displayDateYearDataList */
   const panelYearDataList =
@@ -679,12 +708,12 @@ function App() {
             <Card size="small" style={{ width: '100%', overflow: 'visible' }} styles={{ body: { padding: 0, overflow: 'visible' } }}>
               {/* 顶部：只保留公历年月 */}
               <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(0,0,0,0.06)', textAlign: 'center' }}>
-                <Text type="secondary" style={{ fontSize: 11 }}>{year}年{month}月</Text>
+                <Text type="secondary" style={{ fontSize: 11 }}>{year > 0 ? year : `公元前${1 - year}`}年{month}月</Text>
               </div>
               {/* 日（大号） */}
               <div style={{ padding: '16px 12px 8px', textAlign: 'center' }}>
                 <div style={{ fontSize: 48, fontWeight: 700, lineHeight: 1, color: 'rgba(0,0,0,0.88)', fontVariantNumeric: 'tabular-nums' }}>
-                  {sel.day}
+                  {civilD}
                 </div>
                 <Text type="secondary" style={{ fontSize: 12, marginTop: 4 }}>{timeZone}</Text>
               </div>
@@ -697,9 +726,9 @@ function App() {
                   const timeOf = selectedLunarSlot != null && wasm?.format_time_for_lunar_year != null
                     ? (h: number, m: number, s: number) => wasm.format_time_for_lunar_year!(selectedLunarSlot.lunarYear, h, m, s)
                     : clock
-                  const beforeReform = displayY < 1582 || (displayY === 1582 && (displayM < 10 || (displayM === 10 && displayD < 15)))
-                  const gregorianName = beforeReform ? '前推格里高利历' : '格里高利历'
-                  const gregorianMonthDay = `${displayM}月${displayD}日`
+                  // 儒略历行用于公元前 45 年（天文纪年 -44）起，再往前是前推，历法本身尚不存在
+                  const westernName = isGregorianCivil(civilY, civilM, civilD) ? '格里高利历' : civilY >= -44 ? '儒略历' : '前推儒略历'
+                  const gregorianMonthDay = `${civilM}月${civilD}日`
                   const yearName = (y: number) => (y > 0 ? `${yearToChinese(y)}年` : `西元前${yearToChinese(1 - y)}年`)
 
                   type Era = { regime: string; emperor: string; era_name: string; era_year: string; era: string; is_primary?: boolean }
@@ -708,7 +737,7 @@ function App() {
                   const lines: React.ReactNode[] = []
                   lines.push(
                     <div key="gregorian" style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
-                      {gregorianName} 西元 {displayY > 0 ? `${displayY}年` : `前${1 - displayY}年`}{gregorianMonthDay}<LineTime format={clock} {...timeProps} />
+                      {westernName} 西元 {civilY > 0 ? `${civilY}年` : `前${1 - civilY}年`}{gregorianMonthDay}<LineTime format={clock} {...timeProps} />
                     </div>,
                   )
 
@@ -973,10 +1002,7 @@ function App() {
                               setSelectedDate((prev) => ({ ...prev, day: d }))
                               setIsLiveMode(false)
                             }}
-                            options={Array.from({ length: daysInMonth(year, month) }, (_, i) => ({
-                              label: `${i + 1}日`,
-                              value: i + 1,
-                            }))}
+                            options={monthDays.map((d) => ({ label: `${d}日`, value: d }))}
                             style={{ width: '100%', marginTop: 4 }}
                           />
                         </div>

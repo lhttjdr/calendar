@@ -55,3 +55,49 @@ export function fmtTime(jd: number, withSeconds = false): string {
   const c = jdToCivil(jd)
   return withSeconds ? `${pad(c.h)}:${pad(c.mi)}:${pad(c.s)}` : `${pad(c.h)}:${pad(c.mi)}`
 }
+
+/** 民用历日期是否已是格里历（1582-10-15 起）。 */
+export function isGregorianCivil(y: number, m: number, d: number): boolean {
+  return y > 1582 || (y === 1582 && (m > 10 || (m === 10 && d >= 15)))
+}
+
+/** 该月是否全部用格里历。此时民用历与计算用的前推格里历逐日相同，无须换算。 */
+export function isFullyGregorianMonth(y: number, m: number): boolean {
+  return y > 1582 || (y === 1582 && m > 10)
+}
+
+/** 民用历某月实有的日子。1582 年 10 月没有 5—14 日。 */
+export function civilMonthDays(y: number, m: number): number[] {
+  const gregorian = isFullyGregorianMonth(y, m)
+  const leap = gregorian ? (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0 : y % 4 === 0
+  const last = m === 2 ? (leap ? 29 : 28) : [4, 6, 9, 11].includes(m) ? 30 : 31
+  const all = Array.from({ length: last }, (_, i) => i + 1)
+  return y === 1582 && m === 10 ? all.filter((d) => d < 5 || d > 14) : all
+}
+
+/** 换月换年后把日子落到该月实有的日子上。 */
+export function clampCivilDay(y: number, m: number, d: number): number {
+  const days = civilMonthDays(y, m)
+  return days.find((x) => x >= d) ?? days[days.length - 1]!
+}
+
+/** 民用历日期 → 前推格里历日期。内部计算（wasm 的 gregorian_* 接口）都用后者。 */
+export function civilToProleptic(y: number, m: number, d: number): { year: number; month: number; day: number } {
+  const z = Math.floor(civilToJd(y, m, d) + 0.5)
+  const alpha = Math.floor((z - 1867216.25) / 36524.25)
+  const a = z + 1 + alpha - Math.floor(alpha / 4)
+  const b = a + 1524
+  const c = Math.floor((b - 122.1) / 365.25)
+  const dd = Math.floor(365.25 * c)
+  const e = Math.floor((b - dd) / 30.6001)
+  const day = b - dd - Math.floor(30.6001 * e)
+  const month = e < 14 ? e - 1 : e - 13
+  return { year: month > 2 ? c - 4716 : c - 4715, month, day }
+}
+
+/** 本地时间的 Date。不用 new Date(y, ...)，它会把 0—99 年当成 19xx 年。 */
+export function localDate(y: number, m: number, d: number, h = 0, mi = 0, s = 0): Date {
+  const t = new Date(2000, 0, 1, h, mi, s)
+  t.setFullYear(y, m - 1, d)
+  return t
+}
