@@ -69,11 +69,7 @@ scripts/sky_culture/_cache/
 # 点校本二十四史（本地参考，体积大，不入库；需要的页单独摘录）
 /doc/references/history/点校本二十四史精装版*/
 
-# 下载来源未定，是否入库待用户确认；所据书页另存摘页
-/doc/references/calendar/[[]阮元辑[]]大宋宝祐四年会天历*.pdf
-/doc/references/calendar/[[]瞿昙悉达[]]开元占经_*.pdf
 /doc/references/history/俄藏敦煌黑水城文献/
-/doc/references/calendar/[[]王素1997[]]吐鲁番出土高昌文献编年.pdf
 # 放在仓库根的书先不入库（曾因 git add -A 误提交）
 /*.pdf
 /*.djvu
