@@ -116,6 +116,8 @@ export interface LunarBackend {
   get_repo_aux_earth_patch?(): boolean
   /** ΔT 秒数（TT − UT），用于将岁数据中的 JD(TT) 转为 JD(UT) 以显示合朔/交节时刻。可选。 */
   delta_t_seconds?(jd_tt: number): number
+  /** 主线该农历年行用之历的名称（麟德历、时宪历……）。 */
+  get_calendar_name?(lunar_year: number): string
   /** 按农历年查主表年号（中原正朔），simp=true 简体。 */
   get_era_name?(lunar_year: number, simp: boolean): string
   /** 按农历年查主表年号拆分：JSON { regime, emperor, era_name, era_year, era }（汉/武帝/元封/五年），用于统一格式展示。 */

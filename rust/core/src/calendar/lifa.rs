@@ -191,6 +191,50 @@ fn split_csv_line(line: &str) -> impl Iterator<Item = &str> {
     v.into_iter()
 }
 
+/// 主线某农历年行用之历的名称表（`data/calendar/汇总/main_calendar_periods.csv`）。
+/// 只回答「当时行用何历」，职责是选名，日期仍由主表或现算给出。
+#[derive(Debug, Clone, Default)]
+pub struct MainCalendarPeriods {
+    rows: Vec<(i32, Option<i32>, String)>,
+}
+
+/// 主表起点之前没有行用历资料，日期是现代定气定朔算的，显示时须如实说明。
+pub const CALENDAR_NAME_COMPUTED: &str = "定气定朔（现代推算）";
+
+impl MainCalendarPeriods {
+    pub fn from_csv(csv: &str) -> Result<Self, String> {
+        let mut rows = Vec::new();
+        for (i, line) in csv.lines().enumerate() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') || line.starts_with("from_year") {
+                continue;
+            }
+            let mut f = line.splitn(4, ',');
+            let from = f.next().and_then(|s| s.parse::<i32>().ok());
+            let to = f.next().map(str::trim);
+            let name = f.next().map(str::trim).filter(|s| !s.is_empty());
+            let (Some(from), Some(to), Some(name)) = (from, to, name) else {
+                return Err(format!("main_calendar_periods line {}: invalid row", i + 1));
+            };
+            let to = if to.is_empty() {
+                None
+            } else {
+                Some(to.parse::<i32>().map_err(|_| format!("main_calendar_periods line {}: bad to_year", i + 1))?)
+            };
+            rows.push((from, to, name.to_string()));
+        }
+        Ok(Self { rows })
+    }
+
+    /// 该农历年的历名；主表起点之前返回 [CALENDAR_NAME_COMPUTED]。
+    pub fn name_for_lunar_year(&self, lunar_year: i32) -> &str {
+        self.rows
+            .iter()
+            .find(|(from, to, _)| *from <= lunar_year && to.is_none_or(|t| lunar_year <= t))
+            .map_or(CALENDAR_NAME_COMPUTED, |(_, _, n)| n.as_str())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -215,5 +259,17 @@ zhongyuan_shili,主表（据历还原）,-105,2200,各朝,据历还原推步,儒
         let active = reg.active_at_ce_year(1281);
         assert!(active.iter().any(|e| e.id == "shoushi"));
         assert!(active.iter().any(|e| e.id == "zhongyuan_shili"));
+    }
+
+    #[test]
+    fn main_calendar_periods_are_contiguous_and_named() {
+        let p = MainCalendarPeriods::from_csv(include_str!("../../../../data/calendar/汇总/main_calendar_periods.csv")).unwrap();
+        for w in p.rows.windows(2) {
+            assert_eq!(w[0].1.map(|t| t + 1), Some(w[1].0), "年段须首尾相接：{:?}", w[0]);
+        }
+        for (y, n) in [(700, "麟德历"), (1066, "明天历"), (1130, "历术失载"), (1800, "时宪历"), (2026, "农历（GB/T 33661—2017）")] {
+            assert_eq!(p.name_for_lunar_year(y), n);
+        }
+        assert_eq!(p.name_for_lunar_year(-500), CALENDAR_NAME_COMPUTED);
     }
 }

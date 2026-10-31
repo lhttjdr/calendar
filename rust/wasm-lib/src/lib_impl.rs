@@ -266,6 +266,17 @@ static ERA_NAMES: Lazy<EraNames> = Lazy::new(|| {
     EraNames::from_csv(include_str!("../../../data/calendar/汇总/era_names_merged.csv")).unwrap_or_default()
 });
 
+/// 主线该农历年行用之历的名称（如「麟德历」），日历显示用，代替笼统的「农历」。
+#[wasm_bindgen(js_name = get_calendar_name)]
+pub fn get_calendar_name(lunar_year: i32) -> String {
+    use lunar_core::calendar::lifa::MainCalendarPeriods;
+    thread_local! {
+        static PERIODS: MainCalendarPeriods =
+            MainCalendarPeriods::from_csv(include_str!("../../../data/calendar/汇总/main_calendar_periods.csv")).unwrap_or_default();
+    }
+    PERIODS.with(|p| p.name_for_lunar_year(lunar_year).to_string())
+}
+
 /// 按农历年查"正统主线"年号（对应旧单一年号表的等价行为）。同一年若有并存政权，见 [get_era_name_parts_all]。
 #[wasm_bindgen(js_name = get_era_name)]
 pub fn get_era_name(lunar_year: i32, _simp: bool) -> String {

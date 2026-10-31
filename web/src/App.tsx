@@ -740,11 +740,11 @@ function App() {
               <div style={{ padding: '0 12px 12px', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
                 <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
                   {selectedLunarSlot != null ? (
-                    <>农历{yearToChinese(selectedLunarSlot.lunarYear)}年{selectedLunarSlot.isLeapMonth ? '闰' : ''}{LUNAR_MONTH_NAMES[selectedLunarSlot.lunarMonth - 1]}月{selectedLunarSlot.daysInMonth === 30 ? '大' : '小'} {lunarDayStr(selectedLunarSlot.dayOfMonth)}日</>
+                    <>{wasm?.get_calendar_name?.(selectedLunarSlot.lunarYear) ?? '农历'} {yearToChinese(selectedLunarSlot.lunarYear)}年{selectedLunarSlot.isLeapMonth ? '闰' : ''}{LUNAR_MONTH_NAMES[selectedLunarSlot.lunarMonth - 1]}月{selectedLunarSlot.daysInMonth === 30 ? '大' : '小'} {lunarDayStr(selectedLunarSlot.dayOfMonth)}日</>
                   ) : selectedLunar != null ? (
-                    <>农历 {selectedLunar}</>
+                    <>{selectedLunar}</>
                   ) : (
-                    <Text type="secondary">农历 —</Text>
+                    <Text type="secondary">历日 —</Text>
                   )}
                 </div>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>
