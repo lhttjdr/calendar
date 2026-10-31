@@ -169,7 +169,7 @@ def main():
         rs = rows(name)
         L += ["", f"### {title}", "", f"共 {len(rs)} 条：合主表 {sum(int(r['本纪合主表']) for r in rs)}，合进朔 {sum(int(r[jin_]) for r in rs)}，"
               f"合不进朔 {sum(int(r[bu]) for r in rs)}。逐条见 `data/calendar/{name}`。", ""]
-        L += table(["书", "年", "纪年", "月", "本纪朔", "主表朔", "定朔", "定朔小余（时）", "日食", "原文"],
+        L += table(["书", "年", "纪年", "月", "本纪朔", "主表朔", "术推朔", "小余（时）", "日食", "原文"],
                    [[BOOK.get(r["书"], r["书"]), r["年"], r["纪年"], r["月"], r["本纪朔"], r["主表朔"], r[col], r[hcol], r["日食"], r["原文"]]
                     for r in rs if r["本纪合主表"] == "0" or r[jin_] == "0"])
     (ROOT / "doc/calendar/main-table-checks.md").write_text("\n".join(L) + "\n", encoding="utf-8")
