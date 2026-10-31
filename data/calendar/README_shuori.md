@@ -172,6 +172,10 @@
 | gregorian_year, gregorian_month, gregorian_day | 朔日（民用历：1582 年前儒略历） |
 | lunar_year, lunar_month, is_leap | 该政权的岁、月（建寅）、闰否 |
 
+### 当时历本转录：`data/calendar/会天历_1256.csv`
+
+《宝祐四年会天历》（宛委别藏影印清钞本）各月一日、大小与气节日期加时；核验见 `scripts/calendar_data/check_huitian_1256.py`。
+
 ### 月序改制：`data/calendar/month_label_reforms.csv`
 
 由 `scripts/calendar_data/build_month_label_reforms.py` 按史志规则从实历朔日表生成；只列当时月名与建寅月名不同的月份。

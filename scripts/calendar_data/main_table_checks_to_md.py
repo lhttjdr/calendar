@@ -183,6 +183,13 @@ def main():
         L += table(["书", "年", "纪年", "月", "本纪朔", "主表朔", "术推朔", "小余（时）", "日食", "原文"],
                    [[BOOK.get(r["书"], r["书"]), r["年"], r["纪年"], r["月"], r["本纪朔"], r["主表朔"], r[col], r[hcol], r["日食"], r["原文"]]
                     for r in rs if r["本纪合主表"] == "0" or r[jin_] == "0"])
+    # 七、宝祐四年会天历（check_huitian_1256.py）
+    ht = rows("huitian_1256_check.csv")
+    if ht:
+        L += ["", "## 七、《宝祐四年会天历》（1256）", "",
+              "第 1 级资料（当时历日的清钞本，转录 `data/calendar/会天历_1256.csv`）。会天历术不传，开禧为上一部历，上推只作对照。", ""]
+        L += table(["月", "会天历一日", "主表", "开禧定朔（上推）", "小余（时）", "进朔限（时）", "开禧进朔"],
+                   [[r["月"], r["会天历一日"], r["主表"], r["开禧定朔（上推）"], r["小余（时）"], r["进朔限（时）"], r["开禧进朔"]] for r in ht])
     (ROOT / "doc/calendar/main-table-checks.md").write_text("\n".join(L) + "\n", encoding="utf-8")
     print("doc/calendar/main-table-checks.md", len(L), "行")
 
