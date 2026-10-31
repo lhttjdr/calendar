@@ -14,13 +14,13 @@ def align_offset(day_index, approx_jdn):
                key=lambda j: abs(j - approx_jdn)) - day_index
 
 
-def compare(name, f, off, moons, y0, y1, csv_name, note, limit=lambda t: 18.0, books=None):
-    """moons：定朔分（升序）；f：日法；limit(t)：定朔 t 的进朔限（时）；books：只比这些书的本纪（缺省全部）。name 如「大衍」，列名「大衍定朔」「大衍进朔」。"""
+def compare(name, f, off, moons, y0, y1, csv_name, note, limit=lambda t: 18.0, books=None, skip=()):
+    """moons：定朔分（升序）；f：日法；limit(t)：定朔 t 的进朔限（时）；books：只比这些书的本纪（缺省全部）；skip：区间内不比的年（他历行用之年）。name 如「大衍」，列名「大衍定朔」「大衍进朔」。"""
     by = {v: k for k, v in d.tables()["主表"].items()}
     same, n, late, early = 0, 0, [], []
     for t in moons:
         j = int(t // f) + off
-        near_ = [k for k in range(j - 2, j + 3) if k in by and y0 <= by[k][0] <= y1]
+        near_ = [k for k in range(j - 2, j + 3) if k in by and y0 <= by[k][0] <= y1 and by[k][0] not in skip]
         if not near_:
             continue
         k = min(near_, key=lambda x: abs(x - j))
@@ -39,7 +39,7 @@ def compare(name, f, off, moons, y0, y1, csv_name, note, limit=lambda t: 18.0, b
     out = []
     for r in rows:
         y = int(r["年"])
-        if not y0 <= y <= y1 or not r["主表朔 JDN"] or r["类"] in ("其他", "差一月") or (books and r["书"] not in books):
+        if not y0 <= y <= y1 or y in skip or not r["主表朔 JDN"] or r["类"] in ("其他", "差一月") or (books and r["书"] not in books):
             continue
         rec, mt = int(r["本纪朔 JDN"]), int(r["主表朔 JDN"])
         k, h, lim = nearest(mt)

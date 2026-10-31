@@ -274,21 +274,23 @@ KAIXI = Li("开禧", T84, T84, 16900, 6172608, 499067, Fr(465672 * 10000 + 5396,
 CHENGTIAN = Li("成天", T84, T84, 7420, 2710101, 219117, Fr(204455 * 10000 + 1641, 10000), 71758147, 1271, 0, v=2)
 
 
-def run(li, y0, y1, approx):
+def run(li, y0, y1, approx, skip=()):
     dz = li.tong(li.y_ji) // li.f
     li.off = c.align_offset(dz + li.day0, g.jdn(*approx)) + li.day0
     print(f"--- {li.name}历：月离闭合 {li.closure}；{li.y_ji} 年天正冬至", g.ganzhi_of_jdn(dz + li.off), g.from_jdn(dz + li.off))
     c.compare(li.name, li.f, li.off, li.moons(y0 - 2, y1 + 3), y0, y1, f"song_{li.name}_check.csv",
               f"{y0}—{y1} 年《宋史》本纪明书朔日与{li.name}历定朔（scripts/calendar_data/song_dingshuo.py）、主表比较；进朔限术文，夏半年日出分为假定。",
-              limit=li.limit, books={"songshi_benji"})
+              limit=li.limit, books={"songshi_benji"}, skip=set(skip))
 
 
 if __name__ == "__main__":
-    run(CHONGTIAN, 1024, 1064, (1023, 12, 18))
-    run(JIYUAN, 1106, 1135, (1105, 12, 16))
-    run(MINGTIAN, 1065, 1074, (1063, 12, 16))
+    # 行用年据张培瑜等《中国古代历法》页 606—608 所引宋志：崇天 1024—1064、1068—1074；明天 1065—1067；
+    # 纪元 1106—1127、1133—1135、1151—1166；统元 1136—1150、1167。统元、纪元在 1151—1166 年本纪不能区分（皆 47/47）
+    run(CHONGTIAN, 1024, 1074, (1023, 12, 18), skip=range(1065, 1068))
+    run(JIYUAN, 1106, 1166, (1105, 12, 16), skip=list(range(1128, 1133)) + list(range(1136, 1151)))
+    run(MINGTIAN, 1065, 1067, (1063, 12, 16))
     run(GUANTIAN, 1094, 1102, (1091, 12, 16))
-    run(TONGYUAN, 1136, 1167, (1134, 12, 15))
+    run(TONGYUAN, 1136, 1167, (1134, 12, 15), skip=range(1151, 1167))
     run(QIANDAO, 1168, 1176, (1166, 12, 15))
     run(CHUNXI, 1177, 1190, (1175, 12, 15))
     run(HUIYUAN, 1191, 1198, (1190, 12, 15))
