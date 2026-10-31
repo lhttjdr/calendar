@@ -77,8 +77,8 @@ impl SunMoonSource for EclipseEphemeris<'_> {
 /// 一次日月食时间窗内的日月位置切比雪夫插值。
 ///
 /// 日月食搜索要在几天的窗口里做上百次求值；逐次走完整视位置管线（ELPMPP02 全级数 + 光行时迭代）很慢。按日食典的通行做法，
-/// 在窗口内取 n 个切比雪夫节点精确计算，之后的搜索在插值上进行。地心日月运动平滑，窗口 ±2 日、32 节点时插值误差远小于 1 m
-/// （见测试 `interpolation_matches_direct`）。
+/// 在窗口内取 n 个切比雪夫节点精确计算，之后的搜索在插值上进行。地心日月运动平滑，窗口 ±2 日时 8 节点月亮误差约 2 m，
+/// 10 节点起已不再随节点数下降（f64 下只剩时刻舍入：月亮约 5 cm、太阳数米），故取 12 节点（见测试 `interpolation_matches_direct`）。
 pub struct InterpolatedSunMoon {
     center: Real,
     half_width: Real,
@@ -133,9 +133,9 @@ impl SunMoonSource for InterpolatedSunMoon {
     }
 }
 
-/// 日月食搜索窗：猜测时刻 ±2 日，32 个切比雪夫节点。
+/// 日月食搜索窗：猜测时刻 ±2 日，12 个切比雪夫节点。
 pub fn eclipse_window(eph: &EclipseEphemeris, jd_tt_guess: Real) -> InterpolatedSunMoon {
-    InterpolatedSunMoon::new(eph, jd_tt_guess, real_const(2.0), 32)
+    InterpolatedSunMoon::new(eph, jd_tt_guess, real_const(2.0), 12)
 }
 
 pub(crate) fn dot(a: V3, b: V3) -> Real {

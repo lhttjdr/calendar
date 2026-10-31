@@ -543,20 +543,24 @@ fn zeta_and_magnitude(row: &FrameRow, g: V3) -> (Real, Real) {
 
 /// 某地可见极大食分：(食分, 时刻, 是否在地平处取得)。全程太阳在地平下返回 None。
 /// 时刻表内取最大，内部极大用三点抛物线细化；极大在可见时段端点（日出、日没）时按相邻两刻线性插值到 ζ = 0。
+/// 这里是全图最热的循环（网格每点、二分每步都走一遍时刻表），故地平下的时刻不算食分，也不存中间结果。
 fn visible_max_magnitude(rows: &[FrameRow], g: V3) -> Option<(Real, Real, bool)> {
-    let zm: Vec<(Real, Real)> = rows.iter().map(|r| zeta_and_magnitude(r, g)).collect();
-    let vis = |k: usize| zm[k].0 > real_const(0.0);
-    let mut best: Option<usize> = None;
-    for k in 0..zm.len() {
-        if vis(k) && best.is_none_or(|b| zm[k].1 > zm[b].1) {
-            best = Some(k);
+    let zeta_of = |r: &FrameRow| dot(r.r[2], g);
+    let vis = |k: usize| zeta_of(&rows[k]) > real_const(0.0);
+    let mut best: Option<(usize, Real)> = None;
+    for (k, row) in rows.iter().enumerate() {
+        if zeta_of(row) > real_const(0.0) {
+            let m = zeta_and_magnitude(row, g).1;
+            if best.is_none_or(|(_, b)| m > b) {
+                best = Some((k, m));
+            }
         }
     }
-    let k = best?;
-    let n = zm.len();
+    let (k, b) = best?;
+    let n = rows.len();
     let inner = k > 0 && k + 1 < n && vis(k - 1) && vis(k + 1);
     if inner {
-        let (a, b, c) = (zm[k - 1].1, zm[k].1, zm[k + 1].1);
+        let (a, c) = (zeta_and_magnitude(&rows[k - 1], g).1, zeta_and_magnitude(&rows[k + 1], g).1);
         let den = a - real_const(2.0) * b + c;
         let u = if den < real_const(0.0) { (a - c) / (real_const(2.0) * den) } else { real_const(0.0) };
         let mag = b - (a - c) * u / real_const(4.0);
@@ -569,13 +573,13 @@ fn visible_max_magnitude(rows: &[FrameRow], g: V3) -> Option<(Real, Real, bool)>
     } else if k > 0 && !vis(k - 1) {
         k - 1
     } else {
-        return Some((zm[k].1, rows[k].t, false)); // 时刻表边界（不应发生：表覆盖 P1–P4 以外）
+        return Some((b, rows[k].t, false)); // 时刻表边界（不应发生：表覆盖 P1–P4 以外）
     };
-    let (z0, z1) = (zm[k].0, zm[j].0);
-    let s = z0 / (z0 - z1);
-    let mag = zm[k].1 + (zm[j].1 - zm[k].1) * s;
+    let (z0, mj) = (zeta_of(&rows[k]), zeta_and_magnitude(&rows[j], g));
+    let s = z0 / (z0 - mj.0);
+    let mag = b + (mj.1 - b) * s;
     // 地平处的值若反而小于时刻表内最大值（插值误差），取表内值
-    let mag = if mag > zm[k].1 { mag } else { zm[k].1 };
+    let mag = if mag > b { mag } else { b };
     Some((mag, rows[k].t + (rows[j].t - rows[k].t) * s, true))
 }
 
@@ -631,7 +635,8 @@ impl<'a> MagnitudeGrid<'a> {
             let (lo, la_) = (lo_a + (lo_b - lo_a) * s, la + (lb - la) * s);
             self.exact(lo, la_).map(|v| v.0).unwrap_or(real_const(NEVER_VISIBLE)) - level
         };
-        let s = bisect_root(f, real_const(0.0), real_const(1.0), real_const(1e-7)).unwrap_or(real_const(0.5));
+        // 容差以网格边长计：1e-4 × 1° 约 11 m，远小于 ΔT 不确定度造成的平移
+        let s = bisect_root(f, real_const(0.0), real_const(1.0), real_const(1e-4)).unwrap_or(real_const(0.5));
         let (lo, la_) = (lo_a + (lo_b - lo_a) * s, la + (lb - la) * s);
         let (t, horizon) = self.exact(lo, la_).map(|v| (v.1, v.2)).unwrap_or((real_const(0.0), true));
         (lo, la_, t, horizon)
@@ -841,14 +846,24 @@ pub fn solar_eclipse_map(
     let step = options.step.seconds() / real_const(86400.0);
     let h = seconds(30.0);
     let n = options.theta_samples;
-    let limits = |t: Real, kind: Cone| {
+    // 南北两条本影界由同一次计算得出，记住上一刻的结果，免得每个时刻算两遍
+    let umbra_memo: std::cell::RefCell<Option<(Real, (Vec<V3>, Vec<V3>))>> = std::cell::RefCell::new(None);
+    let limits = |t: Real| {
+        let mut memo = umbra_memo.borrow_mut();
+        if let Some((mt, v)) = memo.as_ref() {
+            if *mt == t {
+                return v.clone();
+            }
+        }
         let (fm, f, fp) = (frame(t - h), frame(t), frame(t + h));
-        limit_points(&fm, &f, &fp, kind, n)
+        let v = limit_points(&fm, &f, &fp, Cone::Umbra, n);
+        *memo = Some((t, v.clone()));
+        v
     };
     let probes: [Box<dyn Fn(Real) -> Vec<V3> + '_>; 4] = [
         Box::new(|t| axis_ground_point(&frame(t)).into_iter().collect()),
-        Box::new(|t| limits(t, Cone::Umbra).0),
-        Box::new(|t| limits(t, Cone::Umbra).1),
+        Box::new(|t| limits(t).0),
+        Box::new(|t| limits(t).1),
         Box::new(|t| rise_set_points(&frame(t), 2 * n)),
     ];
     let mut sweeps: Vec<Sweep> = [0.2, 0.2, 0.2, 0.3].iter().map(|&c| Sweep::new(c)).collect();

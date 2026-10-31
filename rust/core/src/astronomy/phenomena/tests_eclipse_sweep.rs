@@ -5,7 +5,7 @@
 
 use super::tests_nasa::{catalog_rows, jd, load, month};
 use super::*;
-use crate::math::real::{real, RealOps};
+use crate::math::real::{real, Real, RealOps};
 use crate::quantity::duration::Duration;
 
 /// 目录对列表：(目录行数, 漏, 多)。匹配容差 1 日（古代两套月历表差数十秒，同一次食不会差到 1 日）。
@@ -42,12 +42,12 @@ fn split(a: f64, b: f64) -> Vec<(f64, f64)> {
 fn eclipse_lists_match_nasa_catalog() {
     let (vsop, elp) = load().expect("历表");
     let eph = EclipseEphemeris::new(&vsop, &elp);
-    for file in ["SE-0199--0100.html", "SE2001-2100.html"] {
+    for file in ["SE-0299--0200.html", "SE-0199--0100.html", "SE-0099-0000.html", "SE0001-0100.html", "SE0101-0200.html", "SE0201-0300.html", "SE2001-2100.html"] {
         let (cat, a, b) = catalog(file);
         let ours: Vec<f64> = crate::test_util::par_map(&split(a, b), |_, s| solar_eclipses_between(&eph, real(s.0), real(s.1)).iter().map(|e| e.greatest_tt.as_f64()).collect::<Vec<_>>()).concat();
         compare(file, &cat, &ours);
     }
-    for file in ["LE-0199--0100.html", "LE2001-2100.html"] {
+    for file in ["LE-0199--0100.html", "LE0001-0100.html", "LE0101-0200.html", "LE2001-2100.html"] {
         let (cat, a, b) = catalog(file);
         let ours: Vec<f64> = crate::test_util::par_map(&split(a, b), |_, s| lunar_eclipses_between(&eph, real(s.0), real(s.1)).iter().map(|e| e.greatest_tt.as_f64()).collect::<Vec<_>>()).concat();
         compare(file, &cat, &ours);
@@ -284,4 +284,39 @@ fn solar_map_content_sweep() {
         assert_eq!(n_bad, 0, "{file} 界线与站心算法不符");
         assert!(results.iter().all(|x| x.7 < 0.002), "{file} 等值线偏差过大");
     }
+}
+
+
+/// 初筛（平升交角距）不漏食：前 3000—3000 年逐个朔望，对 |sin F| 在 0.45—0.70 的（阈值两侧，更远的不可能有食）实际搜索，
+/// 阈值以外不得有食；同时报告有食者 |sin F| 的最大值，看余量。
+#[test]
+#[ignore]
+fn node_screen_never_drops_an_eclipse() {
+    use super::eclipse_list::{abs_sin_mean_f, NODE_LIMIT_SIN_F};
+    use crate::astronomy::aspects::approximate_new_moon_jd;
+    // 2000 年起算的朔望序号，约 ±3000 年
+    let chunks: Vec<i32> = (-62000..12400).step_by(200).collect();
+    let (vsop, elp) = load().expect("历表");
+    let eph = EclipseEphemeris::new(&vsop, &elp);
+    let scan = |offset: f64, hit: &(dyn Fn(Real) -> bool + Sync)| -> (usize, f64) {
+        let r = crate::test_util::par_map(&chunks, |_, &c| {
+            let (mut tried, mut worst) = (0usize, 0.0_f64);
+            for n in c..c + 200 {
+                let g = approximate_new_moon_jd(n).as_f64() + offset;
+                let s = abs_sin_mean_f(g);
+                if s > 0.45 && s <= 0.70 {
+                    tried += 1;
+                    if hit(real(g)) {
+                        worst = worst.max(s);
+                    }
+                }
+            }
+            (tried, worst)
+        });
+        (r.iter().map(|x| x.0).sum(), r.iter().map(|x| x.1).fold(0.0, f64::max))
+    };
+    let (ns, ws) = scan(0.0, &|g| solar_eclipse_global_in(&eclipse_window(&eph, g), g).is_some());
+    let (nl, wl) = scan(29.530588853 / 2.0, &|g| lunar_eclipse_in(&eclipse_window(&eph, g), g).is_some());
+    println!("日食：搜索 {ns} 个朔，有食者 |sin F| 最大 {ws:.4}；月食：搜索 {nl} 个望，最大 {wl:.4}；阈值 {NODE_LIMIT_SIN_F}");
+    assert!(ws <= NODE_LIMIT_SIN_F && wl <= NODE_LIMIT_SIN_F);
 }

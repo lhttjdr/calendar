@@ -167,7 +167,7 @@ Almanac* 第 3 版、JPL 历表、经同行评议的 ΔT 与星表）；许剑�
 
 | 内容 | 代码 | 验证 |
 |---|---|---|
-| 日月位置插值：一次日月食窗口（猜测时刻 ±2 日）取 32 个切比雪夫节点精确计算，搜索与求根在插值上进行 | `phenomena::solar_eclipse::{SunMoonSource, InterpolatedSunMoon}` | 插值与直接计算之差约 1e-5 m（前 200 年、2023 年各一窗） |
+| 日月位置插值：一次日月食窗口（猜测时刻 ±2 日）取 12 个切比雪夫节点精确计算，搜索与求根在插值上进行；按年列表时先以平升交角距 F 初筛（\|sin F\| ≤ 0.55；掠食实测可到 0.45 以上，Meeus 的 0.36 不够），离交点远的朔望不建窗 | `phenomena::solar_eclipse::{SunMoonSource, InterpolatedSunMoon}` | f64 构建下节点数 10 起误差不再下降，只剩时刻舍入（月亮约 5 cm、太阳数米）；初筛在前 3000—3000 年逐朔望检验（见 `node_screen_never_drops_an_eclipse`） |
 | 日食全球情况：贝塞尔根数 x、y、d、l1、l2、tan f1、tan f2，极大食、γ、食分、类型（偏/环/全/全环）[12][20] | `phenomena::solar_eclipse::{besselian, solar_eclipse_global}` | 对照 NASA 日食典，见下表 |
 | 日食某地情况：站心日月角距、初亏/食甚/复圆、食既/生光、带食出没、地平以上最大食分 | `phenomena::solar_eclipse::solar_eclipse_local` | 《汉书》西汉日食，见下 |
 | 月食：Danjon 地影 [18][21]，半影/本影食分、γ、P1–P4/U1–U4，月亮地平高度 | `phenomena::lunar_eclipse` | 对照 NASA 月食典，见下表 |
