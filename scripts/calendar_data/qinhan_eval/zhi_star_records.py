@@ -150,7 +150,8 @@ def extend_era_last_by_gaiyuan(starts):
                     ERA_LAST[st] = max(ERA_LAST.get(st, st), y)
 
 
-GZ = "[甲乙丙丁戊己庚辛壬癸][子丑寅卯辰巳午未申酉戌亥]"
+# 只取六十甲子：天干地支奇偶不配者（《清史稿》卷六「冬十月庚巳」）是史文讹字，不当作日期
+GZ = "(?:" + "|".join("甲乙丙丁戊己庚辛壬癸"[i % 10] + "子丑寅卯辰巳午未申酉戌亥"[i % 12] for i in range(60)) + ")"
 NUM = "(?:元|[二三四五六七八九]?十[一二三四五六七八九]?|[一二三四五六七八九])"  # 「元」只单用（「至元元年」不可读作「至」+「元元年」）
 MON = "正|臘|十二|十一|十|[一二三四五六七八九]|建[子丑寅卯辰巳午未申酉戌亥]"  # 臘、一：武周建子月名（正月=子月、臘月=丑月、一月=寅月）
 # 「以明年為正統元年」宣布次年改元，不作纪年；「自……」为追述；「康熙元年壬寅春正月」年后岁次干支（其后须接季、月）
@@ -321,6 +322,7 @@ BOOKS = {
     # 年号表无後金天命、天聰、崇德，入关前各条无法定年而舍弃；顺治元年在合并年号表记于「明」下
     "qingshigao_benji": dict(
         sections=[], eclipse_sections=[(f"清史稿/卷{j}", None, None) for j in range(1, 26)], carry_context=True,
+        date_sections=[(f"清史稿/卷{j}", None, None, "清") for j in range(4, 26)],   # 卷四顺治起；卷一至三入关前，年号表缺后金诸元
         years=(1640, 1912), start_year=1644, regimes=[(1644, "清")], era_regimes=["清", "明"], para_reset=False,
     ),
     # ——本纪纪日（只取带日干支的记事日期，供 discriminating_records.py 以一手日期检验各历表）——
