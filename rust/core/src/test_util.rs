@@ -65,7 +65,7 @@ pub fn de406_bsp_path_if_exists() -> Option<String> {
 #[cfg(feature = "real-f64")]
 pub const NUMERIC_BACKEND: &str = "f64（real-f64 构建）";
 #[cfg(not(feature = "real-f64"))]
-pub const NUMERIC_BACKEND: &str = "double-double（twofloat，库缺省构建）";
+pub const NUMERIC_BACKEND: &str = "double-double（twofloat 构建）";
 
 /// 逐条校验结果表：设置环境变量 `PHENOMENA_CHECKS=1` 时写入 `data/phenomena/checks/<name>.csv`（或 `PHENOMENA_CHECKS_DIR`），否则不写（平时跑测试不改仓库文件）。
 /// 由 `scripts/dev/phenomena_checks.sh` 统一重算，`scripts/phenomena/checks_to_md.py` 据此生成 doc/astronomy/phenomena-checks.md。

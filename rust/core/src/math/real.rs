@@ -71,7 +71,7 @@ pub trait Backend:
         Self: Sized;
 }
 
-// ============== TwoFloat backend (default) ==============
+// ============== TwoFloat backend（检验 f64 误差用） ==============
 
 #[cfg(not(feature = "real-f64"))]
 use num_traits::ToPrimitive;

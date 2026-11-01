@@ -48,7 +48,7 @@ cd rust && cargo test -p lunar-core
 scripts/dev/run_tests_with_venv.sh
 
 # 天象模块逐条校验：重算 data/phenomena/checks/*.csv 并生成 doc/astronomy/phenomena-checks.md
-# 缺省用 f64 构建（约 20 倍快，误差 ≤1e-5″，见 doc/engineering/project-and-implementation.md §11.2.2）；PHENOMENA_REAL=dd 用 double-double
+# 缺省用 f64 构建（误差依据见 doc/engineering/project-and-implementation.md §11.2.2）；PHENOMENA_REAL=dd 用 double-double
 scripts/dev/phenomena_checks.sh
 scripts/dev/phenomena_checks.sh compare   # 两种构建各跑一组校验并逐格比对，不改仓库文件
 
@@ -68,7 +68,7 @@ cd .. && ./scripts/dev/build_wasm.sh # 同时构建 wasm-lib 与 wasm-lib-f64
 
 ## Rust 代码约定
 
-- **标量类型统一用 `Real`**（`rust/core/src/math/real`），编译期在 twofloat（高精度）与 f64（wasm 体积/速度）间切换；**不要**在 core 业务逻辑里直接用裸 `f64`，只在以下边界允许：`math/real` 内部、与 `[f64;3]`/矩阵交互的写入处（`.as_f64()`）、wasm/FFI 导出层。
+- **标量类型统一用 `Real`**（`rust/core/src/math/real`），编译期在 f64（缺省）与 twofloat（double-double，只用来检验 f64 的误差：`--no-default-features --features twofloat`）间切换；**不要**在 core 业务逻辑里直接用裸 `f64`，只在以下边界允许：`math/real` 内部、与 `[f64;3]`/矩阵交互的写入处（`.as_f64()`）、wasm/FFI 导出层。
 - 有物理含义的量优先用物理量类型（`PlaneAngle`、`Length`、`Duration` 等）而非裸数值，历史遗留的裸 f64/元组正在逐步收紧（见 [doc/engineering/project-and-implementation.md](doc/engineering/project-and-implementation.md) §11.5、§11.6）。
 - 视位置计算走统一管线架构（`astronomy::pipeline`：State6/StateTransition6、EphemerisProvider、FrameMapper、LightTimeCorrector、TransformGraph），对外 API 仍是 `astronomy::apparent` 里的 `sun_position_icrs` 等函数，改动内部实现时不要破坏这层外部 API。
 - 历表/章动等数据统一经 `repo` 模块读写路径（`repo::paths`、`repo_root()`），Native 与 Wasm（宿主注入 loader）共用同一套 `*_from_repo()`，新增数据加载遵循这个模式。
