@@ -116,13 +116,13 @@ pub fn preset_xie_ji_bian_fang() -> GanzhiOptions {
 
 // ---------- 换日（仅依赖 JD） ----------
 
-/// 按选项的日界计算干支日序。Hour0 = floor(JD+0.5)；Hour23 = 日提前 1 小时起算。JD 支持 Real。
+/// 按选项的日界计算干支日序。Hour0 = floor(JD+0.5)；Hour23 = 23:00 起已算次日，故加 1 小时。JD 支持 Real。
 #[inline]
 pub fn jd_to_gan_zhi_index_with_options(jd: impl ToReal, day_boundary: DayBoundary) -> u8 {
     let jd_r = real(jd);
     let jd_for_day = match day_boundary {
         DayBoundary::Hour0 => jd_r,
-        DayBoundary::Hour23 => jd_r - real(1.0 / 24.0),
+        DayBoundary::Hour23 => jd_r + real(1.0 / 24.0),
     };
     jd_to_gan_zhi_index(jd_for_day)
 }
@@ -141,7 +141,8 @@ fn month_gan_zhi_from_year_and_ord(year_gan_zhi: u8, month_ord: u8) -> u8 {
     let yin_stem = (stem * 2 + 2) % 10;
     let month_stem = (yin_stem + month_ord) % 10;
     let month_branch = (month_ord + 2) % 12;
-    (month_stem + 10 * ((month_branch + 12 - month_stem) % 12)) % 60
+    // 干支序 i 满足 i≡干 (mod 10)、i≡支 (mod 12)，解为 6干−5支 (mod 60)
+    ((6 * month_stem as i32 - 5 * month_branch as i32).rem_euclid(60)) as u8
 }
 
 // ---------- 十二节在 24 节气中的序号（k=0 春分…）：立春21, 惊蛰23, 清明1, 立夏3, 芒种5, 小暑7, 立秋9, 白露11, 寒露13, 立冬15, 大雪17, 小寒19 ----------
@@ -308,6 +309,35 @@ mod tests {
         let name23 = jd_to_gan_zhi_day_with_options(jd, DayBoundary::Hour23);
         assert!(!name0.is_empty());
         assert!(!name23.is_empty());
+    }
+
+    /// 子初换日：当日 0 时和子正换日同一干支，当日 23 时起算次日。
+    #[test]
+    fn hour23_boundary_direction() {
+        use crate::calendar::gregorian::Gregorian;
+        let jd = Gregorian::to_julian_day(2000, 1, 1);
+        assert_eq!(jd_to_gan_zhi_day_with_options(jd, DayBoundary::Hour0), "戊午");
+        assert_eq!(jd_to_gan_zhi_day_with_options(jd, DayBoundary::Hour23), "戊午");
+        let h22 = real(jd) + real(22.5 / 24.0);
+        let h23 = real(jd) + real(23.5 / 24.0);
+        assert_eq!(jd_to_gan_zhi_day_with_options(h22, DayBoundary::Hour23), "戊午");
+        assert_eq!(jd_to_gan_zhi_day_with_options(h23, DayBoundary::Hour23), "己未");
+        assert_eq!(jd_to_gan_zhi_day_with_options(h23, DayBoundary::Hour0), "戊午");
+    }
+
+    /// 五虎遁全表：甲己丙寅、乙庚戊寅、丙辛庚寅、丁壬壬寅、戊癸甲寅，十二月干支逐月相连。
+    #[test]
+    fn five_tigers_table() {
+        for year in 0..60u8 {
+            let first = ["丙寅", "戊寅", "庚寅", "壬寅", "甲寅"][(year % 10 % 5) as usize];
+            let start = month_gan_zhi_from_year_and_ord(year, 0);
+            assert_eq!(GAN_ZHI_60[start as usize], first, "年序 {year}");
+            for ord in 0..12u8 {
+                let m = month_gan_zhi_from_year_and_ord(year, ord);
+                assert_eq!(m, (start + ord) % 60, "年序 {year} 月序 {ord}");
+                assert_eq!(m % 12, (ord + 2) % 12, "月支");
+            }
+        }
     }
 
     #[test]

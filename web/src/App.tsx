@@ -457,7 +457,8 @@ function App() {
     const selected = civilToProleptic(selectedDate.year, selectedDate.month, selectedDate.day)
     const displayY = isLiveMode ? nowForLunar.getFullYear() : selected.year
     const displayM = isLiveMode ? nowForLunar.getMonth() + 1 : selected.month
-    if (displayY === year && displayM === month) {
+    // 日历的年月是显示写法，要和选中日的显示写法比，不能和前推格里历比
+    if (isLiveMode ? displayY === year && displayM === month : selectedDate.year === year && selectedDate.month === month) {
       setDisplayDateYearDataList([])
       return
     }
@@ -554,13 +555,13 @@ function App() {
   const dayOfYear = getDayOfYear(civilY, civilM, civilD)
   const weekOfYear = getWeekOfYear(civilY, civilM, civilD)
 
-  /** 左侧面板用：显示日期与日历同月时用当前月岁数据，否则用单独拉取的 displayDateYearDataList */
-  const panelYearDataList =
-    displayY === year && displayM === month ? yearDataList : displayDateYearDataList
+  /** 左侧面板用：选中日在日历当前月时用当前月岁数据和月历格子（按显示写法的日号），否则用单独拉取的岁数据 */
+  const inShownMonth = civilY === year && civilM === month
+  const panelYearDataList = inShownMonth ? yearDataList : displayDateYearDataList
 
   const selectedLunar: string | null =
-    displayY === year && displayM === month
-      ? (lunarByDay[displayD] ?? null)
+    inShownMonth
+      ? (lunarByDay[civilD] ?? null)
       : wasm && panelYearDataList.length > 0
         ? formatLunarWithFallback(wasm, displayY, displayM, displayD, panelYearDataList, displayY, displayM)
         : null
@@ -569,8 +570,8 @@ function App() {
     : null
   const selectedGanzhi =
     wasm
-      ? displayY === year && displayM === month
-        ? (ganzhiByDay[displayD] ?? getGanzhiForDay(wasm, displayY, displayM, displayD, panelYearDataList, ganzhiOptions))
+      ? inShownMonth
+        ? (ganzhiByDay[civilD] ?? getGanzhiForDay(wasm, displayY, displayM, displayD, panelYearDataList, ganzhiOptions))
         : getGanzhiForDay(wasm, displayY, displayM, displayD, panelYearDataList, ganzhiOptions)
       : null
   const zodiac =
