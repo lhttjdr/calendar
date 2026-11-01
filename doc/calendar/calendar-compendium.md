@@ -179,13 +179,13 @@
 | ISO 8601 | 一律前推格里历，有公元 0 年 | 数据交换标准；0000—1582 年须交换双方约定，见下 |
 | 罗马实历 | 通用写法之上还原公元前 45 年起的实际闰年 | 对读当时的罗马日期；有九种复原，见下表 |
 
-各国改历年份不同，通用写法统一取 1582 年。
+各国改历年份不同，通用写法统一取 1582 年。切换时区按同一时刻换算，古代日期也一样；时区偏移取 IANA 时区库，1900 年前后以前是该地的地方平时（如上海 +8:05:43），不是当时当地的视太阳时。
 
-**ISO 8601 的条文。** 现行 ISO 8601-1:2019 要付费，没有读到全文。以下引自工作组公开的 [ISO/WD 8601-1（2016-02-16，N0038）](https://www.loc.gov/standards/datetime/iso-tc154-wg5_n0038_iso_wd_8601-1_2016-02-16.pdf)，是草案，定稿措辞和条号可能不同：
+**ISO 8601 的条文。** 引自 ISO 8601:2004（第三版）。现行 ISO 8601-1:2019 要付费，没有读到全文，其工作组公开的 [2016 年草案](https://www.loc.gov/standards/datetime/iso-tc154-wg5_n0038_iso_wd_8601-1_2016-02-16.pdf)这几条与 2004 版相同，定稿措辞和条号可能有变：
 
 - §3.2.1 用于改历以前的日期须经约定：“should only be by agreement of the partners in information interchange”。前推时不增删日期：“no dates shall be inserted or deleted”。
 - §3.2.1 的例子：1582 年 10 月 15 日的前一日写作 14 October 1582，在儒略历里是 4 October 1582。注：“the calendar year [0000] is a leap year”。
-- §4.1.2.1 “Values in the range [0000] through [1582] shall only be used by mutual agreement”。§3.5：超出四位年份的扩展表示也须约定。
+- §4.1.2.1 “Values in the range [0000] through [1582] shall only be used by mutual agreement”。
 
 [2022 年修正案](https://cdn.standards.iteh.ai/samples/81801/f527872a9fe34281ae3a4af8e730f3f8/ISO-8601-1-2019-Amd-1-2022.pdf)是定稿文本（iTeh 公开试读）：§4.3.2 增“The year number may be preceded by a minus sign to indicate a year preceding year zero”。
 

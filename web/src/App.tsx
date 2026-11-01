@@ -30,7 +30,7 @@ import {
   type GanzhiOptionsTuple,
   type RealBackendVariant,
 } from './useLunarWasm'
-import { civilMonthDays, displayCivilToJd, civilToProleptic, clampCivilDay, displayCalendarName, isCalendarMode, isFullyGregorianMonth, jdToDisplayDate, localDate, ROMAN_SCHEMES, setCalendarMode, type CalendarMode } from './civilTime'
+import { civilMonthDays, convertDisplayDateTime, displayCivilToJd, formatDateInTimeZone, civilToProleptic, clampCivilDay, displayCalendarName, isCalendarMode, isFullyGregorianMonth, jdToDisplayDate, localDate, ROMAN_SCHEMES, setCalendarMode, type CalendarMode } from './civilTime'
 import { EPHEMERIS_SOURCE_LABELS, EPHEMERIS_FORMAT_LABELS, type EphemerisDataSource } from './ephemerisSourceRegistry'
 import { EARTH_PATCH_TARGET } from './ephemerisUrls'
 
@@ -132,55 +132,6 @@ function LiveTimeProvider({ enabled, children }: { enabled: boolean; children: R
 }
 function useLiveTime(): Date | null {
   return useContext(LiveTimeContext)
-}
-
-/** 将 Date 格式化为指定时区的「年月日 时:分:秒」 */
-function formatDateInTimeZone(d: Date, timeZone: string): { year: number; month: number; day: number; hour: number; minute: number; second: number } {
-  const fmt = new Intl.DateTimeFormat('zh-CN', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  })
-  const parts = fmt.formatToParts(d)
-  const get = (type: string) => parseInt(parts.find((p) => p.type === type)?.value ?? '0', 10)
-  return { year: get('year'), month: get('month'), day: get('day'), hour: get('hour'), minute: get('minute'), second: get('second') }
-}
-
-type DateParts = { year: number; month: number; day: number; hour: number; minute: number; second: number }
-function datePartsEqual(a: DateParts, b: DateParts): boolean {
-  return a.year === b.year && a.month === b.month && a.day === b.day && a.hour === b.hour && a.minute === b.minute && a.second === b.second
-}
-function datePartsLessThan(a: DateParts, b: DateParts): boolean {
-  if (a.year !== b.year) return a.year < b.year
-  if (a.month !== b.month) return a.month < b.month
-  if (a.day !== b.day) return a.day < b.day
-  if (a.hour !== b.hour) return a.hour < b.hour
-  if (a.minute !== b.minute) return a.minute < b.minute
-  return a.second < b.second
-}
-
-/** 将「某时区下的本地时间」转为 UTC Date，用于切换时区时保持同一时刻 */
-function utcFromLocalInZone(y: number, m: number, d: number, h: number, min: number, s: number, timeZone: string): Date {
-  const target: DateParts = { year: y, month: m, day: d, hour: h, minute: min, second: s }
-  let lo = Date.UTC(y, m - 1, d, 0, 0, 0) - 86400000 * 2
-  let hi = Date.UTC(y, m - 1, d, 23, 59, 59) + 86400000 * 2
-  for (let i = 0; i < 40; i++) {
-    const mid = new Date((lo + hi) / 2)
-    const p = formatDateInTimeZone(mid, timeZone)
-    if (datePartsEqual(p, target)) return mid
-    const midVal = mid.getTime()
-    if (datePartsLessThan(p, target)) {
-      lo = midVal
-    } else {
-      hi = midVal
-    }
-  }
-  return new Date((lo + hi) / 2)
 }
 
 /** 日期行末尾的时刻：实时模式下随 LiveTimeProvider 每秒更新，写法由 format 决定 */
@@ -526,8 +477,7 @@ function App() {
     if (prevTz === timeZone) return
     const { year: y, month: m, day: d } = selectedDate
     const { hour: h, minute: min, second: s } = selectedTime
-    const utc = utcFromLocalInZone(y, m, d, h, min, s, prevTz)
-    const p = formatDateInTimeZone(utc, timeZone)
+    const p = convertDisplayDateTime(y, m, d, h, min, s, prevTz, timeZone)
     setYear(p.year)
     setMonth(p.month)
     setSelectedDate({ year: p.year, month: p.month, day: p.day })

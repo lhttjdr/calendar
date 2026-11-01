@@ -217,3 +217,49 @@ export function localDate(y: number, m: number, d: number, h = 0, mi = 0, s = 0)
   t.setFullYear(y, m - 1, d)
   return t
 }
+
+export type DateParts = { year: number; month: number; day: number; hour: number; minute: number; second: number }
+
+/**
+ * Date 在指定时区的年月日时分秒。日期是前推格里历，年份是天文纪年（Intl 本身不带负年，要从纪元换算）。
+ * 1900 年前后以前，Intl 按该时区的地方平时计算（如上海 +8:05:43）。
+ */
+export function formatDateInTimeZone(d: Date, timeZone: string): DateParts {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    calendar: 'gregory',
+    era: 'short',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    hourCycle: 'h23',
+  }).formatToParts(d)
+  const get = (type: string) => parseInt(parts.find((p) => p.type === type)?.value ?? '0', 10)
+  const bc = parts.find((p) => p.type === 'era')?.value.startsWith('B') ?? false
+  return { year: bc ? 1 - get('year') : get('year'), month: get('month'), day: get('day'), hour: get('hour'), minute: get('minute'), second: get('second') }
+}
+
+/** 前推格里历的年月日时分秒按 UTC 读成毫秒。不用 Date.UTC(y, ...)，它会把 0—99 年当成 19xx 年。 */
+function prolepticUtcMs(p: DateParts): number {
+  const t = new Date(0)
+  t.setUTCFullYear(p.year, p.month - 1, p.day)
+  t.setUTCHours(p.hour, p.minute, p.second, 0)
+  return t.getTime()
+}
+
+/** 某时区的本地时间（前推格里历）→ 时刻。 */
+export function utcFromLocalInZone(local: DateParts, timeZone: string): Date {
+  const wall = prolepticUtcMs(local)
+  const offsetAt = (ms: number) => prolepticUtcMs(formatDateInTimeZone(new Date(ms), timeZone)) - ms
+  // 第二次按算出的时刻重取偏移，跨夏令时切换时才准
+  return new Date(wall - offsetAt(wall - offsetAt(wall)))
+}
+
+/** 日历上的日期时刻从一个时区换到另一个时区，保持同一时刻；进出都按当前西历写法。 */
+export function convertDisplayDateTime(y: number, m: number, d: number, h: number, mi: number, s: number, from: string, to: string): DateParts {
+  const p = formatDateInTimeZone(utcFromLocalInZone({ ...civilToProleptic(y, m, d), hour: h, minute: mi, second: s }, from), to)
+  return { ...p, ...jdToDisplayDate(prolepticToJd(p.year, p.month, p.day)) }
+}
