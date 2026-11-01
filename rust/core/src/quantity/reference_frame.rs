@@ -17,6 +17,14 @@ pub enum ReferenceFrame {
     TrueEcliptic(Epoch),
     ApparentEcliptic(Epoch),
     ApparentEquator(Epoch),
+    /// 站心真赤道：坐标轴同 [`Self::TrueEquator`]，原点平移到地面观测者。观测者不入架标识，由路径执行时给定。
+    TopocentricEquator(Epoch),
+    /// [`Self::TopocentricEquator`] 加周日光行差后的状态，坐标轴与原点不变。
+    TopocentricAberratedEquator(Epoch),
+    /// 站心东北天（x 东、y 北、z 天顶），未含折射：几何地平。
+    HorizontalGeometric(Epoch),
+    /// [`Self::HorizontalGeometric`] 加大气折射后的状态，坐标轴与原点不变：视地平。
+    HorizontalApparent(Epoch),
     Elpmpp02MeanLunar,
     Elpmpp02LaskarCartesian,
 }
@@ -31,6 +39,10 @@ impl ReferenceFrame {
                 | ReferenceFrame::TrueEcliptic(_)
                 | ReferenceFrame::ApparentEcliptic(_)
                 | ReferenceFrame::ApparentEquator(_)
+                | ReferenceFrame::TopocentricEquator(_)
+                | ReferenceFrame::TopocentricAberratedEquator(_)
+                | ReferenceFrame::HorizontalGeometric(_)
+                | ReferenceFrame::HorizontalApparent(_)
         )
     }
 
@@ -44,6 +56,10 @@ impl ReferenceFrame {
             ReferenceFrame::TrueEcliptic(_) => "TrueEcliptic(epoch)",
             ReferenceFrame::ApparentEcliptic(_) => "ApparentEcliptic(epoch)",
             ReferenceFrame::ApparentEquator(_) => "ApparentEquator(epoch)",
+            ReferenceFrame::TopocentricEquator(_) => "TopocentricEquator(epoch)",
+            ReferenceFrame::TopocentricAberratedEquator(_) => "TopocentricAberratedEquator(epoch)",
+            ReferenceFrame::HorizontalGeometric(_) => "HorizontalGeometric(epoch)",
+            ReferenceFrame::HorizontalApparent(_) => "HorizontalApparent(epoch)",
             ReferenceFrame::Elpmpp02MeanLunar => "ELPMPP02_MEAN_LUNAR",
             ReferenceFrame::Elpmpp02LaskarCartesian => "ELPMPP02_LASKAR_CARTESIAN",
         }

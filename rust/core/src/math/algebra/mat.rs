@@ -197,6 +197,7 @@ impl<T: Scalar + Default> Mat<T, 6, 6> {
         self.mul_vec_generic(&v)
     }
 
+    /// 状态转移 [R 0; Ṙ R]：r′ = R r，v′ = Ṙ r + R v。
     pub fn from_block_r_rdot(r: &[[T; 3]; 3], r_dot: &[[T; 3]; 3]) -> Self
     where
         T: Copy + Default,
@@ -206,12 +207,12 @@ impl<T: Scalar + Default> Mat<T, 6, 6> {
         let z = T::default();
         let zero = [z, z, z];
         Mat::new([
-            [r0[0], r0[1], r0[2], d0[0], d0[1], d0[2]],
-            [r1[0], r1[1], r1[2], d1[0], d1[1], d1[2]],
-            [r2[0], r2[1], r2[2], d2[0], d2[1], d2[2]],
-            [zero[0], zero[1], zero[2], r0[0], r0[1], r0[2]],
-            [zero[0], zero[1], zero[2], r1[0], r1[1], r1[2]],
-            [zero[0], zero[1], zero[2], r2[0], r2[1], r2[2]],
+            [r0[0], r0[1], r0[2], zero[0], zero[1], zero[2]],
+            [r1[0], r1[1], r1[2], zero[0], zero[1], zero[2]],
+            [r2[0], r2[1], r2[2], zero[0], zero[1], zero[2]],
+            [d0[0], d0[1], d0[2], r0[0], r0[1], r0[2]],
+            [d1[0], d1[1], d1[2], r1[0], r1[1], r1[2]],
+            [d2[0], d2[1], d2[2], r2[0], r2[1], r2[2]],
         ])
     }
 }

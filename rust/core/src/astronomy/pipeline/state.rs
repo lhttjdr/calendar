@@ -50,7 +50,7 @@ impl State6 {
         Self::new(position, velocity)
     }
 
-    /// 应用 6×6 状态转移： [r_new; v_new] = [R R_dot; 0 R] * [r_old; v_old]，输出架为 `to_frame`。
+    /// 应用 6×6 状态转移： [r_new; v_new] = [R 0; R_dot R] * [r_old; v_old]，输出架为 `to_frame`。
     pub fn apply_transition(
         &self,
         r: &[[Real; 3]; 3],

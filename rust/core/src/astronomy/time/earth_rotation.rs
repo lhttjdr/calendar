@@ -23,6 +23,11 @@ pub fn earth_rotation_angle(jd_ut1: Real) -> PlaneAngle {
     PlaneAngle::from_rad(Real::two_pi() * turns).wrap_to_2pi()
 }
 
+/// 地球自转角速度 [rad/s]：ERA 速率 2π·1.00273781191135448 / 86400（每 UT1 秒，与 TT 秒之差可忽略）。
+pub fn earth_rotation_rate() -> Real {
+    Real::two_pi() * real_const(1.00273781191135448) / real_const(86400.0)
+}
+
 /// 格林尼治平恒星时（IAU 2006）：GMST = ERA + (0.014506 + 4612.156534 t + 1.3915817 t² − 0.00000044 t³ − 0.000029956 t⁴
 /// − 0.0000000368 t⁵)″，t 为 TT 儒略世纪。
 pub fn gmst06(jd_ut1: Real, jd_tt: Real) -> PlaneAngle {

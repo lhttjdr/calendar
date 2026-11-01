@@ -1,5 +1,5 @@
 //! 状态转移路由：纯物理旋转，图搜索最短路径（文档 3.1、4.2、7.2、15）。
-//! 架变换使用完整 6×6 状态转移 [R R_dot; 0 R]，R_dot 为旋转对时间的导数（科里奥利项）。
+//! 架变换使用完整 6×6 状态转移 [R 0; R_dot R]，R_dot 为旋转对时间的导数（科里奥利项）。
 //! 下方共用段（岁差、章动、真黄赤交角）当 t 确定时变换矩阵仅依赖 t，按历元缓存。
 //!
 //! **图语义**：视位置等统一由此驱动。① 起止点最短路：`shortest_path(from, to)` 分析，`transform_to(state, target, jd_tt)` 执行。② 起止点+途径点受限最短路：`shortest_path_via(from, to, via)` 分析，`transform_to_via(state, target, via, jd_tt)` 执行。见 doc 15。
@@ -7,6 +7,9 @@
 //! **时间尺度**：岁差（P03/Vondrak）、章动（IAU）公式规定入参 **TT**；`transform_to(_, _, jd_tt)` 的 `jd_tt` 须为 TT。
 //!
 //! **变换分类**：标架旋转 / 标架平移 / 光行时 / 光行差 / 光行时+光行差折叠 / 一般映射；如需可再增。日心→地心为单独步骤。
+//!
+//! **地心→站心→视地平**：TrueEquator → TopocentricEquator → TopocentricAberratedEquator → HorizontalGeometric → HorizontalApparent，
+//! 依次为平移、周日光行差、转东北天、大气折射（重边）。这些边需 `ObservationContext`，经 `transform_to_observed` 执行；`transform_to` 走到时 panic。
 
 use crate::astronomy::frame::fixed::fk5_icrs;
 use crate::astronomy::frame::precession::{
@@ -15,7 +18,10 @@ use crate::astronomy::frame::precession::{
 use crate::astronomy::frame::nutation::{
     eps_true_dot, nutation_derivative_times_vector, nutation_for_model, NutationModel,
 };
-use crate::astronomy::apparent::nutation_matrix_transposed_for_model;
+use crate::astronomy::apparent::{
+    diurnal_aberration_state, nutation_matrix_transposed_for_model, refract_state, to_horizontal_state, topocentric_state, ObservationContext,
+};
+use crate::astronomy::correction::RefractionModel;
 use crate::math::real::{real_const, real, zero, one, Real, RealOps, ToReal};
 use crate::quantity::{epoch::Epoch, reference_frame::ReferenceFrame};
 use std::cell::RefCell;
@@ -105,6 +111,8 @@ pub enum OriginRole {
     Geocentric,
     /// 太阳系质心（SSB）
     Barycentric,
+    /// 站心（地面观测者）
+    Topocentric,
 }
 
 impl OriginRole {
@@ -113,6 +121,7 @@ impl OriginRole {
             OriginRole::Heliocentric => "日心",
             OriginRole::Geocentric => "地心",
             OriginRole::Barycentric => "质心",
+            OriginRole::Topocentric => "站心",
         }
     }
 }
@@ -166,6 +175,9 @@ pub fn node_origin(node_id: &str) -> Option<OriginRole> {
         "VSOP87" | HELIOCENTRIC_MEAN_ECLIPTIC => Some(OriginRole::Heliocentric),
         MEAN_ECLIPTIC_EQUATOR | MEAN_ECLIPTIC_ECLIPTIC | FK5_EPHEMERIS | FK5_FROM_ICRS
         | "MeanEquator(epoch)" | "TrueEquator(epoch)" | "ApparentEcliptic(epoch)" | "ICRS" => Some(OriginRole::Geocentric),
+        "TopocentricEquator(epoch)" | "TopocentricAberratedEquator(epoch)" | "HorizontalGeometric(epoch)" | "HorizontalApparent(epoch)" => {
+            Some(OriginRole::Topocentric)
+        }
         _ => None,
     }
 }
@@ -177,6 +189,10 @@ pub fn edge_form_for_frames(from: ReferenceFrame, to: ReferenceFrame) -> Option<
         (ReferenceFrame::FK5, ReferenceFrame::MeanEquator(_)) => Some(TransitionForm::Rotation),
         (ReferenceFrame::MeanEquator(_), ReferenceFrame::TrueEquator(_)) => Some(TransitionForm::Rotation),
         (ReferenceFrame::TrueEquator(_), ReferenceFrame::ApparentEcliptic(_)) => Some(TransitionForm::Rotation),
+        (ReferenceFrame::TrueEquator(_), ReferenceFrame::TopocentricEquator(_)) => Some(TransitionForm::Translation),
+        (ReferenceFrame::TopocentricEquator(_), ReferenceFrame::TopocentricAberratedEquator(_)) => Some(TransitionForm::Aberration),
+        (ReferenceFrame::TopocentricAberratedEquator(_), ReferenceFrame::HorizontalGeometric(_)) => Some(TransitionForm::Rotation),
+        (ReferenceFrame::HorizontalGeometric(_), ReferenceFrame::HorizontalApparent(_)) => Some(TransitionForm::Mapping),
         (ReferenceFrame::FK5, ReferenceFrame::ICRS) => Some(TransitionForm::Mapping),
         (ReferenceFrame::ICRS, ReferenceFrame::FK5) => Some(TransitionForm::Rotation),
         _ => None,
@@ -207,6 +223,10 @@ fn edge_kind(from_id: &str, to_id: &str) -> TransitionKind {
         (FK5_FROM_ICRS, "MeanEquator(epoch)") => TransitionKind::FrameRotation,
         ("MeanEquator(epoch)", "TrueEquator(epoch)") => TransitionKind::FrameRotation,
         ("TrueEquator(epoch)", "ApparentEcliptic(epoch)") => TransitionKind::FrameRotation,
+        ("TrueEquator(epoch)", "TopocentricEquator(epoch)") => TransitionKind::FrameTranslation,
+        ("TopocentricEquator(epoch)", "TopocentricAberratedEquator(epoch)") => TransitionKind::Aberration,
+        ("TopocentricAberratedEquator(epoch)", "HorizontalGeometric(epoch)") => TransitionKind::FrameRotation,
+        ("HorizontalGeometric(epoch)", "HorizontalApparent(epoch)") => TransitionKind::GeneralMapping,
         _ => TransitionKind::FrameRotation,
     }
 }
@@ -232,6 +252,10 @@ fn edge_label(from_id: &str, to_id: &str, edge_key: Option<&str>) -> Option<Stri
             _ => "章动（IAU2000B）",
         },
         ("TrueEquator(epoch)", "ApparentEcliptic(epoch)") => "R_x(ε) 真黄赤交角",
+        ("TrueEquator(epoch)", "TopocentricEquator(epoch)") => "地心→站心（减观测者位置）",
+        ("TopocentricEquator(epoch)", "TopocentricAberratedEquator(epoch)") => "周日光行差",
+        ("TopocentricAberratedEquator(epoch)", "HorizontalGeometric(epoch)") => "转东北天（地方恒星时、大地纬度）",
+        ("HorizontalGeometric(epoch)", "HorizontalApparent(epoch)") => "大气折射（Bennett，可选其他模型）",
         _ => "几何变换",
     };
     Some(label.to_string())
@@ -336,6 +360,11 @@ fn edge_key_to_nutation(key: Option<&str>, default: NutationModel) -> NutationMo
     }
 }
 
+/// 折射边是否应参与最短路：key 匹配当前 refraction_model 时包含。
+fn refraction_edge_matches(e: &TransformEdge, refraction_model: RefractionModel) -> bool {
+    e.edge_key.as_deref().is_none_or(|k| k == refraction_model.edge_key())
+}
+
 /// 章动边是否应参与最短路：key 为 None 或匹配当前 nutation_model 时包含。
 fn nutation_edge_matches(e: &TransformEdge, nutation_model: NutationModel) -> bool {
     match e.edge_key.as_deref() {
@@ -405,6 +434,8 @@ pub struct TransformGraph {
     pub precession_model: PrecessionModel,
     /// 章动模型：MeanEquator → TrueEquator 时使用。
     pub nutation_model: NutationModel,
+    /// 折射模型：HorizontalGeometric → HorizontalApparent 时使用。
+    pub refraction_model: RefractionModel,
     /// 带条件的快速跳跃边状态：满足 (precession, nutation, jd) 命中则执行时走缓存边，否则计算并更新。
     epoch_cache: RefCell<Option<(PrecessionModel, NutationModel, EpochTransitionsCache)>>,
     /// FK5 → ICRS 边的执行器（Frame bias）；未设则路径含该边时无法执行。
@@ -417,6 +448,7 @@ impl TransformGraph {
             edges: vec![],
             precession_model: PrecessionModel::Vondrak2011,
             nutation_model: NutationModel::IAU2000B,
+            refraction_model: RefractionModel::RayTrace,
             epoch_cache: RefCell::new(None),
             optional_fk5_to_icrs: None,
         }
@@ -431,6 +463,12 @@ impl TransformGraph {
     /// 指定章动模型（IAU2000A 完整表 / IAU2000B 77 项）。
     pub fn with_nutation_model(mut self, model: NutationModel) -> Self {
         self.nutation_model = model;
+        self
+    }
+
+    /// 指定折射模型（缺省 Bennett）。Smart、Meeus 只适用于高度 ≥ 15°，低于此值执行时 panic。
+    pub fn with_refraction_model(mut self, model: RefractionModel) -> Self {
+        self.refraction_model = model;
         self
     }
 
@@ -468,7 +506,7 @@ impl TransformGraph {
         });
     }
 
-    /// 构建完整图（静态拓扑）：含黄道直连、赤道链与 ICRS↔FK5；展示与运算共用此图。
+    /// 构建完整图（静态拓扑）：含黄道直连、赤道链、地心→站心→视地平与 ICRS↔FK5；展示与运算共用此图。
     /// 未设 `with_fk5_to_icrs_mapper` 时，最短路会避开 FK5→ICRS 映射边。
     pub fn default_graph() -> Self {
         let mut g = Self::new();
@@ -502,6 +540,17 @@ impl TransformGraph {
             "IAU2000B",
         );
         g.add_edge(ReferenceFrame::TrueEquator(Epoch::new(real(0.0))), ReferenceFrame::ApparentEcliptic(Epoch::new(real(0.0))), 2);
+        g.add_edge(ReferenceFrame::TrueEquator(Epoch::new(real(0.0))), ReferenceFrame::TopocentricEquator(Epoch::new(real(0.0))), 2);
+        g.add_edge(ReferenceFrame::TopocentricEquator(Epoch::new(real(0.0))), ReferenceFrame::TopocentricAberratedEquator(Epoch::new(real(0.0))), 1);
+        g.add_edge(ReferenceFrame::TopocentricAberratedEquator(Epoch::new(real(0.0))), ReferenceFrame::HorizontalGeometric(Epoch::new(real(0.0))), 1);
+        for model in RefractionModel::ALL {
+            g.add_edge_with_key(
+                ReferenceFrame::HorizontalGeometric(Epoch::new(real(0.0))),
+                ReferenceFrame::HorizontalApparent(Epoch::new(real(0.0))),
+                2,
+                model.edge_key(),
+            );
+        }
         g.add_edge(ReferenceFrame::ICRS, ReferenceFrame::FK5, 1);
         g.add_edge(ReferenceFrame::FK5, ReferenceFrame::ICRS, 1);
         g
@@ -553,6 +602,12 @@ impl TransformGraph {
         }
         let mut edges: Vec<TransformEdgeViz> = Vec::new();
         for e in &self.edges {
+            // 折射重边只画缺省模型一条，标签列明可选：多条平行线标签会完全重叠
+            if matches!(e.to_frame, ReferenceFrame::HorizontalApparent(_))
+                && e.edge_key.as_deref() != Some(RefractionModel::RayTrace.edge_key())
+            {
+                continue;
+            }
             let from_id = e.from_frame.id_str().to_string();
             let to_id = e.to_frame.id_str().to_string();
             if from_id == fk5_id && to_id == "ICRS" {
@@ -621,6 +676,10 @@ impl TransformGraph {
             (ReferenceFrame::MeanEquator(_), ReferenceFrame::MeanEquator(_)) => true,
             (ReferenceFrame::TrueEquator(_), ReferenceFrame::TrueEquator(_)) => true,
             (ReferenceFrame::ApparentEcliptic(_), ReferenceFrame::ApparentEcliptic(_)) => true,
+            (ReferenceFrame::TopocentricEquator(_), ReferenceFrame::TopocentricEquator(_)) => true,
+            (ReferenceFrame::TopocentricAberratedEquator(_), ReferenceFrame::TopocentricAberratedEquator(_)) => true,
+            (ReferenceFrame::HorizontalGeometric(_), ReferenceFrame::HorizontalGeometric(_)) => true,
+            (ReferenceFrame::HorizontalApparent(_), ReferenceFrame::HorizontalApparent(_)) => true,
             _ => false,
         }
     }
@@ -695,6 +754,9 @@ impl TransformGraph {
             if matches!((e.from_frame, e.to_frame), (ReferenceFrame::FK5, ReferenceFrame::ICRS))
                 && self.optional_fk5_to_icrs.is_none()
             {
+                continue;
+            }
+            if matches!(e.to_frame, ReferenceFrame::HorizontalApparent(_)) && !refraction_edge_matches(e, self.refraction_model) {
                 continue;
             }
             let a = e.from_frame.id_str();
@@ -869,9 +931,48 @@ impl TransformGraph {
         self.transform_along_path(state, &path, jd_tt)
     }
 
+    /// 将 state 沿图变换到观测侧的 target（站心、几何地平、视地平等）。无路径或 state 已在 target 时 panic。
+    pub fn transform_to_observed(&self, state: State6, target: ReferenceFrame, ctx: &ObservationContext, jd_tt: Real) -> State6 {
+        let path = self.shortest_path(state.frame(), target);
+        if path.is_empty() {
+            panic!("transform_to_observed: no path from {} to {}", state.frame().id_str(), target.id_str());
+        }
+        let mut s = state;
+        for pe in &path {
+            s = match self.apply_observation_edge(&s, pe, ctx) {
+                Some(out) => out,
+                None => self.apply_edge(s, pe, jd_tt),
+            };
+        }
+        s
+    }
+
+    /// 观测侧的边；pe 不属于这几条时返回 None。折射模型取 edge_key，缺省用 refraction_model。
+    fn apply_observation_edge(&self, state: &State6, pe: &PathEdge, ctx: &ObservationContext) -> Option<State6> {
+        Some(match pe.to {
+            ReferenceFrame::TopocentricEquator(_) => topocentric_state(state, &ctx.observer, ctx.gast),
+            ReferenceFrame::TopocentricAberratedEquator(_) => diurnal_aberration_state(state, ctx),
+            ReferenceFrame::HorizontalGeometric(_) => to_horizontal_state(state, ctx),
+            ReferenceFrame::HorizontalApparent(_) => {
+                let model = pe.edge_key.as_deref().and_then(RefractionModel::from_edge_key).unwrap_or(self.refraction_model);
+                refract_state(state, model, &ctx.atmosphere)
+            }
+            _ => return None,
+        })
+    }
+
     /// 对 state 施加单条边（PathEdge，含 edge_key），返回新 state。
     fn apply_edge(&self, state: State6, pe: &PathEdge, jd_tt: Real) -> State6 {
         let (from_f, to_f) = (pe.from, pe.to);
+        if matches!(
+            to_f,
+            ReferenceFrame::TopocentricEquator(_)
+                | ReferenceFrame::TopocentricAberratedEquator(_)
+                | ReferenceFrame::HorizontalGeometric(_)
+                | ReferenceFrame::HorizontalApparent(_)
+        ) {
+            panic!("apply_edge: {} -> {} 需要观测者，请用 transform_to_observed", from_f.id_str(), to_f.id_str());
+        }
         let form = edge_form_for_frames(from_f, to_f)
             .unwrap_or_else(|| panic!("apply_edge: unknown form {} -> {}", from_f.id_str(), to_f.id_str()));
         match form {

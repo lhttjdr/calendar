@@ -3,7 +3,7 @@
 #
 # 用法（仓库根）：
 #   scripts/dev/phenomena_checks.sh            # 全量重算（缺省 f64 构建，约 20 倍快；见 doc/engineering/project-and-implementation.md §11.2.2）
-#   PHENOMENA_REAL=dd scripts/dev/phenomena_checks.sh   # 改用 double-double（库缺省构建，参考精度，约慢 20 倍）
+#   PHENOMENA_REAL=dd scripts/dev/phenomena_checks.sh   # 改用 double-double（参考精度，约慢 20 倍）
 #   scripts/dev/phenomena_checks.sh compare    # 两种构建各跑一组较快的校验（NASA 日月食典抽样 1/20 等），逐格比对（# 说明行除外；
 #                                              # 极值时刻列允许搜索容差，见 scripts/dev/compare_checks.py），
 #                                              # 不一致则列出并以非零退出；不改仓库文件
@@ -31,6 +31,10 @@ TESTS=(
   schaefer1998_worked_example
   glare_galilean_satellites_schaefer1991
   glare_near_moon_schaefer1991_fig1
+  refraction_ray_trace_vs_garfinkel
+  refraction_models_vs_ray_trace
+  refraction_horizon_schaefer_liller1990
+  refraction_seidelmann1968
   schaefer1987_table1_observations
   schaefer1987_table7_venus_yucatan
   schaefer2000_sirius_egypt
@@ -64,6 +68,10 @@ COMPARE_TESTS=(
   close_approaches_vs_skyfield
   occultations_vs_skyfield
   star_apparent_vs_skyfield
+  refraction_ray_trace_vs_garfinkel
+  refraction_models_vs_ray_trace
+  refraction_horizon_schaefer_liller1990
+  refraction_seidelmann1968
   schaefer1987_table1_observations
   widths_vs_yuanshi_table
   qing_determinatives_vs_pannai_table_9_1_4
@@ -73,7 +81,7 @@ COMPARE_TESTS=(
 features_of() {
   case "$1" in
     f64) echo "--no-default-features --features real-f64" ;;
-    dd) echo "" ;;
+    dd) echo "--no-default-features --features twofloat" ;;
     *) echo "PHENOMENA_REAL 只能是 f64 或 dd：$1" >&2; exit 2 ;;
   esac
 }

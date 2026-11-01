@@ -73,7 +73,7 @@
 
 ### 6×6 状态转移与路由
 
-架变换时需同时变换位置与速度以保持运动学一致。**6×6 状态转移**：\[r_new; v_new\] = \[R R_dot; 0 R\] \[r_old; v_old\]，其中 R 为 3×3 旋转（岁差/章动等），R_dot 为旋转的时间导数（科里奥利项）；底层可分块乘法以利缓存与 SIMD。**路由**：TransformGraph 注册有向边（如 MeanEquator(t)→TrueEquator(t)、FK5↔ICRS），按目标架寻径、逐段施加变换，避免所有变换都回退到 ICRS；边可带代价，以优先选用低成本路径（如 MeanEquator→ApparentEcliptic 仅需黄赤交角旋转）。
+架变换时需同时变换位置与速度以保持运动学一致。**6×6 状态转移**：\[r_new; v_new\] = \[R 0; R_dot R\] \[r_old; v_old\]，其中 R 为 3×3 旋转（岁差/章动等），R_dot 为旋转的时间导数（科里奥利项）；底层可分块乘法以利缓存与 SIMD。**路由**：TransformGraph 注册有向边（如 MeanEquator(t)→TrueEquator(t)、FK5↔ICRS），按目标架寻径、逐段施加变换，避免所有变换都回退到 ICRS；边可带代价，以优先选用低成本路径（如 MeanEquator→ApparentEcliptic 仅需黄赤交角旋转）。
 
 ### 管线步骤的粒度：谁做哪一步、不多合一
 

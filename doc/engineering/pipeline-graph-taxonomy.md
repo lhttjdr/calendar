@@ -30,6 +30,7 @@
 | **日心** | 以太阳质心为原点 | VSOP87、日心_MeanEcliptic(epoch) | 校验视差与平移。 |
 | **地心** | 以地球质心为原点 | MeanEcliptic(epoch)、ICRS、FK5、MeanEquator(epoch)、ApparentEcliptic(epoch) | 判定站心平移等。 |
 | **质心** | 太阳系质心（SSB） | 可留作高精度扩展 | 明确引力势与光行差基准。 |
+| **站心** | 地面观测者 | TopocentricEquator(epoch) | 视差、地平高度、局地食况与凌犯。 |
 
 历表入口等概念节点（如 VSOP87、ELPMPP02、ELPMPP02_MEAN_LUNAR）仅用于可视化与语义标注，最短路在参考架节点间进行。实现：`OriginRole` 枚举与 `node_origin(node_id)`；可视化数据提供 `node_origins: Vec<(String, OriginRole)>`（`rust/core/src/astronomy/pipeline/transform_graph.rs`）。
 
@@ -72,6 +73,25 @@ VSOP87 拟合到 DE406/DE441 的改正（2026-10-26 起）属历表求值的一�
 
 不指定途径边时，岁差由 `precession_model`、章动由 `nutation_model` 决定；可指定 `Via::Edge(..., Some("Vondrak2011"))` / `Via::Edge(..., Some("IAU2000A"))` 等强制走某条边。
 
+### 3.3.1 地心 → 站心 → 视地平
+
+| 起点 | 终点 | 代价 | 边类型 (Form) | 含义 |
+|------|------|------|---------------|------|
+| TrueEquator(epoch) | TopocentricEquator(epoch) | 2 | Translation | 减去观测者位置（速度同减 ω × r）；坐标轴不变，原点移到观测者。 |
+| TopocentricEquator(epoch) | TopocentricAberratedEquator(epoch) | 1 | Aberration | 周日光行差（一阶，≤0.32″），方向朝观测者自转速度偏转，距离不变。 |
+| TopocentricAberratedEquator(epoch) | HorizontalGeometric(epoch) | 1 | Rotation | 转东北天（x 东、y 北、z 沿大地法线），θ = GAST + 东经；Ṙ 取地球自转角速度。 |
+| HorizontalGeometric(epoch) | HorizontalApparent(epoch) | 2 | Mapping | 大气折射（重边，key 为 RayTrace / Bennett / BennettImproved / Saemundsson / Smart / Meeus）。 |
+
+这几条边除时刻外还要观测者、GAST 与大气，所以由 `transform_to_observed(state, target, &ObservationContext, jd_tt)` 执行；`transform_to` 走到它们会 panic，不做隐式退回。观测者不入节点标识：节点只回答「做到了哪一步」，同一进程可算多个观测者。折射模型由 `with_refraction_model` 选定（缺省 RayTrace，依据见 [celestial-phenomena.md](../astronomy/celestial-phenomena.md)「大气折射的模型与依据」）；可视化只画缺省模型一条折射边，避免多条平行线的标签重叠。
+
+**顺序不能换**：折射只取决于当地高度，必须先转到地平；周日光行差是方向在惯性架下的改正，放在转地平之前。
+
+**折射是映射，不是旋转**：它只改变高度角，没有 6×6 转移矩阵。方位与距离不变，速度取该映射沿速度方向的中心差分（±1 s）。
+
+**不进图的量**：大气消光只改亮度，不改方向（`phenomena::visibility`）；标准地平高度 −0°50′ 是判定条件，不是坐标变换（`phenomena::solar_eclipse` 等）；极移对古代天象可忽略且缺可靠数据，要做也应在观测者位置内部。
+
+**算式只有一份**：各边调用 `apparent::topocentric_state`、`diurnal_aberration_state`、`to_horizontal_state`、`refract_state`。日月食、掩星、偕日现象等逐点循环已持有真赤道位置，不逐点寻路，直接调 `topocentric`、`horizontal`，共用 `topocentric` 的平移算式；`horizontal` 按赤经赤纬另行计算（与图的转东北天边对照测试）。这条捷径不含周日光行差（≤0.32″）。结果同样标为 `TopocentricEquator`，再次平移会 panic，避免双重视差。不设反向边（目前无此需求）。
+
 ### 3.4 带条件的边（缓存即快速跳跃边）
 
 岁差/章动/黄赤交角段带**历元缓存**：同一 jd_tt、PrecessionModel、NutationModel 下不重复算矩阵。可视为**带条件的边**——条件满足（缓存命中）则边存在、直接跳跃；不满足则需计算并写缓存后再到达。路径规划仍按静态边；执行时按「有缓存走缓存，无则计算并更新」处理。实现见 `get_transition` 与 `epoch_cache`（同上文件）。
@@ -109,7 +129,7 @@ VSOP87 拟合到 DE406/DE441 的改正（2026-10-26 起）属历表求值的一�
 ### 5.2 执行与分派
 
 - **执行**：`transform_to(state, target, jd_tt)` / `transform_to_via(state, target, via, jd_tt)` 内部得到路径后，`transform_along_path(state, &path, jd_tt)` 按边依次执行。
-- **按 Form 分派**：Rotation 经 `get_transition(..., edge_key)` 取/算矩阵并 `apply_transition`；Mapping 调用对应 mapper（`with_fk5_to_icrs_mapper`）。历元相关段使用历元缓存（见 3.4）。
+- **按 Form 分派**：Rotation 经 `get_transition(..., edge_key)` 取/算矩阵并 `apply_transition`；Mapping 调用对应 mapper（`with_fk5_to_icrs_mapper`）；观测侧各边（含 Translation、折射 Mapping）由 `transform_to_observed` 执行（见 3.3.1）。历元相关段使用历元缓存（见 3.4）。
 - **Fail-Fast**：图不连通、缺失 mapper 或路径不存在时 panic，不做隐式精度降级。
 
 ---

@@ -1,4 +1,4 @@
-//! 6×6 状态转移矩阵。文档 4.1：[r_new; v_new] = [R R_dot; 0 R] * [r_old; v_old]。矩阵与向量统一 Real。
+//! 6×6 状态转移矩阵。文档 4.1：[r_new; v_new] = [R 0; R_dot R] * [r_old; v_old]。矩阵与向量统一 Real。
 
 use crate::math::real::{zero, Real};
 use crate::quantity::reference_frame::ReferenceFrame;

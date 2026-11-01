@@ -20,7 +20,7 @@ use crate::astronomy::apparent::{
     body_apparent_equatorial, horizontal, planet_magnitude, right_ascension_declination, star_apparent_equatorial, topocentric,
     ApparentPipelineOptions,
 };
-use crate::astronomy::correction::bennett_refraction_default;
+use crate::astronomy::correction::{refraction_from_geometric, Atmosphere, RefractionModel};
 use crate::astronomy::geodesy::Observer;
 use crate::astronomy::pipeline::{Body, EphemerisProvider, Planet};
 use crate::astronomy::stars::CatalogStar;
@@ -89,6 +89,8 @@ pub struct HeliacalOptions {
     /// 是否计月亮的眼内散射眩光（Schaefer 1991 式 3；大气散射晕已在月光模型中，不重复计）。原文以 161 次月旁观测检验，
     /// 误差约 0.35 等。月亮按位于月心的点源处理，角距下限取月面视半径 0.26°。
     pub include_moon_glare: bool,
+    /// 天体视高度用的折射模型，大气取观测者海拔的标准状态。
+    pub refraction: RefractionModel,
 }
 
 impl Default for HeliacalOptions {
@@ -101,6 +103,7 @@ impl Default for HeliacalOptions {
             twilight_limit_deg: real(-18.0),
             include_moon: true,
             include_moon_glare: true,
+            refraction: RefractionModel::RayTrace,
         }
     }
 }
@@ -245,7 +248,7 @@ impl<'a> HeliacalSky<'a> {
         }
         let p_geo = tg.pos.at(jd_tt);
         let (p_az, p_alt_geom) = self.horiz(p_geo, jd_tt, g);
-        let refr = bennett_refraction_default(PlaneAngle::from_deg(p_alt_geom)).rad() * real(180.0 / core::f64::consts::PI);
+        let refr = refraction_from_geometric(PlaneAngle::from_deg(p_alt_geom), self.opts.refraction, &Atmosphere::standard_at_height(self.observer.height)).rad() * real(180.0 / core::f64::consts::PI);
         let p_alt = p_alt_geom + refr;
         if p_alt <= self.opts.min_altitude_deg {
             return None;

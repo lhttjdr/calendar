@@ -3,6 +3,7 @@
 //! 默认椭球 GRS80（IERS Conventions 2010 推荐）；WGS84 与之扁率差约 1e-10，供对照。
 //! 极移对古代天象可忽略，地固系 → 当日真赤道只绕 z 轴转 GAST（[`crate::astronomy::time::earth_rotation::gast`]）。
 
+use crate::astronomy::time::earth_rotation::earth_rotation_rate;
 use crate::math::real::{real_const, Real};
 use crate::quantity::angle::PlaneAngle;
 use crate::quantity::epoch::Epoch;
@@ -10,6 +11,7 @@ use crate::quantity::length::Length;
 use crate::quantity::position::Position;
 use crate::quantity::reference_frame::ReferenceFrame;
 use crate::quantity::unit::LengthUnit;
+use crate::quantity::velocity::Velocity;
 
 /// 参考椭球。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -67,6 +69,13 @@ impl Observer {
             x * sg + y * cg,
             z,
         )
+    }
+
+    /// 当日真赤道架下随地球自转的速度 ω × r（ω 沿 z 轴）；赤道处约 465 m/s。
+    pub fn velocity_true_equator(&self, gast: PlaneAngle, epoch: Epoch) -> Velocity {
+        let [x, y, _] = self.position_true_equator(gast, epoch).to_meters();
+        let w = earth_rotation_rate();
+        Velocity::from_si_m_per_s_in_frame(ReferenceFrame::TrueEquator(epoch), -(w.clone() * y), w * x, real_const(0.0))
     }
 
     /// 地心距 [m]（诊断用）。
