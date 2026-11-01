@@ -29,6 +29,8 @@ struct Rec {
     lodge: usize,
     ru_du: f64,
     qu_ji: f64,
+    /// 黄道内（+）外（−）度（古度）。
+    huangdao: Option<f64>,
     is_lodge: bool,
 }
 
@@ -49,6 +51,7 @@ fn load_records() -> Vec<Rec> {
                 lodge,
                 ru_du: f[4].parse().unwrap(),
                 qu_ji: f[5].parse().unwrap(),
+                huangdao: f[6].parse().ok(),
                 is_lodge: f[0].contains("二十八宿"),
             }
         })
@@ -351,6 +354,31 @@ fn shishi_catalog_epoch() {
         ]);
     }
     tab.write();
+
+    // 黄道内外度：沿赤经圈量（δ − δ′，tan δ′ = tan ε sin α）与真黄纬比较，历元取合并最佳年代
+    let eps = crate::astronomy::frame::precession::mean_obliquity(real((best_all - 2000.0) / 100.0)).rad().as_f64();
+    let mut hd = crate::test_util::CheckTable::new("shishi_huangdao", &["条目", "星官", "所测", "认星 HIP", "认星依据", "记载黄道内外度", "沿赤经圈", "差°", "真黄纬", "差°"]);
+    hd.meta(format!("石氏星表黄道内外度（《开元占经》四库本，内 + 外 −，古度）与两种量法（{best_all} 年平位置，均换为度比较）：差 = 记载 − 推算；「就近」者不入统计"));
+    let (mut dh, mut db, mut mag) = (vec![], vec![], vec![]);
+    for (i, r) in recs.iter().enumerate() {
+        let (Some(rec), Some((h, m))) = (r.huangdao, ident[i]) else { continue };
+        let (ra, dec) = pos[&h];
+        let (a, d) = (ra.to_radians(), dec.to_radians());
+        let hour = dec - (eps.tan() * a.sin()).atan().to_degrees();
+        let beta = (d.sin() * eps.cos() - d.cos() * eps.sin() * a.sin()).asin().to_degrees();
+        let (x, y) = (rec * GU - hour, rec * GU - beta);
+        if m.used() {
+            dh.push(x);
+            db.push(y);
+            mag.push((hour - beta).abs());
+        }
+        hd.row(vec![r.reference.clone(), r.title.clone(), r.qualifier.clone(), h.to_string(), m.label().into(), format!("{rec:.2}"), format!("{hour:+.2}"), format!("{x:+.2}"), format!("{beta:+.2}"), format!("{y:+.2}")]);
+    }
+    hd.write();
+    let med_abs = |v: &[f64]| { let mut c: Vec<f64> = v.iter().map(|x| x.abs()).collect(); median(&mut c) };
+    println!("黄道内外度 {} 条：沿赤经圈 中位绝对差 {:.2}°；真黄纬 中位绝对差 {:.2}°；两量法之差中位 {:.2}° 最大 {:.2}°；赤经圈更近 {} 条",
+        dh.len(), med_abs(&dh), med_abs(&db), { let mut c = mag.clone(); median(&mut c) }, mag.iter().fold(0.0f64, |m, x| m.max(*x)),
+        dh.iter().zip(&db).filter(|(x, y)| x.abs() < y.abs()).count());
     let count = |m: Method| ident.iter().filter(|x| x.is_some_and(|(_, mm)| mm == m)).count();
     println!(
         "认星：距星 {} 单星 {} 方位 {} 大星 {} 就近 {} 无候选 {n_none}",

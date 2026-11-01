@@ -4,6 +4,8 @@ pub mod chinese;
 pub mod periods;
 
 #[cfg(test)]
+mod tests_huangdao;
+#[cfg(test)]
 mod tests_records;
 #[cfg(test)]
 mod tests_shishi;

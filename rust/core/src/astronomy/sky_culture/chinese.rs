@@ -300,7 +300,7 @@ pub fn ecliptic_longitude(ra: Real, dec: Real, eps: Real) -> Real {
 }
 
 impl MansionFrame {
-    /// 改为黄道宿度框架：各距星赤经换成当日黄经（清时宪历以黄道计宿度，周天 360°）。之后 `ru_xiu` 须传天体黄经；
+    /// 改为黄道宿度框架：各距星赤经换成当日黄经（清时宪历以黄道计宿度，周天 360°）。清以前的黄道度沿赤经圈投影，不适用此框架（见 tests_huangdao）。之后 `ru_xiu` 须传天体黄经；
     /// `dec` 仍为赤纬（去极度不随之改变）。
     pub fn to_ecliptic(&self, eps: Real) -> Self {
         Self { ra: core::array::from_fn(|i| ecliptic_longitude(self.ra[i], self.dec[i], eps)), dec: self.dec }

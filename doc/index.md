@@ -23,7 +23,7 @@
 | [apparent-longitude-and-syzygy.md](astronomy/apparent-longitude-and-syzygy.md) | 视位置计算（因素与两条路径、Rust 管线 §7.2、其它效应） |
 | [lunar-phases-and-syzygy.md](astronomy/lunar-phases-and-syzygy.md) | 月相与合朔、望/上弦/下弦、W0 公式、精度事实 |
 | [solar-terms.md](astronomy/solar-terms.md) | 二十四节气与定气、八步 pipeline、节气朔望标准时刻表格式 |
-| [celestial-phenomena.md](astronomy/celestial-phenomena.md) | 天象模块：日月食、行星会合与视星等、近距与月掩星、伏见可见性、恒星与二十八宿；设计、实施进展与校验结论 |
+| [celestial-phenomena.md](astronomy/celestial-phenomena.md) | 天象模块：日月食、行星会合与视星等、近距与月掩星、伏见可见性、恒星与二十八宿（含入宿度、去极度、古代黄道度与现代坐标的关系）；设计、实施进展与校验结论 |
 | [sky-view-3d.md](astronomy/sky-view-3d.md) | 3D 星空：站心、折射、气象、海平线俯角、视半径、天色、月亮眩光、月相、日食、残余光、日冕、银河、地形、历史地理调研、播放与限制 |
 | [phenomena-checks.md](astronomy/phenomena-checks.md) | 天象模块逐条校验结果（脚本生成）：NASA 日月食典、史书日月食与凌犯、Skyfield 对照、原文表格复现等 |
 
