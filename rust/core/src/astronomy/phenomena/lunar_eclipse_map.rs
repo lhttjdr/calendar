@@ -140,7 +140,8 @@ fn sublunar_normal(m: V3) -> V3 {
     u
 }
 
-fn phase_curve(src: &dyn SunMoonSource, phase: LunarPhase, t: Real, delta_t: Duration, samples: usize) -> LunarPhaseCurve {
+/// 某时刻的月下点与月出月没界线（闭合折线）。
+fn horizon_at(src: &dyn SunMoonSource, t: Real, delta_t: Duration, samples: usize) -> (MapPoint, Polyline) {
     let dt_days = delta_t.seconds() / real_const(86400.0);
     let g = gast(t - dt_days, t).rad();
     let (_, m_eq) = src.sun_moon_m(t);
@@ -165,7 +166,37 @@ fn phase_curve(src: &dyn SunMoonSource, phase: LunarPhase, t: Real, delta_t: Dur
         .collect();
     let first = horizon[0];
     horizon.push(first);
-    LunarPhaseCurve { phase, jd_tt: t, sublunar: point_of_normal(t, u0), horizon, offset: shadow_offset(src, t) }
+    (point_of_normal(t, u0), horizon)
+}
+
+fn phase_curve(src: &dyn SunMoonSource, phase: LunarPhase, t: Real, delta_t: Duration, samples: usize) -> LunarPhaseCurve {
+    let (sublunar, horizon) = horizon_at(src, t, delta_t, samples);
+    LunarPhaseCurve { phase, jd_tt: t, sublunar, horizon, offset: shadow_offset(src, t) }
+}
+
+/// 月食过程中某一时刻的情形（演示动画的一帧）。食分影外为负。
+#[derive(Clone, Debug)]
+pub struct LunarEclipseFrame {
+    pub jd_tt: Real,
+    pub sublunar: MapPoint,
+    pub horizon: Polyline,
+    pub offset: ShadowPathPoint,
+    pub umbral_magnitude: Real,
+    pub penumbral_magnitude: Real,
+}
+
+/// 求某一时刻的月下点、月出月没界线、月亮相对影心的位置与食分，与 [`lunar_eclipse_map`] 同一算法。
+pub fn lunar_eclipse_frame(src: &dyn SunMoonSource, t: Real, delta_t: Duration, samples: usize) -> LunarEclipseFrame {
+    let (sublunar, horizon) = horizon_at(src, t, delta_t, samples);
+    let g = lunar_eclipse_geometry(src, t);
+    LunarEclipseFrame {
+        jd_tt: t,
+        sublunar,
+        horizon,
+        offset: shadow_offset(src, t),
+        umbral_magnitude: g.umbral_magnitude(),
+        penumbral_magnitude: g.penumbral_magnitude(),
+    }
 }
 
 /// 月亮相对影心的位置（向东、向北角距）。
@@ -289,6 +320,17 @@ mod tests {
             let (win, guess) = found.expect("应能找到月食");
             let delta = Duration::in_seconds(real(dt));
             let map = lunar_eclipse_map(&win, guess, delta, 72).unwrap();
+            // 动画的一帧与静态图同一时刻完全一致
+            for c in &map.curves {
+                let f = lunar_eclipse_frame(&win, c.jd_tt, delta, 72);
+                assert_eq!(f.horizon.len(), c.horizon.len());
+                for (a, b) in f.horizon.iter().zip(&c.horizon) {
+                    assert!(a.longitude.rad() == b.longitude.rad() && a.latitude.rad() == b.latitude.rad());
+                }
+                assert!(f.offset.east == c.offset.east && f.offset.north == c.offset.north);
+            }
+            let fg = lunar_eclipse_frame(&win, map.eclipse.greatest_tt, delta, 72);
+            assert!(fg.umbral_magnitude == map.eclipse.umbral_magnitude || (fg.umbral_magnitude - map.eclipse.umbral_magnitude).abs().as_f64() < 1e-9);
             let mut worst = 0.0_f64;
             for c in &map.curves {
                 for p in c.horizon.iter().step_by(6) {

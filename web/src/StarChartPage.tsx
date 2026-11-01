@@ -3,164 +3,33 @@
  * - 盖图：以北天极为中心的等距方位投影（半径正比于去极度），画内规、赤道、外规、黄道、二十八宿宿界与宿度，并按当地当时
  *   画地平线（其下加暗）。方向按「面北仰视」：本地恒星时所在子午圈朝上，赤经向东（顺时针）增大，可改为固定方位。
  * - 地平图：以天顶为中心的球极投影，北上东左（仰视）。
+ * - 3D：站在当地仰望，拖动转向、滚轮缩放（Sky3D.tsx，three.js）。
  *
  * 天体位置（当日真赤道与真春分点的视位置）、星等、宿度、恒星时都由 Rust 算（skyWorker → SkyEngine）；这里只做投影、
  * 赤道→地平的坐标旋转、入宿度这类由所给位置直接相减的量，以及绘图。星官连线与星名取 Stellarium 中国星空文化
  * （CC BY-SA 4.0）。
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, Card, Checkbox, Descriptions, Flex, InputNumber, Radio, Select, Slider, Space, Spin, Typography } from 'antd'
-import { civilToJd, fmtDate, fmtTime, jdToCivil, yearLabel } from './civilTime'
+import { clampCivilDay, civilToJd, fmtDate, fmtTime, jdToCivil, yearLabel } from './civilTime'
 import { useWorkerRpc } from './useWorkerRpc'
+import { PlayButton, SPEEDS, useFrameTimer } from './Playback'
 import { loadCapitals, type Capital } from './capitals'
 import type { SkyRequest } from './skyWorker'
+import {
+  BODY_COLOR, BODY_LABEL, COLORS, MANSIONS, SCHOOL_COLOR, SYSTEMS, d2r, fromHorizon, greatCircle, mod360, r2d, starColor, starRadius, toHorizon,
+  type Culture, type Picked, type SnapshotJson, type Star,
+} from './skyCommon'
+
+// three.js 体积大，进入 3D 视图时才加载
+const Sky3D = lazy(() => import('./Sky3D'))
 
 const { Text } = Typography
 
-// ---------------------------------------------------------------------------------------------------------------------
-// 数据类型（与 rust/wasm-lib/src/lib_impl.rs 星图部分的 JSON 对应）
-
-type CultureAsterism = { system: string; id: string; name: string; det: number | null; lines: number[][] }
-type Culture = {
-  asterisms: CultureAsterism[]
-  names: [string, number, string][]
-  mansions: { system: string; determinatives: number[] }[]
-  /** 陈卓体系星官的三家分属（据《开元占经》卷六十至七十） */
-  schools: { id: string; school: string | null; basis: string; source: string }[]
-}
-type BodyJson = { name: string; ra: number; dec: number; mag: number | null; phase: number | null }
-type SnapshotJson = {
-  jdTt: number
-  gastDeg: number
-  eclipticPole: [number, number]
-  stars: (number | null)[]
-  bodies: BodyJson[]
-  mansionWidths: Record<string, number[]>
-}
-type Star = { hip: number; ra: number; dec: number; v: number; bv: number | null }
-
-/** 星官体系：距星表 id → 所用星官连线体系（《灵台仪象志》只改距星，星官仍用《仪象考成》）。 */
-const SYSTEMS: { id: string; label: string; asterisms: string }[] = [
-  { id: 'chenzhuo', label: '陈卓（三国—晋，汇汉三家）', asterisms: 'chenzhuo' },
-  { id: 'song_huangyou', label: '宋皇祐（1052）', asterisms: 'song_huangyou' },
-  { id: 'yuan', label: '元《天文汇钞》', asterisms: 'yuan' },
-  { id: 'ming_xianglin', label: '明《象林》（1634）', asterisms: 'ming_xianglin' },
-  { id: 'qing_lingtai', label: '清《灵台仪象志》（1674）距星', asterisms: 'qing' },
-  { id: 'qing', label: '清《仪象考成》（1744）', asterisms: 'qing' },
-]
-
-const MANSIONS = '角亢氐房心尾箕斗牛女虚危室壁奎娄胃昴毕觜参井鬼柳星张翼轸'.split('')
-
-const BODY_LABEL: Record<string, string> = {
-  sun: '日',
-  moon: '月',
-  mercury: '辰星',
-  venus: '太白',
-  mars: '荧惑',
-  jupiter: '岁星',
-  saturn: '填星',
-}
-const BODY_COLOR: Record<string, string> = {
-  sun: '#ffd34d',
-  moon: '#e8e8e0',
-  mercury: '#c9b8a0',
-  venus: '#fff4c8',
-  mars: '#ff7a4d',
-  jupiter: '#f2d6a8',
-  saturn: '#e6cf8f',
-}
-
-/** 三家传统配色：石氏赤、甘氏黑、巫咸黄（敦煌星图等）；深色底上甘氏改用白。 */
-const SCHOOL_COLOR: Record<string, string> = { 石氏: '#ff6b5a', 甘氏: '#e6e6e6', 巫咸: '#ffd23f' }
-
-const COLORS = {
-  sky: '#0b1530',
-  skyEdge: '#33456e',
-  below: 'rgba(0,0,0,0.45)',
-  asterism: 'rgba(120,160,220,0.75)',
-  asterismName: '#9fb7e0',
-  mansion: 'rgba(214,170,80,0.55)',
-  mansionText: '#e0bd6a',
-  equator: 'rgba(110,190,140,0.7)',
-  ecliptic: 'rgba(240,180,70,0.8)',
-  circle: 'rgba(170,180,210,0.45)',
-  horizon: 'rgba(120,220,200,0.9)',
-  text: '#cdd6e8',
-  pick: '#ff6b6b',
-}
-
-const d2r = Math.PI / 180
-const r2d = 180 / Math.PI
-const mod360 = (x: number) => ((x % 360) + 360) % 360
-
-/** B−V → 星色（Ballesteros 近似的分段线性版）。 */
-function starColor(bv: number | null): string {
-  if (bv == null) return '#f4f4ff'
-  const stops: [number, [number, number, number]][] = [
-    [-0.4, [155, 176, 255]],
-    [0.0, [202, 215, 255]],
-    [0.4, [248, 247, 255]],
-    [0.8, [255, 236, 200]],
-    [1.2, [255, 210, 161]],
-    [1.8, [255, 180, 107]],
-  ]
-  const x = Math.max(-0.4, Math.min(1.8, bv))
-  for (let i = 0; i < stops.length - 1; i++) {
-    const [a, ca] = stops[i]
-    const [b, cb] = stops[i + 1]
-    if (x <= b) {
-      const t = (x - a) / (b - a)
-      const c = ca.map((v, k) => Math.round(v + (cb[k] - v) * t))
-      return `rgb(${c[0]},${c[1]},${c[2]})`
-    }
-  }
-  return 'rgb(255,180,107)'
-}
-
-const starRadius = (v: number) => Math.max(0.55, 3.3 - 0.45 * v)
-
-/** 赤道 → 地平（几何，不计折射）：方位自北经东量。 */
-function toHorizon(raDeg: number, decDeg: number, lstDeg: number, latDeg: number): { alt: number; az: number } {
-  const h = (lstDeg - raDeg) * d2r
-  const d = decDeg * d2r
-  const p = latDeg * d2r
-  const alt = Math.asin(Math.sin(p) * Math.sin(d) + Math.cos(p) * Math.cos(d) * Math.cos(h))
-  const az = Math.atan2(-Math.cos(d) * Math.sin(h), Math.sin(d) * Math.cos(p) - Math.cos(d) * Math.cos(h) * Math.sin(p))
-  return { alt: alt * r2d, az: mod360(az * r2d) }
-}
-
-/** 地平 → 赤道。 */
-function fromHorizon(altDeg: number, azDeg: number, lstDeg: number, latDeg: number): { ra: number; dec: number } {
-  const a = altDeg * d2r
-  const z = azDeg * d2r
-  const p = latDeg * d2r
-  const dec = Math.asin(Math.sin(p) * Math.sin(a) + Math.cos(p) * Math.cos(a) * Math.cos(z))
-  const h = Math.atan2(-Math.sin(z) * Math.cos(a), Math.cos(p) * Math.sin(a) - Math.sin(p) * Math.cos(a) * Math.cos(z))
-  return { ra: mod360(lstDeg - h * r2d), dec: dec * r2d }
-}
-
-/** 以 (raP, decP) 为极的大圆上 n 个点（赤经、赤纬，度）。 */
-function greatCircle(raP: number, decP: number, n = 360): { ra: number; dec: number }[] {
-  const p = [Math.cos(decP * d2r) * Math.cos(raP * d2r), Math.cos(decP * d2r) * Math.sin(raP * d2r), Math.sin(decP * d2r)]
-  // 与极正交的两单位向量
-  const ref = Math.abs(p[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0]
-  const a = [p[1] * ref[2] - p[2] * ref[1], p[2] * ref[0] - p[0] * ref[2], p[0] * ref[1] - p[1] * ref[0]]
-  const na = Math.hypot(a[0], a[1], a[2])
-  const A = a.map((x) => x / na)
-  const B = [p[1] * A[2] - p[2] * A[1], p[2] * A[0] - p[0] * A[2], p[0] * A[1] - p[1] * A[0]]
-  return Array.from({ length: n + 1 }, (_, k) => {
-    const t = (2 * Math.PI * k) / n
-    const v = [0, 1, 2].map((i) => Math.cos(t) * A[i] + Math.sin(t) * B[i])
-    return { ra: mod360(Math.atan2(v[1], v[0]) * r2d), dec: Math.asin(Math.max(-1, Math.min(1, v[2]))) * r2d }
-  })
-}
-
-type View = 'gai' | 'horizon'
+type View = 'gai' | 'horizon' | 'sky3d'
 type Projector = (ra: number, dec: number) => [number, number] | null
 
 // ---------------------------------------------------------------------------------------------------------------------
-
-type Picked = { kind: 'star'; hip: number } | { kind: 'body'; name: string }
 
 function SkyCanvas(props: {
   view: View
@@ -450,6 +319,20 @@ function Legend({ schools }: { schools: boolean }) {
 
 // ---------------------------------------------------------------------------------------------------------------------
 
+/** 播放步长：分钟按时间推进；月、年按民用历推进（同月同日同时刻，看岁差不被周日运动打乱）。 */
+const PLAY_STEPS: { label: string; minutes?: number; months?: number }[] = [
+  { label: '1 分', minutes: 1 },
+  { label: '10 分', minutes: 10 },
+  { label: '1 时', minutes: 60 },
+  { label: '1 日', minutes: 1440 },
+  { label: '1 月', months: 1 },
+  { label: '1 年', months: 12 },
+  { label: '10 年', months: 120 },
+  { label: '100 年', months: 1200 },
+]
+const MIN_YEAR = -2000
+const MAX_YEAR = 3000
+
 export function StarChartPage() {
   const call = useWorkerRpc<SkyRequest>(() => new Worker(new URL('./skyWorker.ts', import.meta.url), { type: 'module' }))
   const now = jdToCivil(Date.now() / 86400000 + 2440587.5)
@@ -470,6 +353,11 @@ export function StarChartPage() {
   const [busy, setBusy] = useState<string | null>('加载星表与历表')
   const [error, setError] = useState<string | null>(null)
   const [picked, setPicked] = useState<Picked | null>(null)
+  const [playing, setPlaying] = useState(false)
+  const [playStep, setPlayStep] = useState(2)
+  const [playInterval, setPlayInterval] = useState(SPEEDS[1].value)
+  const playingRef = useRef(false)
+  playingRef.current = playing
 
   useEffect(() => {
     loadCapitals().then(setCapitals).catch(() => setCapitals([]))
@@ -485,7 +373,7 @@ export function StarChartPage() {
     let cancelled = false
     const t = setTimeout(async () => {
       try {
-        setBusy('计算天象')
+        if (!playingRef.current) setBusy('计算天象')
         // ΔT 以 TT 为自变量：迭代两次
         let dt = (await call<number[]>({ type: 'deltaT', jd: jdUt }))[0]
         const est = await call<number[]>({ type: 'deltaT', jd: jdUt + dt / 86400 })
@@ -496,11 +384,14 @@ export function StarChartPage() {
         setSnap(s)
         setError(null)
       } catch (e) {
-        if (!cancelled) setError(String(e instanceof Error ? e.message : e))
+        if (!cancelled) {
+          setError(String(e instanceof Error ? e.message : e))
+          setPlaying(false)
+        }
       } finally {
         if (!cancelled) setBusy(null)
       }
-    }, 150)
+    }, playingRef.current ? 0 : 150)
     return () => {
       cancelled = true
       clearTimeout(t)
@@ -542,6 +433,22 @@ export function StarChartPage() {
     const c = jdToCivil(civilToJd(date.y, date.m, date.d, date.h + date.mi / 60) + hours / 24)
     setDate({ y: c.y, m: c.m, d: c.d, h: c.h, mi: c.mi })
   }
+
+  useFrameTimer(playing, snap, playInterval, () => {
+    const st = PLAY_STEPS[playStep]
+    let next = date
+    if (st.minutes) {
+      const c = jdToCivil(civilToJd(date.y, date.m, date.d, date.h + date.mi / 60) + st.minutes / 1440)
+      next = { y: c.y, m: c.m, d: c.d, h: c.h, mi: c.mi }
+    } else {
+      const months = date.y * 12 + date.m - 1 + st.months!
+      const y = Math.floor(months / 12)
+      const m = months - y * 12 + 1
+      next = { ...date, y, m, d: clampCivilDay(y, m, date.d) }
+    }
+    if (next.y < MIN_YEAR || next.y > MAX_YEAR) setPlaying(false)
+    else setDate(next)
+  })
 
   // 所选天体信息
   const info = (() => {
@@ -602,7 +509,7 @@ export function StarChartPage() {
         <Flex vertical gap={10}>
           <Flex gap={8} align="center" wrap="wrap">
             <Text>日期</Text>
-            <InputNumber value={date.y} min={-2000} max={3000} style={{ width: 90 }} onChange={(v) => v != null && setDate({ ...date, y: v })} />
+            <InputNumber value={date.y} min={MIN_YEAR} max={MAX_YEAR} style={{ width: 90 }} onChange={(v) => v != null && setDate({ ...date, y: v })} />
             <Text type="secondary">年</Text>
             <InputNumber value={date.m} min={1} max={12} style={{ width: 60 }} onChange={(v) => v != null && setDate({ ...date, m: v })} />
             <Text type="secondary">月</Text>
@@ -618,6 +525,11 @@ export function StarChartPage() {
             <Button size="small" onClick={() => shift(-1)}>−1 时</Button>
             <Button size="small" onClick={() => shift(1)}>+1 时</Button>
             <Button size="small" onClick={() => shift(24)}>+1 日</Button>
+            <span style={{ marginLeft: 12 }}><PlayButton playing={playing} onClick={() => setPlaying(!playing)} /></span>
+            <Text>步长</Text>
+            <Select size="small" style={{ width: 84 }} value={playStep} onChange={setPlayStep} options={PLAY_STEPS.map((s, i) => ({ label: s.label, value: i }))} />
+            <Text>速度</Text>
+            <Select size="small" style={{ width: 66 }} value={playInterval} onChange={setPlayInterval} options={SPEEDS} />
             <Text style={{ marginLeft: 12 }}>地点</Text>
             <Select
               style={{ width: 150 }}
@@ -656,7 +568,7 @@ export function StarChartPage() {
         <Flex vertical gap={10}>
           <Flex gap={16} align="center" wrap="wrap">
             <Radio.Group value={view} onChange={(e) => setView(e.target.value)} optionType="button" size="small"
-              options={[{ label: '盖图', value: 'gai' }, { label: '地平', value: 'horizon' }]} />
+              options={[{ label: '盖图', value: 'gai' }, { label: '地平', value: 'horizon' }, { label: '3D', value: 'sky3d' }]} />
             {view === 'gai' && <Checkbox checked={fixedOrientation} onChange={(e) => setFixedOrientation(e.target.checked)}>固定方位（春分点朝上）</Checkbox>}
             <Checkbox.Group value={layers} onChange={(v) => setLayers(v as string[])}
               options={[
@@ -666,8 +578,8 @@ export function StarChartPage() {
                 { label: '二十八宿', value: 'mansions' },
                 { label: '赤道', value: 'equator' },
                 { label: '黄道', value: 'ecliptic' },
-                { label: view === 'gai' ? '内外规' : '高度圈', value: 'circles' },
-                ...(view === 'gai' ? [{ label: '地平', value: 'horizon' }] : []),
+                { label: view === 'horizon' ? '高度圈' : '内外规', value: 'circles' },
+                ...(view === 'gai' ? [{ label: '地平', value: 'horizon' }] : view === 'sky3d' ? [{ label: '地面', value: 'horizon' }] : []),
                 { label: '日月五星', value: 'bodies' },
               ]} />
           </Flex>
@@ -684,15 +596,22 @@ export function StarChartPage() {
           </Flex>
           <Spin spinning={!!busy} tip={busy ?? undefined}>
             {snap && culture ? (
-              <SkyCanvas view={view} stars={stars} starMap={starMap} snap={snap} culture={culture} systemId={systemId} lstDeg={lstDeg} lat={place.lat}
-                magLimit={magLimit} layers={layerSet} fixedOrientation={fixedOrientation} zhouTian={zhouTian} picked={picked} onPick={setPicked} />
+              view === 'sky3d' ? (
+                <Suspense fallback={<div style={{ height: 400 }} />}>
+                  <Sky3D stars={stars} starMap={starMap} snap={snap} culture={culture} systemId={systemId} lstDeg={lstDeg} lat={place.lat}
+                    magLimit={magLimit} layers={layerSet} zhouTian={zhouTian} picked={picked} onPick={setPicked} playing={playing} />
+                </Suspense>
+              ) : (
+                <SkyCanvas view={view} stars={stars} starMap={starMap} snap={snap} culture={culture} systemId={systemId} lstDeg={lstDeg} lat={place.lat}
+                  magLimit={magLimit} layers={layerSet} fixedOrientation={fixedOrientation} zhouTian={zhouTian} picked={picked} onPick={setPicked} />
+              )
             ) : (
               <div style={{ height: 400 }} />
             )}
           </Spin>
           <Legend schools={layerSet.has('schools') && system.asterisms === 'chenzhuo'} />
           <Text type="secondary" style={{ fontSize: 12 }}>
-            点击星或日月五星看名称、入宿度、去极度与地平坐标。位置为当日真赤道视位置；盖图外圈注宿名与宿度（距星赤经差，按所选周天）。
+            点击星或日月五星看名称、入宿度、去极度与地平坐标。3D 视图拖动转向、滚轮或双指缩放；不计大气折射，日月大小是符号，不按真实视径。位置为当日真赤道视位置；盖图外圈注宿名与宿度（距星赤经差，按所选周天）。
             星官连线与星名据 Stellarium 中国星空文化（CC BY-SA 4.0）；陈卓体系可按石氏、甘氏、巫咸三家着色（据《开元占经》卷六十至七十，data/sky_culture/sanjia_schools.csv）；「按时期」时各体系自其历元起适用至下一体系历元（data/sky_culture/system_periods.csv），历元以前不用后出的认星；《灵台仪象志》只改距星，星官同《仪象考成》。
           </Text>
         </Flex>

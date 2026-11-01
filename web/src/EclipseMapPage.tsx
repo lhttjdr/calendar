@@ -9,7 +9,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, Card, Checkbox, Descriptions, Flex, InputNumber, Radio, Slider, Space, Spin, Table, Tag, Typography } from 'antd'
 import { geoCircle } from 'd3-geo'
 import type { MultiLineString } from 'geojson'
-import { GeoCanvas, type MapView as View } from './GeoCanvas'
+import { shadowRegion, GeoCanvas, type MapView as View } from './GeoCanvas'
+import { EclipsePlaybackBar, useEclipsePlayback } from './Playback'
 import { LunarEclipseView, type LunarListItem } from './LunarEclipseView'
 import type { EclipseRequest } from './eclipseWorker'
 import { fmtDate, fmtTime, yearLabel } from './civilTime'
@@ -44,6 +45,8 @@ type EclipseMap = {
   outlines: { jdTt: number; penumbra: Line[]; umbra: Line[] }[]
   lonShiftPerSecond: number
 }
+/** 日食动画的一帧（Rust solarEclipseFrame） */
+type SolarFrame = { jdTt: number; penumbra: Line[]; umbra: Line[]; center: Pt[]; subsolar: [Pt] }
 type Local = {
   first: number
   second: number | null
@@ -76,6 +79,8 @@ const COLORS = {
   riseSet: '#2e8b57',
   outlinePen: 'rgba(59,111,182,0.55)',
   outlineUmbra: 'rgba(192,57,43,0.75)',
+  frameShadow: '#27408b',
+  frameUmbra: '#c0392b',
   sigma: 'rgba(142,27,16,0.45)',
   magnitude: '#7a5c99',
 }
@@ -86,6 +91,8 @@ function shiftLines(lines: Line[], dLon: number): MultiLineString {
 
 function MapCanvas(props: {
   map: EclipseMap
+  /** 演示中的当前一帧：显示此刻的影子与昼夜，代替静态的逐半小时轮廓 */
+  frame: SolarFrame | null
   dLon: number
   sigmaLon: number
   view: View
@@ -94,11 +101,12 @@ function MapCanvas(props: {
   picked: [number, number] | null
   onPick: (lon: number, lat: number) => void
 }) {
-  const { map, dLon, sigmaLon, view, layers, capitals, picked, onPick } = props
+  const { map, frame, dLon, sigmaLon, view, layers, capitals, picked, onPick } = props
   const sub = map.subsolar[0]
+  const sun = (frame ?? map).subsolar[0]
   const gp = map.greatestPoint[0]
   // 半径取 89.99° 而非 90°：从太阳方向看时夜半球边界恰在正射投影裁剪圈上，裁剪退化会填满整个圆盘
-  const night = useMemo(() => geoCircle().center([sub[0] + dLon + 180, -sub[1]]).radius(89.99)(), [sub, dLon])
+  const night = useMemo(() => geoCircle().center([sun[0] + dLon + 180, -sun[1]]).radius(89.99)(), [sun, dLon])
 
   // 中心线上按影子轮廓时刻标 UT
   const centralTicks = useMemo(() => {
@@ -127,7 +135,7 @@ function MapCanvas(props: {
         return (
           <>
         {layers.has('night') && <path d={path(night) ?? ''} fill={COLORS.night} stroke="none" />}
-        {layers.has('outlines') &&
+        {!frame && layers.has('outlines') &&
           map.outlines.map((o, i) => (
             <g key={`o${i}`}>
               {line(o.penumbra, COLORS.outlinePen, 0.7, '2 3')}
@@ -168,6 +176,20 @@ function MapCanvas(props: {
             </g>
           ) : null
         })}
+        {frame && (
+          <g>
+            {[{ lines: frame.penumbra, fill: 'rgba(30,40,110,0.20)' }, { lines: frame.umbra, fill: 'rgba(25,20,40,0.78)' }].map(({ lines, fill }, i) => {
+              const r = shadowRegion(lines, [sun[0], sun[1]], dLon)
+              return r ? <path key={i} d={path(r) ?? ''} fill={fill} stroke="none" /> : null
+            })}
+            {line(frame.penumbra, COLORS.frameShadow, 1.6)}
+            {line(frame.umbra, COLORS.frameUmbra, 1.4)}
+            {frame.center.map((c, i) => {
+              const [x, y] = pt(c[0] + dLon, c[1])
+              return Number.isFinite(x) ? <circle key={i} cx={x} cy={y} r={3} fill={COLORS.frameUmbra} stroke="#fff" strokeWidth={0.8} /> : null
+            })}
+          </g>
+        )}
         {(() => {
           const [x, y] = pt(gp[0] + dLon, gp[1])
           return Number.isFinite(x) ? (
@@ -287,6 +309,9 @@ export function EclipseMapPage() {
     }
   }, [picked, selected, deltaT, call])
 
+  const playback = useEclipsePlayback<SolarFrame>(map ? [map.p1, map.p4] : null, (t) =>
+    call<SolarFrame>({ type: 'solarFrame', jd: selected!.greatestTt, t, deltaT: selected!.deltaT })
+  )
   const dLon = map ? dtOffset * map.lonShiftPerSecond : 0
   const sigmaLon = map ? sigma * Math.abs(map.lonShiftPerSecond) : 0
   const layerSet = useMemo(() => new Set(layers), [layers])
@@ -363,7 +388,9 @@ export function EclipseMapPage() {
                     tooltip={{ formatter: (v) => `${(v ?? 0) >= 0 ? '+' : ''}${v} s` }} />
                 </div>
               </Flex>
-              <MapCanvas map={map} dLon={dLon} sigmaLon={sigmaLon} view={view} layers={layerSet} capitals={capitals} picked={picked}
+              <EclipsePlaybackBar pb={playback}
+                label={`${fmtTime(ut(playback.t ?? map.p1), true)} UT`} />
+              <MapCanvas map={map} frame={playback.frame} dLon={dLon} sigmaLon={sigmaLon} view={view} layers={layerSet} capitals={capitals} picked={picked}
                 onPick={(lon, lat) => setPicked([lon, lat])} />
               <Legend />
               <Text type="secondary" style={{ fontSize: 12 }}>

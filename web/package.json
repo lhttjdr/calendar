@@ -11,6 +11,7 @@
     "build:wasm": "cd .. && ./scripts/dev/build_wasm.sh && cd web && rm -rf node_modules/.vite node_modules/lunar-wasm node_modules/lunar-wasm-f64 && npm install"
   },
   "dependencies": {
+    "@types/three": "^0.187.0",
     "@xyflow/react": "^12.3.0",
     "antd": "^5.22.0",
     "d3-geo": "^3.1.1",
@@ -18,6 +19,7 @@
     "dayjs": "^1.11.19",
     "react": "18.2.0",
     "react-dom": "18.2.0",
+    "three": "^0.187.0",
     "topojson-client": "^3.1.0",
     "world-atlas": "^2.0.2"
   },

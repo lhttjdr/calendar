@@ -796,6 +796,31 @@ fn penumbral_limits_from_contour(grid: &MagnitudeGrid, lines: &[Vec<(MapPoint, b
     out
 }
 
+/// 日下点（影轴方向 k 在地面的投影；与地图同取 k，不另算太阳位置）。
+fn subsolar_point(f: &Frame) -> MapPoint {
+    let k = f.to_itrs(f.axes[2]);
+    MapPoint { jd_tt: f.t, longitude: PlaneAngle::from_rad(k[1].atan2(k[0])), latitude: PlaneAngle::from_rad(k[2].asin()) }
+}
+
+/// 日食过程中某一时刻的地面情形（演示动画的一帧）。
+#[derive(Clone, Debug)]
+pub struct SolarEclipseFrame {
+    pub outline: ShadowOutline,
+    /// 影轴与地面交点；影轴不触地时为 None
+    pub center: Option<MapPoint>,
+    pub subsolar: MapPoint,
+}
+
+/// 求某一时刻的影子轮廓、影轴落点与日下点，与 [`solar_eclipse_map`] 的影子轮廓同一算法。
+pub fn solar_eclipse_frame(src: &dyn SunMoonSource, t: Real, delta_t: Duration, theta_samples: usize) -> SolarEclipseFrame {
+    let f = Frame::new(src, t, delta_t.seconds() / real_const(86400.0));
+    SolarEclipseFrame {
+        outline: ShadowOutline { jd_tt: t, penumbra: outline(&f, Cone::Penumbra, theta_samples), umbra: outline(&f, Cone::Umbra, theta_samples / 2) },
+        center: axis_ground_point(&f).map(|g| to_map_point(t, g)),
+        subsolar: subsolar_point(&f),
+    }
+}
+
 /// 求日食地图。`src` 通常是 [`super::eclipse_window`] 建好的插值窗；`jd_tt_guess` 为近朔时刻（误差 1 日内）；
 /// `delta_t` 为 TT − UT1。无日食返回 None。
 pub fn solar_eclipse_map(
@@ -835,12 +860,7 @@ pub fn solar_eclipse_map(
         }
     };
 
-    let k = f0.to_itrs(f0.axes[2]);
-    let subsolar = MapPoint {
-        jd_tt: t0,
-        longitude: PlaneAngle::from_rad(k[1].atan2(k[0])),
-        latitude: PlaneAngle::from_rad(k[2].asin()),
-    };
+    let subsolar = subsolar_point(&f0);
 
     // 扫描：比 P1–P4 两端各多一步，保证界线端点不漏
     let step = options.step.seconds() / real_const(86400.0);

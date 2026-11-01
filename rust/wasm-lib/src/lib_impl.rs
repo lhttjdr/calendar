@@ -1059,7 +1059,7 @@ pub fn transform_graph_visualization_data() -> TransformGraphViz {
 use lunar_core::astronomy::ephemeris::Elpmpp02Data;
 use lunar_core::astronomy::phenomena::{
     eclipse_window, solar_eclipse_global_in, solar_eclipse_local_in, solar_eclipse_map as core_solar_eclipse_map, EclipseEphemeris,
-    MapPoint, SolarEclipseGlobal, SolarEclipseKind, SolarEclipseMapOptions,
+    InterpolatedSunMoon, MapPoint, SolarEclipseGlobal, SolarEclipseKind, SolarEclipseMapOptions,
 };
 use lunar_core::quantity::duration::Duration as QDuration;
 
@@ -1068,6 +1068,8 @@ use lunar_core::quantity::duration::Duration as QDuration;
 pub struct EclipseEngine {
     vsop: Vsop87,
     elp: Elpmpp02Data,
+    /// 最近一次动画用的插值窗（按猜测时刻认），逐帧复用，不必每帧 12 次历表求值
+    frame_window: std::cell::RefCell<Option<(f64, InterpolatedSunMoon)>>,
 }
 
 fn kind_code(k: SolarEclipseKind) -> &'static str {
@@ -1152,6 +1154,18 @@ pub fn delta_t_estimate(jd_tt: f64) -> Vec<f64> {
     vec![v, s]
 }
 
+impl EclipseEngine {
+    /// 取猜测时刻对应的插值窗，换一次日月食才重建。
+    fn with_frame_window<R>(&self, jd_tt_guess: f64, f: impl FnOnce(&InterpolatedSunMoon) -> R) -> R {
+        let mut slot = self.frame_window.borrow_mut();
+        if slot.as_ref().map(|(g, _)| *g) != Some(jd_tt_guess) {
+            let eph = EclipseEphemeris::new(&self.vsop, &self.elp);
+            *slot = Some((jd_tt_guess, eclipse_window(&eph, real(jd_tt_guess))));
+        }
+        f(&slot.as_ref().unwrap().1)
+    }
+}
+
 #[wasm_bindgen]
 impl EclipseEngine {
     /// 全二进制加载（与 compute_year_data_full_binary 相同的 7 个历表文件 + 章动表；章动表可为空）。
@@ -1180,7 +1194,7 @@ impl EclipseEngine {
         if !nutation_tab53a_bin.is_empty() {
             nutation::try_init_full_nutation_from_binary(nutation_tab53a_bin);
         }
-        Ok(EclipseEngine { vsop, elp })
+        Ok(EclipseEngine { vsop, elp, frame_window: std::cell::RefCell::new(None) })
     }
 
     /// 某民用年（天文纪年；1582-10-15 前儒略历）内的日食列表，JSON 数组：
@@ -1254,6 +1268,32 @@ impl EclipseEngine {
             outlines.join(","),
             json_f(shift)
         ))
+    }
+
+    /// 日食动画的一帧，JSON：jdTt、penumbra、umbra（折线组）、center（[点] 或 []）、subsolar（[点]）。折线同日食图。
+    #[wasm_bindgen(js_name = solarEclipseFrame)]
+    pub fn solar_eclipse_frame(&self, jd_tt_guess: f64, jd_tt: f64, delta_t_s: f64) -> String {
+        let f = self.with_frame_window(jd_tt_guess, |win| {
+            lunar_core::astronomy::phenomena::solar_eclipse_frame(win, real(jd_tt), QDuration::in_seconds(real(delta_t_s)), 180)
+        });
+        let center: Vec<MapPoint> = f.center.into_iter().collect();
+        format!(
+            "{{\"jdTt\":{},\"penumbra\":{},\"umbra\":{},\"center\":{},\"subsolar\":{}}}",
+            json_f(jd_tt), json_lines(&f.outline.penumbra), json_lines(&f.outline.umbra), json_line(&center), json_line(&[f.subsolar])
+        )
+    }
+
+    /// 月食动画的一帧，JSON：jdTt、sublunar（[点]）、horizon（折线）、east、north（度）、umbralMagnitude、penumbralMagnitude（影外为负）。
+    #[wasm_bindgen(js_name = lunarEclipseFrame)]
+    pub fn lunar_eclipse_frame(&self, jd_tt_guess: f64, jd_tt: f64, delta_t_s: f64) -> String {
+        let f = self.with_frame_window(jd_tt_guess, |win| {
+            lunar_core::astronomy::phenomena::lunar_eclipse_frame(win, real(jd_tt), QDuration::in_seconds(real(delta_t_s)), 90)
+        });
+        let d = |x: lunar_core::math::real::Real| json_f(x.as_f64().to_degrees());
+        format!(
+            "{{\"jdTt\":{},\"sublunar\":{},\"horizon\":{},\"east\":{},\"north\":{},\"umbralMagnitude\":{},\"penumbralMagnitude\":{}}}",
+            json_f(jd_tt), json_line(&[f.sublunar]), json_line(&f.horizon), d(f.offset.east), d(f.offset.north), json_f(f.umbral_magnitude.as_f64()), json_f(f.penumbral_magnitude.as_f64())
+        )
     }
 
     /// 某民用年内的月食列表，JSON 数组：[{greatestTt, gamma, penumbralMagnitude, umbralMagnitude, kind: N/P/T, deltaT, deltaTSigma}, …]。

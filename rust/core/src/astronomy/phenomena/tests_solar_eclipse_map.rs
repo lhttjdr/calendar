@@ -220,4 +220,32 @@ fn penumbral_limits_end_on_rise_set_curve() {
     }
 }
 
+/// 动画的一帧与静态图同一时刻的影子轮廓完全一致；中心食期间影轴落点落在中心线上。
+#[test]
+fn frame_matches_map_outlines_and_central_line() {
+    let (vsop, elp) = load();
+    let eph = EclipseEphemeris::new(&vsop, &elp);
+    let c = &CASES[0];
+    let win = eclipse_window(&eph, real(c.jd_tt_guess));
+    let dt = Duration::in_seconds(real(c.delta_t_s));
+    let map = solar_eclipse_map(&win, real(c.jd_tt_guess), dt, &Default::default()).unwrap();
+    assert!(!map.outlines.is_empty());
+    let same = |a: &[crate::astronomy::phenomena::Polyline], b: &[crate::astronomy::phenomena::Polyline]| {
+        assert_eq!(a.len(), b.len());
+        for (x, y) in a.iter().zip(b) {
+            assert_eq!(x.len(), y.len());
+            assert!(x.iter().zip(y).all(|(p, q)| p.longitude.rad() == q.longitude.rad() && p.latitude.rad() == q.latitude.rad()));
+        }
+    };
+    for o in &map.outlines {
+        let f = solar_eclipse_frame(&win, o.jd_tt, dt, 180);
+        same(&f.outline.penumbra, &o.penumbra);
+        same(&f.outline.umbra, &o.umbra);
+    }
+    let f = solar_eclipse_frame(&win, map.global.greatest_tt, dt, 180);
+    let (lon, lat) = deg(&f.center.expect("极大时影轴应触地"));
+    let d = distance_to_polyline_km(xyz_km(lon, lat), &map.central_line.concat());
+    println!("极大时影轴落点到中心线 {d:.3} km");
+    assert!(d < 1.0, "影轴落点到中心线 {d} km");
+}
 

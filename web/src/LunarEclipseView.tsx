@@ -12,6 +12,7 @@ import type { Feature, MultiLineString, Polygon } from 'geojson'
 import { fmtDate, fmtTime } from './civilTime'
 import type { Capital } from './capitals'
 import { GeoCanvas, type MapView } from './GeoCanvas'
+import { EclipsePlaybackBar, useEclipsePlayback } from './Playback'
 import type { EclipseRequest } from './eclipseWorker'
 import type { WithoutId } from './useWorkerRpc'
 
@@ -38,6 +39,8 @@ type LunarMap = {
   shadowPath: [number, number, number][]
   lonShiftPerSecond: number
 }
+/** 月食动画的一帧（Rust lunarEclipseFrame）；食分影外为负 */
+type LunarFrame = { jdTt: number; sublunar: [Pt]; horizon: Pt[]; east: number; north: number; umbralMagnitude: number; penumbralMagnitude: number }
 type Local = {
   phases: { phase: string; jdTt: number; alt: number }[]
   visibleFrom: number | null
@@ -52,7 +55,7 @@ const RISE_FILL = 'rgba(46,111,182,0.20)'
 const SET_FILL = 'rgba(217,130,43,0.22)'
 
 /** 月亮在地平下的区域：界线闭合多边形，按对跖点是否在内定走向（d3 以多边形走向定内外）。 */
-function belowHorizon(c: Curve, dLon: number): Feature<Polygon> {
+function belowHorizon(c: Pick<Curve, 'horizon' | 'sublunar'>, dLon: number): Feature<Polygon> {
   const ring = c.horizon.map((p) => [p[0] + dLon, p[1]])
   const s = c.sublunar[0]
   const anti: [number, number] = [s[0] + dLon + 180, -s[1]]
@@ -61,7 +64,7 @@ function belowHorizon(c: Curve, dLon: number): Feature<Polygon> {
   return geoContains(f, anti) ? f : make([...ring].reverse())
 }
 
-function ShadowDiagram({ map, ut }: { map: LunarMap; ut: (jd: number) => number }) {
+function ShadowDiagram({ map, frame, ut }: { map: LunarMap; frame: LunarFrame | null; ut: (jd: number) => number }) {
   const size = 360
   const c = size / 2
   const extent = Math.max(map.penumbraRadius + map.moonSemidiameter * 2, ...map.curves.map((x) => Math.hypot(x.east, x.north) + map.moonSemidiameter)) * 1.04
@@ -85,6 +88,10 @@ function ShadowDiagram({ map, ut }: { map: LunarMap; ut: (jd: number) => number 
             style={{ paintOrder: 'stroke', stroke: '#fff', strokeWidth: 2.5 }}>{i + 1}</text>
         </g>
       ))}
+      {frame && (
+        <circle cx={X(frame.east)} cy={Y(frame.north)} r={map.moonSemidiameter * k} stroke="#222" strokeWidth={1.4}
+          fill={frame.umbralMagnitude >= 1 ? '#a8492f' : frame.umbralMagnitude > 0 ? '#c9a66b' : '#fff6cf'} />
+      )}
     </svg>
       <Flex vertical gap={4}>
         {map.curves.map((x, i) => (
@@ -123,6 +130,10 @@ export function LunarEclipseView(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item, call])
 
+  const playback = useEclipsePlayback<LunarFrame>(map ? [map.curves[0].jdTt, map.curves[map.curves.length - 1].jdTt] : null, (t) =>
+    call<LunarFrame>({ type: 'lunarFrame', jd: item.greatestTt, t, deltaT: item.deltaT })
+  )
+  const frame = playback.frame
   const deltaT = item.deltaT + dtOffset
   const sigma = item.deltaTSigma
 
@@ -177,6 +188,8 @@ export function LunarEclipseView(props: {
                 tooltip={{ formatter: (v) => `${(v ?? 0) >= 0 ? '+' : ''}${v} s` }} />
             </div>
           </Flex>
+          <EclipsePlaybackBar pb={playback}
+            label={`${fmtTime(ut(playback.t ?? map.curves[0].jdTt), true)} UT${frame ? ` · ${frame.umbralMagnitude > 0 ? `本影食分 ${frame.umbralMagnitude.toFixed(3)}` : `半影食分 ${Math.max(0, frame.penumbralMagnitude).toFixed(3)}`}` : ''}`} />
           <GeoCanvas
             view={view}
             resetKey={map}
@@ -211,6 +224,15 @@ export function LunarEclipseView(props: {
                     </g>
                   )
                 })}
+                {frame && (() => {
+                  const [x, y] = pt(frame.sublunar[0][0] + dLon, frame.sublunar[0][1])
+                  return (
+                    <g>
+                      <path d={path(belowHorizon(frame, dLon)) ?? ''} fill="rgba(20,25,50,0.28)" stroke="#27408b" strokeWidth={1.4} />
+                      {Number.isFinite(x) && <circle cx={x} cy={y} r={4} fill="#fff8dc" stroke="#27408b" strokeWidth={1.4} />}
+                    </g>
+                  )
+                })()}
                 {(() => {
                   const [x, y] = pt(sub[0] + dLon, sub[1])
                   return Number.isFinite(x) ? (
@@ -235,7 +257,7 @@ export function LunarEclipseView(props: {
         </Flex>
       </Card>
       <Card size="small" style={{ marginTop: 12 }} title="月亮穿过地影（北上东左；地影按食甚时大小）">
-        <ShadowDiagram map={map} ut={ut} />
+        <ShadowDiagram map={map} frame={frame} ut={ut} />
       </Card>
       {picked && (
         <Card size="small" style={{ marginTop: 12 }}

@@ -12,6 +12,8 @@ type Engine = {
   lunarEclipsesInYear(year: number): string
   lunarEclipseMap(jdTtGuess: number, deltaTS: number): string
   lunarEclipseLocal(jdTtGuess: number, deltaTS: number, lonDeg: number, latDeg: number): string
+  solarEclipseFrame(jdTtGuess: number, jdTt: number, deltaTS: number): string
+  lunarEclipseFrame(jdTtGuess: number, jdTt: number, deltaTS: number): string
 }
 
 type WasmModule = {
@@ -38,6 +40,8 @@ export type EclipseRequest =
   | { id: number; type: 'listLunar'; year: number }
   | { id: number; type: 'lunarMap'; jd: number; deltaT: number }
   | { id: number; type: 'lunarLocal'; jd: number; deltaT: number; lon: number; lat: number }
+  | { id: number; type: 'solarFrame'; jd: number; t: number; deltaT: number }
+  | { id: number; type: 'lunarFrame'; jd: number; t: number; deltaT: number }
 
 let enginePromise: Promise<{ wasm: WasmModule; engine: Engine }> | null = null
 
@@ -84,6 +88,12 @@ self.onmessage = async (ev: MessageEvent<EclipseRequest>) => {
         break
       case 'lunarLocal':
         result = JSON.parse(engine.lunarEclipseLocal(req.jd, req.deltaT, req.lon, req.lat))
+        break
+      case 'solarFrame':
+        result = JSON.parse(engine.solarEclipseFrame(req.jd, req.t, req.deltaT))
+        break
+      case 'lunarFrame':
+        result = JSON.parse(engine.lunarEclipseFrame(req.jd, req.t, req.deltaT))
         break
       case 'deltaT':
         result = Array.from(wasm.deltaTEstimate(req.jd))
