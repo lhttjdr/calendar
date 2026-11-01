@@ -3,11 +3,13 @@
  *
  * 天体位置仍由 Rust 算（同盖图），这里只做显示：星和线存赤道单位向量，转视角只改一个矩阵，不重算也不重建几何。
  * 投影是顶点着色器里的球极投影（公式见 skyProjection.ts）。文字和选中标记画在上层的 2D 画布，用同一公式算坐标。
+ * 看到的是视地平坐标：日月五星取站心位置，折射查 Rust 给的对照表（refractionAt，着色器里同一算法），地面按视高度遮挡。
+ * 日月：真实圆面大于符号时画圆面（逐像素把视高度反算回真高度再判断，近地平的压扁由此而来），否则画符号；上缘的视高度高于地平线就显示，地面逐像素遮挡。
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { BODY_COLOR, BODY_LABEL, COLORS, MANSIONS, SCHOOL_COLOR, SYSTEMS, greatCircle, starColor, starRadius, type Culture, type Picked, type SnapshotJson, type Star } from './skyCommon'
-import { apply, equatorialToLocal, localToView, multiply, projectionK, unitVector, viewToPixel, type Mat3 } from './skyProjection'
+import { BODY_COLOR, BODY_LABEL, COLORS, MANSIONS, SCHOOL_COLOR, SYSTEMS, REFRACTION_SAMPLES, greatCircle, refractionAt, starColor, starRadius, type Culture, type Picked, type SnapshotJson, type Star } from './skyCommon'
+import { apply, equatorialToLocal, localToView, projectionK, unitVector, viewToPixel, type Mat3 } from './skyProjection'
 
 const MIN_FOV = 5
 const MAX_FOV = 180
@@ -16,10 +18,24 @@ const GROUND_FAR = '#0c110b'
 const CARDINALS: [string, number][] = [['北', 0], ['东北', 45], ['东', 90], ['东南', 135], ['南', 180], ['西南', 225], ['西', 270], ['西北', 315]]
 
 const COMMON_GLSL = /* glsl */ `
-  uniform mat3 uEqToView;
-  uniform vec3 uUpRow;
+  uniform mat3 uEqToLocal;
+  uniform mat3 uLocalToView;
+  uniform float uRefr[${REFRACTION_SAMPLES}];
   uniform float uK;
   uniform vec2 uHalf;
+  // 地方坐标（东、北、天顶）的真方向 → 视方向：方位不变，高度加折射。表的取样见 skyCommon.ts
+  float refraction(float alt) {
+    float x = sqrt(max(alt + 5.0, 0.0)) / 0.1;
+    int i = int(min(floor(x), float(${REFRACTION_SAMPLES - 2})));
+    return mix(uRefr[i], uRefr[i + 1], x - float(i));
+  }
+  vec3 observed(vec3 l) {
+    float alt = degrees(asin(clamp(l.z, -1.0, 1.0)));
+    float a = radians(alt + refraction(alt));
+    float len = length(l.xy);
+    if (len < 1e-6) return l;
+    return vec3(l.xy / len * cos(a), sin(a));
+  }
   vec2 toPixel(vec3 v) { return v.xy * uK * uHalf.y / max(1.0 + v.z, 0.02); }
 `
 
@@ -31,9 +47,10 @@ const POINT_VERT = /* glsl */ `
   attribute float aSize;
   varying vec3 vColor;
   void main() {
-    vec3 v = uEqToView * position;
+    vec3 l = observed(uEqToLocal * position);
+    vec3 v = uLocalToView * l;
     vColor = aColor;
-    if (v.z < -0.9 || (uGround > 0.5 && dot(uUpRow, position) < 0.0)) {
+    if (v.z < -0.9 || (uGround > 0.5 && l.z < 0.0)) {
       gl_Position = vec4(2.0, 2.0, 0.0, 1.0);
       gl_PointSize = 0.0;
       return;
@@ -53,13 +70,84 @@ const STAR_FRAG = /* glsl */ `
     gl_FragColor = vec4(vColor, clamp(core + glow, 0.0, 1.0));
   }
 `
+const BODY_VERT = /* glsl */ `
+  ${COMMON_GLSL}
+  uniform float uGround;
+  uniform float uScale;
+  attribute vec3 aColor;
+  attribute float aSize;
+  attribute float aRadius;
+  varying vec3 vColor;
+  varying vec3 vTrueCenter;
+  varying float vRadius;
+  varying float vTrueDisc;
+  varying float vPixelRadius;
+  void main() {
+    vec3 t = uEqToLocal * position;
+    vec3 l = observed(t);
+    vec3 v = uLocalToView * l;
+    vColor = aColor;
+    vTrueCenter = t;
+    vRadius = aRadius;
+    float limb = degrees(asin(clamp(t.z, -1.0, 1.0)) + aRadius);
+    // 球极投影保角：圆面仍是圆，此处的比例尺 = 中心比例尺 ÷ (1 + cos θ)
+    float rpx = aRadius * uK * uHalf.y / (1.0 + v.z);
+    float sym = aSize * uScale * 0.5;
+    vTrueDisc = rpx >= sym ? 1.0 : 0.0;
+    vPixelRadius = rpx;
+    // 上缘低于地平线才整个隐去；露出的部分由片元逐像素遮挡
+    if (v.z < -0.9 || (uGround > 0.5 && limb + refraction(limb) < 0.0)) {
+      gl_Position = vec4(2.0, 2.0, 0.0, 1.0);
+      gl_PointSize = 0.0;
+      return;
+    }
+    gl_Position = vec4(toPixel(v) / uHalf, 0.0, 1.0);
+    // 地平附近折射的变化率可使圆面在高度方向伸缩，精灵留足余量
+    gl_PointSize = 2.0 * max(rpx * 1.6, sym) + 4.0;
+  }
+`
 const BODY_FRAG = /* glsl */ `
   precision highp float;
+  uniform mat3 uLocalToView;
+  uniform float uRefr[${REFRACTION_SAMPLES}];
+  uniform float uK;
+  uniform vec2 uHalf;
+  uniform float uGround;
   varying vec3 vColor;
+  varying vec3 vTrueCenter;
+  varying float vRadius;
+  varying float vTrueDisc;
+  varying float vPixelRadius;
+  float refraction(float alt) {
+    float x = sqrt(max(alt + 5.0, 0.0)) / 0.1;
+    int i = int(min(floor(x), float(${REFRACTION_SAMPLES - 2})));
+    return mix(uRefr[i], uRefr[i + 1], x - float(i));
+  }
   void main() {
-    float r = length(gl_PointCoord - 0.5) * 2.0;
-    if (r > 1.0) discard;
-    gl_FragColor = vec4(vColor, 1.0 - smoothstep(0.86, 1.0, r));
+    // 此像素的视方向（地方坐标）：反算球极投影
+    vec2 s = (gl_FragCoord.xy - uHalf) / (uK * uHalf.y);
+    float rho2 = dot(s, s);
+    vec3 d = vec3(2.0 * s, 1.0 - rho2) / (1.0 + rho2);
+    vec3 l = transpose(uLocalToView) * d;
+    if (uGround > 0.5 && l.z < 0.0) discard;
+    float alpha;
+    if (vTrueDisc > 0.5) {
+      // 视高度 → 真高度（不动点迭代），在真方向上判断是否落在圆面内
+      float seen = degrees(asin(clamp(l.z, -1.0, 1.0)));
+      float t = seen;
+      for (int k = 0; k < 4; k++) t = seen - refraction(t);
+      float len = max(length(l.xy), 1e-6);
+      vec3 truth = vec3(l.xy / len * cos(radians(t)), sin(radians(t)));
+      float r = length(truth - vTrueCenter) / vRadius;
+      float edge = 1.0 / max(vPixelRadius, 1.0);
+      alpha = 1.0 - smoothstep(1.0 - edge, 1.0 + edge, r);
+    } else {
+      // 精灵比符号大 4 像素，留给边缘抗锯齿
+      float r = length(gl_PointCoord - 0.5) * 2.0;
+      alpha = 1.0 - smoothstep(0.78, 0.92, r);
+    }
+    if (alpha <= 0.0) discard;
+    gl_FragColor = vec4(vColor, alpha);
   }
 `
 
@@ -74,11 +162,13 @@ const LINE_VERT = /* glsl */ `
   varying float vAcross;
   varying float vAlt;
   void main() {
-    vec3 a = uEqToView * iStart;
-    vec3 b = uEqToView * iEnd;
+    vec3 la = observed(uEqToLocal * iStart);
+    vec3 lb = observed(uEqToLocal * iEnd);
+    vec3 a = uLocalToView * la;
+    vec3 b = uLocalToView * lb;
     vColor = iColor;
     vAcross = position.y;
-    vAlt = dot(uUpRow, mix(iStart, iEnd, position.x));
+    vAlt = mix(la.z, lb.z, position.x);
     if (a.z < -0.9 || b.z < -0.9) { gl_Position = vec4(2.0, 2.0, 0.0, 1.0); return; }
     vec2 pa = toPixel(a);
     vec2 pb = toPixel(b);
@@ -192,6 +282,8 @@ type Props = {
   picked: Picked | null
   onPick: (p: Picked | null) => void
   playing: boolean
+  /** 折射对照表（度），null 为不计 */
+  refraction: number[] | null
 }
 
 type Engine = {
@@ -199,8 +291,9 @@ type Engine = {
   scene: THREE.Scene
   camera: THREE.Camera
   shared: {
-    uEqToView: { value: THREE.Matrix3 }
-    uUpRow: { value: THREE.Vector3 }
+    uEqToLocal: { value: THREE.Matrix3 }
+    uLocalToView: { value: THREE.Matrix3 }
+    uRefr: { value: Float32Array }
     uK: { value: number }
     uHalf: { value: THREE.Vector2 }
     uGround: { value: number }
@@ -215,11 +308,12 @@ type Engine = {
   bodyPoints: THREE.Points | null
 }
 
-function pointGeometry(vecs: number[], colors: number[], sizes: number[]) {
+function pointGeometry(vecs: number[], colors: number[], sizes: number[], radii?: number[]) {
   const g = new THREE.BufferGeometry()
   g.setAttribute('position', new THREE.Float32BufferAttribute(vecs, 3))
   g.setAttribute('aColor', new THREE.Float32BufferAttribute(colors, 3))
   g.setAttribute('aSize', new THREE.Float32BufferAttribute(sizes, 1))
+  if (radii) g.setAttribute('aRadius', new THREE.Float32BufferAttribute(radii, 1))
   return g
 }
 
@@ -229,8 +323,9 @@ function createEngine(canvas: HTMLCanvasElement): Engine {
   const scene = new THREE.Scene()
   const camera = new THREE.Camera() // 位置全由着色器算，相机不起作用
   const shared = {
-    uEqToView: { value: new THREE.Matrix3() },
-    uUpRow: { value: new THREE.Vector3(0, 0, 1) },
+    uEqToLocal: { value: new THREE.Matrix3() },
+    uLocalToView: { value: new THREE.Matrix3() },
+    uRefr: { value: new Float32Array(REFRACTION_SAMPLES) },
     uK: { value: 1 },
     uHalf: { value: new THREE.Vector2(1, 1) },
     uGround: { value: 1 },
@@ -268,11 +363,11 @@ function createEngine(canvas: HTMLCanvasElement): Engine {
     vertexShader: LINE_VERT,
     fragmentShader: LINE_FRAG,
     ...blend,
-    uniforms: { uEqToView: shared.uEqToView, uUpRow: shared.uUpRow, uK: shared.uK, uHalf: shared.uHalf, uGround: shared.uGround, uWidth: { value: 1.5 } },
+    uniforms: { uEqToLocal: shared.uEqToLocal, uLocalToView: shared.uLocalToView, uRefr: shared.uRefr, uK: shared.uK, uHalf: shared.uHalf, uGround: shared.uGround, uWidth: { value: 1.5 } },
   })
-  const pointUniforms = { uEqToView: shared.uEqToView, uUpRow: shared.uUpRow, uK: shared.uK, uHalf: shared.uHalf, uGround: shared.uGround, uScale: shared.uScale }
+  const pointUniforms = { uEqToLocal: shared.uEqToLocal, uLocalToView: shared.uLocalToView, uRefr: shared.uRefr, uK: shared.uK, uHalf: shared.uHalf, uGround: shared.uGround, uScale: shared.uScale }
   const starMaterial = new THREE.ShaderMaterial({ vertexShader: POINT_VERT, fragmentShader: STAR_FRAG, ...blend, blending: THREE.AdditiveBlending, uniforms: pointUniforms })
-  const bodyMaterial = new THREE.ShaderMaterial({ vertexShader: POINT_VERT, fragmentShader: BODY_FRAG, ...blend, uniforms: pointUniforms })
+  const bodyMaterial = new THREE.ShaderMaterial({ vertexShader: BODY_VERT, fragmentShader: BODY_FRAG, ...blend, uniforms: pointUniforms })
   return { renderer, scene, camera, shared, upView, lineMaterial, starMaterial, bodyMaterial, lines: null, starPoints: null, bodyPoints: null }
 }
 
@@ -290,7 +385,7 @@ function replaceObject<T extends THREE.Mesh | THREE.Points>(e: Engine, old: T | 
 }
 
 export default function Sky3D(props: Props) {
-  const { stars, starMap, snap, culture, systemId, lstDeg, lat, magLimit, layers, zhouTian, picked, onPick, playing } = props
+  const { stars, starMap, snap, culture, systemId, lstDeg, lat, magLimit, layers, zhouTian, picked, onPick, playing, refraction } = props
   const hostRef = useRef<HTMLDivElement>(null)
   const glRef = useRef<HTMLCanvasElement>(null)
   const textRef = useRef<HTMLCanvasElement>(null)
@@ -318,9 +413,20 @@ export default function Sky3D(props: Props) {
   // 当前视角下的矩阵。文字、点选与着色器都从这里取
   const matrices = (lst: number) => {
     const { az, alt } = look.current
-    const toLocal = equatorialToLocal(lst, propsRef.current.lat)
-    const toView: Mat3 = multiply(localToView(az, alt), toLocal)
-    return { toLocal, toView }
+    return { toLocal: equatorialToLocal(lst, propsRef.current.lat), toView: localToView(az, alt) }
+  }
+  /** 地方坐标的真方向 → 视方向（与着色器 observed 同）。 */
+  const observed = (l: number[]): number[] => {
+    const alt = (Math.asin(Math.max(-1, Math.min(1, l[2]))) * 180) / Math.PI
+    const a = ((alt + refractionAt(propsRef.current.refraction, alt)) * Math.PI) / 180
+    const len = Math.hypot(l[0], l[1])
+    return len < 1e-6 ? l : [(l[0] / len) * Math.cos(a), (l[1] / len) * Math.cos(a), Math.sin(a)]
+  }
+
+  /** 圆面上缘的视高度（度）：真高度加视半径后再计折射。 */
+  const limbSeen = (t: number[], radiusDeg: number) => {
+    const limb = (Math.asin(Math.max(-1, Math.min(1, t[2]))) * 180) / Math.PI + radiusDeg
+    return limb + refractionAt(propsRef.current.refraction, limb)
   }
 
   const currentLst = (now: number) => {
@@ -340,9 +446,11 @@ export default function Sky3D(props: Props) {
     ctx.clearRect(0, 0, w, h)
     const ground = p.layers.has('horizon')
     /** 赤道单位向量 → 画布坐标；地面遮住或在画外时为 null。 */
-    const place = (v: number[]): [number, number] | null => {
-      if (ground && apply(toLocal, v)[2] < 0) return null
-      const q = viewToPixel(apply(toView, v), k, h / 2)
+    const place = (v: number[], radiusDeg = 0): [number, number] | null => {
+      const t = apply(toLocal, v)
+      const l = observed(t)
+      if (ground && (radiusDeg > 0 ? limbSeen(t, radiusDeg) : l[2]) < 0) return null
+      const q = viewToPixel(apply(toView, l), k, h / 2)
       if (!q) return null
       const x = w / 2 + q[0]
       const y = h / 2 - q[1]
@@ -392,27 +500,30 @@ export default function Sky3D(props: Props) {
     }
     if (p.layers.has('bodies')) {
       for (const b of p.snap.bodies) {
-        const xy = place(unitVector(b.ra, b.dec))
-        if (xy) text(BODY_LABEL[b.name], xy[0] + 9, xy[1] + 4, '600 13px sans-serif', BODY_COLOR[b.name])
+        const xy = place(unitVector(b.topoRa, b.topoDec), b.semidiameter ?? 0)
+        // 圆面放大后，字放到圆面外
+        const offset = 9 + (((b.semidiameter ?? 0) * Math.PI) / 180) * k * (h / 2) * 0.5
+        if (xy) text(BODY_LABEL[b.name], xy[0] + offset, xy[1] + 4, '600 13px sans-serif', BODY_COLOR[b.name])
       }
     }
     if (p.picked) {
       const pk = p.picked
-      const target = pk.kind === 'star' ? p.starMap.get(pk.hip) : p.snap.bodies.find((b) => b.name === pk.name)
-      const xy = target && place(unitVector(target.ra, target.dec))
+      const body = pk.kind === 'body' ? p.snap.bodies.find((b) => b.name === pk.name) : null
+      const star = pk.kind === 'star' ? p.starMap.get(pk.hip) : null
+      const xy = body ? place(unitVector(body.topoRa, body.topoDec), body.semidiameter ?? 0) : star ? place(unitVector(star.ra, star.dec)) : null
       if (xy) {
         ctx.beginPath()
-        ctx.arc(xy[0], xy[1], 10, 0, 2 * Math.PI)
+        const sr = ((body?.semidiameter ?? 0) * Math.PI) / 180
+        ctx.arc(xy[0], xy[1], Math.max(10, (sr * k * (h / 2)) / 1.5 + 4), 0, 2 * Math.PI)
         ctx.strokeStyle = COLORS.pick
         ctx.lineWidth = 1.5
         ctx.stroke()
       }
     }
     // 方位：沿地平圈标注，始终显示
-    const viewOnly = localToView(look.current.az, look.current.alt)
     for (const [name, az] of CARDINALS) {
       const a = (az * Math.PI) / 180
-      const q = viewToPixel(apply(viewOnly, [Math.sin(a), Math.cos(a), 0]), k, h / 2)
+      const q = viewToPixel(apply(toView, [Math.sin(a), Math.cos(a), 0]), k, h / 2)
       if (!q) continue
       const main = name.length === 1
       text(name, w / 2 + q[0], h / 2 - q[1] + (main ? 22 : 18), main ? '600 16px sans-serif' : '12px sans-serif', main ? '#ffb86b' : '#c9a57a', 'center')
@@ -468,15 +579,17 @@ export default function Sky3D(props: Props) {
       const { w, h, dpr } = size.current
       const { toLocal, toView } = matrices(currentLst(now))
       const s = engine.shared
-      s.uEqToView.value.set(...toView)
-      s.uUpRow.value.set(toLocal[6], toLocal[7], toLocal[8])
+      s.uEqToLocal.value.set(...toLocal)
+      s.uLocalToView.value.set(...toView)
+      const table = propsRef.current.refraction
+      if (table) s.uRefr.value.set(table)
+      else s.uRefr.value.fill(0)
       s.uK.value = projectionK(look.current.fov)
       s.uHalf.value.set((w * dpr) / 2, (h * dpr) / 2)
       s.uGround.value = propsRef.current.layers.has('horizon') ? 1 : 0
       // 放大时星点略增大，暗星才分得开
       s.uScale.value = dpr * Math.pow(60 / look.current.fov, 0.3)
-      const viewOnly = localToView(look.current.az, look.current.alt)
-      engine.upView.value.set(viewOnly[2], viewOnly[5], viewOnly[8])
+      engine.upView.value.set(toView[2], toView[5], toView[8])
       engine.lineMaterial.uniforms.uWidth.value = 1.5 * dpr
       engine.renderer.render(engine.scene, engine.camera)
       drawLabels(toLocal, toView)
@@ -555,13 +668,15 @@ export default function Sky3D(props: Props) {
     const vec: number[] = []
     const col: number[] = []
     const siz: number[] = []
+    const rad: number[] = []
     for (const b of snap.bodies) {
-      vec.push(...unitVector(b.ra, b.dec))
+      vec.push(...unitVector(b.topoRa, b.topoDec))
       const [r, g, bl] = parseColor(BODY_COLOR[b.name])
       col.push(r, g, bl)
       siz.push(b.name === 'sun' ? 16 : b.name === 'moon' ? 14 : 8)
+      rad.push(((b.semidiameter ?? 0) * Math.PI) / 180)
     }
-    e.bodyPoints = replaceObject(e, e.bodyPoints, new THREE.Points(pointGeometry(vec, col, siz), e.bodyMaterial), 3)
+    e.bodyPoints = replaceObject(e, e.bodyPoints, new THREE.Points(pointGeometry(vec, col, siz, rad), e.bodyMaterial), 3)
     dirty.current = true
   }, [snap, layers])
 
@@ -615,7 +730,7 @@ export default function Sky3D(props: Props) {
   // 其余影响文字或地面的变化
   useEffect(() => {
     dirty.current = true
-  }, [picked, zhouTian, lat, magLimit, layers])
+  }, [picked, zhouTian, lat, magLimit, layers, refraction])
 
   // 拖动转向、滚轮与双指缩放
   useEffect(() => {
@@ -672,17 +787,23 @@ export default function Sky3D(props: Props) {
       const { toLocal, toView } = matrices(currentLst(performance.now()))
       const k = projectionK(look.current.fov)
       const ground = p.layers.has('horizon')
-      const dist = (ra: number, dec: number) => {
+      const dist = (ra: number, dec: number, radiusDeg = 0) => {
         const v = unitVector(ra, dec)
-        if (ground && apply(toLocal, v)[2] < 0) return Infinity
-        const q = viewToPixel(apply(toView, v), k, h / 2)
-        return q ? Math.hypot(w / 2 + q[0] - px, h / 2 - q[1] - py) : Infinity
+        const t = apply(toLocal, v)
+        const l = observed(t)
+        const sr = (radiusDeg * Math.PI) / 180
+        if (ground && (radiusDeg > 0 ? limbSeen(t, radiusDeg) : l[2]) < 0) return Infinity
+        const vv = apply(toView, l)
+        const q = viewToPixel(vv, k, h / 2)
+        if (!q) return Infinity
+        // 点在圆面内算距离 0
+        return Math.max(0, Math.hypot(w / 2 + q[0] - px, h / 2 - q[1] - py) - (sr * k * (h / 2)) / (1 + vv[2]))
       }
       let best: Picked | null = null
       let bestD = 12
       if (p.layers.has('bodies')) {
         for (const b of p.snap.bodies) {
-          const d = dist(b.ra, b.dec)
+          const d = dist(b.topoRa, b.topoDec, b.semidiameter ?? 0)
           if (d < bestD) {
             bestD = d
             best = { kind: 'body', name: b.name }

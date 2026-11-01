@@ -1147,6 +1147,14 @@ fn civil_year_tt_range(year: i32) -> (lunar_core::math::real::Real, lunar_core::
     (tt(civil_to_julian_day(year, 1, 1)), tt(civil_to_julian_day(year + 1, 1, 1)))
 }
 
+/// 各真高度（度）处的折射量（度）：光线追迹（项目缺省模型），海平面标准大气。
+#[wasm_bindgen(js_name = refractionTable)]
+pub fn refraction_table_js(altitudes_deg: Vec<f64>) -> Vec<f64> {
+    use lunar_core::astronomy::correction::{Atmosphere, RefractionModel};
+    let alts: Vec<_> = altitudes_deg.iter().map(|&h| real(h)).collect();
+    lunar_core::astronomy::sky_map::refraction_table(&alts, RefractionModel::RayTrace, &Atmosphere::default()).iter().map(|r| r.as_f64()).collect()
+}
+
 /// ΔT 估计 [中值, 1σ]（秒）：Morrison–Stephenson 2021，已按本仓库月历表配套修正。
 #[wasm_bindgen(js_name = deltaTEstimate)]
 pub fn delta_t_estimate(jd_tt: f64) -> Vec<f64> {
@@ -1609,9 +1617,10 @@ impl SkyEngine {
 
     /// 天空快照，JSON：{jdTt, gastDeg, eclipticPole:[赤经°, 赤纬°], stars:[hip, 赤经°, 赤纬°, V, B−V|null, …]（扁平），
     /// bodies:[{name, ra, dec, mag, phase}], mansionWidths:{体系: [28 个宿度（度，360° 制）]}}。坐标为当日真赤道与真春分点。
-    /// `delta_t_s` 只用于恒星时（GAST，地平星图用）。
+    /// bodies 另带 topoRa、topoDec、semidiameter（度，行星为 null）：所给地点（海平面）的站心位置与视半径，地平图和 3D 视图用。
+    /// `delta_t_s` 只用于恒星时（GAST）。
     #[wasm_bindgen]
-    pub fn snapshot(&self, jd_tt: f64, delta_t_s: f64) -> String {
+    pub fn snapshot(&self, jd_tt: f64, delta_t_s: f64, lon_deg: f64, lat_deg: f64) -> String {
         use lunar_core::astronomy::apparent::ApparentPipelineOptions;
         use lunar_core::astronomy::sky_map::sky_snapshot;
         use lunar_core::astronomy::time::{TimePoint, TimeScale};
@@ -1637,15 +1646,27 @@ impl SkyEngine {
                 s.bv.map(|b| format!("{:.2}", b.as_f64())).unwrap_or_else(|| "null".into())
             ));
         }
+        let jd_ut1 = jd_tt - delta_t_s / 86400.0;
+        let gast = lunar_core::astronomy::time::earth_rotation::gast(real(jd_ut1), real(jd_tt));
+        let observer = lunar_core::astronomy::geodesy::Observer::new(
+            lunar_core::quantity::angle::PlaneAngle::from_deg(real(lon_deg)),
+            lunar_core::quantity::angle::PlaneAngle::from_deg(real(lat_deg)),
+            lunar_core::quantity::length::Length::from_value(real(0.0), lunar_core::quantity::unit::LengthUnit::Meter),
+        );
+        let topo = snap.topocentric_places(&observer, gast);
         let bodies: Vec<String> = snap
             .bodies
             .iter()
-            .map(|b| {
+            .zip(&topo)
+            .map(|(b, tp)| {
                 format!(
-                    "{{\"name\":\"{}\",\"ra\":{:.5},\"dec\":{:.5},\"mag\":{},\"phase\":{}}}",
+                    "{{\"name\":\"{}\",\"ra\":{:.5},\"dec\":{:.5},\"topoRa\":{:.5},\"topoDec\":{:.5},\"semidiameter\":{},\"mag\":{},\"phase\":{}}}",
                     body_name(b.body),
                     deg(b.ra).rem_euclid(360.0),
                     deg(b.dec),
+                    deg(tp.ra).rem_euclid(360.0),
+                    deg(tp.dec),
+                    tp.semidiameter.map(|a| json_f(deg(a))).unwrap_or_else(|| "null".into()),
                     b.magnitude.map(|m| json_f(m.as_f64())).unwrap_or_else(|| "null".into()),
                     b.phase_angle.map(|a| json_f(deg(a))).unwrap_or_else(|| "null".into())
                 )
@@ -1660,8 +1681,6 @@ impl SkyEngine {
                 Some(format!("{}:[{}]", json_str(&m.id), w.join(",")))
             })
             .collect();
-        let jd_ut1 = jd_tt - delta_t_s / 86400.0;
-        let gast = lunar_core::astronomy::time::earth_rotation::gast(real(jd_ut1), real(jd_tt));
         format!(
             "{{\"jdTt\":{},\"gastDeg\":{},\"eclipticPole\":[{},{}],\"stars\":[{}],\"bodies\":[{}],\"mansionWidths\":{{{}}}}}",
             json_f(jd_tt),

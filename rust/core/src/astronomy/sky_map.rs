@@ -4,10 +4,16 @@
 //! 恒星用 [`stars_apparent_equatorial`] 批量求（与逐颗计算一致，差 < 1e-10″）；日月行星走统一视位置管线
 //! [`body_apparent_equatorial`]。星等：行星 Mallama & Hilton 2018（[`planet_magnitude`]），月亮 Krisciunas & Schaefer 1991
 //! （[`moon_magnitude`]，按月相角），太阳取 −26.74。
+//!
+//! 站在地面看的视图另要两项：[`SkySnapshot::topocentric_places`]（日月五星的站心位置，月亮地平视差约 1°）与
+//! [`refraction_table`]（真高度 → 折射量）。恒星的站心差可略，不算。
 
 use crate::astronomy::apparent::{
-    body_apparent_equatorial, planet_magnitude, right_ascension_declination, stars_apparent_equatorial, ApparentPipelineOptions,
+    body_apparent_equatorial, planet_magnitude, right_ascension_declination, stars_apparent_equatorial, topocentric, ApparentPipelineOptions,
 };
+use crate::astronomy::correction::{refraction_from_geometric, Atmosphere, RefractionModel};
+use crate::astronomy::geodesy::Observer;
+use crate::astronomy::phenomena::solar_eclipse::{sun_radius_m, K_PENUMBRA};
 use crate::astronomy::phenomena::visibility::moon_magnitude;
 use crate::astronomy::frame::nutation::nutation_for_apparent;
 use crate::astronomy::frame::precession::mean_obliquity_for;
@@ -17,6 +23,7 @@ use crate::astronomy::stars::StarCatalog;
 use crate::astronomy::time::{TimePoint, TimeScale};
 use crate::math::real::{real, Real, RealOps};
 use crate::quantity::angle::PlaneAngle;
+use crate::quantity::position::Position;
 
 /// 太阳 V 星等（Willmer 2018）。
 pub const SUN_MAGNITUDE_V: f64 = -26.74;
@@ -37,10 +44,21 @@ pub struct BodyPlace {
     pub body: Body,
     pub ra: PlaneAngle,
     pub dec: PlaneAngle,
+    /// 地心视位置（当日真赤道架）
+    pub position: Position,
     /// V 星等；模型不适用（如行星相角超出拟合范围）时为 None
     pub magnitude: Option<Real>,
     /// 月亮、行星的相角（日—天体—地夹角）；太阳为 None
     pub phase_angle: Option<PlaneAngle>,
+}
+
+/// 日、月或行星的站心位置。
+#[derive(Clone, Copy, Debug)]
+pub struct TopocentricPlace {
+    pub ra: PlaneAngle,
+    pub dec: PlaneAngle,
+    /// 站心视半径，常数同日月食模块（太阳 959.63″@1 AU，月亮 k = 0.2725076）。行星不给，肉眼看是点。
+    pub semidiameter: Option<PlaneAngle>,
 }
 
 /// 天空快照。
@@ -105,7 +123,7 @@ pub fn sky_snapshot<P: EphemerisProvider>(eph: &P, catalog: &StarCatalog, t: Tim
                 }
                 Body::Planet(pl) => (planet_magnitude(eph, pl, t), Some(phase())),
             };
-            BodyPlace { body, ra, dec, magnitude, phase_angle }
+            BodyPlace { body, ra, dec, position: p, magnitude, phase_angle }
         })
         .collect();
 
@@ -118,7 +136,36 @@ pub fn sky_snapshot<P: EphemerisProvider>(eph: &P, catalog: &StarCatalog, t: Tim
     SkySnapshot { t, stars, bodies, ecliptic_pole }
 }
 
+/// 各真高度（度）处的折射量（度）。前端显示用的对照表：模型与大气由调用方给，地平以下由
+/// [`refraction_from_geometric`] 保证连续。
+pub fn refraction_table(altitudes_deg: &[Real], model: RefractionModel, atmosphere: &Atmosphere) -> Vec<Real> {
+    altitudes_deg
+        .iter()
+        .map(|&h| refraction_from_geometric(PlaneAngle::from_deg(h), model, atmosphere).rad() * real(180.0) / Real::pi())
+        .collect()
+}
+
 impl SkySnapshot {
+    /// 日月五星的站心位置，与 `bodies` 同序。`gast` 须与快照同一时刻。
+    pub fn topocentric_places(&self, observer: &Observer, gast: PlaneAngle) -> Vec<TopocentricPlace> {
+        let (a, _) = observer.ellipsoid.parameters();
+        self.bodies
+            .iter()
+            .map(|b| {
+                let p = topocentric(b.position, observer, gast);
+                let (ra, dec) = right_ascension_declination(&p);
+                let [x, y, z] = p.to_meters();
+                let d = (x * x + y * y + z * z).sqrt();
+                let semidiameter = match b.body {
+                    Body::Sun => Some(PlaneAngle::from_rad((sun_radius_m() / d).asin())),
+                    Body::Moon => Some(PlaneAngle::from_rad((K_PENUMBRA * a / d).asin())),
+                    Body::Planet(_) => None,
+                };
+                TopocentricPlace { ra, dec, semidiameter }
+            })
+            .collect()
+    }
+
     pub fn star(&self, hip: u32) -> Option<&StarPlace> {
         self.stars.binary_search_by_key(&hip, |s| s.hip).ok().map(|i| &self.stars[i])
     }
@@ -187,5 +234,76 @@ mod tests {
             let venus = snap.bodies[3].magnitude.unwrap().as_f64();
             assert!((-5.0..-3.5).contains(&venus), "金星星等 {venus}");
         }
+    }
+
+    #[test]
+    fn refraction_table_follows_model_near_horizon() {
+        let atm = Atmosphere::default();
+        let alts: Vec<Real> = [-5.0, -0.5, 0.0, 1.0, 5.0, 45.0, 90.0].iter().map(|&x| real(x)).collect();
+        let t = refraction_table(&alts, RefractionModel::RayTrace, &atm);
+        let arcmin: Vec<f64> = t.iter().map(|x| x.as_f64() * 60.0).collect();
+        println!("折射（角分）{arcmin:?}");
+        assert!(arcmin[0].abs() < 1e-6, "地平下 5° 应已无折射");
+        for w in arcmin[1..].windows(2) {
+            assert!(w[0] > w[1], "真高度升高折射应减小：{arcmin:?}");
+        }
+        assert!(arcmin[2] > 25.0 && arcmin[2] < 35.0, "地平折射约半度：{}", arcmin[2]);
+        assert!(arcmin[6].abs() < 1e-3, "天顶无折射");
+    }
+
+    /// 站心差：月亮在地平附近约 1°，并按 π·cos h 随高度减小；太阳只有约 9″。
+    #[test]
+    fn topocentric_places_show_lunar_parallax() {
+        use crate::astronomy::time::earth_rotation::gast;
+        use crate::quantity::length::Length;
+        let _ = try_init_full_nutation_from_repo();
+        let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::De406).unwrap();
+        let planets: Vec<_> = [Planet::Mercury, Planet::Venus, Planet::Mars, Planet::Jupiter, Planet::Saturn]
+            .iter()
+            .map(|&p| (p, load_planet_vsop87_corrected_from_repo(p, PatchTarget::De406).unwrap()))
+            .collect();
+        let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE406).unwrap();
+        let eph = Vsop87Elp {
+            planets: Vsop87Planets { earth: &earth, planets: planets.iter().map(|(p, v)| (*p, v)).collect() },
+            moon: &elp,
+        };
+        let catalog = StarCatalog { stars: vec![] };
+        let observer = Observer::new(PlaneAngle::from_deg(real(108.94)), PlaneAngle::from_deg(real(34.27)), Length::from_value(real(0.0), crate::quantity::unit::LengthUnit::Meter));
+        let opts = ApparentPipelineOptions::default();
+        let alt = |ra: PlaneAngle, dec: PlaneAngle, g: PlaneAngle| {
+            let h = g.rad() + observer.longitude.rad() - ra.rad();
+            let (d, f) = (dec.rad(), observer.latitude.rad());
+            (f.sin() * d.sin() + f.cos() * d.cos() * h.cos()).asin().as_f64().to_degrees()
+        };
+        let mut largest = 0.0f64;
+        for i in 0..96 {
+            let jd = 2460000.5 + i as f64 / 4.0;
+            let t = TimePoint::new(TimeScale::TT, real(jd));
+            let snap = sky_snapshot(&eph, &catalog, t, &opts);
+            let g = gast(real(jd - 69.0 / 86400.0), real(jd));
+            let topo = snap.topocentric_places(&observer, g);
+            for (b, place) in snap.bodies.iter().zip(&topo) {
+                let (h0, h1) = (alt(b.ra, b.dec, g), alt(place.ra, place.dec, g));
+                // 视半径：太阳 15.7′—16.3′，月亮 14.6′—16.9′（近地点、天顶略增）；行星不给
+                let sd = place.semidiameter.map(|a| a.rad().as_f64().to_degrees() * 60.0);
+                match b.body {
+                    Body::Sun => assert!((15.7..16.3).contains(&sd.unwrap()), "太阳视半径 {sd:?}′"),
+                    Body::Moon => assert!((14.6..17.0).contains(&sd.unwrap()), "月亮视半径 {sd:?}′"),
+                    _ => assert!(sd.is_none()),
+                }
+                let drop = h0 - h1;
+                match b.body {
+                    Body::Moon => {
+                        // 地平视差 53′—62′；椭球与弧度近似留 3′ 余量
+                        let c = h0.to_radians().cos();
+                        assert!(drop > 0.85 * c - 0.05 && drop < 1.05 * c + 0.05, "h={h0} 降低 {drop}");
+                        largest = largest.max(drop);
+                    }
+                    Body::Sun => assert!(drop.abs() < 0.004, "太阳站心差 {drop}"),
+                    _ => assert!(drop.abs() < 0.02, "行星站心差 {drop}"),
+                }
+            }
+        }
+        assert!(largest > 0.8, "月亮最大站心差 {largest}");
     }
 }

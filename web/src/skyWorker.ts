@@ -8,7 +8,7 @@ import { DATA_BASE } from './ephemerisUrls'
 
 type Engine = {
   skyCulture(): string
-  snapshot(jdTt: number, deltaTS: number): string
+  snapshot(jdTt: number, deltaTS: number, lon: number, lat: number): string
   systemForYear(year: number): string
 }
 
@@ -16,6 +16,7 @@ type WasmModule = {
   default?: () => Promise<unknown>
   init_vsop87_earth_patch_from_binary?: (bytes: Uint8Array) => boolean
   deltaTEstimate(jdTt: number): Float64Array
+  refractionTable(altitudes: Float64Array): Float64Array
   SkyEngine: new (
     vsop: Uint8Array,
     e1: Uint8Array,
@@ -38,7 +39,8 @@ type WasmModule = {
 
 export type SkyRequest =
   | { id: number; type: 'culture' }
-  | { id: number; type: 'snapshot'; jdTt: number; deltaT: number }
+  | { id: number; type: 'snapshot'; jdTt: number; deltaT: number; lon: number; lat: number }
+  | { id: number; type: 'refractionTable'; altitudes: number[] }
   | { id: number; type: 'deltaT'; jd: number }
   | { id: number; type: 'systemForYear'; year: number }
 
@@ -93,7 +95,10 @@ self.onmessage = async (ev: MessageEvent<SkyRequest>) => {
         result = JSON.parse(engine.skyCulture())
         break
       case 'snapshot':
-        result = JSON.parse(engine.snapshot(req.jdTt, req.deltaT))
+        result = JSON.parse(engine.snapshot(req.jdTt, req.deltaT, req.lon, req.lat))
+        break
+      case 'refractionTable':
+        result = Array.from(wasm.refractionTable(new Float64Array(req.altitudes)))
         break
       case 'deltaT':
         result = Array.from(wasm.deltaTEstimate(req.jd))

@@ -41,12 +41,6 @@ export function localToView(azDeg: number, altDeg: number): Mat3 {
   ]
 }
 
-export function multiply(a: Mat3, b: Mat3): Mat3 {
-  const o = new Array(9).fill(0) as number[]
-  for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) for (let k = 0; k < 3; k++) o[r * 3 + c] += a[r * 3 + k] * b[k * 3 + c]
-  return o as Mat3
-}
-
 export function apply(m: Mat3, v: readonly number[]): [number, number, number] {
   return [m[0] * v[0] + m[1] * v[1] + m[2] * v[2], m[3] * v[0] + m[4] * v[1] + m[5] * v[2], m[6] * v[0] + m[7] * v[1] + m[8] * v[2]]
 }

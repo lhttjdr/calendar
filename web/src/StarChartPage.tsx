@@ -2,7 +2,7 @@
  * 星图：某地某时的天空，两种画法。
  * - 盖图：以北天极为中心的等距方位投影（半径正比于去极度），画内规、赤道、外规、黄道、二十八宿宿界与宿度，并按当地当时
  *   画地平线（其下加暗）。方向按「面北仰视」：本地恒星时所在子午圈朝上，赤经向东（顺时针）增大，可改为固定方位。
- * - 地平图：以天顶为中心的球极投影，北上东左（仰视）。
+ * - 地平图：以天顶为中心的球极投影，北上东左（仰视）。日月五星取站心位置，高度计折射（视高度），可关。盖图仍是赤道坐标图，用地心位置、不计折射。
  * - 3D：站在当地仰望，拖动转向、滚轮缩放（Sky3D.tsx，three.js）。
  *
  * 天体位置（当日真赤道与真春分点的视位置）、星等、宿度、恒星时都由 Rust 算（skyWorker → SkyEngine）；这里只做投影、
@@ -17,8 +17,8 @@ import { PlayButton, SPEEDS, useFrameTimer } from './Playback'
 import { loadCapitals, type Capital } from './capitals'
 import type { SkyRequest } from './skyWorker'
 import {
-  BODY_COLOR, BODY_LABEL, COLORS, MANSIONS, SCHOOL_COLOR, SYSTEMS, d2r, fromHorizon, greatCircle, mod360, r2d, starColor, starRadius, toHorizon,
-  type Culture, type Picked, type SnapshotJson, type Star,
+  BODY_COLOR, BODY_LABEL, COLORS, MANSIONS, SCHOOL_COLOR, SYSTEMS, d2r, fromHorizon, greatCircle, mod360, r2d, refractionAt, refractionTableAltitudes, starColor, starRadius, toHorizon,
+  type BodyJson, type Culture, type Picked, type SnapshotJson, type Star,
 } from './skyCommon'
 
 // three.js 体积大，进入 3D 视图时才加载
@@ -27,7 +27,7 @@ const Sky3D = lazy(() => import('./Sky3D'))
 const { Text } = Typography
 
 type View = 'gai' | 'horizon' | 'sky3d'
-type Projector = (ra: number, dec: number) => [number, number] | null
+type Projector = (ra: number, dec: number, margin?: number) => [number, number] | null
 
 // ---------------------------------------------------------------------------------------------------------------------
 
@@ -46,8 +46,9 @@ function SkyCanvas(props: {
   zhouTian: number
   picked: Picked | null
   onPick: (p: Picked | null) => void
+  refraction: number[] | null
 }) {
-  const { view, stars, starMap, snap, culture, systemId, lstDeg, lat, magLimit, layers, fixedOrientation, zhouTian, picked, onPick } = props
+  const { refraction, view, stars, starMap, snap, culture, systemId, lstDeg, lat, magLimit, layers, fixedOrientation, zhouTian, picked, onPick } = props
   const size = 760
   const cx = size / 2
   const cy = size / 2
@@ -66,13 +67,15 @@ function SkyCanvas(props: {
         return [cx + rr * Math.sin(t), cy - rr * Math.cos(t)]
       }
     }
-    return (ra, dec) => {
+    return (ra, dec, margin = 0) => {
       const { alt, az } = toHorizon(ra, dec, lstDeg, lat)
-      if (alt < 0) return null
-      const r = R * Math.tan(((90 - alt) / 2) * d2r)
+      const seen = alt + refractionAt(refraction, alt)
+      // margin 是视半径：看上缘的视高度
+      if ((margin > 0 ? alt + margin + refractionAt(refraction, alt + margin) : seen) < 0) return null
+      const r = R * Math.tan(((90 - seen) / 2) * d2r)
       return [cx - r * Math.sin(az * d2r), cy - r * Math.cos(az * d2r)]
     }
-  }, [view, rimDec, topRa, lstDeg, lat, R, cx, cy])
+  }, [view, rimDec, topRa, lstDeg, lat, R, cx, cy, refraction])
 
   const polyline = (pts: { ra: number; dec: number }[]) => {
     let d = ''
@@ -112,7 +115,9 @@ function SkyCanvas(props: {
     return out
   }, [stars, magLimit, layers, asterismHips, project])
 
-  const bodies = snap.bodies.map((b) => ({ b, xy: project(b.ra, b.dec) }))
+  // 地平图是当地所见，用站心位置；盖图是赤道坐标图，用地心位置
+  const bodyProject = (b: BodyJson) => (view === 'horizon' ? project(b.topoRa, b.topoDec, b.semidiameter ?? 0) : project(b.ra, b.dec))
+  const bodies = snap.bodies.map((b) => ({ b, xy: bodyProject(b) }))
 
   const svgRef = useRef<SVGSVGElement | null>(null)
   const onClick = (e: React.MouseEvent) => {
@@ -146,7 +151,7 @@ function SkyCanvas(props: {
       return s ? project(s.ra, s.dec) : null
     }
     const b = snap.bodies.find((x) => x.name === picked.name)
-    return b ? project(b.ra, b.dec) : null
+    return b ? bodyProject(b) : null
   })()
 
   // 地平线（盖图中）与其下的暗区：外缘圆与地平线闭曲线以 evenodd 填充
@@ -346,13 +351,14 @@ export function StarChartPage() {
   const [magLimit, setMagLimit] = useState(5.5)
   const [zhouTian, setZhouTian] = useState(365.25)
   const [fixedOrientation, setFixedOrientation] = useState(false)
-  const [layers, setLayers] = useState<string[]>(['asterisms', 'schools', 'mansions', 'equator', 'ecliptic', 'circles', 'horizon', 'bodies'])
+  const [layers, setLayers] = useState<string[]>(['asterisms', 'schools', 'mansions', 'equator', 'ecliptic', 'circles', 'horizon', 'bodies', 'refraction'])
   const [culture, setCulture] = useState<Culture | null>(null)
   const [snap, setSnap] = useState<SnapshotJson | null>(null)
   const [deltaT, setDeltaT] = useState<[number, number] | null>(null)
   const [busy, setBusy] = useState<string | null>('加载星表与历表')
   const [error, setError] = useState<string | null>(null)
   const [picked, setPicked] = useState<Picked | null>(null)
+  const [refractionTable, setRefractionTable] = useState<number[] | null>(null)
   const [playing, setPlaying] = useState(false)
   const [playStep, setPlayStep] = useState(2)
   const [playInterval, setPlayInterval] = useState(SPEEDS[1].value)
@@ -363,6 +369,9 @@ export function StarChartPage() {
     loadCapitals().then(setCapitals).catch(() => setCapitals([]))
     call<Culture>({ type: 'culture' })
       .then(setCulture)
+      .catch((e) => setError(String(e instanceof Error ? e.message : e)))
+    call<number[]>({ type: 'refractionTable', altitudes: refractionTableAltitudes() })
+      .then(setRefractionTable)
       .catch((e) => setError(String(e instanceof Error ? e.message : e)))
   }, [call])
 
@@ -378,7 +387,7 @@ export function StarChartPage() {
         let dt = (await call<number[]>({ type: 'deltaT', jd: jdUt }))[0]
         const est = await call<number[]>({ type: 'deltaT', jd: jdUt + dt / 86400 })
         dt = est[0]
-        const s = await call<SnapshotJson>({ type: 'snapshot', jdTt: jdUt + dt / 86400, deltaT: dt })
+        const s = await call<SnapshotJson>({ type: 'snapshot', jdTt: jdUt + dt / 86400, deltaT: dt, lon: place.lon, lat: place.lat })
         if (cancelled) return
         setDeltaT([est[0], est[1]])
         setSnap(s)
@@ -396,7 +405,7 @@ export function StarChartPage() {
       cancelled = true
       clearTimeout(t)
     }
-  }, [jdUt, call])
+  }, [jdUt, place.lon, place.lat, call])
 
   const stars = useMemo(() => {
     if (!snap) return []
@@ -427,6 +436,7 @@ export function StarChartPage() {
 
   const lstDeg = snap ? mod360(snap.gastDeg + place.lon) : 0
   const layerSet = useMemo(() => new Set(layers), [layers])
+  const refraction = layerSet.has('refraction') ? refractionTable : null
   const system = SYSTEMS.find((s) => s.id === systemId)!
 
   const shift = (hours: number) => {
@@ -470,7 +480,9 @@ export function StarChartPage() {
       }
     }
     const memberOf = (hip: number) => culture.asterisms.filter((a) => a.system === system.asterisms && a.lines.some((l) => l.includes(hip)))
-    const hz = toHorizon(target.ra, target.dec, lstDeg, place.lat)
+    // 高度按当地所见：日月五星用站心位置
+    const hz = 'topoRa' in target ? toHorizon(target.topoRa, target.topoDec, lstDeg, place.lat) : toHorizon(target.ra, target.dec, lstDeg, place.lat)
+    const hzSeen = hz.alt + refractionAt(refractionTable, hz.alt)
     const toGu = (deg: number) => ((deg * zhouTian) / 360).toFixed(2)
     const title =
       picked.kind === 'star'
@@ -495,7 +507,10 @@ export function StarChartPage() {
           <Descriptions.Item label="赤经 / 赤纬">{target.ra.toFixed(3)}° / {target.dec.toFixed(3)}°</Descriptions.Item>
           <Descriptions.Item label="入宿度">{ruXiu ? `入${MANSIONS[ruXiu.i]}宿 ${toGu(ruXiu.d)} 度` : '—'}</Descriptions.Item>
           <Descriptions.Item label="去极度">{toGu(90 - target.dec)} 度</Descriptions.Item>
-          <Descriptions.Item label="地平高度 / 方位">{hz.alt.toFixed(2)}° / {hz.az.toFixed(2)}°（自北经东）</Descriptions.Item>
+          <Descriptions.Item label="视高度 / 真高度">{hzSeen.toFixed(2)}° / {hz.alt.toFixed(2)}°{'topoRa' in target ? '（站心）' : ''}</Descriptions.Item>
+          <Descriptions.Item label="方位">{hz.az.toFixed(2)}°（自北经东）</Descriptions.Item>
+          {'topoRa' in target && target.semidiameter != null && <Descriptions.Item label="视半径 / 上缘视高度">{(target.semidiameter * 60).toFixed(2)}′ / {(hz.alt + target.semidiameter + refractionAt(refractionTable, hz.alt + target.semidiameter)).toFixed(2)}°</Descriptions.Item>}
+          {'topoRa' in target && <Descriptions.Item label="站心赤经 / 赤纬">{target.topoRa.toFixed(3)}° / {target.topoDec.toFixed(3)}°</Descriptions.Item>}
           {'phase' in target && target.phase != null && <Descriptions.Item label="相角">{target.phase.toFixed(1)}°</Descriptions.Item>}
           {schoolRows.length > 0 && <Descriptions.Item label="三家" span={3}>{schoolRows.join('；')}</Descriptions.Item>}
         </Descriptions>
@@ -580,6 +595,7 @@ export function StarChartPage() {
                 { label: '黄道', value: 'ecliptic' },
                 { label: view === 'horizon' ? '高度圈' : '内外规', value: 'circles' },
                 ...(view === 'gai' ? [{ label: '地平', value: 'horizon' }] : view === 'sky3d' ? [{ label: '地面', value: 'horizon' }] : []),
+                ...(view === 'gai' ? [] : [{ label: '大气折射', value: 'refraction' }]),
                 { label: '日月五星', value: 'bodies' },
               ]} />
           </Flex>
@@ -599,11 +615,11 @@ export function StarChartPage() {
               view === 'sky3d' ? (
                 <Suspense fallback={<div style={{ height: 400 }} />}>
                   <Sky3D stars={stars} starMap={starMap} snap={snap} culture={culture} systemId={systemId} lstDeg={lstDeg} lat={place.lat}
-                    magLimit={magLimit} layers={layerSet} zhouTian={zhouTian} picked={picked} onPick={setPicked} playing={playing} />
+                    magLimit={magLimit} layers={layerSet} zhouTian={zhouTian} picked={picked} onPick={setPicked} playing={playing} refraction={refraction} />
                 </Suspense>
               ) : (
                 <SkyCanvas view={view} stars={stars} starMap={starMap} snap={snap} culture={culture} systemId={systemId} lstDeg={lstDeg} lat={place.lat}
-                  magLimit={magLimit} layers={layerSet} fixedOrientation={fixedOrientation} zhouTian={zhouTian} picked={picked} onPick={setPicked} />
+                  magLimit={magLimit} layers={layerSet} fixedOrientation={fixedOrientation} zhouTian={zhouTian} picked={picked} onPick={setPicked} refraction={view === 'horizon' ? refraction : null} />
               )
             ) : (
               <div style={{ height: 400 }} />
@@ -611,7 +627,7 @@ export function StarChartPage() {
           </Spin>
           <Legend schools={layerSet.has('schools') && system.asterisms === 'chenzhuo'} />
           <Text type="secondary" style={{ fontSize: 12 }}>
-            点击星或日月五星看名称、入宿度、去极度与地平坐标。3D 视图拖动转向、滚轮或双指缩放；不计大气折射，日月大小是符号，不按真实视径。位置为当日真赤道视位置；盖图外圈注宿名与宿度（距星赤经差，按所选周天）。
+            点击星或日月五星看名称、入宿度、去极度与地平坐标。3D 视图拖动转向、滚轮或双指缩放；日月放大后显示真实圆面（站心视半径，近地平被折射压扁），视场大时圆面太小则画符号，符号大小不代表视径；上缘露出地平线即可见。地平图与 3D 是当地所见：日月五星取站心位置，计入大气折射（光线追迹，海平面标准大气，贴近地平线时随气象变化明显）。盖图是赤道坐标图，用地心位置、不计折射。位置为当日真赤道视位置；盖图外圈注宿名与宿度（距星赤经差，按所选周天）。
             星官连线与星名据 Stellarium 中国星空文化（CC BY-SA 4.0）；陈卓体系可按石氏、甘氏、巫咸三家着色（据《开元占经》卷六十至七十，data/sky_culture/sanjia_schools.csv）；「按时期」时各体系自其历元起适用至下一体系历元（data/sky_culture/system_periods.csv），历元以前不用后出的认星；《灵台仪象志》只改距星，星官同《仪象考成》。
           </Text>
         </Flex>

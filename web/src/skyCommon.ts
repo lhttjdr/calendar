@@ -14,7 +14,7 @@ export type Culture = {
   /** 陈卓体系星官的三家分属（据《开元占经》卷六十至七十） */
   schools: { id: string; school: string | null; basis: string; source: string }[]
 }
-export type BodyJson = { name: string; ra: number; dec: number; mag: number | null; phase: number | null }
+export type BodyJson = { name: string; ra: number; dec: number; topoRa: number; topoDec: number; semidiameter: number | null; mag: number | null; phase: number | null }
 export type SnapshotJson = {
   jdTt: number
   gastDeg: number
@@ -142,3 +142,17 @@ export function greatCircle(raP: number, decP: number, n = 360): { ra: number; d
 }
 
 export type Picked = { kind: 'star'; hip: number } | { kind: 'body'; name: string }
+
+// 折射对照表：x = √(真高度 + 5°) 等距取样，地平附近密。Rust 算（refractionTable），显示时线性插值；着色器里是同一算法。
+export const REFRACTION_SAMPLES = 99
+const REFRACTION_STEP = 0.1
+export const refractionTableAltitudes = () =>
+  Array.from({ length: REFRACTION_SAMPLES }, (_, i) => Math.min(90, (i * REFRACTION_STEP) ** 2 - 5))
+
+/** 真高度 → 折射量（度）。table 为 null 时不计折射。 */
+export function refractionAt(table: number[] | null, altDeg: number): number {
+  if (!table) return 0
+  const x = Math.sqrt(Math.max(altDeg + 5, 0)) / REFRACTION_STEP
+  const i = Math.min(Math.floor(x), REFRACTION_SAMPLES - 2)
+  return table[i] + (table[i + 1] - table[i]) * (x - i)
+}
