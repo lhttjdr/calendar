@@ -43,6 +43,7 @@ export default defineConfig({
           { text: '月相与合朔', link: '/astronomy/lunar-phases-and-syzygy' },
           { text: '二十四节气与定气', link: '/astronomy/solar-terms' },
           { text: '天象（日月食、行星、恒星与星官）', link: '/astronomy/celestial-phenomena' },
+          { text: '3D 星空（当地所见）', link: '/astronomy/sky-view-3d' },
           { text: '天象逐条校验结果', link: '/astronomy/phenomena-checks' },
         ],
       },

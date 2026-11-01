@@ -15,9 +15,9 @@ import { clampCivilDay, civilToJd, fmtDate, fmtTime, jdToCivil, yearLabel } from
 import { useWorkerRpc } from './useWorkerRpc'
 import { PlayButton, SPEEDS, useFrameTimer } from './Playback'
 import { loadCapitals, type Capital } from './capitals'
-import type { SkyRequest } from './skyWorker'
+import type { Site, SkyRequest } from './skyWorker'
 import {
-  BODY_COLOR, BODY_LABEL, COLORS, MANSIONS, SCHOOL_COLOR, SYSTEMS, d2r, fromHorizon, greatCircle, mod360, r2d, refractionAt, refractionTableAltitudes, starColor, starRadius, toHorizon,
+  BODY_COLOR, BODY_LABEL, COLORS, MANSIONS, SCHOOL_COLOR, SYSTEMS, d2r, fromHorizon, greatCircle, HORIZON_SAMPLES, mod360, r2d, refractionAt, refractionTableAltitudes, starColor, starRadius, toHorizon,
   type BodyJson, type Culture, type Picked, type SnapshotJson, type Star,
 } from './skyCommon'
 
@@ -351,7 +351,7 @@ export function StarChartPage() {
   const [magLimit, setMagLimit] = useState(5.5)
   const [zhouTian, setZhouTian] = useState(365.25)
   const [fixedOrientation, setFixedOrientation] = useState(false)
-  const [layers, setLayers] = useState<string[]>(['asterisms', 'schools', 'mansions', 'equator', 'ecliptic', 'circles', 'horizon', 'bodies', 'refraction'])
+  const [layers, setLayers] = useState<string[]>(['asterisms', 'schools', 'mansions', 'equator', 'ecliptic', 'circles', 'horizon', 'bodies', 'refraction', 'skylight', 'milkyway'])
   const [culture, setCulture] = useState<Culture | null>(null)
   const [snap, setSnap] = useState<SnapshotJson | null>(null)
   const [deltaT, setDeltaT] = useState<[number, number] | null>(null)
@@ -359,6 +359,11 @@ export function StarChartPage() {
   const [error, setError] = useState<string | null>(null)
   const [picked, setPicked] = useState<Picked | null>(null)
   const [refractionTable, setRefractionTable] = useState<number[] | null>(null)
+  const [site, setSite] = useState<Site>({ heightM: 0, tempC: null, pressureKpa: null, invDepthM: 0, invRiseK: 0, humidity: 0.5, cityNl: 0 })
+  const [seaDip, setSeaDip] = useState(0)
+  const [terrain, setTerrain] = useState<{ key: string; groundM: number; altitudes: number[]; missing: number } | null>(null)
+  const [terrainBusy, setTerrainBusy] = useState(false)
+  const [eyeM, setEyeM] = useState(1.7)
   const [playing, setPlaying] = useState(false)
   const [playStep, setPlayStep] = useState(2)
   const [playInterval, setPlayInterval] = useState(SPEEDS[1].value)
@@ -370,10 +375,20 @@ export function StarChartPage() {
     call<Culture>({ type: 'culture' })
       .then(setCulture)
       .catch((e) => setError(String(e instanceof Error ? e.message : e)))
-    call<number[]>({ type: 'refractionTable', altitudes: refractionTableAltitudes() })
-      .then(setRefractionTable)
-      .catch((e) => setError(String(e instanceof Error ? e.message : e)))
   }, [call])
+
+  useEffect(() => {
+    let cancelled = false
+    call<number[]>({ type: 'refractionTable', altitudes: refractionTableAltitudes(), site })
+      .then((t) => !cancelled && setRefractionTable(t))
+      .catch((e) => !cancelled && setError(String(e instanceof Error ? e.message : e)))
+    call<number>({ type: 'seaHorizonDip', site })
+      .then((d) => !cancelled && setSeaDip(d))
+      .catch((e) => !cancelled && setError(String(e instanceof Error ? e.message : e)))
+    return () => {
+      cancelled = true
+    }
+  }, [call, site])
 
   // 地方平时 → UT：UT = 地方平时 − 经度/15 时
   const jdUt = civilToJd(date.y, date.m, date.d, date.h + date.mi / 60 - place.lon / 15)
@@ -387,7 +402,7 @@ export function StarChartPage() {
         let dt = (await call<number[]>({ type: 'deltaT', jd: jdUt }))[0]
         const est = await call<number[]>({ type: 'deltaT', jd: jdUt + dt / 86400 })
         dt = est[0]
-        const s = await call<SnapshotJson>({ type: 'snapshot', jdTt: jdUt + dt / 86400, deltaT: dt, lon: place.lon, lat: place.lat })
+        const s = await call<SnapshotJson>({ type: 'snapshot', jdTt: jdUt + dt / 86400, deltaT: dt, lon: place.lon, lat: place.lat, site })
         if (cancelled) return
         setDeltaT([est[0], est[1]])
         setSnap(s)
@@ -405,7 +420,7 @@ export function StarChartPage() {
       cancelled = true
       clearTimeout(t)
     }
-  }, [jdUt, place.lon, place.lat, call])
+  }, [jdUt, place.lon, place.lat, site, call])
 
   const stars = useMemo(() => {
     if (!snap) return []
@@ -433,6 +448,35 @@ export function StarChartPage() {
     }
   }, [date.y, call])
   const systemId = systemChoice === 'auto' ? period?.system ?? 'chenzhuo' : systemChoice
+
+  // 地形只在勾选时才联网取高程瓦片；取到后用地面海拔作观测点海拔
+  const wantTerrain = layers.includes('terrain') && view === 'sky3d'
+  const terrainKey = `${place.lon},${place.lat},${eyeM}`
+  useEffect(() => {
+    if (!wantTerrain || terrain?.key === terrainKey) return
+    let cancelled = false
+    setTerrainBusy(true)
+    call<{ groundM: number; altitudes: number[]; missing: number }>({ type: 'terrainHorizon', lon: place.lon, lat: place.lat, eyeM })
+      .then((r) => {
+        if (cancelled) return
+        setTerrain({ key: terrainKey, ...r })
+        setSite((s) => ({ ...s, heightM: Math.round(r.groundM + eyeM) }))
+      })
+      .catch((e) => {
+        if (cancelled) return
+        setError(String(e instanceof Error ? e.message : e))
+        setLayers((l) => l.filter((x) => x !== 'terrain'))
+      })
+      .finally(() => !cancelled && setTerrainBusy(false))
+    return () => {
+      cancelled = true
+    }
+  }, [wantTerrain, terrainKey, terrain?.key, eyeM, place.lon, place.lat, call])
+  const horizon = useMemo(() => {
+    if (wantTerrain && terrain?.key === terrainKey) return terrain.altitudes
+    if (layers.includes('seaHorizon') && seaDip > 0) return new Array<number>(HORIZON_SAMPLES).fill(-seaDip)
+    return null
+  }, [wantTerrain, terrain, terrainKey, layers, seaDip])
 
   const lstDeg = snap ? mod360(snap.gastDeg + place.lon) : 0
   const layerSet = useMemo(() => new Set(layers), [layers])
@@ -596,6 +640,7 @@ export function StarChartPage() {
                 { label: view === 'horizon' ? '高度圈' : '内外规', value: 'circles' },
                 ...(view === 'gai' ? [{ label: '地平', value: 'horizon' }] : view === 'sky3d' ? [{ label: '地面', value: 'horizon' }] : []),
                 ...(view === 'gai' ? [] : [{ label: '大气折射', value: 'refraction' }]),
+                ...(view === 'sky3d' ? [{ label: '大气散射', value: 'skylight' }, { label: '银河', value: 'milkyway' }, { label: '海平线俯角', value: 'seaHorizon' }, { label: '地形', value: 'terrain' }] : []),
                 { label: '日月五星', value: 'bodies' },
               ]} />
           </Flex>
@@ -604,6 +649,36 @@ export function StarChartPage() {
             <div style={{ width: 220 }}>
               <Slider min={2} max={6.5} step={0.1} value={magLimit} onChange={setMagLimit} />
             </div>
+            {view !== 'gai' && (
+              <>
+                <Text>海拔</Text>
+                <InputNumber size="small" style={{ width: 84 }} value={site.heightM} min={-400} max={9000} step={100} suffix="m" onChange={(v) => v != null && setSite({ ...site, heightM: v })} />
+                <Text>气温</Text>
+                <InputNumber size="small" style={{ width: 84 }} value={site.tempC} min={-60} max={60} placeholder="标准" suffix="℃" onChange={(v) => setSite({ ...site, tempC: v })} />
+                <Text>气压</Text>
+                <InputNumber size="small" style={{ width: 96 }} value={site.pressureKpa} min={30} max={110} step={0.5} placeholder="标准" suffix="kPa" onChange={(v) => setSite({ ...site, pressureKpa: v })} />
+                <Text>贴地逆温</Text>
+                <InputNumber size="small" style={{ width: 84 }} value={site.invDepthM} min={0} max={2000} step={50} suffix="m" onChange={(v) => setSite({ ...site, invDepthM: v ?? 0 })} />
+                <Text type="secondary">内升</Text>
+                <InputNumber size="small" style={{ width: 76 }} value={site.invRiseK} min={0} max={30} suffix="K" onChange={(v) => setSite({ ...site, invRiseK: v ?? 0 })} />
+                {view === 'sky3d' && (
+                  <>
+                    <Text>湿度</Text>
+                    <InputNumber size="small" style={{ width: 76 }} value={Math.round(site.humidity * 100)} min={0} max={100} step={10} suffix="%" onChange={(v) => setSite({ ...site, humidity: (v ?? 50) / 100 })} />
+                    <Text>城市光</Text>
+                    <InputNumber size="small" style={{ width: 96 }} value={site.cityNl} min={0} max={100000} step={500} suffix="nL" onChange={(v) => setSite({ ...site, cityNl: v ?? 0 })} />
+                  </>
+                )}
+              </>
+            )}
+            {wantTerrain && (
+              <>
+                <Text>眼高</Text>
+                <InputNumber size="small" style={{ width: 84 }} value={eyeM} min={0} max={500} step={1} suffix="m" onChange={(v) => setEyeM(v ?? 1.7)} />
+                <Text type="secondary">{terrainBusy ? '取高程数据…' : terrain?.key === terrainKey ? `地面海拔 ${terrain.groundM.toFixed(0)} m` : ''}</Text>
+              </>
+            )}
+            {snap && snap.skyLight.sunVisible < 1 && <Text type="warning">日面未遮 {(snap.skyLight.sunVisible * 100).toFixed(1)}%</Text>}
             {snap && deltaT && (
               <Text type="secondary" style={{ fontSize: 12 }}>
                 UT {fmtDate(jdUt)} {fmtTime(jdUt)}；ΔT {deltaT[0].toFixed(0)} ± {deltaT[1].toFixed(0)} s；地方恒星时 {(lstDeg / 15).toFixed(3)} h
@@ -615,7 +690,18 @@ export function StarChartPage() {
               view === 'sky3d' ? (
                 <Suspense fallback={<div style={{ height: 400 }} />}>
                   <Sky3D stars={stars} starMap={starMap} snap={snap} culture={culture} systemId={systemId} lstDeg={lstDeg} lat={place.lat}
-                    magLimit={magLimit} layers={layerSet} zhouTian={zhouTian} picked={picked} onPick={setPicked} playing={playing} refraction={refraction} />
+                    magLimit={magLimit} layers={layerSet} zhouTian={zhouTian} picked={picked} onPick={setPicked} playing={playing} refraction={refraction}
+                    horizon={horizon}
+                    overlay={
+                      <Flex gap={8} align="center" wrap="wrap">
+                        <Button size="small" onClick={() => shift(-1)}>−1 时</Button>
+                        <PlayButton playing={playing} onClick={() => setPlaying(!playing)} />
+                        <Button size="small" onClick={() => shift(1)}>+1 时</Button>
+                        <Select size="small" style={{ width: 84 }} value={playStep} onChange={setPlayStep} getPopupContainer={(n) => n.parentElement!} options={PLAY_STEPS.map((st, i) => ({ label: st.label, value: i }))} />
+                        <Select size="small" style={{ width: 66 }} value={playInterval} onChange={setPlayInterval} getPopupContainer={(n) => n.parentElement!} options={SPEEDS} />
+                        <span style={{ fontSize: 13 }}>{date.y} 年 {date.m} 月 {date.d} 日 {String(date.h).padStart(2, '0')}:{String(date.mi).padStart(2, '0')} · {place.name}</span>
+                      </Flex>
+                    } />
                 </Suspense>
               ) : (
                 <SkyCanvas view={view} stars={stars} starMap={starMap} snap={snap} culture={culture} systemId={systemId} lstDeg={lstDeg} lat={place.lat}
@@ -627,7 +713,7 @@ export function StarChartPage() {
           </Spin>
           <Legend schools={layerSet.has('schools') && system.asterisms === 'chenzhuo'} />
           <Text type="secondary" style={{ fontSize: 12 }}>
-            点击星或日月五星看名称、入宿度、去极度与地平坐标。3D 视图拖动转向、滚轮或双指缩放；日月放大后显示真实圆面（站心视半径，近地平被折射压扁），视场大时圆面太小则画符号，符号大小不代表视径；上缘露出地平线即可见。地平图与 3D 是当地所见：日月五星取站心位置，计入大气折射（光线追迹，海平面标准大气，贴近地平线时随气象变化明显）。盖图是赤道坐标图，用地心位置、不计折射。位置为当日真赤道视位置；盖图外圈注宿名与宿度（距星赤经差，按所选周天）。
+            点击星或日月五星看名称、入宿度、去极度与地平坐标。3D 视图拖动转向、滚轮或双指缩放，选中天体后可「跟踪选中」（放大播放日食时太阳不会漂出画面）；日月放大后显示真实圆面（站心视半径，近地平被折射压扁），视场大时圆面太小则画符号，符号大小不代表视径；上缘露出地平线即可见。地平图与 3D 是当地所见：日月五星取站心位置，计入大气折射（光线追迹，按所填海拔、气温、气压、逆温，留空取该海拔的标准大气）。地平线缺省取高度 0°；3D 可勾「海平线俯角」按海拔算海地平，或勾「地形」按现代高程数据算真实山形（联网取瓦片；山形千年尺度几乎不变；2 km 内不算，以滤掉现代建筑，城墙、林木也不在内；高程数据 Mapzen/Tilezen，含 USGS SRTM、GMTED2010 与 NOAA ETOPO1）。3D 的天色亮度与星的隐现据 Schaefer 模型，颜色只是显示；不计云。银河图：NASA/GSFC SVS Deep Star Maps，Gaia DR2: ESA/Gaia/DPAC。说明见文档「3D 星空」。关掉「大气散射」即无天光，白天也能看到星与日月同在（只影响显示，折射另有开关）。盖图是赤道坐标图，用地心位置、不计折射。位置为当日真赤道视位置；盖图外圈注宿名与宿度（距星赤经差，按所选周天）。
             星官连线与星名据 Stellarium 中国星空文化（CC BY-SA 4.0）；陈卓体系可按石氏、甘氏、巫咸三家着色（据《开元占经》卷六十至七十，data/sky_culture/sanjia_schools.csv）；「按时期」时各体系自其历元起适用至下一体系历元（data/sky_culture/system_periods.csv），历元以前不用后出的认星；《灵台仪象志》只改距星，星官同《仪象考成》。
           </Text>
         </Flex>

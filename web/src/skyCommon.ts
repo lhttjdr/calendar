@@ -14,13 +14,17 @@ export type Culture = {
   /** 陈卓体系星官的三家分属（据《开元占经》卷六十至七十） */
   schools: { id: string; school: string | null; basis: string; source: string }[]
 }
-export type BodyJson = { name: string; ra: number; dec: number; topoRa: number; topoDec: number; semidiameter: number | null; mag: number | null; phase: number | null }
+export type BodyJson = { name: string; ra: number; dec: number; topoRa: number; topoDec: number; semidiameter: number | null; topoDistM: number; mag: number | null; phase: number | null }
 export type SnapshotJson = {
   jdTt: number
   gastDeg: number
   eclipticPole: [number, number]
   stars: (number | null)[]
   bodies: BodyJson[]
+  /** 全天亮度 lg(nL) 与极限星等，先高度后方位（Rust：SkyLight）；sunVisible 为日面未遮比例 */
+  skyLight: { lgB: number[]; lim: number[]; sunVisible: number; moonGlare: number; limitCurve: number[]; coronaUnit: number }
+  /** 当日赤道 → 银道，按行 */
+  trueToGalactic: number[]
   mansionWidths: Record<string, number[]>
 }
 export type Star = { hip: number; ra: number; dec: number; v: number; bv: number | null }
@@ -155,4 +159,31 @@ export function refractionAt(table: number[] | null, altDeg: number): number {
   const x = Math.sqrt(Math.max(altDeg + 5, 0)) / REFRACTION_STEP
   const i = Math.min(Math.floor(x), REFRACTION_SAMPLES - 2)
   return table[i] + (table[i + 1] - table[i]) * (x - i)
+}
+
+/** 天光网格尺寸，与 Rust SKY_GRID_AZ、SKY_GRID_ALT 相同。高度 = 90°·(i/(n−1))²。 */
+export const SKY_GRID_AZ = 25
+export const SKY_GRID_ALT = 13
+
+/** 极限星等曲线的取样与月亮眩光最小角距，与 Rust LIMIT_CURVE_*、MOON_GLARE_MIN_DEG 相同。 */
+export const LIMIT_CURVE_SAMPLES = 41
+export const LIMIT_CURVE_STEP = 0.25
+export const MOON_GLARE_MIN_DEG = 0.26
+
+/** 极限星等曲线在 lg 亮度处的值（线性插值）。 */
+export function limitCurveAt(curve: number[], lg: number): number {
+  const x = Math.max(0, Math.min(LIMIT_CURVE_SAMPLES - 1.001, lg / LIMIT_CURVE_STEP))
+  const i = Math.floor(x)
+  return curve[i] + (curve[i + 1] - curve[i]) * (x - i)
+}
+
+/** 地平线的方位取样数（每 0.5°）。 */
+export const HORIZON_SAMPLES = 720
+
+/** 地平线在方位 az（度）处的视高度（度）。 */
+export function horizonAt(profile: number[] | null, azDeg: number): number {
+  if (!profile) return 0
+  const x = (((azDeg % 360) + 360) % 360) / 360 * HORIZON_SAMPLES
+  const i = Math.floor(x) % HORIZON_SAMPLES
+  return profile[i] + (profile[(i + 1) % HORIZON_SAMPLES] - profile[i]) * (x - Math.floor(x))
 }

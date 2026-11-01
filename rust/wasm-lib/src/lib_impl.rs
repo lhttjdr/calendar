@@ -1147,12 +1147,53 @@ fn civil_year_tt_range(year: i32) -> (lunar_core::math::real::Real, lunar_core::
     (tt(civil_to_julian_day(year, 1, 1)), tt(civil_to_julian_day(year + 1, 1, 1)))
 }
 
-/// 各真高度（度）处的折射量（度）：光线追迹（项目缺省模型），海平面标准大气。
+/// 海拔 `height_m` 的标准大气；气温（℃）、气压（kPa）给 NaN 时取标准值。`inversion_depth_m` > 0 时加贴地逆温：此厚度内升温 `inversion_rise_k`。
+fn site_atmosphere(height_m: f64, temperature_c: f64, pressure_kpa: f64, inversion_depth_m: f64, inversion_rise_k: f64) -> lunar_core::astronomy::correction::Atmosphere {
+    use lunar_core::quantity::{length::Length, pressure::Pressure, thermodynamic_temperature::ThermodynamicTemperature, unit::LengthUnit};
+    let mut a = lunar_core::astronomy::correction::Atmosphere::standard_at_height(Length::from_value(real(height_m), LengthUnit::Meter));
+    if temperature_c.is_finite() {
+        a.temperature = ThermodynamicTemperature::from_celsius(real(temperature_c));
+    }
+    if pressure_kpa.is_finite() {
+        a.pressure = Pressure::from_kpa(real(pressure_kpa));
+    }
+    if inversion_depth_m > 0.0 {
+        a = a.with_inversion(Length::from_value(real(inversion_depth_m), LengthUnit::Meter), real(inversion_rise_k / inversion_depth_m));
+    }
+    a
+}
+
+/// 地形地平线：near（高分辨率，只定观测点地面海拔）、far（约 250 m 分辨率，算沿途）是瓦片拼成的高程网格（米）。参数依次为 z、左上瓦片 x、y、宽、高（像素）。
+/// 返回 [地面海拔（米）, 方位 0°、0.5°… 共 720 个视高度（度）]；观测点无数据时返回空。
+#[wasm_bindgen(js_name = terrainHorizon)]
+#[allow(clippy::too_many_arguments)]
+pub fn terrain_horizon_js(lon_deg: f64, lat_deg: f64, eye_m: f64, near: &[f32], nz: u32, nx: f64, ny: f64, nw: usize, nh: usize, far: &[f32], fz: u32, fx: f64, fy: f64, fw: usize, fh: usize) -> Vec<f64> {
+    use lunar_core::astronomy::terrain_horizon::{terrain_horizon, DemMosaic};
+    let n = DemMosaic { z: nz, x0: nx, y0: ny, width: nw, height: nh, tile_size: 256.0, data: near };
+    let f = DemMosaic { z: fz, x0: fx, y0: fy, width: fw, height: fh, tile_size: 256.0, data: far };
+    // 地面海拔用高分辨率；沿途用低分辨率，滤掉现代建筑（见 terrain_horizon 模块）
+    let Some(ground) = n.sample(real(lon_deg), real(lat_deg)) else {
+        return vec![];
+    };
+    let h = terrain_horizon(real(lon_deg), real(lat_deg), ground, real(eye_m), 720, 200_000.0, |lon, lat| f.sample(lon, lat));
+    std::iter::once(h.ground_m.as_f64()).chain(h.altitude_deg.iter().map(|a| a.as_f64())).collect()
+}
+
+/// 海地平的俯角（度，≥ 0）：观测者在海拔处看到的海平线低于高度 0° 多少，已含折射（光线追迹）。
+#[wasm_bindgen(js_name = seaHorizonDip)]
+pub fn sea_horizon_dip(height_m: f64, temperature_c: f64, pressure_kpa: f64, inversion_depth_m: f64, inversion_rise_k: f64) -> f64 {
+    use lunar_core::astronomy::correction::{ray_trace_sea_horizon, RayTraceConstants};
+    let atm = site_atmosphere(height_m, temperature_c, pressure_kpa, inversion_depth_m, inversion_rise_k);
+    -ray_trace_sea_horizon(&atm, &RayTraceConstants::default()).0.as_f64().to_degrees()
+}
+
+/// 各真高度（度）处的折射量（度）：光线追迹（项目缺省模型），大气见 [`site_atmosphere`]。
 #[wasm_bindgen(js_name = refractionTable)]
-pub fn refraction_table_js(altitudes_deg: Vec<f64>) -> Vec<f64> {
-    use lunar_core::astronomy::correction::{Atmosphere, RefractionModel};
+pub fn refraction_table_js(altitudes_deg: Vec<f64>, height_m: f64, temperature_c: f64, pressure_kpa: f64, inversion_depth_m: f64, inversion_rise_k: f64) -> Vec<f64> {
+    use lunar_core::astronomy::correction::RefractionModel;
     let alts: Vec<_> = altitudes_deg.iter().map(|&h| real(h)).collect();
-    lunar_core::astronomy::sky_map::refraction_table(&alts, RefractionModel::RayTrace, &Atmosphere::default()).iter().map(|r| r.as_f64()).collect()
+    let atm = site_atmosphere(height_m, temperature_c, pressure_kpa, inversion_depth_m, inversion_rise_k);
+    lunar_core::astronomy::sky_map::refraction_table(&alts, RefractionModel::RayTrace, &atm).iter().map(|r| r.as_f64()).collect()
 }
 
 /// ΔT 估计 [中值, 1σ]（秒）：Morrison–Stephenson 2021，已按本仓库月历表配套修正。
@@ -1617,10 +1658,12 @@ impl SkyEngine {
 
     /// 天空快照，JSON：{jdTt, gastDeg, eclipticPole:[赤经°, 赤纬°], stars:[hip, 赤经°, 赤纬°, V, B−V|null, …]（扁平），
     /// bodies:[{name, ra, dec, mag, phase}], mansionWidths:{体系: [28 个宿度（度，360° 制）]}}。坐标为当日真赤道与真春分点。
-    /// bodies 另带 topoRa、topoDec、semidiameter（度，行星为 null）：所给地点（海平面）的站心位置与视半径，地平图和 3D 视图用。
+    /// bodies 另带 topoRa、topoDec、semidiameter（度，行星为 null）、topoDistM：所给地点的站心位置、视半径与距离，地平图和 3D 视图用。
+    /// skyLight：{lgB, lim, sunVisible}，全天亮度与极限星等网格（先高度后方位）；trueToGalactic：当日赤道 → 银道矩阵（按行）；3D 视图用。
+    /// 气温、气压给 NaN 时取标准值；`inversion_*` 见 [`site_atmosphere`]；`humidity` 为 0—1；`city_nl` 为城市光（nL）。
     /// `delta_t_s` 只用于恒星时（GAST）。
     #[wasm_bindgen]
-    pub fn snapshot(&self, jd_tt: f64, delta_t_s: f64, lon_deg: f64, lat_deg: f64) -> String {
+    pub fn snapshot(&self, jd_tt: f64, delta_t_s: f64, lon_deg: f64, lat_deg: f64, height_m: f64, temperature_c: f64, pressure_kpa: f64, inversion_depth_m: f64, inversion_rise_k: f64, humidity: f64, city_nl: f64) -> String {
         use lunar_core::astronomy::apparent::ApparentPipelineOptions;
         use lunar_core::astronomy::sky_map::sky_snapshot;
         use lunar_core::astronomy::time::{TimePoint, TimeScale};
@@ -1651,7 +1694,7 @@ impl SkyEngine {
         let observer = lunar_core::astronomy::geodesy::Observer::new(
             lunar_core::quantity::angle::PlaneAngle::from_deg(real(lon_deg)),
             lunar_core::quantity::angle::PlaneAngle::from_deg(real(lat_deg)),
-            lunar_core::quantity::length::Length::from_value(real(0.0), lunar_core::quantity::unit::LengthUnit::Meter),
+            lunar_core::quantity::length::Length::from_value(real(height_m), lunar_core::quantity::unit::LengthUnit::Meter),
         );
         let topo = snap.topocentric_places(&observer, gast);
         let bodies: Vec<String> = snap
@@ -1660,13 +1703,14 @@ impl SkyEngine {
             .zip(&topo)
             .map(|(b, tp)| {
                 format!(
-                    "{{\"name\":\"{}\",\"ra\":{:.5},\"dec\":{:.5},\"topoRa\":{:.5},\"topoDec\":{:.5},\"semidiameter\":{},\"mag\":{},\"phase\":{}}}",
+                    "{{\"name\":\"{}\",\"ra\":{:.5},\"dec\":{:.5},\"topoRa\":{:.5},\"topoDec\":{:.5},\"semidiameter\":{},\"topoDistM\":{},\"mag\":{},\"phase\":{}}}",
                     body_name(b.body),
                     deg(b.ra).rem_euclid(360.0),
                     deg(b.dec),
                     deg(tp.ra).rem_euclid(360.0),
                     deg(tp.dec),
                     tp.semidiameter.map(|a| json_f(deg(a))).unwrap_or_else(|| "null".into()),
+                    json_f(tp.distance_m.as_f64()),
                     b.magnitude.map(|m| json_f(m.as_f64())).unwrap_or_else(|| "null".into()),
                     b.phase_angle.map(|a| json_f(deg(a))).unwrap_or_else(|| "null".into())
                 )
@@ -1681,8 +1725,26 @@ impl SkyEngine {
                 Some(format!("{}:[{}]", json_str(&m.id), w.join(",")))
             })
             .collect();
+        let atm = site_atmosphere(height_m, temperature_c, pressure_kpa, inversion_depth_m, inversion_rise_k);
+        let mut conditions = lunar_core::astronomy::phenomena::visibility::SkyConditions::schaefer1998(real(humidity), atm.temperature.celsius());
+        conditions.city_nl = real(city_nl);
+        let to_gal = lunar_core::astronomy::sky_map::true_equator_to_galactic(t);
+        let to_gal: Vec<String> = to_gal.iter().flatten().map(|x| json_f(x.as_f64())).collect();
+        let light = snap.sky_light(&topo, &observer, gast, &atm, &conditions, &lunar_core::astronomy::phenomena::visibility::Eye::default());
+        let grid = |v: &[lunar_core::math::real::Real]| v.iter().map(|x| format!("{:.3}", x.as_f64())).collect::<Vec<_>>().join(",");
+        let sky_light = format!(
+            "{{\"lgB\":[{}],\"lim\":[{}],\"sunVisible\":{},\"moonGlare\":{},\"limitCurve\":[{}],\"coronaUnit\":{}}}",
+            grid(&light.log10_brightness_nl),
+            grid(&light.limiting_magnitude),
+            json_f(light.sun_visible_fraction.as_f64()),
+            json_f(light.moon_glare_nl_deg2.as_f64()),
+            grid(&light.limit_curve),
+            json_f(light.corona_unit_nl.as_f64())
+        );
         format!(
-            "{{\"jdTt\":{},\"gastDeg\":{},\"eclipticPole\":[{},{}],\"stars\":[{}],\"bodies\":[{}],\"mansionWidths\":{{{}}}}}",
+            "{{\"trueToGalactic\":[{}],\"skyLight\":{},\"jdTt\":{},\"gastDeg\":{},\"eclipticPole\":[{},{}],\"stars\":[{}],\"bodies\":[{}],\"mansionWidths\":{{{}}}}}",
+            to_gal.join(","),
+            sky_light,
             json_f(jd_tt),
             json_f(deg(gast)),
             json_f(deg(snap.ecliptic_pole.0)),

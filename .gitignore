@@ -60,6 +60,8 @@ vendor/jpl/de441/*.bsp
 vendor/jpl/de431/*.bsp
 # Hipparcos 主表原版（53 MB，只用于生成 data/stars/hipparcos_bright.csv；下载见 vendor/hipparcos/README.md）
 vendor/hipparcos/I_239/hip_main.dat
+# NASA Deep Star Maps 4K EXR（33 MB，只用于生成 data/sky/ 的贴图；下载见 vendor/nasa_svs_deep_star_maps/README.md）
+vendor/nasa_svs_deep_star_maps/*.exr
 # 维基文库原文缓存（scripts/sky_culture/lunar_mansions.py 自动下载）
 scripts/sky_culture/_cache/
 

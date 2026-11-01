@@ -18,6 +18,12 @@ dependencies = [
 #   uv run --project scripts --only-group chapront-fit python scripts/ephemeris/vsop87_de_planet_fit.py [de406|de441]
 # 输出 data/fit/vsop87-<目标>-planets.txt（提交入库；wasm 用二进制由 examples/patch_to_bin.rs 生成）
 [dependency-groups]
+# 3D 星空的银河贴图：EXR → JPEG，见 scripts/phenomena/milkyway_exr_to_jpg.py
+sky-view = [
+    "numpy>=1.20",
+    "openexr>=3.3",
+    "pillow>=10",
+]
 chapront-fit = [
     "numpy>=1.20",
     "scipy>=1.7",
