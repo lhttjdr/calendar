@@ -176,10 +176,20 @@
 | 写法 | 规则 | 用处 |
 |---|---|---|
 | **通用（默认）** | 1582-10-15 起格里历，此前规则儒略历，1582 年 10 月没有 5—14 日；前 45 年以前写「前推儒略历」 | [JPL Horizons](https://ssd.jpl.nasa.gov/horizons/manual.html) 等天文和史学工具的默认约定，与方诗铭、实历朔日表一致 |
-| ISO 8601 | 一律前推格里历，有公元 0 年 | 数据交换标准；1583 年以前的年份须双方约定（转引自[维基 ISO 8601 条](https://en.wikipedia.org/wiki/ISO_8601)，未购标准原文） |
+| ISO 8601 | 一律前推格里历，有公元 0 年 | 数据交换标准；0000—1582 年须交换双方约定，见下 |
 | 罗马实历 | 通用写法之上还原公元前 45 年起的实际闰年 | 对读当时的罗马日期；有九种复原，见下表 |
 
 各国改历年份不同，通用写法统一取 1582 年。
+
+**ISO 8601 的条文。** 现行 ISO 8601-1:2019 要付费，没有读到全文。以下引自工作组公开的 [ISO/WD 8601-1（2016-02-16，N0038）](https://www.loc.gov/standards/datetime/iso-tc154-wg5_n0038_iso_wd_8601-1_2016-02-16.pdf)，是草案，定稿措辞和条号可能不同：
+
+- §3.2.1 用于改历以前的日期须经约定：“should only be by agreement of the partners in information interchange”。前推时不增删日期：“no dates shall be inserted or deleted”。
+- §3.2.1 的例子：1582 年 10 月 15 日的前一日写作 14 October 1582，在儒略历里是 4 October 1582。注：“the calendar year [0000] is a leap year”。
+- §4.1.2.1 “Values in the range [0000] through [1582] shall only be used by mutual agreement”。§3.5：超出四位年份的扩展表示也须约定。
+
+[2022 年修正案](https://cdn.standards.iteh.ai/samples/81801/f527872a9fe34281ae3a4af8e730f3f8/ISO-8601-1-2019-Amd-1-2022.pdf)是定稿文本（iTeh 公开试读）：§4.3.2 增“The year number may be preceded by a minus sign to indicate a year preceding year zero”。
+
+ISO 只规定前推格里历怎么写，没有规定史学日期该用它；它自己的例子就把同一天的儒略历写法并列。所以默认仍用通用写法。日历的 ISO 写法只取其历法规则，年份仍写「前 5 年」，不写 ISO 的 `-0004`。
 
 **罗马实历的史料。** 祭司把四年一闰误为三年一闰，36 年间闰 12 日，应闰 9 日，奥古斯都下令 12 年不闰以抵消（Solinus 1.46—47，Macrobius《农神节》1.14.13—15；Suetonius《奥古斯都传》31.2 只说改正）。古代文献没有列出闰年，下表都是今人推算。分歧在起闰之年，以及「12 年」从何时算。
 
