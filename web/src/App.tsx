@@ -215,7 +215,8 @@ function getHourGanzhi(dayGanzhi: string, hour: number): string {
   const dayZhiIndex = ZHI.indexOf(dayGanzhi[1]!)
   if (dayGanIndex < 0 || dayZhiIndex < 0) return ''
   const zhiIndex = hour === 23 ? 0 : Math.floor((hour + 1) / 2)
-  const ganIndex = (dayGanIndex * 2 + zhiIndex) % 10
+  // 23 时已入次日子时，无论日柱是否换日，时干都按次日起（甲日 23 时为丙子）
+  const ganIndex = ((dayGanIndex + (hour === 23 ? 1 : 0)) * 2 + zhiIndex) % 10
   return GAN[ganIndex]! + ZHI[zhiIndex]!
 }
 
@@ -269,10 +270,11 @@ function getWeekOfYear(y: number, m: number, d: number): number {
 }
 
 function App() {
+  const [timeZone, setTimeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone)
   const today = useMemo(() => {
-    const t = new Date()
-    return { year: t.getFullYear(), month: t.getMonth() + 1, day: t.getDate() }
-  }, [])
+    const t = formatDateInTimeZone(new Date(), timeZone)
+    return { year: t.year, month: t.month, day: t.day }
+  }, [timeZone])
 
   const [calendarMode, setCalendarModeState] = useState<CalendarMode>(() => {
     const m = getStoredCalendarMode()
@@ -298,7 +300,7 @@ function App() {
   const [displayLayersPanelOpen, setDisplayLayersPanelOpen] = useState(false)
   /** 仅小时变化时更新，用于年月日时与农历/八字；不每秒更新避免整页重算 */
   const [nowForLunar, setNowForLunar] = useState(() => new Date())
-  const lastHourKeyRef = useRef<string>('')
+  const lastMinuteKeyRef = useRef<string>('')
   const [vsop87Tick, setVsop87Tick] = useState(0)
   /** 一周起始日：0=周日 1=周一 … 6=周六 */
   const [weekStart, setWeekStart] = useState(1)
@@ -318,15 +320,14 @@ function App() {
       return next
     })
   }
-  const [timeZone, setTimeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone)
   const prevTimeZoneRef = useRef<string | null>(null)
 
   useEffect(() => {
     const tick = () => {
       const d = new Date()
-      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}`
-      if (lastHourKeyRef.current !== key) {
-        lastHourKeyRef.current = key
+      const key = String(Math.floor(d.getTime() / 60000))
+      if (lastMinuteKeyRef.current !== key) {
+        lastMinuteKeyRef.current = key
         setNowForLunar(d)
       }
     }
@@ -455,8 +456,9 @@ function App() {
   // 当左侧显示日期与日历视图不同月时，单独拉取显示日期所在月的岁数据，否则农历年月日会因无对应气朔而显示为 —
   useEffect(() => {
     const selected = civilToProleptic(selectedDate.year, selectedDate.month, selectedDate.day)
-    const displayY = isLiveMode ? nowForLunar.getFullYear() : selected.year
-    const displayM = isLiveMode ? nowForLunar.getMonth() + 1 : selected.month
+    const now = formatDateInTimeZone(nowForLunar, timeZone)
+    const displayY = isLiveMode ? now.year : selected.year
+    const displayM = isLiveMode ? now.month : selected.month
     // 日历的年月是显示写法，要和选中日的显示写法比，不能和前推格里历比
     if (isLiveMode ? displayY === year && displayM === month : selectedDate.year === year && selectedDate.month === month) {
       setDisplayDateYearDataList([])
@@ -468,7 +470,7 @@ function App() {
       if (!cancelled) setDisplayDateYearDataList(list)
     })
     return () => { cancelled = true }
-  }, [wasm, year, month, isLiveMode, nowForLunar, selectedDate.year, selectedDate.month, selectedDate.day, calendarMode])
+  }, [wasm, year, month, isLiveMode, nowForLunar, selectedDate.year, selectedDate.month, selectedDate.day, calendarMode, timeZone])
 
   // 切换时区时，将当前选中的日期时间从旧时区换算到新时区（同一时刻）
   useEffect(() => {
@@ -532,18 +534,19 @@ function App() {
     setYear(today.year)
     setMonth(today.month)
     setSelectedDate(today)
-    const n = new Date()
-    setSelectedTime({ hour: n.getHours(), minute: n.getMinutes(), second: n.getSeconds() })
+    const n = formatDateInTimeZone(new Date(), timeZone)
+    setSelectedTime({ hour: n.hour, minute: n.minute, second: n.second })
     setIsLiveMode(true)
   }
 
   const sel = selectedDate
   const selProleptic = civilToProleptic(sel.year, sel.month, sel.day)
-  const displayDate = isLiveMode ? nowForLunar : localDate(selProleptic.year, selProleptic.month, selProleptic.day, selectedTime.hour, selectedTime.minute, selectedTime.second)
+  const nowInZone = formatDateInTimeZone(nowForLunar, timeZone)
+  const displayDate = isLiveMode ? localDate(nowInZone.year, nowInZone.month, nowInZone.day, nowInZone.hour, nowInZone.minute, nowInZone.second) : localDate(selProleptic.year, selProleptic.month, selProleptic.day, selectedTime.hour, selectedTime.minute, selectedTime.second)
   // 显示用民用历；实时模式必在 1582 年之后，两者相同
-  const civilY = isLiveMode ? nowForLunar.getFullYear() : sel.year
-  const civilM = isLiveMode ? nowForLunar.getMonth() + 1 : sel.month
-  const civilD = isLiveMode ? nowForLunar.getDate() : sel.day
+  const civilY = isLiveMode ? nowInZone.year : sel.year
+  const civilM = isLiveMode ? nowInZone.month : sel.month
+  const civilD = isLiveMode ? nowInZone.day : sel.day
   const displayY = displayDate.getFullYear()
   const displayM = displayDate.getMonth() + 1
   const displayD = displayDate.getDate()
@@ -616,6 +619,10 @@ function App() {
         })()
       : []
 
+  // 子初换日（日界选项 0）：23 时起日柱已是次日；格子和 selectedGanzhi 按日期，这里再按时刻进一日
+  const dayPillar = selectedGanzhi?.dayName && ganzhiOptions[3] === 0 && displayHour === 23
+    ? GAN[(GAN.indexOf(selectedGanzhi.dayName[0]!) + 1) % 10]! + ZHI[(ZHI.indexOf(selectedGanzhi.dayName[1]!) + 1) % 12]!
+    : selectedGanzhi?.dayName
   const hourGanzhi = selectedGanzhi?.dayName && /^[\u4e00-\u9fa5]{2}$/.test(selectedGanzhi.dayName)
     ? getHourGanzhi(selectedGanzhi.dayName, displayHour)
     : ''
@@ -856,7 +863,7 @@ function App() {
                     {[
                       selectedGanzhi?.yearName && /^[\u4e00-\u9fa5]{2}$/.test(selectedGanzhi.yearName) ? `${selectedGanzhi.yearName}${zodiac != null ? `[${zodiac}]` : ''}年` : '—',
                       selectedGanzhi?.monthName && /^[\u4e00-\u9fa5]{2}$/.test(selectedGanzhi.monthName) ? `${selectedGanzhi.monthName}月` : '—',
-                      selectedGanzhi?.dayName != null && /^[\u4e00-\u9fa5]{2}$/.test(selectedGanzhi?.dayName ?? '') ? `${selectedGanzhi.dayName}日` : '—',
+                      dayPillar != null && /^[\u4e00-\u9fa5]{2}$/.test(dayPillar) ? `${dayPillar}日` : '—',
                       hourGanzhi ? `${hourGanzhi}时` : '—',
                     ].join(' ')}
                   </div>
