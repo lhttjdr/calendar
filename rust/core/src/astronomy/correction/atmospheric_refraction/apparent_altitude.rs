@@ -201,7 +201,7 @@ pub fn refraction_from_geometric(h_geom: PlaneAngle, model: RefractionModel, atm
     PlaneAngle::from_rad(r_deg.max(zero()) / r2d)
 }
 
-/// 东北天（ENU）直角坐标施加折射：方位与距离不变，高度角加折射量。天顶处方位无定义，原样返回。
+/// 站心地平直角坐标（ENU：东、北、天顶）施加折射：方位与距离不变，高度角加折射量。天顶处方位无定义，原样返回。
 pub fn refract_enu(enu: [Real; 3], model: RefractionModel, atmosphere: &Atmosphere) -> [Real; 3] {
     let [e, n, u] = enu;
     let rho = (e * e + n * n).sqrt();

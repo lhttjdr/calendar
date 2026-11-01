@@ -79,7 +79,7 @@ VSOP87 拟合到 DE406/DE441 的改正（2026-10-26 起）属历表求值的一�
 |------|------|------|---------------|------|
 | TrueEquator(epoch) | TopocentricEquator(epoch) | 2 | Translation | 减去观测者位置（速度同减 ω × r）；坐标轴不变，原点移到观测者。 |
 | TopocentricEquator(epoch) | TopocentricAberratedEquator(epoch) | 1 | Aberration | 周日光行差（一阶，≤0.32″），方向朝观测者自转速度偏转，距离不变。 |
-| TopocentricAberratedEquator(epoch) | HorizontalGeometric(epoch) | 1 | Rotation | 转东北天（x 东、y 北、z 沿大地法线），θ = GAST + 东经；Ṙ 取地球自转角速度。 |
+| TopocentricAberratedEquator(epoch) | HorizontalGeometric(epoch) | 1 | Rotation | 转站心地平直角坐标（ENU：x 东、y 北、z 沿大地法线），θ = GAST + 东经；Ṙ 取地球自转角速度。 |
 | HorizontalGeometric(epoch) | HorizontalApparent(epoch) | 2 | Mapping | 大气折射（重边，key 为 RayTrace / Bennett / BennettImproved / Saemundsson / Smart / Meeus）。 |
 
 这几条边除时刻外还要观测者、GAST 与大气，所以由 `transform_to_observed(state, target, &ObservationContext, jd_tt)` 执行；`transform_to` 走到它们会 panic，不做隐式退回。观测者不入节点标识：节点只回答「做到了哪一步」，同一进程可算多个观测者。折射模型由 `with_refraction_model` 选定（缺省 RayTrace，依据见 [celestial-phenomena.md](../astronomy/celestial-phenomena.md)「大气折射的模型与依据」）；可视化只画缺省模型一条折射边，避免多条平行线的标签重叠。
@@ -90,7 +90,7 @@ VSOP87 拟合到 DE406/DE441 的改正（2026-10-26 起）属历表求值的一�
 
 **不进图的量**：大气消光只改亮度，不改方向（`phenomena::visibility`）；标准地平高度 −0°50′ 是判定条件，不是坐标变换（`phenomena::solar_eclipse` 等）；极移对古代天象可忽略且缺可靠数据，要做也应在观测者位置内部。
 
-**算式只有一份**：各边调用 `apparent::topocentric_state`、`diurnal_aberration_state`、`to_horizontal_state`、`refract_state`。日月食、掩星、偕日现象等逐点循环已持有真赤道位置，不逐点寻路，直接调 `topocentric`、`horizontal`，共用 `topocentric` 的平移算式；`horizontal` 按赤经赤纬另行计算（与图的转东北天边对照测试）。这条捷径不含周日光行差（≤0.32″）。结果同样标为 `TopocentricEquator`，再次平移会 panic，避免双重视差。不设反向边（目前无此需求）。
+**算式只有一份**：各边调用 `apparent::topocentric_state`、`diurnal_aberration_state`、`to_horizontal_state`、`refract_state`。日月食、掩星、偕日现象等逐点循环已持有真赤道位置，不逐点寻路，直接调 `topocentric`、`horizontal`，共用 `topocentric` 的平移算式；`horizontal` 按赤经赤纬另行计算（与图的转站心地平直角坐标边对照测试）。这条捷径不含周日光行差（≤0.32″）。结果同样标为 `TopocentricEquator`，再次平移会 panic，避免双重视差。不设反向边（目前无此需求）。
 
 ### 3.4 带条件的边（缓存即快速跳跃边）
 

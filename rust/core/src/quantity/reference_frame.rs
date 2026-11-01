@@ -21,7 +21,7 @@ pub enum ReferenceFrame {
     TopocentricEquator(Epoch),
     /// [`Self::TopocentricEquator`] 加周日光行差后的状态，坐标轴与原点不变。
     TopocentricAberratedEquator(Epoch),
-    /// 站心东北天（x 东、y 北、z 天顶），未含折射：几何地平。
+    /// 站心地平直角坐标（ENU：x 东、y 北、z 天顶），未含折射：几何地平。
     HorizontalGeometric(Epoch),
     /// [`Self::HorizontalGeometric`] 加大气折射后的状态，坐标轴与原点不变：视地平。
     HorizontalApparent(Epoch),

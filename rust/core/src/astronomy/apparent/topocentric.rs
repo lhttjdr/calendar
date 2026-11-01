@@ -2,7 +2,7 @@
 //!
 //! - [`topocentric`]：当日真赤道架下，地心视位置减去观测者位置（观测者由 GAST 转到同一架），结果架为 [`ReferenceFrame::TopocentricEquator`]，
 //!   即变换图 TrueEquator → TopocentricEquator 边的算式；[`topocentric_state`] 连速度一并平移。
-//! - [`diurnal_aberration_state`]、[`to_horizontal_state`]、[`refract_state`]：变换图站心之后三条边的算式，依次为周日光行差、转东北天、大气折射。
+//! - [`diurnal_aberration_state`]、[`to_horizontal_state`]、[`refract_state`]：变换图站心之后三条边的算式，依次为周日光行差、转站心地平直角坐标、大气折射。
 //!   上下文见 [`ObservationContext`]。
 //! - [`horizontal`]：真赤道坐标 → 方位角（正北起、向东为正）与几何高度角（未含大气折射）。
 //!   出没、带食判断请用标准地平高度阈值（如太阳 −0°50′）而非对负高度施折射——现有 Saemundsson 折射在真高度 < 0 时返回 0。
@@ -82,7 +82,7 @@ pub fn diurnal_aberration_state(topo: &State6, ctx: &ObservationContext) -> Stat
     State6::from_si_in_frame(frame, u[0] * scale, u[1] * scale, u[2] * scale, wx, wy, wz)
 }
 
-/// 站心赤道 → 东北天：地方恒星时 θ = GAST + 东经，U 沿大地法线。速度含旋转项 Ṙ·r。
+/// 站心赤道 → 站心地平直角坐标：地方恒星时 θ = GAST + 东经，U 沿大地法线。速度含旋转项 Ṙ·r。
 pub fn to_horizontal_state(equatorial: &State6, ctx: &ObservationContext) -> State6 {
     let ReferenceFrame::TopocentricAberratedEquator(epoch) = equatorial.frame() else {
         panic!("转地平要求已加周日光行差的站心赤道架（TopocentricAberratedEquator），实为 {:?}", equatorial.frame());

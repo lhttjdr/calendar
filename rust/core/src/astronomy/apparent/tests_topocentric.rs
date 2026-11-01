@@ -194,7 +194,7 @@ fn graph_horizontal_matches_function() {
     assert!(daz.abs() * alt.cos().as_f64() < 0.33, "方位差 {daz}″");
 }
 
-/// 东北天速度含 Ṙ·r：与相邻两时刻（GAST 按 ω 变化）的坐标差分一致。
+/// 站心地平直角坐标的速度含 Ṙ·r：与相邻两时刻（GAST 按 ω 变化）的坐标差分一致。
 #[test]
 fn horizontal_velocity_matches_finite_difference() {
     let jd = 2451545.0;

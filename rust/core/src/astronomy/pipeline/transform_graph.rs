@@ -9,7 +9,7 @@
 //! **变换分类**：标架旋转 / 标架平移 / 光行时 / 光行差 / 光行时+光行差折叠 / 一般映射；如需可再增。日心→地心为单独步骤。
 //!
 //! **地心→站心→视地平**：TrueEquator → TopocentricEquator → TopocentricAberratedEquator → HorizontalGeometric → HorizontalApparent，
-//! 依次为平移、周日光行差、转东北天、大气折射（重边）。这些边需 `ObservationContext`，经 `transform_to_observed` 执行；`transform_to` 走到时 panic。
+//! 依次为平移、周日光行差、转站心地平直角坐标、大气折射（重边）。这些边需 `ObservationContext`，经 `transform_to_observed` 执行；`transform_to` 走到时 panic。
 
 use crate::astronomy::frame::fixed::fk5_icrs;
 use crate::astronomy::frame::precession::{
@@ -254,7 +254,7 @@ fn edge_label(from_id: &str, to_id: &str, edge_key: Option<&str>) -> Option<Stri
         ("TrueEquator(epoch)", "ApparentEcliptic(epoch)") => "R_x(ε) 真黄赤交角",
         ("TrueEquator(epoch)", "TopocentricEquator(epoch)") => "地心→站心（减观测者位置）",
         ("TopocentricEquator(epoch)", "TopocentricAberratedEquator(epoch)") => "周日光行差",
-        ("TopocentricAberratedEquator(epoch)", "HorizontalGeometric(epoch)") => "转东北天（地方恒星时、大地纬度）",
+        ("TopocentricAberratedEquator(epoch)", "HorizontalGeometric(epoch)") => "转站心地平直角坐标（地方恒星时、大地纬度）",
         ("HorizontalGeometric(epoch)", "HorizontalApparent(epoch)") => "大气折射（Bennett，可选其他模型）",
         _ => "几何变换",
     };

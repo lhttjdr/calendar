@@ -89,7 +89,7 @@ function getEdgeLabelFallback(fromId: string, toId: string): string {
     ['TrueEquator(epoch)\0ApparentEcliptic(epoch)']: 'R_x(ε) 真黄赤交角',
     ['TrueEquator(epoch)\0TopocentricEquator(epoch)']: '地心→站心（减观测者位置）',
     ['TopocentricEquator(epoch)\0TopocentricAberratedEquator(epoch)']: '周日光行差',
-    ['TopocentricAberratedEquator(epoch)\0HorizontalGeometric(epoch)']: '转东北天（地方恒星时、大地纬度）',
+    ['TopocentricAberratedEquator(epoch)\0HorizontalGeometric(epoch)']: '转站心地平直角坐标（地方恒星时、大地纬度）',
     ['HorizontalGeometric(epoch)\0HorizontalApparent(epoch)']: '大气折射（光线追迹，可选拟合式）',
   }
   return map[key] ?? '几何变换'
@@ -111,8 +111,8 @@ const NODE_BOX_LABELS: Record<string, string> = {
   'ApparentEcliptic(epoch)': 'ApparentEcliptic · 历元视黄道',
   'TopocentricEquator(epoch)': 'TopocentricEquator · 站心真赤道',
   'TopocentricAberratedEquator(epoch)': 'TopocentricAberratedEquator · 站心真赤道（含周日光行差）',
-  'HorizontalGeometric(epoch)': 'HorizontalGeometric · 东北天（几何地平）',
-  'HorizontalApparent(epoch)': 'HorizontalApparent · 东北天（视地平）',
+  'HorizontalGeometric(epoch)': 'HorizontalGeometric · 几何地平（东、北、天顶）',
+  'HorizontalApparent(epoch)': 'HorizontalApparent · 视地平（东、北、天顶）',
 }
 
 /** 使用 dagre 做 TB 的 DAG 自动布局，减少交叉与长边。 */
