@@ -30,11 +30,29 @@ import {
   type GanzhiOptionsTuple,
   type RealBackendVariant,
 } from './useLunarWasm'
-import { civilMonthDays, displayCivilToJd, civilToProleptic, clampCivilDay, isFullyGregorianMonth, isGregorianCivil, localDate } from './civilTime'
+import { civilMonthDays, displayCivilToJd, civilToProleptic, clampCivilDay, displayCalendarName, isCalendarMode, isFullyGregorianMonth, jdToDisplayDate, localDate, ROMAN_SCHEMES, setCalendarMode, type CalendarMode } from './civilTime'
 import { EPHEMERIS_SOURCE_LABELS, EPHEMERIS_FORMAT_LABELS, type EphemerisDataSource } from './ephemerisSourceRegistry'
 import { EARTH_PATCH_TARGET } from './ephemerisUrls'
 
 const REAL_BACKEND_STORAGE_KEY = 'lunar-real-backend'
+const CALENDAR_MODE_STORAGE_KEY = 'lunar-calendar-mode'
+
+function getStoredCalendarMode(): CalendarMode {
+  try {
+    const v = localStorage.getItem(CALENDAR_MODE_STORAGE_KEY)
+    if (isCalendarMode(v)) return v
+  } catch {}
+  return 'civil'
+}
+
+const CALENDAR_MODE_OPTIONS = [
+  { label: '通用（1582 年前儒略历，默认）', value: 'civil' },
+  { label: 'ISO 8601（前推格里高利历）', value: 'iso' },
+  {
+    label: '罗马实历（公元前 45 年起的实际闰年）',
+    options: Object.entries(ROMAN_SCHEMES).map(([value, s]) => ({ label: s.label, value })),
+  },
+]
 
 function getStoredRealBackend(): RealBackendVariant {
   try {
@@ -305,6 +323,11 @@ function App() {
     return { year: t.getFullYear(), month: t.getMonth() + 1, day: t.getDate() }
   }, [])
 
+  const [calendarMode, setCalendarModeState] = useState<CalendarMode>(() => {
+    const m = getStoredCalendarMode()
+    setCalendarMode(m)
+    return m
+  })
   const [year, setYear] = useState(today.year)
   const [month, setMonth] = useState(today.month)
   const [selectedDate, setSelectedDate] = useState<{ year: number; month: number; day: number }>(today)
@@ -368,7 +391,7 @@ function App() {
     if (g.yearName && g.monthName) return
     if (isVsop87Cached()) return
     ensureVsop87Cached().then(() => setVsop87Tick((n) => n + 1)).catch(() => {})
-  }, [wasm, yearDataList.length, selectedDate.year, selectedDate.month, selectedDate.day, ganzhiOptions, vsop87Tick])
+  }, [wasm, yearDataList.length, selectedDate.year, selectedDate.month, selectedDate.day, ganzhiOptions, vsop87Tick, calendarMode])
 
   useEffect(() => {
     if (!wasm || ephemerisSource == null) {
@@ -433,7 +456,7 @@ function App() {
       out[i + 1] = applyLunarDisplayLayers(slot, 2) ?? null
     }
     return out
-  }, [wasm, year, month, days, yearDataList])
+  }, [wasm, year, month, days, yearDataList, calendarMode])
 
   // 整月干支历：优先批量 WASM 一次调用（ganzhiForGregorianMonthWasm），否则逐日兜底
   const ganzhiByDay = useMemo((): Record<number, GanzhiResult | null> => {
@@ -447,7 +470,7 @@ function App() {
       return out
     }
     return getGanzhiForMonth(wasm, year, month, yearDataList, ganzhiOptions)
-  }, [wasm, year, month, yearDataList, ganzhiOptions])
+  }, [wasm, year, month, yearDataList, ganzhiOptions, calendarMode])
 
   // 按流程：按所选 Real 后端加载 WASM → 取得该月对应气朔；同时预拉 VSOP87 供节气历年/月兜底
   useEffect(() => {
@@ -476,7 +499,7 @@ function App() {
         }
       })
     return () => { cancelled = true }
-  }, [year, month, realBackendVariant])
+  }, [year, month, realBackendVariant, calendarMode])
 
   // 当左侧显示日期与日历视图不同月时，单独拉取显示日期所在月的岁数据，否则农历年月日会因无对应气朔而显示为 —
   useEffect(() => {
@@ -493,7 +516,7 @@ function App() {
       if (!cancelled) setDisplayDateYearDataList(list)
     })
     return () => { cancelled = true }
-  }, [wasm, year, month, isLiveMode, nowForLunar, selectedDate.year, selectedDate.month, selectedDate.day])
+  }, [wasm, year, month, isLiveMode, nowForLunar, selectedDate.year, selectedDate.month, selectedDate.day, calendarMode])
 
   // 切换时区时，将当前选中的日期时间从旧时区换算到新时区（同一时刻）
   useEffect(() => {
@@ -510,6 +533,18 @@ function App() {
     setSelectedDate({ year: p.year, month: p.month, day: p.day })
     setSelectedTime({ hour: p.hour, minute: p.minute, second: p.second })
   }, [timeZone])
+
+  /** 换西历写法时留在同一天，日期的写法跟着变。 */
+  const handleCalendarModeChange = (next: CalendarMode) => {
+    const jd = displayCivilToJd(selectedDate.year, selectedDate.month, selectedDate.day)
+    setCalendarMode(next)
+    const d = jdToDisplayDate(jd)
+    setCalendarModeState(next)
+    setYear(d.year)
+    setMonth(d.month)
+    setSelectedDate(d)
+    try { localStorage.setItem(CALENDAR_MODE_STORAGE_KEY, next) } catch {}
+  }
 
   const handleYearChange = (y: number) => {
     setYear(y)
@@ -726,8 +761,7 @@ function App() {
                   const timeOf = selectedLunarSlot != null && wasm?.format_time_for_lunar_year != null
                     ? (h: number, m: number, s: number) => wasm.format_time_for_lunar_year!(selectedLunarSlot.lunarYear, h, m, s)
                     : clock
-                  // 儒略历行用于公元前 45 年（天文纪年 -44）起，再往前是前推，历法本身尚不存在
-                  const westernName = isGregorianCivil(civilY, civilM, civilD) ? '格里高利历' : civilY >= -44 ? '儒略历' : '前推儒略历'
+                  const westernName = displayCalendarName(civilY, civilM, civilD)
                   const gregorianMonthDay = `${civilM}月${civilD}日`
                   const yearName = (y: number) => (y > 0 ? `${yearToChinese(y)}年` : `西元前${yearToChinese(1 - y)}年`)
 
@@ -1116,6 +1150,15 @@ function App() {
                       { label: 'f64（默认，体积小/速度快）', value: 'f64' },
                       { label: 'TwoFloat（高精度）', value: 'twofloat' },
                     ]}
+                    style={{ width: '100%', marginTop: 4 }}
+                  />
+                </div>
+                <div>
+                  <Text type="secondary" style={{ fontSize: 12 }}>西历写法</Text>
+                  <Select
+                    value={calendarMode}
+                    onChange={handleCalendarModeChange}
+                    options={CALENDAR_MODE_OPTIONS}
                     style={{ width: '100%', marginTop: 4 }}
                   />
                 </div>
