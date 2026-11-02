@@ -1,11 +1,11 @@
 /**
  * 视位置变换图展示页：由 WASM 取得 TransformGraph 的节点与边，用 React Flow 绘制有向图。
- * 使用 dagre 做从左到右的 DAG 自动布局。
+ * 图是网络：互逆的两条边合并成一条双向箭头画，布局允许有环（graphLayout.ts）。
  */
 import { useMemo, useEffect, useRef } from 'react'
 import { ReactFlow, Background, Controls, Handle, Position, MarkerType, useNodesState, type Node, type Edge, type NodeProps } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import dagre from 'dagre'
+import { stressLayout } from './graphLayout'
 import { Card, Typography } from 'antd'
 import type { LunarBackend } from './lunar-backend-types'
 
@@ -42,7 +42,8 @@ function edgeLabel(e: GraphEdgeList[number] | null | undefined): string | null {
   try {
     const l = (e as { label?: string | null | (() => string | null) }).label
     if (l == null) return null
-    const v = typeof l === 'function' ? l() ?? null : l ?? null
+    // wasm 的 label 是方法，必须带 this 调用
+    const v = typeof l === 'function' ? l.call(e) ?? null : l ?? null
     return v != null && String(v).trim() !== '' ? String(v) : null
   } catch {
     return null
@@ -50,12 +51,15 @@ function edgeLabel(e: GraphEdgeList[number] | null | undefined): string | null {
 }
 
 /** 节点宽高；布局间距单独设大一些，保证连线足够长、线上文字可显示且框不压线 */
-const NODE_WIDTH = 160
-const NODE_HEIGHT = 44
+const NODE_WIDTH = 210
+const NODE_HEIGHT = 60
 const PAD = 32
-/** dagre 同层节点水平间距、层与层垂直间距：加大以拉长连线、留出边标签空间 */
-const LAYOUT_NODESEP = 140
-const LAYOUT_RANKSEP = 120
+/** 一跳的屏幕距离要够长，线上文字才放得下；框与框的最小间距 */
+const LAYOUT_UNIT = 200
+const LAYOUT_GAP = 30
+/** 箭头放大到缩放后仍看得出方向；双向边两端都画。 */
+const EDGE_COLOR = '#8c8c8c'
+const ARROW = { type: MarkerType.ArrowClosed, width: 20, height: 20, color: EDGE_COLOR }
 
 function getGraphData(wasm: LunarBackend & { transformGraphVisualizationData?: () => TransformGraphViz }): TransformGraphViz | null {
   if (typeof (wasm as { transformGraphVisualizationData?: () => TransformGraphViz }).transformGraphVisualizationData !== 'function') {
@@ -64,83 +68,38 @@ function getGraphData(wasm: LunarBackend & { transformGraphVisualizationData?: (
   return (wasm as { transformGraphVisualizationData: () => TransformGraphViz }).transformGraphVisualizationData()
 }
 
-const HELIOCENTRIC_MEAN_ECLIPTIC = '日心_MeanEcliptic(epoch)'
+const HELIOCENTRIC_MEAN_ECLIPTIC = '日心_MeanEcliptic(J2000)'
 
-const MEAN_ECLIPTIC_EQUATOR = 'MeanEcliptic(epoch)_赤道'
-const MEAN_ECLIPTIC_ECLIPTIC = 'MeanEcliptic(epoch)_黄道'
-const FK5_EPHEMERIS = 'FK5_历表输出'
-const FK5_FROM_ICRS = 'FK5_自ICRS'
-
-/** 连线仅写动作，不重复框内标架/坐标系；与 Rust edge_label 一致，WASM 为空时兜底 */
-function getEdgeLabelFallback(fromId: string, toId: string): string {
-  const key = `${fromId}\0${toId}`
-  const map: Record<string, string> = {
-    ['VSOP87\0' + HELIOCENTRIC_MEAN_ECLIPTIC]: '光行时→tr；历表求值（含 DE406/DE441 拟合改正）',
-    [HELIOCENTRIC_MEAN_ECLIPTIC + '\0' + MEAN_ECLIPTIC_EQUATOR]: '日心→地心',
-    ['VSOP87\0' + MEAN_ECLIPTIC_EQUATOR]: '光行时→tr；历表输出',
-    ['ELPMPP02\0ELPMPP02_MEAN_LUNAR']: '历表求值（含 DE405/Table6 修正）',
-    ['ELPMPP02_MEAN_LUNAR\0' + MEAN_ECLIPTIC_ECLIPTIC]: 'Laskar P,Q 旋转',
-    [MEAN_ECLIPTIC_EQUATOR + '\0' + FK5_EPHEMERIS]: '黄赤交角 R_x(ε₀)',
-    [MEAN_ECLIPTIC_ECLIPTIC + '\0' + FK5_FROM_ICRS]: '黄赤交角 R_x(ε₀)',
-    [FK5_EPHEMERIS + '\0ICRS']: 'Frame bias B⁻¹（FK5→ICRS）',
-    ['ICRS\0' + FK5_FROM_ICRS]: 'B^T（Frame bias 逆）',
-    [FK5_FROM_ICRS + '\0MeanEquator(epoch)']: '岁差（Vondrák 2011）',
-    ['MeanEquator(epoch)\0TrueEquator(epoch)']: '章动',
-    ['TrueEquator(epoch)\0ApparentEcliptic(epoch)']: 'R_x(ε) 真黄赤交角',
-    ['TrueEquator(epoch)\0TopocentricEquator(epoch)']: '地心→站心（减观测者位置）',
-    ['TopocentricEquator(epoch)\0TopocentricAberratedEquator(epoch)']: '周日光行差',
-    ['TopocentricAberratedEquator(epoch)\0HorizontalGeometric(epoch)']: '转站心地平直角坐标（地方恒星时、大地纬度）',
-    ['HorizontalGeometric(epoch)\0HorizontalApparent(epoch)']: '大气折射（光线追迹，可选拟合式）',
-  }
-  return map[key] ?? '几何变换'
-}
-
-/** 框内：标架 + 坐标系 + 历元。赤道/黄道拆两节点；FK5 拆为历表输出→ICRS→自 ICRS 回转 */
+/** 框内：标架 + 坐标系 + 历元 */
 const NODE_BOX_LABELS: Record<string, string> = {
   VSOP87: 'VSOP87（含 DE406/DE441 拟合改正）· J2000 动力学平黄道',
-  [HELIOCENTRIC_MEAN_ECLIPTIC]: '日心 · 历元平黄道',
+  [HELIOCENTRIC_MEAN_ECLIPTIC]: '日心 · J2000 平黄道',
   ELPMPP02: 'ELPMPP02 · J2000 月心平架',
   ELPMPP02_MEAN_LUNAR: 'ELP 平均根数 · J2000 平黄道',
-  'MeanEcliptic(epoch)_赤道': 'MeanEcliptic · 历元平黄道（赤道路径）',
-  'MeanEcliptic(epoch)_黄道': 'MeanEcliptic · 历元平黄道（黄道路径）',
-  'FK5_历表输出': 'FK5 · J2000 平赤道（历表输出）',
-  'FK5_自ICRS': 'FK5 · J2000 平赤道（自 ICRS）',
+  'DE406/DE441': 'DE406 / DE441 · JPL 历表',
+  Hipparcos: 'Hipparcos · 恒星星表',
+  'MeanEcliptic(J2000)': 'MeanEcliptic · J2000 平黄道',
+  'MeanEcliptic(epoch)': 'MeanEcliptic · 当日平黄道',
+  'TrueEcliptic(epoch)': 'TrueEcliptic · 当日真黄道',
+  FK5: 'FK5 · J2000 平赤道',
   ICRS: 'ICRS · 国际天球参考系',
+  IcrsAberrated: 'IcrsAberrated · ICRS（含周年光行差）',
   'MeanEquator(epoch)': 'MeanEquator · 历元平赤道',
   'TrueEquator(epoch)': 'TrueEquator · 历元真赤道',
-  'ApparentEcliptic(epoch)': 'ApparentEcliptic · 历元视黄道',
+  'ApparentEquator(epoch)': 'ApparentEquator · 视赤道（显式光行差）',
+  'ApparentEcliptic(epoch)': 'ApparentEcliptic · 视黄道（光行差已折叠）',
   'TopocentricEquator(epoch)': 'TopocentricEquator · 站心真赤道',
   'TopocentricAberratedEquator(epoch)': 'TopocentricAberratedEquator · 站心真赤道（含周日光行差）',
   'HorizontalGeometric(epoch)': 'HorizontalGeometric · 几何地平（东、北、天顶）',
   'HorizontalApparent(epoch)': 'HorizontalApparent · 视地平（东、北、天顶）',
 }
 
-/** 使用 dagre 做 TB 的 DAG 自动布局，减少交叉与长边。 */
-function getLayoutedNodes(
-  nodes: Node[],
-  edges: { source: string; target: string }[]
-): Node[] {
-  const g = new dagre.graphlib.Graph()
-  g.setGraph({ rankdir: 'TB', nodesep: LAYOUT_NODESEP, ranksep: LAYOUT_RANKSEP })
-  g.setDefaultEdgeLabel(() => ({}))
-  nodes.forEach((node) => {
-    const w = (node.width as number) ?? NODE_WIDTH
-    const h = (node.height as number) ?? NODE_HEIGHT
-    g.setNode(node.id, { width: w, height: h })
-  })
-  edges.forEach((e) => { g.setEdge(e.source, e.target) })
-  dagre.layout(g)
-  return nodes.map((node) => {
-    const n = g.node(node.id)
-    if (!n) return { ...node, sourcePosition: Position.Bottom, targetPosition: Position.Top }
-    const w = (node.width as number) ?? NODE_WIDTH
-    const h = (node.height as number) ?? NODE_HEIGHT
-    return {
-      ...node,
-      position: { x: n.x - w / 2, y: n.y - h / 2 },
-      sourcePosition: Position.Bottom,
-      targetPosition: Position.Top,
-    }
+/** 网络布局，允许有环，见 graphLayout.ts */
+function getLayoutedNodes(nodes: Node[], edges: { source: string; target: string }[]): Node[] {
+  const positions = stressLayout(nodes.map((n) => n.id), edges, { unit: LAYOUT_UNIT, width: NODE_WIDTH, height: NODE_HEIGHT, gap: LAYOUT_GAP })
+  return nodes.map((n) => {
+    const p = positions.get(n.id) ?? { x: 0, y: 0 }
+    return { ...n, position: { x: p.x + PAD, y: p.y + PAD } }
   })
 }
 
@@ -199,7 +158,7 @@ function BoxNode({ data }: NodeProps<BoxNodeData>) {
         borderRadius: 8,
         background: '#fff',
         textAlign: 'center',
-        fontSize: 11,
+        fontSize: 16,
         color: '#262626',
         display: 'flex',
         flexDirection: 'column',
@@ -272,7 +231,7 @@ export function TransformGraphPage({ wasm }: { wasm: LunarBackend | null }) {
       const wasmLabel = edgeLabel(e)
       const label = wasmLabel != null && String(wasmLabel).trim() !== ''
         ? String(wasmLabel).trim()
-        : getEdgeLabelFallback(fromId, toId)
+        : `${fromId} → ${toId}`
       return { from_id: fromId, to_id: toId, cost: edgeCost(e), label }
     })
   } catch (e) {
@@ -287,12 +246,22 @@ export function TransformGraphPage({ wasm }: { wasm: LunarBackend | null }) {
   }
 
   const nodeIdSet = useMemo(() => new Set(nodeIds), [nodeIds])
+  /** 正向在前：遇到已画过的边的反向就并进去，不再单画 */
+  const displayEdges = useMemo(() => {
+    const forward = new Set<string>()
+    const pairs = new Set(edgesData.map((e) => `${e.from_id}\0${e.to_id}`))
+    return edgesData.flatMap((e) => {
+      if (forward.has(`${e.to_id}\0${e.from_id}`)) return []
+      forward.add(`${e.from_id}\0${e.to_id}`)
+      return [{ ...e, bidirectional: pairs.has(`${e.to_id}\0${e.from_id}`) }]
+    })
+  }, [edgesData])
   const edgeListForLayout = useMemo(
     () =>
-      edgesData
+      displayEdges
         .filter((e) => nodeIdSet.has(e.from_id) && nodeIdSet.has(e.to_id))
         .map((e) => ({ source: e.from_id, target: e.to_id })),
-    [edgesData, nodeIdSet]
+    [displayEdges, nodeIdSet]
   )
   const flowNodes: Node[] = useMemo(() => {
     const rawNodes: Node[] = nodeIds.map((id) => ({
@@ -307,7 +276,7 @@ export function TransformGraphPage({ wasm }: { wasm: LunarBackend | null }) {
   }, [nodeIds, edgeListForLayout])
   const flowEdges: Edge[] = useMemo(() => {
     const nodeMap = new Map(flowNodes.map((n) => [n.id, n]))
-    return edgesData
+    return displayEdges
       .filter((e) => nodeIdSet.has(e.from_id) && nodeIdSet.has(e.to_id))
       .map((e, i) => {
         const sourceNode = nodeMap.get(e.from_id)
@@ -325,12 +294,14 @@ export function TransformGraphPage({ wasm }: { wasm: LunarBackend | null }) {
           target: e.to_id,
           ...(handles ? { sourceHandle: handles.sourceHandle, targetHandle: handles.targetHandle } : {}),
           label: e.label,
-          labelStyle: { fill: '#1677ff', fontSize: 10 },
+          labelStyle: { fill: '#1677ff', fontSize: 14 },
           labelBgStyle: { fill: '#fff', fillOpacity: 1 },
           labelBgPadding: [6, 4] as [number, number],
           labelBgBorderRadius: 4,
           type: 'default' as const,
-          markerEnd: { type: MarkerType.ArrowClosed },
+          style: { stroke: EDGE_COLOR, strokeWidth: 1.5 },
+          markerEnd: ARROW,
+          ...(e.bidirectional ? { markerStart: { ...ARROW, orient: 'auto-start-reverse' } } : {}),
         }
       })
   }, [edgesData, nodeIdSet, flowNodes])
@@ -346,7 +317,7 @@ export function TransformGraphPage({ wasm }: { wasm: LunarBackend | null }) {
   }, [layoutKey, flowNodes, setNodes])
 
   return (
-    <div style={{ maxWidth: 1000, margin: '0 auto', padding: 24 }}>
+    <div style={{ maxWidth: 1500, margin: '0 auto', padding: 24 }}>
       <Card
         title="视位置变换图"
         extra={
@@ -355,14 +326,15 @@ export function TransformGraphPage({ wasm }: { wasm: LunarBackend | null }) {
           </Text>
         }
       >
-        <div style={{ height: 680, marginBottom: 16, background: '#fafafa', borderRadius: 8 }}>
+        <div style={{ height: 760, marginBottom: 16, background: '#fafafa', borderRadius: 8 }}>
           <ReactFlow
             nodes={nodes}
             edges={flowEdges}
             onNodesChange={onNodesChange}
             nodeTypes={nodeTypes}
             fitView
-            fitViewOptions={{ padding: 0.25 }}
+            fitViewOptions={{ padding: 0.08 }}
+            minZoom={0.2}
             nodesDraggable
             nodesConnectable={false}
             elementsSelectable

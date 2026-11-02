@@ -3,7 +3,8 @@
 //! 未计太阳引力偏折（离日 10° 处约 0.05″、90° 处 0.004″）。地球位置、速度取「地心太阳的反向」，即以日心代质心，
 //! 速度差约 0.04%（光行差 20.5″ 中约 0.01″），位置差约 0.005 AU（视差中可忽略）。
 
-use crate::astronomy::constant::{light_speed_au_per_day, AU_METERS};
+use crate::astronomy::constant::AU_METERS;
+use crate::astronomy::correction::aberration::annual_aberration_direction;
 use crate::astronomy::pipeline::{Body, EphemerisProvider, Fk5ToIcrsBias, FrameMapper, State6, TransformGraph};
 use crate::astronomy::stars::CatalogStar;
 use crate::astronomy::time::{TimePoint, TimeScale};
@@ -29,18 +30,24 @@ pub fn star_apparent_equatorial<P: EphemerisProvider>(eph: &P, star: &CatalogSta
     // 地球位置、速度（ICRS）= −地心太阳位置、速度（日心代质心）
     let sun = graph.transform_to(eph.compute_state(Body::Sun, t_tt.to_scale(eph.evaluation_time_scale())), ReferenceFrame::ICRS, jd);
     let (p_sun, v_sun) = (sun.position.to_meters(), sun.velocity.to_m_per_s());
-    let c = light_speed_au_per_day() * AU_METERS / real(86400.0);
-    let u = star.icrs_direction(jd);
-    // 周年视差：星方向（以 AU 计距离 1/ϖ）减去地球日心位置，u − ϖ·r_E/AU，ϖ 为弧度
-    let plx = star.parallax_mas * real(core::f64::consts::PI / (180.0 * 3600.0 * 1000.0));
-    let u = [u[0] + plx * p_sun[0] / AU_METERS, u[1] + plx * p_sun[1] / AU_METERS, u[2] + plx * p_sun[2] / AU_METERS];
-    // 一阶光行差：u' ∝ u + v/c（v = 地球速度），误差 ~ (v/c)² ≈ 1e-8 rad
-    let w = [u[0] - v_sun[0] / c, u[1] - v_sun[1] / c, u[2] - v_sun[2] / c];
-    let n = (w[0] * w[0] + w[1] * w[1] + w[2] * w[2]).sqrt();
+    let u = direction_with_parallax(star, jd, p_sun);
     let au = AU_METERS;
-    let pos = Position::from_si_meters_in_frame(ReferenceFrame::ICRS, w[0] / n * au, w[1] / n * au, w[2] / n * au);
+    let pos = Position::from_si_meters_in_frame(ReferenceFrame::ICRS, u[0] * au, u[1] * au, u[2] * au);
     let vel = Velocity::from_si_m_per_s_in_frame(ReferenceFrame::ICRS, real(0.0), real(0.0), real(0.0));
-    graph.transform_to(State6::new(pos, vel), ReferenceFrame::TrueEquator(Epoch::new(jd)), jd).position
+    let epoch = Epoch::new(jd);
+    let earth_velocity = [-v_sun[0], -v_sun[1], -v_sun[2]];
+    let [x, y, z] = graph.transform_with_earth_velocity(State6::new(pos, vel), ReferenceFrame::ApparentEquator(epoch), earth_velocity, jd).position.to_meters();
+    // 轴向即当日真赤道，后续站心平移按 TrueEquator 接
+    Position::from_si_meters_in_frame(ReferenceFrame::TrueEquator(epoch), x, y, z)
+}
+
+/// 星表方向（含空间运动）加周年视差后的单位矢量：u − ϖ·r_E/AU，ϖ 为弧度；地心太阳位置即 −r_E。
+fn direction_with_parallax(star: &CatalogStar, jd: Real, p_sun: [Real; 3]) -> [Real; 3] {
+    let u = star.icrs_direction(jd);
+    let plx = star.parallax_mas * real(core::f64::consts::PI / (180.0 * 3600.0 * 1000.0));
+    let w = [u[0] + plx * p_sun[0] / AU_METERS, u[1] + plx * p_sun[1] / AU_METERS, u[2] + plx * p_sun[2] / AU_METERS];
+    let n = (w[0] * w[0] + w[1] * w[1] + w[2] * w[2]).sqrt();
+    [w[0] / n, w[1] / n, w[2] / n]
 }
 
 
@@ -58,8 +65,8 @@ pub fn stars_apparent_equatorial<P: EphemerisProvider>(
     let graph = star_graph(options);
     let sun = graph.transform_to(eph.compute_state(Body::Sun, t_tt.to_scale(eph.evaluation_time_scale())), ReferenceFrame::ICRS, jd);
     let (p_sun, v_sun) = (sun.position.to_meters(), sun.velocity.to_m_per_s());
-    let c = light_speed_au_per_day() * AU_METERS / real(86400.0);
     let au = AU_METERS;
+    let earth_velocity_au_day: [Real; 3] = core::array::from_fn(|i| -v_sun[i] * real(86400.0) / AU_METERS);
     let zero_vel = || Velocity::from_si_m_per_s_in_frame(ReferenceFrame::ICRS, real(0.0), real(0.0), real(0.0));
     let image = |v: [Real; 3]| {
         let pos = Position::from_si_meters_in_frame(ReferenceFrame::ICRS, v[0] * au, v[1] * au, v[2] * au);
@@ -73,16 +80,10 @@ pub fn stars_apparent_equatorial<P: EphemerisProvider>(
         [(m[0] - o[0]) / au, (m[1] - o[1]) / au, (m[2] - o[2]) / au]
     });
     let frame = ReferenceFrame::TrueEquator(Epoch::new(jd));
-    let plx_unit = real(core::f64::consts::PI / (180.0 * 3600.0 * 1000.0));
     stars
         .iter()
         .map(|star| {
-            let u = star.icrs_direction(jd);
-            let plx = star.parallax_mas * plx_unit;
-            let u = [u[0] + plx * p_sun[0] / AU_METERS, u[1] + plx * p_sun[1] / AU_METERS, u[2] + plx * p_sun[2] / AU_METERS];
-            let w = [u[0] - v_sun[0] / c, u[1] - v_sun[1] / c, u[2] - v_sun[2] / c];
-            let n = (w[0] * w[0] + w[1] * w[1] + w[2] * w[2]).sqrt();
-            let w = [w[0] / n, w[1] / n, w[2] / n];
+            let w = annual_aberration_direction(direction_with_parallax(star, jd, p_sun), earth_velocity_au_day);
             let r: [Real; 3] = core::array::from_fn(|i| cols[0][i] * w[0] + cols[1][i] * w[1] + cols[2][i] * w[2]);
             Position::from_si_meters_in_frame(frame, o[0] + r[0] * au, o[1] + r[1] * au, o[2] + r[2] * au)
         })

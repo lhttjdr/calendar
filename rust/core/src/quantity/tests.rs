@@ -96,7 +96,8 @@ fn reference_frame_is_epoch_dependent_and_id_str() {
 
     assert_eq!(ReferenceFrame::ICRS.id_str(), "ICRS");
     assert_eq!(ReferenceFrame::FK5.id_str(), "FK5");
-    assert_eq!(ReferenceFrame::MeanEcliptic(ep).id_str(), "MeanEcliptic(epoch)");
+    assert_eq!(ReferenceFrame::MeanEcliptic(Epoch::j2000()).id_str(), "MeanEcliptic(J2000)");
+    assert_eq!(ReferenceFrame::MeanEcliptic(Epoch::new(real(2460000.5))).id_str(), "MeanEcliptic(epoch)");
     assert_eq!(ReferenceFrame::MeanEquator(ep).id_str(), "MeanEquator(epoch)");
     assert_eq!(ReferenceFrame::TrueEquator(ep).id_str(), "TrueEquator(epoch)");
     assert_eq!(ReferenceFrame::TrueEcliptic(ep).id_str(), "TrueEcliptic(epoch)");

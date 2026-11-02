@@ -1,14 +1,14 @@
 //! 视赤道位置、站心视位置与地平坐标的测试。
 
 use super::*;
-use crate::astronomy::ephemeris::load_earth_vsop87_corrected_from_repo;
+use crate::astronomy::ephemeris::{load_earth_vsop87_corrected_from_repo, load_earth_vsop87_from_repo};
 use crate::astronomy::ephemeris::vsop87_patch::PatchTarget;
 use crate::astronomy::ephemeris::elpmpp02::{load_all, Elpmpp02Correction};
 use crate::astronomy::frame::nutation::{nutation_for_apparent, try_init_full_nutation_from_repo};
 use crate::astronomy::frame::precession::mean_obliquity;
-use crate::astronomy::correction::{refraction_from_geometric, Atmosphere, RefractionModel};
+use crate::astronomy::correction::{refraction_from_apparent, refraction_from_geometric, Atmosphere, RefractionModel};
 use crate::astronomy::geodesy::Observer;
-use crate::astronomy::pipeline::{node_origin, OriginRole, State6, TransformGraph, TransitionForm, TransitionKind};
+use crate::astronomy::pipeline::{node_origin, Body, EphemerisProvider, Fk5ToIcrsBias, FrameMapper, OriginRole, State6, TransformGraph, Via, TransitionForm, TransitionKind};
 use crate::astronomy::time::delta_t::{DeltaTModel, MorrisonStephenson2021};
 use crate::astronomy::time::earth_rotation::gast;
 use crate::astronomy::time::{TimePoint, TimeScale};
@@ -337,4 +337,240 @@ fn double_topocentric_panics() {
     let (obs, g) = (changan(), deg(40.0));
     let once = topocentric(true_equator_state(2451545.0).position, &obs, g);
     topocentric(once, &obs, g);
+}
+
+/// 任意两架之间都有路径：缺边时最短路为空。观测侧和光行差除外的全部节点两两互通。
+#[test]
+fn graph_is_strongly_connected() {
+    let d = Epoch::new(real(2451545.5));
+    let mut g = TransformGraph::default_graph();
+    g = g.with_fk5_to_icrs_mapper(|s, _| s);
+    let nodes = [
+        ReferenceFrame::ICRS, ReferenceFrame::IcrsAberrated, ReferenceFrame::FK5, ReferenceFrame::MeanEcliptic(Epoch::j2000()), ReferenceFrame::MeanEcliptic(d),
+        ReferenceFrame::MeanEquator(d), ReferenceFrame::TrueEquator(d), ReferenceFrame::TrueEcliptic(d), ReferenceFrame::ApparentEquator(d),
+        ReferenceFrame::ApparentEcliptic(d), ReferenceFrame::TopocentricEquator(d), ReferenceFrame::TopocentricAberratedEquator(d),
+        ReferenceFrame::HorizontalGeometric(d), ReferenceFrame::HorizontalApparent(d),
+    ];
+    for a in nodes {
+        for b in nodes {
+            if a.id_str() != b.id_str() {
+                assert!(!g.shortest_path(a, b).is_empty(), "{} → {} 无路径", a.id_str(), b.id_str());
+            }
+        }
+    }
+}
+
+/// 补边后，视位置各条既有路径的节点序列不变。
+#[test]
+fn existing_shortest_paths_unchanged() {
+    let d = Epoch::new(real(2451545.5));
+    let g = TransformGraph::default_graph().with_fk5_to_icrs_mapper(|s, _| s);
+    let ids = |a, b| g.shortest_path(a, b).iter().map(|p| p.to.id_str()).collect::<Vec<_>>();
+    let j2000 = ReferenceFrame::MeanEcliptic(Epoch::j2000());
+    assert_eq!(ids(j2000, ReferenceFrame::ICRS), ["FK5", "ICRS"]);
+    assert_eq!(ids(j2000, ReferenceFrame::TrueEquator(d)), ["FK5", "MeanEquator(epoch)", "TrueEquator(epoch)"]);
+    assert_eq!(ids(ReferenceFrame::ICRS, ReferenceFrame::TrueEquator(d)), ["FK5", "MeanEquator(epoch)", "TrueEquator(epoch)"]);
+    assert_eq!(ids(ReferenceFrame::ICRS, ReferenceFrame::ApparentEcliptic(d)), ["FK5", "MeanEquator(epoch)", "TrueEquator(epoch)", "ApparentEcliptic(epoch)"]);
+    assert_eq!(ids(j2000, ReferenceFrame::ApparentEcliptic(d)), ["FK5", "MeanEquator(epoch)", "TrueEquator(epoch)", "ApparentEcliptic(epoch)"]);
+    assert_eq!(ids(ReferenceFrame::TrueEquator(d), ReferenceFrame::HorizontalApparent(d)), ["TopocentricEquator(epoch)", "TopocentricAberratedEquator(epoch)", "HorizontalGeometric(epoch)", "HorizontalApparent(epoch)"]);
+}
+
+/// 地心架之间来回：位置、速度都回到原值。
+#[test]
+fn rotations_round_trip() {
+    let _ = try_init_full_nutation_from_repo();
+    let jd = 2460000.25;
+    let date = Epoch::new(real(jd));
+    let g = TransformGraph::default_graph().with_fk5_to_icrs_mapper(|s, t| Fk5ToIcrsBias.apply(s, TimePoint::new(TimeScale::TT, t)));
+    let start = State6::from_si_in_frame(ReferenceFrame::MeanEcliptic(Epoch::j2000()), real(1.2e11), real(8.0e10), real(-3.0e10), real(1.0e4), real(-2.0e4), real(5.0e3));
+    let (p0, v0) = start.to_meters_and_m_per_s();
+    for target in [
+        ReferenceFrame::FK5, ReferenceFrame::ICRS, ReferenceFrame::MeanEquator(date), ReferenceFrame::TrueEquator(date),
+        ReferenceFrame::MeanEcliptic(date), ReferenceFrame::TrueEcliptic(date), ReferenceFrame::ApparentEcliptic(date),
+    ] {
+        let there = g.transform_to(start.clone(), target, real(jd));
+        assert_eq!(there.frame().id_str(), target.id_str());
+        let back = g.transform_to(there, ReferenceFrame::MeanEcliptic(Epoch::j2000()), real(jd));
+        let (p, v) = back.to_meters_and_m_per_s();
+        for i in 0..3 {
+            assert!((p[i] - p0[i]).abs().as_f64() < 1e-2, "{} 位置 {i}：{:?} vs {:?}", target.id_str(), p[i], p0[i]);
+            assert!((v[i] - v0[i]).abs().as_f64() < 1e-6, "{} 速度 {i}：{:?} vs {:?}", target.id_str(), v[i], v0[i]);
+        }
+    }
+}
+
+/// 当日黄道的两条路径殊途同归：平赤道→平黄道→真黄道 与 平赤道→真赤道→真黄道。这是图上真正的环。
+#[test]
+fn ecliptic_of_date_paths_agree() {
+    let _ = try_init_full_nutation_from_repo();
+    let jd = 2460000.25;
+    let date = Epoch::new(real(jd));
+    let g = TransformGraph::default_graph();
+    let start = State6::from_si_in_frame(ReferenceFrame::MeanEquator(date), real(1.2e11), real(8.0e10), real(-3.0e10), real(0.0), real(0.0), real(0.0));
+    let (a, _) = g.transform_to(start.clone(), ReferenceFrame::TrueEcliptic(date), real(jd)).to_meters_and_m_per_s();
+    let via = g.transform_to_via(start, ReferenceFrame::TrueEcliptic(date), &[Via::Node(ReferenceFrame::MeanEcliptic(date))], real(jd));
+    let (b, _) = via.to_meters_and_m_per_s();
+    for i in 0..3 {
+        assert!((a[i] - b[i]).abs().as_f64() < 1e-3, "{:?} vs {:?}", a, b);
+    }
+}
+
+/// 视地平 → 地心，再回去：折射、周日光行差、平移的逆都接得上。
+#[test]
+fn observation_edges_round_trip() {
+    let _ = try_init_full_nutation_from_repo();
+    let jd = 2460000.25;
+    let date = Epoch::new(real(jd));
+    for model in [RefractionModel::RayTrace, RefractionModel::Bennett, RefractionModel::Saemundsson] {
+        let g = TransformGraph::default_graph().with_refraction_model(model);
+        // 方向对长安地平约 7°，折射明显
+        let c = ctx();
+        let enu = ReferenceFrame::HorizontalApparent(date);
+        let start = State6::from_si_in_frame(enu, real(3.0e8), real(2.0e8), real(4.4e7), real(100.0), real(-50.0), real(20.0));
+        let (p0, v0) = start.to_meters_and_m_per_s();
+        let geo = g.transform_to_observed(start, ReferenceFrame::TrueEquator(date), &c, real(jd));
+        assert!(matches!(geo.frame(), ReferenceFrame::TrueEquator(_)));
+        let back = g.transform_to_observed(geo, enu, &c, real(jd));
+        let (p, v) = back.to_meters_and_m_per_s();
+        for i in 0..3 {
+            assert!((p[i] - p0[i]).abs().as_f64() < 1.0, "{model:?} 位置 {i}：{:?} vs {:?}", p, p0);
+            assert!((v[i] - v0[i]).abs().as_f64() < 1e-2, "{model:?} 速度 {i}：{:?} vs {:?}", v, v0);
+        }
+    }
+}
+
+/// 折射反解：视高度式、真高度式、光线追迹都与正向互逆；撞地的视线 panic。
+#[test]
+fn refraction_inverse() {
+    let atm = Atmosphere::default();
+    for model in [RefractionModel::RayTrace, RefractionModel::Bennett, RefractionModel::BennettImproved, RefractionModel::Saemundsson] {
+        for h in [0.2_f64, 1.0, 5.0, 30.0, 80.0] {
+            let h_app = PlaneAngle::from_deg(real(h));
+            let r = refraction_from_apparent(h_app, model, &atm);
+            let geom = PlaneAngle::from_rad(h_app.rad() - r.rad());
+            let again = refraction_from_geometric(geom, model, &atm);
+            assert!((r.rad() - again.rad()).abs().as_f64() < 1e-8, "{model:?} h={h}");
+        }
+    }
+}
+
+#[test]
+#[should_panic(expected = "视线撞地")]
+fn ray_trace_inverse_below_ground_panics() {
+    refraction_from_apparent(PlaneAngle::from_deg(real(-1.0)), RefractionModel::RayTrace, &Atmosphere::default());
+}
+
+/// 周年光行差：最大约 20.5″，来回一致。不给地球速度不能走，不隐式退回。
+#[test]
+fn annual_aberration_edge() {
+    let _ = try_init_full_nutation_from_repo();
+    let jd = 2460000.25;
+    let date = Epoch::new(real(jd));
+    let g = TransformGraph::default_graph();
+    let v = [real(0.0), real(29_780.0), real(0.0)];
+    let start = State6::from_si_in_frame(ReferenceFrame::ICRS, real(1.5e11), real(0.0), real(0.0), real(0.0), real(0.0), real(0.0));
+    let ab = g.transform_with_earth_velocity(start.clone(), ReferenceFrame::IcrsAberrated, v, real(jd));
+    let (p, _) = ab.to_meters_and_m_per_s();
+    let arcsec = (p[1] / p[0]).as_f64().atan().to_degrees() * 3600.0;
+    assert!((arcsec - 20.49).abs() < 0.05, "{arcsec}″");
+    let back = g.transform_with_earth_velocity(ab.clone(), ReferenceFrame::ICRS, v, real(jd));
+    let (b, _) = back.to_meters_and_m_per_s();
+    assert!((b[1].as_f64()).abs() < 1e-1 && (b[0].as_f64() - 1.5e11).abs() < 1e-1, "{b:?}");
+    let ec = g.transform_with_earth_velocity(start, ReferenceFrame::ApparentEquator(date), v, real(jd));
+    assert!(matches!(ec.frame(), ReferenceFrame::ApparentEquator(_)));
+}
+
+/// 显式光行差一支只能经光行差边进出：任何从另一侧过去的路径都必须含这条边，否则会悄悄不施加。
+#[test]
+fn aberration_edge_cannot_be_bypassed() {
+    let d = Epoch::new(real(2451545.5));
+    let g = TransformGraph::default_graph().with_fk5_to_icrs_mapper(|s, _| s);
+    for from in [ReferenceFrame::ICRS, ReferenceFrame::TrueEquator(d), ReferenceFrame::ApparentEcliptic(d), ReferenceFrame::MeanEcliptic(Epoch::j2000())] {
+        for to in [ReferenceFrame::IcrsAberrated, ReferenceFrame::ApparentEquator(d)] {
+            let path = g.shortest_path(from, to);
+            assert!(path.iter().any(|p| matches!((p.from, p.to), (ReferenceFrame::ICRS, ReferenceFrame::IcrsAberrated))), "{} → {} 绕过了光行差", from.id_str(), to.id_str());
+        }
+    }
+}
+
+#[test]
+#[should_panic(expected = "需要地球速度")]
+fn annual_aberration_requires_velocity() {
+    let start = State6::from_si_in_frame(ReferenceFrame::ICRS, real(1.5e11), real(0.0), real(0.0), real(0.0), real(0.0), real(0.0));
+    TransformGraph::default_graph().transform_to(start, ReferenceFrame::IcrsAberrated, real(2460000.25));
+}
+
+/// 入口边的终点架对得上提供者的实际输出，不是只画在图上。
+#[test]
+fn source_edges_end_at_provider_frames() {
+    let g = TransformGraph::default_graph();
+    let viz = g.visualization_data();
+    for s in g.source_edges() {
+        assert!(viz.node_ids.iter().any(|n| n == s.to_id), "{}", s.to_id);
+    }
+    let earth = load_earth_vsop87_from_repo().unwrap();
+    let t = TimePoint::new(TimeScale::TDB, real(2460000.25));
+    assert_eq!(earth.compute_state(Body::Sun, t).frame().id_str(), "MeanEcliptic(J2000)");
+    let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE406).unwrap();
+    let tt = TimePoint::new(TimeScale::TT, real(2460000.25));
+    assert_eq!(elp.compute_state(Body::Moon, tt).frame().id_str(), "MeanEcliptic(J2000)");
+}
+
+/// 可视化不再拆节点：FK5、J2000 平黄道各只有一个节点，且每条架到架的边都有逆边。
+#[test]
+fn visualization_is_a_network() {
+    let viz = TransformGraph::default_graph().visualization_data();
+    assert!(!viz.node_ids.iter().any(|n| n.contains('_') && n.starts_with("FK5")));
+    let sources: Vec<_> = TransformGraph::default_graph().source_edges().to_vec();
+    for e in &viz.edges {
+        if sources.iter().any(|s| s.from_id == e.from_id && s.to_id == e.to_id) {
+            continue;
+        }
+        assert!(viz.edges.iter().any(|r| r.from_id == e.to_id && r.to_id == e.from_id), "{} → {} 无逆边", e.from_id, e.to_id);
+    }
+}
+
+/// 黄赤交角边的 Ṙ 是 R 的真实导数：与相邻时刻矩阵的差分一致（曾因符号反了差一个 2ε̇）。
+#[test]
+fn obliquity_rate_matches_finite_difference() {
+    let _ = try_init_full_nutation_from_repo();
+    let g = TransformGraph::default_graph();
+    let jd = 2460000.25;
+    let h_days = 0.1; // 章动有 13.66 日项，步长太长差分会反相
+    let date = Epoch::new(real(jd));
+    for (from, to) in [
+        (ReferenceFrame::TrueEquator(date), ReferenceFrame::ApparentEcliptic(date)),
+        (ReferenceFrame::MeanEquator(date), ReferenceFrame::MeanEcliptic(date)),
+    ] {
+        let r = |t: f64| g.get_transition(from, to, real(t), None).unwrap().r;
+        let d = g.get_transition(from, to, real(jd), None).unwrap().r_dot;
+        let (a, b) = (r(jd + h_days), r(jd - h_days));
+        for i in 0..3 {
+            for j in 0..3 {
+                let fd = (a[i][j] - b[i][j]).as_f64() / (2.0 * h_days * 86400.0);
+                assert!((fd - d[i][j].as_f64()).abs() < 1e-15, "{} [{i}][{j}]：差分 {fd:e} vs {:e}", to.id_str(), d[i][j].as_f64());
+            }
+        }
+    }
+}
+
+
+/// 视黄经速度的解析式与数值差分一致。解析式曾把赤道转到错误的平面（用了 +ε），差到 40%。
+#[test]
+fn analytic_longitude_velocity_matches_numerical() {
+    let _ = try_init_full_nutation_from_repo();
+    let earth = load_earth_vsop87_from_repo().unwrap();
+    let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE406).unwrap();
+    for jd in [2451545.0, 2451635.0, 2451725.0, 2451815.0, 2460000.5, 1000000.5] {
+        let t = TimePoint::new(TimeScale::TT, real(jd));
+        let mut a = ApparentPipelineOptions::pipeline_default();
+        a.use_analytic_velocity = true;
+        let mut n = a.clone();
+        n.use_analytic_velocity = false;
+        let (sa, sn) = (sun_apparent_ecliptic_longitude_velocity(&earth, t, &a).as_f64(), sun_apparent_ecliptic_longitude_velocity(&earth, t, &n).as_f64());
+        let (ma, mn) = (moon_apparent_ecliptic_longitude_velocity(&elp, &earth, t, &a).as_f64(), moon_apparent_ecliptic_longitude_velocity(&elp, &earth, t, &n).as_f64());
+        println!("VEL {jd} 太阳差 {:+.5}%  月差 {:+.5}%", (sa / sn - 1.0) * 100.0, (ma / mn - 1.0) * 100.0);
+        assert!((sa / sn - 1.0).abs() < 1e-5, "太阳 {jd}：{sa} vs {sn}");
+        assert!((ma / mn - 1.0).abs() < 1e-5, "月亮 {jd}：{ma} vs {mn}");
+    }
 }

@@ -10,7 +10,10 @@ use super::epoch::Epoch;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ReferenceFrame {
     ICRS,
+    /// ICRS 轴向，方向已加周年光行差。
+    IcrsAberrated,
     FK5,
+    /// 平黄道。历元为 J2000 时是历表输出架，其他历元是当日平黄道，两者在变换图中是不同节点（见 [`Self::id_str`]）。
     MeanEcliptic(Epoch),
     MeanEquator(Epoch),
     TrueEquator(Epoch),
@@ -49,7 +52,9 @@ impl ReferenceFrame {
     pub fn id_str(self) -> &'static str {
         match self {
             ReferenceFrame::ICRS => "ICRS",
+            ReferenceFrame::IcrsAberrated => "IcrsAberrated",
             ReferenceFrame::FK5 => "FK5",
+            ReferenceFrame::MeanEcliptic(e) if e == Epoch::j2000() => "MeanEcliptic(J2000)",
             ReferenceFrame::MeanEcliptic(_) => "MeanEcliptic(epoch)",
             ReferenceFrame::MeanEquator(_) => "MeanEquator(epoch)",
             ReferenceFrame::TrueEquator(_) => "TrueEquator(epoch)",

@@ -10,16 +10,20 @@
 //!
 //! **地心→站心→视地平**：TrueEquator → TopocentricEquator → TopocentricAberratedEquator → HorizontalGeometric → HorizontalApparent，
 //! 依次为平移、周日光行差、转站心地平直角坐标、大气折射（重边）。这些边需 `ObservationContext`，经 `transform_to_observed` 执行；`transform_to` 走到时 panic。
+//!
+//! **图是网络**：每条边都有逆边（旋转取转置，其余见各函数），黄道与赤道之间有横向边，所以任意两架之间都有路径。
+//! 历表与星表不是架到架的变换（输入不是状态，光行时还要重新求历表），是 [`SourceEdge`] 入口，不参与最短路。
 
 use crate::astronomy::frame::fixed::fk5_icrs;
 use crate::astronomy::frame::precession::{
-    mean_obliquity, mean_obliquity_for, precession_derivative_times_vector_for, precession_transform_for, PrecessionModel,
+    mean_obliquity, mean_obliquity_for, mean_obliquity_rad_and_derivative_for, precession_derivative_times_vector_for, precession_transform_for, PrecessionModel,
 };
 use crate::astronomy::frame::nutation::{
     eps_true_dot, nutation_derivative_times_vector, nutation_for_model, NutationModel,
 };
 use crate::astronomy::apparent::{
-    diurnal_aberration_state, nutation_matrix_transposed_for_model, refract_state, to_horizontal_state, topocentric_state, ObservationContext,
+    annual_aberration_state, diurnal_aberration_state, from_horizontal_state, geocentric_state, nutation_matrix_transposed_for_model, refract_state,
+    to_horizontal_state, topocentric_state, undo_annual_aberration_state, undo_diurnal_aberration_state, unrefract_state, ObservationContext,
 };
 use crate::astronomy::correction::RefractionModel;
 use crate::math::real::{real_const, real, zero, one, Real, RealOps, ToReal};
@@ -47,11 +51,11 @@ where
     ]
 }
 
-/// R_x(ε) 对角的导数 dR_x/dε。角支持 Real。
+/// 赤道→黄道旋转 [1 0 0; 0 c s; 0 −s c] 对 ε 的导数。角支持 Real。
 fn rotation_x_derivative(angle_rad: impl ToReal) -> [[Real; 3]; 3] {
     let a = real(angle_rad);
     let (c, s) = (a.cos(), a.sin());
-    [[zero(), zero(), zero()], [zero(), -s, -c], [zero(), c, -s]]
+    [[zero(), zero(), zero()], [zero(), -s, c], [zero(), -c, -s]]
 }
 
 fn scale_matrix(s: impl ToReal, m: &[[Real; 3]; 3]) -> [[Real; 3]; 3] {
@@ -173,8 +177,8 @@ pub fn kind_to_form(kind: TransitionKind) -> TransitionForm {
 pub fn node_origin(node_id: &str) -> Option<OriginRole> {
     match node_id {
         "VSOP87" | HELIOCENTRIC_MEAN_ECLIPTIC => Some(OriginRole::Heliocentric),
-        MEAN_ECLIPTIC_EQUATOR | MEAN_ECLIPTIC_ECLIPTIC | FK5_EPHEMERIS | FK5_FROM_ICRS
-        | "MeanEquator(epoch)" | "TrueEquator(epoch)" | "ApparentEcliptic(epoch)" | "ICRS" => Some(OriginRole::Geocentric),
+        "MeanEcliptic(J2000)" | "MeanEcliptic(epoch)" | "TrueEcliptic(epoch)" | "FK5" | "MeanEquator(epoch)" | "TrueEquator(epoch)"
+        | "ApparentEquator(epoch)" | "ApparentEcliptic(epoch)" | "ICRS" | "IcrsAberrated" => Some(OriginRole::Geocentric),
         "TopocentricEquator(epoch)" | "TopocentricAberratedEquator(epoch)" | "HorizontalGeometric(epoch)" | "HorizontalApparent(epoch)" => {
             Some(OriginRole::Topocentric)
         }
@@ -182,83 +186,107 @@ pub fn node_origin(node_id: &str) -> Option<OriginRole> {
     }
 }
 
-/// 按 (from_frame, to_frame) 返回边的执行形式，供路径驱动执行时分派。仅对图中存在的边返回 Some。
-pub fn edge_form_for_frames(from: ReferenceFrame, to: ReferenceFrame) -> Option<TransitionForm> {
+fn is_j2000_ecliptic(f: ReferenceFrame) -> bool {
+    f.id_str() == "MeanEcliptic(J2000)"
+}
+
+/// 正向边的执行形式。
+fn forward_edge_form(from: ReferenceFrame, to: ReferenceFrame) -> Option<TransitionForm> {
+    use ReferenceFrame as F;
     match (from, to) {
-        (ReferenceFrame::MeanEcliptic(_), ReferenceFrame::FK5) => Some(TransitionForm::Rotation),
-        (ReferenceFrame::FK5, ReferenceFrame::MeanEquator(_)) => Some(TransitionForm::Rotation),
-        (ReferenceFrame::MeanEquator(_), ReferenceFrame::TrueEquator(_)) => Some(TransitionForm::Rotation),
-        (ReferenceFrame::TrueEquator(_), ReferenceFrame::ApparentEcliptic(_)) => Some(TransitionForm::Rotation),
-        (ReferenceFrame::TrueEquator(_), ReferenceFrame::TopocentricEquator(_)) => Some(TransitionForm::Translation),
-        (ReferenceFrame::TopocentricEquator(_), ReferenceFrame::TopocentricAberratedEquator(_)) => Some(TransitionForm::Aberration),
-        (ReferenceFrame::TopocentricAberratedEquator(_), ReferenceFrame::HorizontalGeometric(_)) => Some(TransitionForm::Rotation),
-        (ReferenceFrame::HorizontalGeometric(_), ReferenceFrame::HorizontalApparent(_)) => Some(TransitionForm::Mapping),
-        (ReferenceFrame::FK5, ReferenceFrame::ICRS) => Some(TransitionForm::Mapping),
-        (ReferenceFrame::ICRS, ReferenceFrame::FK5) => Some(TransitionForm::Rotation),
+        (F::MeanEcliptic(_), F::FK5) if is_j2000_ecliptic(from) => Some(TransitionForm::Rotation),
+        (F::FK5, F::MeanEquator(_)) => Some(TransitionForm::Rotation),
+        (F::MeanEquator(_), F::TrueEquator(_)) => Some(TransitionForm::Rotation),
+        (F::MeanEquator(_), F::MeanEcliptic(_)) if !is_j2000_ecliptic(to) => Some(TransitionForm::Rotation),
+        (F::MeanEcliptic(_), F::TrueEcliptic(_)) if !is_j2000_ecliptic(from) => Some(TransitionForm::Rotation),
+        (F::TrueEquator(_), F::TrueEcliptic(_)) => Some(TransitionForm::Rotation),
+        (F::TrueEquator(_), F::ApparentEcliptic(_)) => Some(TransitionForm::Rotation),
+        (F::ICRS, F::IcrsAberrated) => Some(TransitionForm::Aberration),
+        (F::IcrsAberrated, F::ApparentEquator(_)) => Some(TransitionForm::Rotation),
+        (F::TrueEquator(_), F::TopocentricEquator(_)) => Some(TransitionForm::Translation),
+        (F::TopocentricEquator(_), F::TopocentricAberratedEquator(_)) => Some(TransitionForm::Aberration),
+        (F::TopocentricAberratedEquator(_), F::HorizontalGeometric(_)) => Some(TransitionForm::Rotation),
+        (F::HorizontalGeometric(_), F::HorizontalApparent(_)) => Some(TransitionForm::Mapping),
         _ => None,
     }
 }
 
-/// 太阳历表日心架输出（平黄道；VSOP87 拟合到 DE406/DE441 的改正已含在历表求值中），经原点变换→地心后到 MeanEcliptic_赤道。
-const HELIOCENTRIC_MEAN_ECLIPTIC: &'static str = "日心_MeanEcliptic(epoch)";
-/// 历元平黄道拆为两节点（展示用）：日（VSOP87）一路与月（ELPMPP02）一路不交叉。
-const MEAN_ECLIPTIC_EQUATOR: &'static str = "MeanEcliptic(epoch)_赤道";
-const MEAN_ECLIPTIC_ECLIPTIC: &'static str = "MeanEcliptic(epoch)_黄道";
-/// FK5 拆为两节点（展示用）：历表输出的 J2000 平赤道 → ICRS → 回转到 FK5 再接岁差。
-const FK5_EPHEMERIS: &'static str = "FK5_历表输出";
-const FK5_FROM_ICRS: &'static str = "FK5_自ICRS";
-
-/// 按 (from_id, to_id) 返回边的变换分类。
-fn edge_kind(from_id: &str, to_id: &str) -> TransitionKind {
-    match (from_id, to_id) {
-        ("VSOP87", HELIOCENTRIC_MEAN_ECLIPTIC) => TransitionKind::LightTime,
-        (HELIOCENTRIC_MEAN_ECLIPTIC, MEAN_ECLIPTIC_EQUATOR) => TransitionKind::FrameTranslation,
-        ("VSOP87", MEAN_ECLIPTIC_EQUATOR) => TransitionKind::LightTimeAberrationFolded,
-        ("ELPMPP02", "ELPMPP02_MEAN_LUNAR") => TransitionKind::GeneralMapping,
-        ("ELPMPP02_MEAN_LUNAR", MEAN_ECLIPTIC_ECLIPTIC) => TransitionKind::FrameRotation,
-        (MEAN_ECLIPTIC_EQUATOR, FK5_EPHEMERIS) => TransitionKind::FrameRotation,
-        (MEAN_ECLIPTIC_ECLIPTIC, FK5_FROM_ICRS) => TransitionKind::FrameRotation,
-        (FK5_EPHEMERIS, "ICRS") => TransitionKind::FrameRotation,
-        ("ICRS", FK5_FROM_ICRS) => TransitionKind::FrameRotation,
-        (FK5_FROM_ICRS, "MeanEquator(epoch)") => TransitionKind::FrameRotation,
-        ("MeanEquator(epoch)", "TrueEquator(epoch)") => TransitionKind::FrameRotation,
-        ("TrueEquator(epoch)", "ApparentEcliptic(epoch)") => TransitionKind::FrameRotation,
-        ("TrueEquator(epoch)", "TopocentricEquator(epoch)") => TransitionKind::FrameTranslation,
-        ("TopocentricEquator(epoch)", "TopocentricAberratedEquator(epoch)") => TransitionKind::Aberration,
-        ("TopocentricAberratedEquator(epoch)", "HorizontalGeometric(epoch)") => TransitionKind::FrameRotation,
-        ("HorizontalGeometric(epoch)", "HorizontalApparent(epoch)") => TransitionKind::GeneralMapping,
-        _ => TransitionKind::FrameRotation,
+/// 按 (from_frame, to_frame) 返回边的执行形式，供路径驱动执行时分派。仅对图中存在的边返回 Some；逆边与正向同形式。
+pub fn edge_form_for_frames(from: ReferenceFrame, to: ReferenceFrame) -> Option<TransitionForm> {
+    match (from, to) {
+        (ReferenceFrame::FK5, ReferenceFrame::ICRS) => Some(TransitionForm::Mapping),
+        (ReferenceFrame::ICRS, ReferenceFrame::FK5) => Some(TransitionForm::Rotation),
+        _ => forward_edge_form(from, to).or_else(|| forward_edge_form(to, from)),
     }
 }
 
-/// 按 (from_id, to_id) 返回管线步骤标签；仅写动作，不重复标架/坐标系（框内已示）。
-fn edge_label(from_id: &str, to_id: &str, edge_key: Option<&str>) -> Option<String> {
-    let label = match (from_id, to_id) {
-        ("VSOP87", HELIOCENTRIC_MEAN_ECLIPTIC) => "光行时→tr；历表求值（含 DE406/DE441 拟合改正）",
-        (HELIOCENTRIC_MEAN_ECLIPTIC, MEAN_ECLIPTIC_EQUATOR) => "日心→地心",
-        ("VSOP87", MEAN_ECLIPTIC_EQUATOR) => "光行时→tr；历表输出",
-        ("ELPMPP02", "ELPMPP02_MEAN_LUNAR") => "历表求值（含 DE405/Table6 修正）",
-        ("ELPMPP02_MEAN_LUNAR", MEAN_ECLIPTIC_ECLIPTIC) => "Laskar P,Q 旋转",
-        (MEAN_ECLIPTIC_EQUATOR, FK5_EPHEMERIS) => "黄赤交角 R_x(ε₀)",
-        (MEAN_ECLIPTIC_ECLIPTIC, FK5_FROM_ICRS) => "黄赤交角 R_x(ε₀)",
-        (FK5_EPHEMERIS, "ICRS") => "Frame bias B⁻¹（FK5→ICRS）",
-        ("ICRS", FK5_FROM_ICRS) => "B（Frame bias，GCRS→FK5）",
-        (FK5_FROM_ICRS, "MeanEquator(epoch)") => match edge_key {
-            Some("Vondrak2011") => "岁差（Vondrak2011）",
-            _ => "岁差（P03）",
+/// 3×3 矩阵的转置。
+fn transposed(m: &[[Real; 3]; 3]) -> [[Real; 3]; 3] {
+    core::array::from_fn(|i| core::array::from_fn(|j| m[j][i]))
+}
+
+fn mat_mul(a: &[[Real; 3]; 3], b: &[[Real; 3]; 3]) -> [[Real; 3]; 3] {
+    core::array::from_fn(|i| core::array::from_fn(|j| a[i][0] * b[0][j] + a[i][1] * b[1][j] + a[i][2] * b[2][j]))
+}
+
+/// 复合旋转 A∘B 的 (R, Ṙ)，Ṙ = ȦB + AḂ。
+fn compose(a: (&[[Real; 3]; 3], &[[Real; 3]; 3]), b: (&[[Real; 3]; 3], &[[Real; 3]; 3])) -> ([[Real; 3]; 3], [[Real; 3]; 3]) {
+    let (p, q) = (mat_mul(a.1, b.0), mat_mul(a.0, b.1));
+    (mat_mul(a.0, b.0), core::array::from_fn(|i| core::array::from_fn(|j| p[i][j] + q[i][j])))
+}
+
+/// 太阳历表日心架输出（J2000 平黄道；VSOP87 拟合到 DE406/DE441 的改正已含在历表求值中），经原点变换→地心后到 MeanEcliptic(J2000)。
+const HELIOCENTRIC_MEAN_ECLIPTIC: &'static str = "日心_MeanEcliptic(J2000)";
+/// 按 (from_id, to_id) 返回边的变换分类；逆边与正向同类。
+fn edge_kind(from_id: &str, to_id: &str) -> TransitionKind {
+    let forward = |a: &str, b: &str| match (a, b) {
+        ("TrueEquator(epoch)", "TopocentricEquator(epoch)") => Some(TransitionKind::FrameTranslation),
+        ("TopocentricEquator(epoch)", "TopocentricAberratedEquator(epoch)") | ("ICRS", "IcrsAberrated") => Some(TransitionKind::Aberration),
+        ("HorizontalGeometric(epoch)", "HorizontalApparent(epoch)") => Some(TransitionKind::GeneralMapping),
+        _ => None,
+    };
+    forward(from_id, to_id).or_else(|| forward(to_id, from_id)).unwrap_or(TransitionKind::FrameRotation)
+}
+
+/// 正向边的管线步骤标签；仅写动作，不重复标架/坐标系（框内已示）。
+fn forward_edge_label(from_id: &str, to_id: &str, edge_key: Option<&str>) -> Option<&'static str> {
+    Some(match (from_id, to_id) {
+        ("MeanEcliptic(J2000)", "FK5") => "黄赤交角 R_x(ε₀)",
+        ("FK5", "ICRS") => "Frame bias B⁻¹（FK5→ICRS）",
+        ("FK5", "MeanEquator(epoch)") => match edge_key {
+            Some("P03") => "岁差（P03）",
+            _ => "岁差（Vondrak2011）",
         },
         ("MeanEquator(epoch)", "TrueEquator(epoch)") => match edge_key {
             Some("IAU2000A") => "章动（IAU2000A）",
             _ => "章动（IAU2000B）",
         },
-        ("TrueEquator(epoch)", "ApparentEcliptic(epoch)") => "R_x(ε) 真黄赤交角",
+        ("MeanEquator(epoch)", "MeanEcliptic(epoch)") => "R_x(ε) 平黄赤交角",
+        ("MeanEcliptic(epoch)", "TrueEcliptic(epoch)") => "黄道上的章动 Δψ、Δε",
+        ("TrueEquator(epoch)", "TrueEcliptic(epoch)") => "R_x(ε) 真黄赤交角",
+        ("TrueEquator(epoch)", "ApparentEcliptic(epoch)") => "R_x(ε) 真黄赤交角（光行差已折叠在历表入口）",
+        ("ICRS", "IcrsAberrated") => "周年光行差（显式，需地球速度）",
+        ("IcrsAberrated", "ApparentEquator(epoch)") => "偏差、岁差、章动",
         ("TrueEquator(epoch)", "TopocentricEquator(epoch)") => "地心→站心（减观测者位置）",
         ("TopocentricEquator(epoch)", "TopocentricAberratedEquator(epoch)") => "周日光行差",
         ("TopocentricAberratedEquator(epoch)", "HorizontalGeometric(epoch)") => "转站心地平直角坐标（地方恒星时、大地纬度）",
-        ("HorizontalGeometric(epoch)", "HorizontalApparent(epoch)") => "大气折射（Bennett，可选其他模型）",
-        _ => "几何变换",
-    };
-    Some(label.to_string())
+        ("HorizontalGeometric(epoch)", "HorizontalApparent(epoch)") => "大气折射（光线追迹，可选拟合式）",
+        _ => return None,
+    })
+}
+
+/// 边的标签；逆边写「逆：」加正向标签。ICRS→FK5 与 FK5→ICRS 各有实现，不算逆边。
+fn edge_label(from_id: &str, to_id: &str, edge_key: Option<&str>) -> Option<String> {
+    if (from_id, to_id) == ("ICRS", "FK5") {
+        return Some("B（Frame bias，GCRS→FK5）".to_string());
+    }
+    if let Some(l) = forward_edge_label(from_id, to_id, edge_key) {
+        return Some(l.to_string());
+    }
+    Some(match forward_edge_label(to_id, from_id, edge_key) {
+        Some(l) => format!("逆：{l}"),
+        None => "几何变换".to_string(),
+    })
 }
 
 fn make_edge_viz(from_id: &str, to_id: &str, cost: u32, edge_key: Option<&str>) -> TransformEdgeViz {
@@ -272,6 +300,26 @@ fn make_edge_viz(from_id: &str, to_id: &str, cost: u32, edge_key: Option<&str>) 
         label: edge_label(from_id, to_id, edge_key),
     }
 }
+
+/// 历表、星表入口：节点不是参考架，输入不是状态，由 [`super::EphemerisProvider`] 等执行，不参与最短路。
+/// 光行时属于这里：要在推迟时刻 tr 重新求历表（[`super::LightTimeCorrector`]），状态的架不变。
+#[derive(Clone, Debug)]
+pub struct SourceEdge {
+    pub from_id: &'static str,
+    pub to_id: &'static str,
+    pub kind: TransitionKind,
+    pub label: &'static str,
+}
+
+/// 全部入口；终点架由 `source_edges_end_at_provider_frames` 测试对照各提供者的实际输出。
+const SOURCE_EDGES: [SourceEdge; 6] = [
+    SourceEdge { from_id: "VSOP87", to_id: HELIOCENTRIC_MEAN_ECLIPTIC, kind: TransitionKind::LightTime, label: "历表求值（含 DE406/DE441 拟合改正）；光行时可选，在 tr 求值" },
+    SourceEdge { from_id: HELIOCENTRIC_MEAN_ECLIPTIC, to_id: "MeanEcliptic(J2000)", kind: TransitionKind::FrameTranslation, label: "日心→地心" },
+    SourceEdge { from_id: "ELPMPP02", to_id: "ELPMPP02_MEAN_LUNAR", kind: TransitionKind::GeneralMapping, label: "历表求值（含 DE405/Table6 修正）；光行时可选" },
+    SourceEdge { from_id: "ELPMPP02_MEAN_LUNAR", to_id: "MeanEcliptic(J2000)", kind: TransitionKind::FrameRotation, label: "Laskar P,Q 旋转" },
+    SourceEdge { from_id: "DE406/DE441", to_id: "ICRS", kind: TransitionKind::LightTime, label: "历表求值；光行时可选" },
+    SourceEdge { from_id: "Hipparcos", to_id: "ICRS", kind: TransitionKind::GeneralMapping, label: "星表方向（自行、周年视差）" },
+];
 
 /// 单条有向边：从 from 到 to，代价 cost；可选 edge_key 区分同一对节点间的重边（如岁差 P03 / Vondrak2011）。
 #[derive(Clone, Debug)]
@@ -360,6 +408,24 @@ fn edge_key_to_nutation(key: Option<&str>, default: NutationModel) -> NutationMo
     }
 }
 
+fn is_precession_edge(e: &TransformEdge) -> bool {
+    matches!(
+        (e.from_frame, e.to_frame),
+        (ReferenceFrame::FK5, ReferenceFrame::MeanEquator(_)) | (ReferenceFrame::MeanEquator(_), ReferenceFrame::FK5)
+    )
+}
+
+fn is_nutation_edge(e: &TransformEdge) -> bool {
+    matches!(
+        (e.from_frame, e.to_frame),
+        (ReferenceFrame::MeanEquator(_), ReferenceFrame::TrueEquator(_)) | (ReferenceFrame::TrueEquator(_), ReferenceFrame::MeanEquator(_))
+    )
+}
+
+fn is_refraction_edge(e: &TransformEdge) -> bool {
+    matches!(e.to_frame, ReferenceFrame::HorizontalApparent(_)) || matches!(e.from_frame, ReferenceFrame::HorizontalApparent(_))
+}
+
 /// 折射边是否应参与最短路：key 匹配当前 refraction_model 时包含。
 fn refraction_edge_matches(e: &TransformEdge, refraction_model: RefractionModel) -> bool {
     e.edge_key.as_deref().is_none_or(|k| k == refraction_model.edge_key())
@@ -373,6 +439,16 @@ fn nutation_edge_matches(e: &TransformEdge, nutation_model: NutationModel) -> bo
         Some("IAU2000B") => nutation_model == NutationModel::IAU2000B,
         Some(_) => true,
     }
+}
+
+/// 当日平赤道 → 当日平黄道的 (R, Ṙ)，Ṙ 单位 1/s。
+fn mean_equator_to_ecliptic(jd_tt: Real, model: PrecessionModel) -> ([[Real; 3]; 3], [[Real; 3]; 3]) {
+    let t_cent = (jd_tt - crate::astronomy::constant::J2000) / real(36525.0);
+    let (eps, eps_dot) = mean_obliquity_rad_and_derivative_for(t_cent, model);
+    let (c, s) = (eps.rad().cos(), eps.rad().sin());
+    let r = [[one(), zero(), zero()], [zero(), c, s], [zero(), -s, c]];
+    let r_dot = scale_matrix(eps_dot.rad_per_julian_century() / SEC_PER_CENTURY, &rotation_x_derivative(eps.rad()));
+    (r, r_dot)
 }
 
 fn fill_epoch_transitions_cache(
@@ -466,7 +542,7 @@ impl TransformGraph {
         self
     }
 
-    /// 指定折射模型（缺省 Bennett）。Smart、Meeus 只适用于高度 ≥ 15°，低于此值执行时 panic。
+    /// 指定折射模型（缺省 RayTrace）。Smart、Meeus 只适用于高度 ≥ 15°，低于此值执行时 panic。
     pub fn with_refraction_model(mut self, model: RefractionModel) -> Self {
         self.refraction_model = model;
         self
@@ -506,139 +582,80 @@ impl TransformGraph {
         });
     }
 
-    /// 构建完整图（静态拓扑）：含黄道直连、赤道链、地心→站心→视地平与 ICRS↔FK5；展示与运算共用此图。
-    /// 未设 `with_fk5_to_icrs_mapper` 时，最短路会避开 FK5→ICRS 映射边。
-    pub fn default_graph() -> Self {
-        let mut g = Self::new();
-        g.add_edge(
-            ReferenceFrame::MeanEcliptic(Epoch::j2000()),
-            ReferenceFrame::FK5,
-            8,
-        );
-        g.add_edge_with_key(
-            ReferenceFrame::FK5,
-            ReferenceFrame::MeanEquator(Epoch::new(real(0.0))),
-            10,
-            "P03",
-        );
-        g.add_edge_with_key(
-            ReferenceFrame::FK5,
-            ReferenceFrame::MeanEquator(Epoch::new(real(0.0))),
-            10,
-            "Vondrak2011",
-        );
-        g.add_edge_with_key(
-            ReferenceFrame::MeanEquator(Epoch::new(real(0.0))),
-            ReferenceFrame::TrueEquator(Epoch::new(real(0.0))),
-            5,
-            "IAU2000A",
-        );
-        g.add_edge_with_key(
-            ReferenceFrame::MeanEquator(Epoch::new(real(0.0))),
-            ReferenceFrame::TrueEquator(Epoch::new(real(0.0))),
-            5,
-            "IAU2000B",
-        );
-        g.add_edge(ReferenceFrame::TrueEquator(Epoch::new(real(0.0))), ReferenceFrame::ApparentEcliptic(Epoch::new(real(0.0))), 2);
-        g.add_edge(ReferenceFrame::TrueEquator(Epoch::new(real(0.0))), ReferenceFrame::TopocentricEquator(Epoch::new(real(0.0))), 2);
-        g.add_edge(ReferenceFrame::TopocentricEquator(Epoch::new(real(0.0))), ReferenceFrame::TopocentricAberratedEquator(Epoch::new(real(0.0))), 1);
-        g.add_edge(ReferenceFrame::TopocentricAberratedEquator(Epoch::new(real(0.0))), ReferenceFrame::HorizontalGeometric(Epoch::new(real(0.0))), 1);
-        for model in RefractionModel::ALL {
-            g.add_edge_with_key(
-                ReferenceFrame::HorizontalGeometric(Epoch::new(real(0.0))),
-                ReferenceFrame::HorizontalApparent(Epoch::new(real(0.0))),
-                2,
-                model.edge_key(),
-            );
+    /// 添加一对互逆的边。
+    fn add_pair(&mut self, a: ReferenceFrame, b: ReferenceFrame, cost: u32, key: Option<&str>) {
+        for (from, to) in [(a, b), (b, a)] {
+            self.edges.push(TransformEdge { from_frame: from, to_frame: to, cost, edge_key: key.map(str::to_string) });
         }
-        g.add_edge(ReferenceFrame::ICRS, ReferenceFrame::FK5, 1);
-        g.add_edge(ReferenceFrame::FK5, ReferenceFrame::ICRS, 1);
+    }
+
+    /// 构建完整图（静态拓扑）：展示与运算共用此图。
+    /// 未设 `with_fk5_to_icrs_mapper` 时，最短路会避开 FK5→ICRS 映射边。
+    ///
+    /// 显式光行差是单独一支：`ICRS ↔ IcrsAberrated ↔ ApparentEquator`，只能经光行差边进出。ApparentEcliptic 属于折叠路径
+    /// （光行差已含在历表入口的 tr 里），两支不能相连，否则最短路会绕过光行差边、悄悄不施加。见 `aberration_edge_cannot_be_bypassed` 测试。
+    pub fn default_graph() -> Self {
+        use ReferenceFrame as F;
+        let date = Epoch::new(real(0.0));
+        let mut g = Self::new();
+        g.add_pair(F::MeanEcliptic(Epoch::j2000()), F::FK5, 8, None);
+        for key in ["P03", "Vondrak2011"] {
+            g.add_pair(F::FK5, F::MeanEquator(date), 10, Some(key));
+        }
+        for key in ["IAU2000A", "IAU2000B"] {
+            g.add_pair(F::MeanEquator(date), F::TrueEquator(date), 5, Some(key));
+        }
+        g.add_pair(F::MeanEquator(date), F::MeanEcliptic(date), 2, None);
+        g.add_pair(F::MeanEcliptic(date), F::TrueEcliptic(date), 5, None);
+        g.add_pair(F::TrueEquator(date), F::TrueEcliptic(date), 2, None);
+        g.add_pair(F::TrueEquator(date), F::ApparentEcliptic(date), 2, None);
+        g.add_pair(F::ICRS, F::IcrsAberrated, 1, None);
+        g.add_pair(F::IcrsAberrated, F::ApparentEquator(date), 16, None);
+        g.add_pair(F::TrueEquator(date), F::TopocentricEquator(date), 2, None);
+        g.add_pair(F::TopocentricEquator(date), F::TopocentricAberratedEquator(date), 1, None);
+        g.add_pair(F::TopocentricAberratedEquator(date), F::HorizontalGeometric(date), 1, None);
+        for model in RefractionModel::ALL {
+            g.add_pair(F::HorizontalGeometric(date), F::HorizontalApparent(date), 2, Some(model.edge_key()));
+        }
+        g.add_edge(F::ICRS, F::FK5, 1);
+        g.add_edge(F::FK5, F::ICRS, 1);
         g
     }
 
-    /// 返回图的可视化数据：赤道/黄道拆节点；FK5 拆为历表输出→ICRS→自 ICRS 回转。
+    /// 历表与星表入口。
+    pub fn source_edges(&self) -> &'static [SourceEdge] {
+        &SOURCE_EDGES
+    }
+
+    /// 返回图的可视化数据：入口在前，其后是图中全部有向边，互逆的两条各占一项。
     pub fn visualization_data(&self) -> TransformGraphVizData {
-        let mean_ecliptic_id = "MeanEcliptic(epoch)";
-        let fk5_id = "FK5";
         let mut node_ids: Vec<String> = Vec::new();
-        let mut seen = std::collections::HashSet::<&str>::new();
-        for e in &self.edges {
-            let f = e.from_frame.id_str();
-            if f == mean_ecliptic_id {
-                if seen.insert(MEAN_ECLIPTIC_EQUATOR) {
-                    node_ids.push(MEAN_ECLIPTIC_EQUATOR.to_string());
-                }
-                if seen.insert(MEAN_ECLIPTIC_ECLIPTIC) {
-                    node_ids.push(MEAN_ECLIPTIC_ECLIPTIC.to_string());
-                }
-            } else if f == fk5_id {
-                if seen.insert(FK5_EPHEMERIS) {
-                    node_ids.push(FK5_EPHEMERIS.to_string());
-                }
-                if seen.insert(FK5_FROM_ICRS) {
-                    node_ids.push(FK5_FROM_ICRS.to_string());
-                }
-            } else if seen.insert(f) {
-                node_ids.push(f.to_string());
+        let mut add_node = |id: &str| {
+            if !node_ids.iter().any(|n| n == id) {
+                node_ids.push(id.to_string());
             }
-            let t = e.to_frame.id_str();
-            if t == mean_ecliptic_id {
-                if seen.insert(MEAN_ECLIPTIC_EQUATOR) {
-                    node_ids.push(MEAN_ECLIPTIC_EQUATOR.to_string());
-                }
-                if seen.insert(MEAN_ECLIPTIC_ECLIPTIC) {
-                    node_ids.push(MEAN_ECLIPTIC_ECLIPTIC.to_string());
-                }
-            } else if t == fk5_id {
-                if seen.insert(FK5_EPHEMERIS) {
-                    node_ids.push(FK5_EPHEMERIS.to_string());
-                }
-                if seen.insert(FK5_FROM_ICRS) {
-                    node_ids.push(FK5_FROM_ICRS.to_string());
-                }
-            } else if seen.insert(t) {
-                node_ids.push(t.to_string());
-            }
-        }
+        };
         let mut edges: Vec<TransformEdgeViz> = Vec::new();
+        for e in &SOURCE_EDGES {
+            add_node(e.from_id);
+            add_node(e.to_id);
+            edges.push(TransformEdgeViz {
+                from_id: e.from_id.to_string(),
+                to_id: e.to_id.to_string(),
+                cost: 0,
+                kind: e.kind,
+                form: kind_to_form(e.kind),
+                label: Some(e.label.to_string()),
+            });
+        }
         for e in &self.edges {
-            // 折射重边只画缺省模型一条，标签列明可选：多条平行线标签会完全重叠
-            if matches!(e.to_frame, ReferenceFrame::HorizontalApparent(_))
-                && e.edge_key.as_deref() != Some(RefractionModel::RayTrace.edge_key())
-            {
+            // 折射重边只画缺省模型一对，标签列明可选：多条平行线标签会完全重叠
+            if is_refraction_edge(e) && e.edge_key.as_deref() != Some(RefractionModel::RayTrace.edge_key()) {
                 continue;
             }
-            let from_id = e.from_frame.id_str().to_string();
-            let to_id = e.to_frame.id_str().to_string();
-            if from_id == fk5_id && to_id == "ICRS" {
-                edges.push(make_edge_viz(FK5_EPHEMERIS, "ICRS", e.cost, None));
-            } else if from_id == "ICRS" && to_id == fk5_id {
-                edges.push(make_edge_viz("ICRS", FK5_FROM_ICRS, e.cost, None));
-            } else if from_id == fk5_id && to_id == "MeanEquator(epoch)" {
-                edges.push(make_edge_viz(FK5_FROM_ICRS, &to_id, e.cost, e.edge_key.as_deref()));
-            } else if from_id == mean_ecliptic_id && to_id == fk5_id {
-                edges.push(make_edge_viz(MEAN_ECLIPTIC_EQUATOR, FK5_EPHEMERIS, e.cost, None));
-                edges.push(make_edge_viz(MEAN_ECLIPTIC_ECLIPTIC, FK5_FROM_ICRS, e.cost, None));
-            } else {
-                edges.push(make_edge_viz(&from_id, &to_id, e.cost, e.edge_key.as_deref()));
-            }
-        }
-        // 静态完整图：始终预置历表入口（日 VSOP87、月 ELPMPP02）
-        if node_ids.iter().any(|s| s == MEAN_ECLIPTIC_EQUATOR) {
-            let prepend_nodes = vec![
-                "VSOP87".to_string(),
-                HELIOCENTRIC_MEAN_ECLIPTIC.to_string(),
-                "ELPMPP02".to_string(),
-                "ELPMPP02_MEAN_LUNAR".to_string(),
-            ];
-            node_ids.splice(0..0, prepend_nodes);
-            let prepend_edges = vec![
-                make_edge_viz("VSOP87", HELIOCENTRIC_MEAN_ECLIPTIC, 0, None),
-                make_edge_viz(HELIOCENTRIC_MEAN_ECLIPTIC, MEAN_ECLIPTIC_EQUATOR, 0, None),
-                make_edge_viz("ELPMPP02", "ELPMPP02_MEAN_LUNAR", 0, None),
-                make_edge_viz("ELPMPP02_MEAN_LUNAR", MEAN_ECLIPTIC_ECLIPTIC, 0, None),
-            ];
-            edges.splice(0..0, prepend_edges);
+            add_node(e.from_frame.id_str());
+            add_node(e.to_frame.id_str());
+            edges.push(make_edge_viz(e.from_frame.id_str(), e.to_frame.id_str(), e.cost, e.edge_key.as_deref()));
         }
         let node_origins: Vec<(String, OriginRole)> = node_ids
             .iter()
@@ -669,19 +686,7 @@ impl TransformGraph {
     }
 
     fn frames_match(&self, a: ReferenceFrame, b: ReferenceFrame) -> bool {
-        match (a, b) {
-            (ReferenceFrame::FK5, ReferenceFrame::FK5) => true,
-            (ReferenceFrame::ICRS, ReferenceFrame::ICRS) => true,
-            (ReferenceFrame::MeanEcliptic(_), ReferenceFrame::MeanEcliptic(_)) => true,
-            (ReferenceFrame::MeanEquator(_), ReferenceFrame::MeanEquator(_)) => true,
-            (ReferenceFrame::TrueEquator(_), ReferenceFrame::TrueEquator(_)) => true,
-            (ReferenceFrame::ApparentEcliptic(_), ReferenceFrame::ApparentEcliptic(_)) => true,
-            (ReferenceFrame::TopocentricEquator(_), ReferenceFrame::TopocentricEquator(_)) => true,
-            (ReferenceFrame::TopocentricAberratedEquator(_), ReferenceFrame::TopocentricAberratedEquator(_)) => true,
-            (ReferenceFrame::HorizontalGeometric(_), ReferenceFrame::HorizontalGeometric(_)) => true,
-            (ReferenceFrame::HorizontalApparent(_), ReferenceFrame::HorizontalApparent(_)) => true,
-            _ => false,
-        }
+        a.id_str() == b.id_str()
     }
 
     /// 根据图与起止点分析最短路，返回边序列（含 edge_key，支持重边）。
@@ -737,18 +742,10 @@ impl TransformGraph {
         }
         let mut adj: HashMap<NodeId, Vec<(NodeId, Cost, PathEdge)>> = HashMap::new();
         for e in &self.edges {
-            let is_precession_edge = matches!(
-                (e.from_frame, e.to_frame),
-                (ReferenceFrame::FK5, ReferenceFrame::MeanEquator(_))
-            );
-            if is_precession_edge && !precession_edge_matches(e, self.precession_model) {
+            if is_precession_edge(e) && !precession_edge_matches(e, self.precession_model) {
                 continue;
             }
-            let is_nutation_edge = matches!(
-                (e.from_frame, e.to_frame),
-                (ReferenceFrame::MeanEquator(_), ReferenceFrame::TrueEquator(_))
-            );
-            if is_nutation_edge && !nutation_edge_matches(e, self.nutation_model) {
+            if is_nutation_edge(e) && !nutation_edge_matches(e, self.nutation_model) {
                 continue;
             }
             if matches!((e.from_frame, e.to_frame), (ReferenceFrame::FK5, ReferenceFrame::ICRS))
@@ -756,7 +753,7 @@ impl TransformGraph {
             {
                 continue;
             }
-            if matches!(e.to_frame, ReferenceFrame::HorizontalApparent(_)) && !refraction_edge_matches(e, self.refraction_model) {
+            if is_refraction_edge(e) && !refraction_edge_matches(e, self.refraction_model) {
                 continue;
             }
             let a = e.from_frame.id_str();
@@ -816,7 +813,7 @@ impl TransformGraph {
         let precession_model = edge_key_to_precession(edge_key, self.precession_model);
         let nutation_model = edge_key_to_nutation(edge_key, self.nutation_model);
         match (from, to) {
-            (ReferenceFrame::MeanEcliptic(_), ReferenceFrame::FK5) => {
+            (ReferenceFrame::MeanEcliptic(_), ReferenceFrame::FK5) if is_j2000_ecliptic(from) => {
                 let eps0 = mean_obliquity(0.0).rad();
                 let (ct, st) = (eps0.cos(), eps0.sin());
                 let r = [[one(), zero(), zero()], [zero(), ct, -st], [zero(), st, ct]];
@@ -885,6 +882,39 @@ impl TransformGraph {
                     r_dot,
                 })
             }
+            (ReferenceFrame::MeanEquator(_), ReferenceFrame::MeanEcliptic(_)) if !is_j2000_ecliptic(to) => {
+                let (r, r_dot) = mean_equator_to_ecliptic(jd_tt, self.precession_model);
+                Some(StateTransition6 { from_frame: from, to_frame: ReferenceFrame::MeanEcliptic(Epoch::new(jd_tt)), r, r_dot })
+            }
+            (ReferenceFrame::MeanEcliptic(_), ReferenceFrame::TrueEcliptic(_)) if !is_j2000_ecliptic(from) => {
+                // 平黄道 → 平赤道 → 真赤道 → 真黄道
+                let date = Epoch::new(jd_tt);
+                let (me, me_dot) = mean_equator_to_ecliptic(jd_tt, self.precession_model);
+                let n = self.get_transition(ReferenceFrame::MeanEquator(date), ReferenceFrame::TrueEquator(date), jd_tt, None)?;
+                let e = self.get_transition(ReferenceFrame::TrueEquator(date), ReferenceFrame::ApparentEcliptic(date), jd_tt, None)?;
+                let inner = compose((&n.r, &n.r_dot), (&transposed(&me), &transposed(&me_dot)));
+                let (r, r_dot) = compose((&e.r, &e.r_dot), (&inner.0, &inner.1));
+                Some(StateTransition6 { from_frame: from, to_frame: ReferenceFrame::TrueEcliptic(date), r, r_dot })
+            }
+            (ReferenceFrame::TrueEquator(_), ReferenceFrame::TrueEcliptic(_)) => {
+                let date = Epoch::new(jd_tt);
+                let e = self.get_transition(ReferenceFrame::TrueEquator(date), ReferenceFrame::ApparentEcliptic(date), jd_tt, None)?;
+                Some(StateTransition6 { from_frame: from, to_frame: ReferenceFrame::TrueEcliptic(date), r: e.r, r_dot: e.r_dot })
+            }
+            (ReferenceFrame::IcrsAberrated, ReferenceFrame::ApparentEquator(_)) => {
+                let date = Epoch::new(jd_tt);
+                let b = self.get_transition(ReferenceFrame::ICRS, ReferenceFrame::FK5, jd_tt, None)?;
+                let p = self.get_transition(ReferenceFrame::FK5, ReferenceFrame::MeanEquator(date), jd_tt, None)?;
+                let n = self.get_transition(ReferenceFrame::MeanEquator(date), ReferenceFrame::TrueEquator(date), jd_tt, None)?;
+                let inner = compose((&p.r, &p.r_dot), (&b.r, &b.r_dot));
+                let (r, r_dot) = compose((&n.r, &n.r_dot), (&inner.0, &inner.1));
+                Some(StateTransition6 { from_frame: from, to_frame: ReferenceFrame::ApparentEquator(date), r, r_dot })
+            }
+            // 逆边：[R 0; Ṙ R]⁻¹ = [Rᵀ 0; Ṙᵀ Rᵀ]（旋转矩阵正交）
+            _ if forward_edge_form(to, from) == Some(TransitionForm::Rotation) => {
+                let f = self.get_transition(to, from, jd_tt, edge_key)?;
+                Some(StateTransition6 { from_frame: f.to_frame, to_frame: f.from_frame, r: transposed(&f.r), r_dot: transposed(&f.r_dot) })
+            }
             _ => None,
         }
     }
@@ -931,17 +961,32 @@ impl TransformGraph {
         self.transform_along_path(state, &path, jd_tt)
     }
 
-    /// 将 state 沿图变换到观测侧的 target（站心、几何地平、视地平等）。无路径或 state 已在 target 时 panic。
+    /// 将 state 沿图变换到需要上下文的 target（站心、几何地平、视地平等，及其逆）。无路径或 state 已在 target 时 panic。
+    /// 走到周年光行差边时要求 `ctx.earth_velocity` 已设。
     pub fn transform_to_observed(&self, state: State6, target: ReferenceFrame, ctx: &ObservationContext, jd_tt: Real) -> State6 {
+        self.run_path(state, target, Some(ctx), ctx.earth_velocity, jd_tt)
+    }
+
+    /// 将 state 沿图变换到 target，周年光行差用给定地球速度（ICRS，m/s）；不涉及观测者。
+    pub fn transform_with_earth_velocity(&self, state: State6, target: ReferenceFrame, earth_velocity: [Real; 3], jd_tt: Real) -> State6 {
+        self.run_path(state, target, None, Some(earth_velocity), jd_tt)
+    }
+
+    fn run_path(&self, state: State6, target: ReferenceFrame, ctx: Option<&ObservationContext>, earth_velocity: Option<[Real; 3]>, jd_tt: Real) -> State6 {
         let path = self.shortest_path(state.frame(), target);
         if path.is_empty() {
-            panic!("transform_to_observed: no path from {} to {}", state.frame().id_str(), target.id_str());
+            panic!("transform: no path from {} to {}", state.frame().id_str(), target.id_str());
         }
         let mut s = state;
         for pe in &path {
-            s = match self.apply_observation_edge(&s, pe, ctx) {
-                Some(out) => out,
-                None => self.apply_edge(s, pe, jd_tt),
+            s = if let Some(out) = ctx.and_then(|c| self.apply_observation_edge(&s, pe, c)) {
+                out
+            } else {
+                match (pe.from, pe.to, earth_velocity) {
+                    (ReferenceFrame::ICRS, ReferenceFrame::IcrsAberrated, Some(v)) => annual_aberration_state(&s, v),
+                    (ReferenceFrame::IcrsAberrated, ReferenceFrame::ICRS, Some(v)) => undo_annual_aberration_state(&s, v),
+                    _ => self.apply_edge(s, pe, jd_tt),
+                }
             };
         }
         s
@@ -949,14 +994,17 @@ impl TransformGraph {
 
     /// 观测侧的边；pe 不属于这几条时返回 None。折射模型取 edge_key，缺省用 refraction_model。
     fn apply_observation_edge(&self, state: &State6, pe: &PathEdge, ctx: &ObservationContext) -> Option<State6> {
-        Some(match pe.to {
-            ReferenceFrame::TopocentricEquator(_) => topocentric_state(state, &ctx.observer, ctx.gast),
-            ReferenceFrame::TopocentricAberratedEquator(_) => diurnal_aberration_state(state, ctx),
-            ReferenceFrame::HorizontalGeometric(_) => to_horizontal_state(state, ctx),
-            ReferenceFrame::HorizontalApparent(_) => {
-                let model = pe.edge_key.as_deref().and_then(RefractionModel::from_edge_key).unwrap_or(self.refraction_model);
-                refract_state(state, model, &ctx.atmosphere)
-            }
+        use ReferenceFrame as F;
+        let model = || pe.edge_key.as_deref().and_then(RefractionModel::from_edge_key).unwrap_or(self.refraction_model);
+        Some(match (pe.from, pe.to) {
+            (F::TrueEquator(_), F::TopocentricEquator(_)) => topocentric_state(state, &ctx.observer, ctx.gast),
+            (F::TopocentricEquator(_), F::TrueEquator(_)) => geocentric_state(state, &ctx.observer, ctx.gast),
+            (F::TopocentricEquator(_), F::TopocentricAberratedEquator(_)) => diurnal_aberration_state(state, ctx),
+            (F::TopocentricAberratedEquator(_), F::TopocentricEquator(_)) => undo_diurnal_aberration_state(state, ctx),
+            (F::TopocentricAberratedEquator(_), F::HorizontalGeometric(_)) => to_horizontal_state(state, ctx),
+            (F::HorizontalGeometric(_), F::TopocentricAberratedEquator(_)) => from_horizontal_state(state, ctx),
+            (F::HorizontalGeometric(_), F::HorizontalApparent(_)) => refract_state(state, model(), &ctx.atmosphere),
+            (F::HorizontalApparent(_), F::HorizontalGeometric(_)) => unrefract_state(state, model(), &ctx.atmosphere),
             _ => return None,
         })
     }
@@ -964,14 +1012,20 @@ impl TransformGraph {
     /// 对 state 施加单条边（PathEdge，含 edge_key），返回新 state。
     fn apply_edge(&self, state: State6, pe: &PathEdge, jd_tt: Real) -> State6 {
         let (from_f, to_f) = (pe.from, pe.to);
-        if matches!(
-            to_f,
-            ReferenceFrame::TopocentricEquator(_)
-                | ReferenceFrame::TopocentricAberratedEquator(_)
-                | ReferenceFrame::HorizontalGeometric(_)
-                | ReferenceFrame::HorizontalApparent(_)
-        ) {
+        let needs_observer = |f: ReferenceFrame| {
+            matches!(
+                f,
+                ReferenceFrame::TopocentricEquator(_)
+                    | ReferenceFrame::TopocentricAberratedEquator(_)
+                    | ReferenceFrame::HorizontalGeometric(_)
+                    | ReferenceFrame::HorizontalApparent(_)
+            )
+        };
+        if needs_observer(from_f) || needs_observer(to_f) {
             panic!("apply_edge: {} -> {} 需要观测者，请用 transform_to_observed", from_f.id_str(), to_f.id_str());
+        }
+        if matches!((from_f, to_f), (ReferenceFrame::ICRS, ReferenceFrame::IcrsAberrated) | (ReferenceFrame::IcrsAberrated, ReferenceFrame::ICRS)) {
+            panic!("apply_edge: {} -> {} 需要地球速度，请用 transform_with_earth_velocity", from_f.id_str(), to_f.id_str());
         }
         let form = edge_form_for_frames(from_f, to_f)
             .unwrap_or_else(|| panic!("apply_edge: unknown form {} -> {}", from_f.id_str(), to_f.id_str()));

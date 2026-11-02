@@ -308,8 +308,9 @@ pub fn sun_apparent_ecliptic_longitude_velocity_analytic(
     ];
     let (_, deps) = nutation_for_apparent(t_cent);
     let eps_true = mean_obliquity_for(t_cent, precession_model).rad() + deps.rad();
-    let r1_eps = rotation_x(PlaneAngle::from_rad(eps_true));
-    let r1p_eps = rotation_x_derivative(eps_true);
+    // 赤道 → 黄道是 rotation_x(−ε)；对 ε 求导时链式法则带负号
+    let r1_eps = rotation_x(PlaneAngle::from_rad(-eps_true));
+    let r1p_eps = rotation_x_derivative(-eps_true).map(|row| row.map(|x| -x));
     let eps_td = eps_true_dot(t_cent, precession_model);
     let pos_ae = Mat::<Real, 3, 3>::from(r1_eps).mul_vec(pos_te);
     let vel_ae_raw = Mat::<Real, 3, 3>::from(r1_eps).mul_vec(vel_te);
@@ -426,8 +427,9 @@ fn moon_apparent_ecliptic_longitude_velocity_analytic(
     ];
     let (_, deps) = nutation_for_apparent(t_cent);
     let eps_true = mean_obliquity_for(t_cent, precession_model).rad() + deps.rad();
-    let r1_eps = rotation_x(PlaneAngle::from_rad(eps_true));
-    let r1p_eps = rotation_x_derivative(eps_true);
+    // 赤道 → 黄道是 rotation_x(−ε)；对 ε 求导时链式法则带负号
+    let r1_eps = rotation_x(PlaneAngle::from_rad(-eps_true));
+    let r1p_eps = rotation_x_derivative(-eps_true).map(|row| row.map(|x| -x));
     let eps_td = eps_true_dot(t_cent, precession_model);
     let pos_ae = Mat::<Real, 3, 3>::from(r1_eps).mul_vec(pos_te);
     let vel_ae_raw = Mat::<Real, 3, 3>::from(r1_eps).mul_vec(vel_te);

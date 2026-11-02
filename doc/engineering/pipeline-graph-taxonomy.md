@@ -92,6 +92,29 @@ VSOP87 拟合到 DE406/DE441 的改正（2026-10-26 起）属历表求值的一�
 
 **算式只有一份**：各边调用 `apparent::topocentric_state`、`diurnal_aberration_state`、`to_horizontal_state`、`refract_state`。日月食、掩星、偕日现象等逐点循环已持有真赤道位置，不逐点寻路，直接调 `topocentric`、`horizontal`，共用 `topocentric` 的平移算式；`horizontal` 按赤经赤纬另行计算（与图的转站心地平直角坐标边对照测试）。这条捷径不含周日光行差（≤0.32″）。结果同样标为 `TopocentricEquator`，再次平移会 panic，避免双重视差。不设反向边（目前无此需求）。
 
+### 3.3.2 图是网络：逆边、横向边与入口
+
+**逆边**：除入口外每条边都有逆边，任意两架互通（`graph_is_strongly_connected`）。旋转取转置：[R 0; Ṙ R]⁻¹ = [Rᵀ 0; Ṙᵀ Rᵀ]，代价与正向相同。其余：
+
+| 正向 | 逆 | 算法 |
+|------|----|------|
+| 地心 → 站心 | `geocentric_state` | 加回观测者位置与速度 |
+| 周日光行差 | `undo_diurnal_aberration_state` | 一阶式取反，来回差二阶小量 |
+| 周年光行差 | `undo_annual_aberration_state` | 逐次代入正向公式 |
+| 大气折射 | `unrefract_state` | 光线追迹以视高度为入参，直接求（视线撞地 panic）；拟合式反复代入正向，保证来回一致 |
+
+**当日黄道的横向边**：`MeanEquator ↔ MeanEcliptic(epoch)`（R_x(ε)）、`MeanEcliptic(epoch) ↔ TrueEcliptic`（黄道上的章动）、`TrueEquator ↔ TrueEcliptic`。平赤道到真黄道因此有两条路径，结果一致（`ecliptic_of_date_paths_agree`），这是图上真正的环。
+
+**J2000 平黄道与当日平黄道是两个节点**：`id_str` 按历元区分 `MeanEcliptic(J2000)`、`MeanEcliptic(epoch)`。历表都输出前者，它到 FK5 用的是 ε₀；当日平黄道到平赤道用当日 ε。此前两者共用一个节点，页面还把 J2000 标成「历元平黄道」。
+
+**显式周年光行差是单独一支**：`ICRS ↔ IcrsAberrated ↔ ApparentEquator`，由 `transform_with_earth_velocity` 或带 `earth_velocity` 的 `transform_to_observed` 执行，不给速度时 panic。它不与 `ApparentEcliptic` 相连：`ApparentEcliptic` 属于折叠路径，光行差已含在历表入口的 tr 里。两者一旦相连，最短路就会绕过光行差边、不报错也不施加（实现时确实发生过），`aberration_edge_cannot_be_bypassed` 测试锁定这一点。
+
+恒星走这一支：`star_apparent_equatorial` 经 `transform_with_earth_velocity` 到视赤道，再按当日真赤道轴向交给站心平移；批量版 `stars_apparent_equatorial` 只算一次旋转矩阵，光行差调同一个 `annual_aberration_direction`。
+
+**历表与星表是入口，不是边**：`SourceEdge`（VSOP87、ELPMPP02、DE406/DE441、Hipparcos）的起点不是参考架，输入不是状态，不参与最短路；终点架由测试对照提供者的实际输出。**光行时也在这里**：它要在 tr 重新求历表，状态的架不变，做成架到架的节点是假的。
+
+**可视化**：互逆的边合并成一条双向箭头，FK5、平黄道不再拆节点。布局用应力布局（`web/src/graphLayout.ts`），把图当无向网络，屏幕距离逼近图上跳数，环展开成环；初值不含随机数，每次相同。应力与朝向无关，收敛后把主轴转到水平，图中最长的链（历表→站心→视地平）横放才贴合宽画布；图的直径约 10 跳，全图视图缩放约 0.5，故框内与线上字号取 16/14，缩放后仍可读。很短的边（如 FK5→MeanEquator）放不下线上文字，以下方边列表为准。
+
 ### 3.4 带条件的边（缓存即快速跳跃边）
 
 岁差/章动/黄赤交角段带**历元缓存**：同一 jd_tt、PrecessionModel、NutationModel 下不重复算矩阵。可视为**带条件的边**——条件满足（缓存命中）则边存在、直接跳跃；不满足则需计算并写缓存后再到达。路径规划仍按静态边；执行时按「有缓存走缓存，无则计算并更新」处理。实现见 `get_transition` 与 `epoch_cache`（同上文件）。

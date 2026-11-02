@@ -10,7 +10,7 @@ use super::bennett::bennett_arcmin;
 use super::bennett_improved::bennett_improved_arcmin;
 use super::factor::pressure_temperature_factor;
 use super::meeus::meeus_arcsec;
-use super::ray_trace::ray_trace_refraction_geometric;
+use super::ray_trace::{ray_trace_refraction_apparent, ray_trace_refraction_geometric, RayTraceConstants};
 use super::saemundsson::saemundsson_arcmin;
 use super::smart::smart_arcsec;
 
@@ -201,6 +201,26 @@ pub fn refraction_from_geometric(h_geom: PlaneAngle, model: RefractionModel, atm
     PlaneAngle::from_rad(r_deg.max(zero()) / r2d)
 }
 
+/// 由**视高度**求折射量，真高度 = 视高度 − 折射量，是 [`refraction_from_geometric`] 的反解。
+/// 光线追迹以视高度为入参，直接求；视线撞地时 panic。其余模型反复代入正向公式，保证来回一致。
+pub fn refraction_from_apparent(h_app: PlaneAngle, model: RefractionModel, atmosphere: &Atmosphere) -> PlaneAngle {
+    if model == RefractionModel::RayTrace {
+        let r = ray_trace_refraction_apparent(h_app.rad(), atmosphere, &RayTraceConstants::default())
+            .unwrap_or_else(|| panic!("视高度 {} rad 的视线撞地，没有对应的天体方向", h_app.rad().as_f64()));
+        return PlaneAngle::from_rad(r);
+    }
+    let mut r = zero();
+    for _ in 0..50 {
+        let next = refraction_from_geometric(PlaneAngle::from_rad(h_app.rad() - r), model, atmosphere).rad();
+        let done = (next - r).abs() < real(SOLVE_TOLERANCE_DEG) * Real::pi() / real_const(180.0);
+        r = next;
+        if done {
+            break;
+        }
+    }
+    PlaneAngle::from_rad(r)
+}
+
 /// 站心地平直角坐标（ENU：东、北、天顶）施加折射：方位与距离不变，高度角加折射量。天顶处方位无定义，原样返回。
 pub fn refract_enu(enu: [Real; 3], model: RefractionModel, atmosphere: &Atmosphere) -> [Real; 3] {
     let [e, n, u] = enu;
@@ -213,4 +233,18 @@ pub fn refract_enu(enu: [Real; 3], model: RefractionModel, atmosphere: &Atmosphe
     let h_app = h + refraction_from_geometric(PlaneAngle::from_rad(h), model, atmosphere).rad();
     let scale = dist * h_app.cos() / rho;
     [e * scale, n * scale, dist * h_app.sin()]
+}
+
+/// [`refract_enu`] 的反解：视方向 → 几何方向，方位与距离不变。
+pub fn unrefract_enu(enu: [Real; 3], model: RefractionModel, atmosphere: &Atmosphere) -> [Real; 3] {
+    let [e, n, u] = enu;
+    let rho = (e * e + n * n).sqrt();
+    if rho == zero() {
+        return enu;
+    }
+    let dist = (rho * rho + u * u).sqrt();
+    let h_app = u.atan2(rho);
+    let h = h_app - refraction_from_apparent(PlaneAngle::from_rad(h_app), model, atmosphere).rad();
+    let scale = dist * h.cos() / rho;
+    [e * scale, n * scale, dist * h.sin()]
 }

@@ -7,7 +7,9 @@
 //! - [`horizontal`]：真赤道坐标 → 方位角（正北起、向东为正）与几何高度角（未含大气折射）。
 //!   出没、带食判断请用标准地平高度阈值（如太阳 −0°50′）而非对负高度施折射——现有 Saemundsson 折射在真高度 < 0 时返回 0。
 
-use crate::astronomy::correction::{refract_enu, Atmosphere, RefractionModel};
+use crate::astronomy::constant::AU_METERS;
+use crate::astronomy::correction::aberration::annual_aberration_direction;
+use crate::astronomy::correction::{refract_enu, unrefract_enu, Atmosphere, RefractionModel};
 use crate::astronomy::geodesy::Observer;
 use crate::astronomy::time::earth_rotation::earth_rotation_rate;
 use crate::astronomy::pipeline::State6;
@@ -49,6 +51,17 @@ pub fn topocentric_state(geocentric: &State6, observer: &Observer, gast: PlaneAn
     State6::new(position, Velocity::from_si_m_per_s_in_frame(position.frame, vx - ox, vy - oy, vz - oz))
 }
 
+/// [`topocentric_state`] 的逆：站心 → 地心真赤道。
+pub fn geocentric_state(topo: &State6, observer: &Observer, gast: PlaneAngle) -> State6 {
+    let ReferenceFrame::TopocentricEquator(epoch) = topo.frame() else {
+        panic!("站心还原要求站心真赤道架（TopocentricEquator），实为 {:?}", topo.frame());
+    };
+    let (p, v) = topo.to_meters_and_m_per_s();
+    let o = observer.position_true_equator(gast, epoch).to_meters();
+    let w = observer.velocity_true_equator(gast, epoch).to_m_per_s();
+    State6::from_si_in_frame(ReferenceFrame::TrueEquator(epoch), p[0] + o[0], p[1] + o[1], p[2] + o[2], v[0] + w[0], v[1] + w[1], v[2] + w[2])
+}
+
 /// 地心之后各观测边所需的上下文。`gast` 须与所变换的 state 同一时刻（UT1 经 ΔT 由该 TT 得到）。
 #[derive(Clone, Copy, Debug)]
 pub struct ObservationContext {
@@ -56,12 +69,14 @@ pub struct ObservationContext {
     pub gast: PlaneAngle,
     /// 只有折射边用到。
     pub atmosphere: Atmosphere,
+    /// 地球速度（ICRS，m/s），只有周年光行差边用到。
+    pub earth_velocity: Option<[Real; 3]>,
 }
 
 impl ObservationContext {
     /// 大气取观测者海拔处的标准状态（海平面 101 kPa、10°C）。
     pub fn new(observer: Observer, gast: PlaneAngle) -> Self {
-        Self { atmosphere: Atmosphere::standard_at_height(observer.height), observer, gast }
+        Self { atmosphere: Atmosphere::standard_at_height(observer.height), observer, gast, earth_velocity: None }
     }
 }
 
@@ -82,11 +97,53 @@ pub fn diurnal_aberration_state(topo: &State6, ctx: &ObservationContext) -> Stat
     State6::from_si_in_frame(frame, u[0] * scale, u[1] * scale, u[2] * scale, wx, wy, wz)
 }
 
-/// 站心赤道 → 站心地平直角坐标：地方恒星时 θ = GAST + 东经，U 沿大地法线。速度含旋转项 Ṙ·r。
-pub fn to_horizontal_state(equatorial: &State6, ctx: &ObservationContext) -> State6 {
-    let ReferenceFrame::TopocentricAberratedEquator(epoch) = equatorial.frame() else {
-        panic!("转地平要求已加周日光行差的站心赤道架（TopocentricAberratedEquator），实为 {:?}", equatorial.frame());
+/// [`diurnal_aberration_state`] 的逆，同为一阶，来回差二阶小量（约 1e-12 rad）。
+pub fn undo_diurnal_aberration_state(aberrated: &State6, ctx: &ObservationContext) -> State6 {
+    let ReferenceFrame::TopocentricAberratedEquator(epoch) = aberrated.frame() else {
+        panic!("去周日光行差要求 TopocentricAberratedEquator，实为 {:?}", aberrated.frame());
     };
+    let c = real_const(299792458.0);
+    let [x, y, z] = aberrated.position.to_meters();
+    let dist = (x * x + y * y + z * z).sqrt();
+    let [vx, vy, vz] = ctx.observer.velocity_true_equator(ctx.gast, epoch).to_m_per_s();
+    let u = [x / dist - vx / c, y / dist - vy / c, z / dist - vz / c];
+    let scale = dist / (u[0] * u[0] + u[1] * u[1] + u[2] * u[2]).sqrt();
+    let [wx, wy, wz] = aberrated.velocity.to_m_per_s();
+    State6::from_si_in_frame(ReferenceFrame::TopocentricEquator(epoch), u[0] * scale, u[1] * scale, u[2] * scale, wx, wy, wz)
+}
+
+/// 周年光行差：地球速度 `earth_velocity`（ICRS，m/s）下的视方向，距离、速度不变。ICRS → IcrsAberrated。
+pub fn annual_aberration_state(state: &State6, earth_velocity: [Real; 3]) -> State6 {
+    assert!(matches!(state.frame(), ReferenceFrame::ICRS), "周年光行差要求 ICRS，实为 {:?}", state.frame());
+    let (p, v) = state.to_meters_and_m_per_s();
+    let dist = (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt();
+    let e = annual_aberration_direction(p, au_per_day(earth_velocity));
+    State6::from_si_in_frame(ReferenceFrame::IcrsAberrated, e[0] * dist, e[1] * dist, e[2] * dist, v[0], v[1], v[2])
+}
+
+/// [`annual_aberration_state`] 的逆：逐次代入正向公式，3 次已到舍入。
+pub fn undo_annual_aberration_state(state: &State6, earth_velocity: [Real; 3]) -> State6 {
+    assert!(matches!(state.frame(), ReferenceFrame::IcrsAberrated), "去周年光行差要求 IcrsAberrated，实为 {:?}", state.frame());
+    let (p, v) = state.to_meters_and_m_per_s();
+    let dist = (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt();
+    let target = [p[0] / dist, p[1] / dist, p[2] / dist];
+    let vel = au_per_day(earth_velocity);
+    let mut e = target;
+    for _ in 0..3 {
+        let f = annual_aberration_direction(e, vel);
+        e = [e[0] + target[0] - f[0], e[1] + target[1] - f[1], e[2] + target[2] - f[2]];
+    }
+    let n = (e[0] * e[0] + e[1] * e[1] + e[2] * e[2]).sqrt();
+    State6::from_si_in_frame(ReferenceFrame::ICRS, e[0] / n * dist, e[1] / n * dist, e[2] / n * dist, v[0], v[1], v[2])
+}
+
+fn au_per_day(v: [Real; 3]) -> [Real; 3] {
+    let k = real_const(86400.0) / AU_METERS;
+    [v[0] * k, v[1] * k, v[2] * k]
+}
+
+/// 站心赤道 → 站心地平直角坐标的 R 与 Ṙ：地方恒星时 θ = GAST + 东经，U 沿大地法线。
+fn horizontal_rotation(ctx: &ObservationContext) -> ([[Real; 3]; 3], [[Real; 3]; 3]) {
     let theta = ctx.gast.rad() + ctx.observer.longitude.rad();
     let (st, ct) = (theta.sin(), theta.cos());
     let (sp, cp) = (ctx.observer.latitude.rad().sin(), ctx.observer.latitude.rad().cos());
@@ -98,7 +155,26 @@ pub fn to_horizontal_state(equatorial: &State6, ctx: &ObservationContext) -> Sta
         [sp * st * w, -(sp * ct * w), o],
         [-(cp * st * w), cp * ct * w, o],
     ];
+    (r, r_dot)
+}
+
+/// 站心赤道 → 站心地平直角坐标：地方恒星时 θ = GAST + 东经，U 沿大地法线。速度含旋转项 Ṙ·r。
+pub fn to_horizontal_state(equatorial: &State6, ctx: &ObservationContext) -> State6 {
+    let ReferenceFrame::TopocentricAberratedEquator(epoch) = equatorial.frame() else {
+        panic!("转地平要求已加周日光行差的站心赤道架（TopocentricAberratedEquator），实为 {:?}", equatorial.frame());
+    };
+    let (r, r_dot) = horizontal_rotation(ctx);
     equatorial.apply_transition(&r, &r_dot, ReferenceFrame::HorizontalGeometric(epoch))
+}
+
+/// [`to_horizontal_state`] 的逆：矩阵取转置，[Rᵀ 0; Ṙᵀ Rᵀ]。
+pub fn from_horizontal_state(horizontal: &State6, ctx: &ObservationContext) -> State6 {
+    let ReferenceFrame::HorizontalGeometric(epoch) = horizontal.frame() else {
+        panic!("地平转回赤道要求 HorizontalGeometric，实为 {:?}", horizontal.frame());
+    };
+    let (r, r_dot) = horizontal_rotation(ctx);
+    let t = |m: [[Real; 3]; 3]| core::array::from_fn(|i| core::array::from_fn(|j| m[j][i]));
+    horizontal.apply_transition(&t(r), &t(r_dot), ReferenceFrame::TopocentricAberratedEquator(epoch))
 }
 
 /// 大气折射：几何地平 → 视地平。折射是方向的非线性映射，没有 6×6 转移矩阵，速度取该映射沿速度方向的中心差分（±1 s）。
@@ -111,6 +187,18 @@ pub fn refract_state(geometric: &State6, model: RefractionModel, atmosphere: &At
     let (out, ahead, behind) = (at(real_const(0.0)), at(real_const(1.0)), at(real_const(-1.0)));
     let d = |i: usize| (ahead[i] - behind[i]) / real_const(2.0);
     State6::from_si_in_frame(ReferenceFrame::HorizontalApparent(epoch), out[0], out[1], out[2], d(0), d(1), d(2))
+}
+
+/// [`refract_state`] 的反解：视地平 → 几何地平，速度同样取中心差分。
+pub fn unrefract_state(apparent: &State6, model: RefractionModel, atmosphere: &Atmosphere) -> State6 {
+    let ReferenceFrame::HorizontalApparent(epoch) = apparent.frame() else {
+        panic!("折射反解要求视地平架（HorizontalApparent），实为 {:?}", apparent.frame());
+    };
+    let (p, v) = apparent.to_meters_and_m_per_s();
+    let at = |s: Real| unrefract_enu([p[0] + v[0] * s, p[1] + v[1] * s, p[2] + v[2] * s], model, atmosphere);
+    let (out, ahead, behind) = (at(real_const(0.0)), at(real_const(1.0)), at(real_const(-1.0)));
+    let d = |i: usize| (ahead[i] - behind[i]) / real_const(2.0);
+    State6::from_si_in_frame(ReferenceFrame::HorizontalGeometric(epoch), out[0], out[1], out[2], d(0), d(1), d(2))
 }
 
 /// 赤经、赤纬（真赤道架）。

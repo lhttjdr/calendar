@@ -22,7 +22,7 @@ pub use optical::OpticalCorrector;
 pub use state::{CoordinateRepresentation, SphericalCoords, State6};
 pub use transition::{StateTransition6, precession_transition};
 pub use transform_graph::{
-    edge_form_for_frames, kind_to_form, node_origin, EdgeMapperFn, OriginRole, PathEdge,
+    edge_form_for_frames, kind_to_form, node_origin, EdgeMapperFn, OriginRole, PathEdge, SourceEdge,
     TransformEdge, TransformEdgeViz, TransformGraph, TransformGraphVizData, TransitionForm,
     TransitionKind, Via,
 };
