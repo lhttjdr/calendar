@@ -22,7 +22,7 @@ export type SnapshotJson = {
   stars: (number | null)[]
   bodies: BodyJson[]
   /** 全天亮度 lg(nL) 与极限星等，先高度后方位（Rust：SkyLight）；sunVisible 为日面未遮比例 */
-  skyLight: { lgB: number[]; lim: number[]; sunVisible: number; moonGlare: number; limitCurve: number[]; coronaUnit: number }
+  skyLight: { lgB: number[]; lim: number[]; sunVisible: number; moonGlare: number; sunGlare: number; limitCurve: number[]; coronaUnit: number }
   /** 当日赤道 → 银道，按行 */
   trueToGalactic: number[]
   mansionWidths: Record<string, number[]>

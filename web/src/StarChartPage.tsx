@@ -562,6 +562,20 @@ export function StarChartPage() {
     )
   })()
 
+  const layerOptions = [
+      { label: '星官', value: 'asterisms' },
+      { label: '星官名', value: 'names' },
+      ...(system.asterisms === 'chenzhuo' ? [{ label: '三家着色', value: 'schools' }] : []),
+      { label: '二十八宿', value: 'mansions' },
+      { label: '赤道', value: 'equator' },
+      { label: '黄道', value: 'ecliptic' },
+      { label: view === 'horizon' ? '高度圈' : '内外规', value: 'circles' },
+      ...(view === 'gai' ? [{ label: '地平', value: 'horizon' }] : view === 'sky3d' ? [{ label: '地面', value: 'horizon' }] : []),
+      ...(view === 'gai' ? [] : [{ label: '大气折射', value: 'refraction' }]),
+      ...(view === 'sky3d' ? [{ label: '大气散射', value: 'skylight' }, { label: '银河', value: 'milkyway' }, { label: '海平线俯角', value: 'seaHorizon' }, { label: '地形', value: 'terrain' }, { label: '晕与珥（示意）', value: 'halo' }] : []),
+      { label: '日月五星', value: 'bodies' },
+    ]
+
   return (
     <Flex vertical gap={12}>
       <Card size="small">
@@ -629,20 +643,12 @@ export function StarChartPage() {
             <Radio.Group value={view} onChange={(e) => setView(e.target.value)} optionType="button" size="small"
               options={[{ label: '盖图', value: 'gai' }, { label: '地平', value: 'horizon' }, { label: '3D', value: 'sky3d' }]} />
             {view === 'gai' && <Checkbox checked={fixedOrientation} onChange={(e) => setFixedOrientation(e.target.checked)}>固定方位（春分点朝上）</Checkbox>}
-            <Checkbox.Group value={layers} onChange={(v) => setLayers(v as string[])}
-              options={[
-                { label: '星官', value: 'asterisms' },
-                { label: '星官名', value: 'names' },
-                ...(system.asterisms === 'chenzhuo' ? [{ label: '三家着色', value: 'schools' }] : []),
-                { label: '二十八宿', value: 'mansions' },
-                { label: '赤道', value: 'equator' },
-                { label: '黄道', value: 'ecliptic' },
-                { label: view === 'horizon' ? '高度圈' : '内外规', value: 'circles' },
-                ...(view === 'gai' ? [{ label: '地平', value: 'horizon' }] : view === 'sky3d' ? [{ label: '地面', value: 'horizon' }] : []),
-                ...(view === 'gai' ? [] : [{ label: '大气折射', value: 'refraction' }]),
-                ...(view === 'sky3d' ? [{ label: '大气散射', value: 'skylight' }, { label: '银河', value: 'milkyway' }, { label: '海平线俯角', value: 'seaHorizon' }, { label: '地形', value: 'terrain' }] : []),
-                { label: '日月五星', value: 'bodies' },
-              ]} />
+            <Checkbox.Group value={layers} options={layerOptions}
+              onChange={(v) => {
+                // 回调只带当前显示的选项：其他视图专属的层（如 3D 的大气散射）要保留，否则切回去就丢了
+                const shown = new Set(layerOptions.map((o) => o.value))
+                setLayers((l) => [...l.filter((x) => !shown.has(x)), ...(v as string[])])
+              }} />
           </Flex>
           <Flex gap={12} align="center" wrap="wrap">
             <Text>极限星等 {magLimit.toFixed(1)}</Text>

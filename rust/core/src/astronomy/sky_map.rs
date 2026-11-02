@@ -108,6 +108,8 @@ pub struct SkyLight {
     pub sun_visible_fraction: Real,
     /// 月亮眼内眩光系数（nL·度²）：离月 θ 度处眩光亮度 = 此值 / max(θ, [`MOON_GLARE_MIN_DEG`])²。月在地平下为 0。
     pub moon_glare_nl_deg2: Real,
+    /// 太阳眼内眩光系数（nL·度²），同月亮，已乘未遮比例。太阳在地平下为 0。
+    pub sun_glare_nl_deg2: Real,
     /// 极限星等随 lg 亮度的变化，取样 lg B = i·[`LIMIT_CURVE_STEP`]，无消光。前端用它把眩光折算到网格的极限星等上。
     pub limit_curve: Vec<Real>,
     /// 日面中心亮度的 10⁻⁶（nL），日冕公式（Baumbach 1937）的单位。
@@ -297,6 +299,13 @@ impl SkySnapshot {
             }
             _ => real(0.0),
         };
+        let sun_glare_nl_deg2 = if s_alt > real(0.0) {
+            let z = real(90.0) * d2r - s_alt;
+            let (k, _) = sky.extinction.at(height_km0, lat, topo[si].ra.rad(), z);
+            glare_nl(real(SUN_MAGNITUDE_V), real(1.0), k * air_mass(z)).eye * fraction
+        } else {
+            real(0.0)
+        };
         let limit_curve = (0..LIMIT_CURVE_SAMPLES)
             .map(|i| limiting_magnitude(dex10(real(i as f64 * LIMIT_CURVE_STEP)), real(0.0), real(SKY_GRID_SOURCE_BV), eye).limiting_magnitude)
             .collect();
@@ -331,7 +340,7 @@ impl SkySnapshot {
                 lim.push(limiting_magnitude(b, dm, bv, eye).limiting_magnitude);
             }
         }
-        SkyLight { log10_brightness_nl: log_b, limiting_magnitude: lim, sun_visible_fraction: fraction, moon_glare_nl_deg2, limit_curve, corona_unit_nl: corona_unit_nl(topo[si].semidiameter.expect("太阳有视半径")) }
+        SkyLight { log10_brightness_nl: log_b, limiting_magnitude: lim, sun_visible_fraction: fraction, moon_glare_nl_deg2, sun_glare_nl_deg2, limit_curve, corona_unit_nl: corona_unit_nl(topo[si].semidiameter.expect("太阳有视半径")) }
     }
 
     pub fn star(&self, hip: u32) -> Option<&StarPlace> {
@@ -529,6 +538,13 @@ mod tests {
         // 极限星等曲线单调：天越亮看到的星越亮；白昼天顶无月光眩光时，曲线与网格同量级
         assert!(e.limit_curve.windows(2).all(|w| w[0] > w[1]), "极限星等应随亮度下降");
         assert!(night.moon_glare_nl_deg2.as_f64() >= 0.0);
+        assert_eq!(night.sun_glare_nl_deg2.as_f64(), 0.0, "夜间太阳在地平下，无眩光");
+        assert!(e.sun_glare_nl_deg2.as_f64() < 0.02 * d0.sun_glare_nl_deg2.as_f64(), "近全食眩光按未遮比例减小");
+        let c = d0.sun_glare_nl_deg2.as_f64();
+        println!("太阳眩光系数 {c:.3e} nL·度²");
+        for th in [1.0f64, 3.0, 5.0, 10.0, 30.0, 90.0] {
+            println!("  离日 {th}°：眩光 lg B {:.2}", (c / (th * th)).log10());
+        }
         let unit = e.corona_unit_nl.as_f64();
         println!("日冕单位 {unit:.3e} nL（日面中心 {:.3e} cd/m²）", unit * 1e6 * 3.183e-6);
         assert!(unit > 5e8 && unit < 1e9, "日面中心约 2e9 cd/m²：{unit}");

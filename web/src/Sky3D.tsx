@@ -7,7 +7,7 @@
  * 天色：亮度来自 Rust 的全天网格（Schaefer 模型，日食时按未遮比例减小太阳贡献），星按所在方向的极限星等淡出；亮度到颜色的映射只是显示用。
  * 月亮按月→日方向逐像素分明暗；放大后暗面不透光，日食时能遮住太阳。
  * 银河：NASA Deep Star Maps（银道坐标贴图），按天光淡出。全食时加日冕（Baumbach 1937 亮度，与天光同单位相加）。依据见 doc/astronomy/sky-view-3d.md。
- * 月亮眩光（Schaefer 1991 的眼内散射，同偕日）压低月旁的极限星等。
+ * 月亮眩光（Schaefer 1991 的眼内散射，同偕日）压低月旁的极限星等。太阳眩光同式；日月眩光都画成光晕，放大时淡出。
  * 日月：真实圆面大于符号时画圆面（逐像素把视高度反算回真高度再判断，近地平的压扁由此而来），否则画符号；上缘的视高度高于地平线就显示，地面逐像素遮挡。
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -58,6 +58,18 @@ const COMMON_GLSL = /* glsl */ `
   vec2 toPixel(vec3 v) { return v.xy * uK * uHalf.y / max(1.0 + v.z, 0.02); }
 `
 
+// 冰晶（六角柱，折射率 1.31）60° 棱的最小偏向角，即 22° 晕的内缘
+const ICE_N = 1.31
+const HALO_RADIUS_DEG = 2 * Math.asin(ICE_N * 0.5) * 180 / Math.PI - 60
+/** 幻日（珥）与日的方位差（度）：板状冰晶竖直入射时的等效折射率 n' = √(n² − sin²h) / cos h（Bravais）。h 约 61° 以上没有幻日，返回 null。 */
+export function parhelionOffsetDeg(altDeg: number): number | null {
+  if (altDeg < -1) return null
+  const h = (Math.max(altDeg, 0) * Math.PI) / 180
+  const np = Math.sqrt(ICE_N * ICE_N - Math.sin(h) ** 2) / Math.cos(h)
+  if (np * 0.5 >= 1) return null
+  return (2 * Math.asin(np * 0.5) * 180) / Math.PI - 60
+}
+
 // 天光网格：x = lg 亮度，y = 极限星等。地方坐标方向取样，手写双线性（浮点纹理的线性过滤不是所有设备都有）
 const SKY_GLSL = /* glsl */ `
   uniform highp sampler2D uSkyGrid;
@@ -76,18 +88,27 @@ const SKY_GLSL = /* glsl */ `
   // 此方向的极限星等：网格值 + 月亮眩光使它变亮的量（眩光 ∝ 1/θ²，变化太陡，网格分辨不了，单独算）
   uniform vec3 uMoonDir;
   uniform float uMoonGlare;
+  uniform vec3 uSunLocal;
+  uniform float uSunGlare;
   uniform float uLimitCurve[${LIMIT_CURVE_SAMPLES}];
   float limitCurve(float lg) {
     float x = clamp(lg / ${LIMIT_CURVE_STEP.toFixed(2)}, 0.0, float(${LIMIT_CURVE_SAMPLES}) - 1.001);
     int i = int(floor(x));
     return mix(uLimitCurve[i], uLimitCurve[i + 1], x - float(i));
   }
+  float sunGlareAt(vec3 l) {
+    float theta = max(degrees(length(l - uSunLocal)), ${MOON_GLARE_MIN_DEG.toFixed(2)});
+    return uSunGlare / (theta * theta);
+  }
+  float moonGlareAt(vec3 l) {
+    float theta = max(degrees(length(l - uMoonDir)), ${MOON_GLARE_MIN_DEG.toFixed(2)});
+    return uMoonGlare / (theta * theta);
+  }
   float limitAt(vec3 l) {
     vec2 g = skyAt(l);
-    if (uMoonGlare <= 0.0) return g.y;
-    float theta = max(degrees(length(l - uMoonDir)), ${MOON_GLARE_MIN_DEG.toFixed(2)});
+    if (uMoonGlare <= 0.0 && uSunGlare <= 0.0) return g.y;
     float b = pow(10.0, g.x);
-    float withGlare = log(b + uMoonGlare / (theta * theta)) / log(10.0);
+    float withGlare = log(b + moonGlareAt(l) + sunGlareAt(l)) / log(10.0);
     return g.y + limitCurve(withGlare) - limitCurve(g.x);
   }
   // 亮度 lg(nL) → 显示色。只是把模型亮度映射到屏幕，不是色度计算
@@ -95,7 +116,8 @@ const SKY_GLSL = /* glsl */ `
     vec3 c = mix(vec3(0.020, 0.032, 0.090), vec3(0.055, 0.085, 0.210), smoothstep(2.3, 4.0, lg));
     c = mix(c, vec3(0.140, 0.240, 0.460), smoothstep(4.0, 6.0, lg));
     c = mix(c, vec3(0.300, 0.500, 0.780), smoothstep(6.0, 7.8, lg));
-    return mix(c, vec3(0.520, 0.720, 0.950), smoothstep(7.8, 9.3, lg));
+    c = mix(c, vec3(0.520, 0.720, 0.950), smoothstep(7.8, 9.3, lg));
+    return mix(c, vec3(1.0, 0.99, 0.96), smoothstep(9.3, 11.0, lg));
   }
 `
 
@@ -148,6 +170,8 @@ const BODY_VERT = /* glsl */ `
   attribute float aRadius;
   attribute float aMag;
   attribute vec3 aToSun;
+  uniform float uTotality;
+  uniform float uScatter;
   varying vec3 vColor;
   varying vec3 vToSun;
   varying vec3 vTrueCenter;
@@ -162,6 +186,15 @@ const BODY_VERT = /* glsl */ `
     vTrueCenter = t;
     vRadius = aRadius;
     vToSun = uEqToLocal * aToSun;
+    // 太阳：有半径、无月→日向量。白色，近地平变红（显示效果，不是色度计算）；全食时不画，只留日冕
+    bool isSun = aRadius > 0.0 && dot(aToSun, aToSun) < 0.25;
+    if (isSun && uScatter > 0.5) {
+      float seen = degrees(asin(clamp(l.z, -1.0, 1.0)));
+      vColor = mix(vec3(1.0, 0.42, 0.20), vec3(1.0, 0.72, 0.42), smoothstep(0.0, 4.0, seen));
+      vColor = mix(vColor, vec3(1.0, 0.99, 0.94), smoothstep(4.0, 15.0, seen));
+    } else if (isSun) {
+      vColor = vec3(1.0, 0.99, 0.94);
+    }
     float limb = degrees(asin(clamp(t.z, -1.0, 1.0)) + aRadius);
     // 球极投影保角：圆面仍是圆，此处的比例尺 = 中心比例尺 ÷ (1 + cos θ)
     float rpx = aRadius * uK * uHalf.y / (1.0 + v.z);
@@ -170,7 +203,7 @@ const BODY_VERT = /* glsl */ `
     vPixelRadius = rpx;
     // 上缘低于地平线才整个隐去；露出的部分由片元逐像素遮挡
     // 行星白天也按极限星等隐去；日月 aRadius > 0，不受此限
-    bool faint = aRadius <= 0.0 && aMag > limitAt(l) + 0.5;
+    bool faint = (aRadius <= 0.0 && aMag > limitAt(l) + 0.5) || (isSun && uTotality > 0.5);
     if (faint || v.z < -0.9 || (uGround > 0.5 && limb + refraction(limb) < degrees(asin(horizonSinAt(l))))) {
       gl_Position = vec4(2.0, 2.0, 0.0, 1.0);
       gl_PointSize = 0.0;
@@ -307,8 +340,10 @@ const BACKDROP_FRAG = /* glsl */ `
   uniform mat3 uTrueToGal;
   uniform sampler2D uMilky;
   uniform float uMilkyOn;
-  uniform vec3 uSunLocal;
   uniform float uSunRadius;
+  uniform float uGlareShow;
+  uniform float uHalo;
+  uniform vec4 uParhelia[4];
   uniform float uCorona;
   uniform float uTwilight;
   uniform float uK;
@@ -325,8 +360,33 @@ const BACKDROP_FRAG = /* glsl */ `
     vec3 v = vec3(2.0 * s, 1.0 - rho2) / (1.0 + rho2);
     float up = dot(uUpView, v);
     vec3 l = transpose(uLocalToView) * v;
-    float lg = skyAt(l).x;
-    vec3 c = skyColor(lg);
+    // 日月光晕：眼内眩光与天光相加。放大相当于减光看圆面，uGlareShow 随视场收到 0
+    float lg = log(pow(10.0, skyAt(l).x) + (sunGlareAt(l) + moonGlareAt(l)) * uGlareShow) / log(10.0);
+    // 晕与珥（示意层）：位置按冰晶折射算，亮度无据，取眩光在 22° 处的若干倍，见 doc/astronomy/sky-view-3d.md
+    vec3 haloTint = vec3(1.0);
+    if (uHalo > 0.5) {
+      float h = 0.0;
+      float red = 0.0;
+      for (int b = 0; b < 2; b++) {
+        float cb = b == 0 ? uSunGlare : uMoonGlare;
+        if (cb <= 0.0) continue;
+        float th = degrees(length(l - (b == 0 ? uSunLocal : uMoonDir)));
+        float unit = cb / (${HALO_RADIUS_DEG.toFixed(2)} * ${HALO_RADIUS_DEG.toFixed(2)});
+        float ring = smoothstep(${HALO_RADIUS_DEG.toFixed(2)} - 0.4, ${HALO_RADIUS_DEG.toFixed(2)}, th) * exp(-max(th - ${HALO_RADIUS_DEG.toFixed(2)}, 0.0) / 2.5);
+        h += 2.0 * unit * ring;
+        red += 2.0 * unit * ring * (1.0 - smoothstep(${HALO_RADIUS_DEG.toFixed(2)}, ${HALO_RADIUS_DEG.toFixed(2)} + 1.5, th));
+        for (int k = 0; k < 2; k++) {
+          vec4 q = uParhelia[b * 2 + k];
+          if (q.w <= 0.0) continue;
+          float d = degrees(length(l - q.xyz));
+          h += 4.0 * unit * exp(-d * d / 0.8);
+        }
+      }
+      float tot = pow(10.0, lg) + h;
+      haloTint = mix(vec3(1.0), vec3(1.0, 0.78, 0.62), red / tot);
+      lg = log(tot) / log(10.0);
+    }
+    vec3 c = skyColor(lg) * haloTint;
     if (uCorona > 0.5) {
       // 日冕（Baumbach 1937，r 以太阳半径计）：以日面中心亮度的 1e-6 为单位，此单位由 Rust 按太阳星等推算。
       // 与天光同单位相加后走同一条亮度→颜色映射，所以日冕多亮、伸多远都由亮度决定
@@ -442,6 +502,11 @@ type Engine = {
     uCoronaUnit: { value: number }
     uMoonDir: { value: THREE.Vector3 }
     uMoonGlare: { value: number }
+    uSunGlare: { value: number }
+    uGlareShow: { value: number }
+    uHalo: { value: number }
+    uParhelia: { value: THREE.Vector4[] }
+    uScatter: { value: number }
     uLimitCurve: { value: Float32Array }
     uTrueToGal: { value: THREE.Matrix3 }
     uMilky: { value: THREE.Texture | null }
@@ -495,6 +560,11 @@ function createEngine(canvas: HTMLCanvasElement): Engine {
     uCoronaUnit: { value: 7e8 },
     uMoonDir: { value: new THREE.Vector3(0, 0, -1) },
     uMoonGlare: { value: 0 },
+    uSunGlare: { value: 0 },
+    uGlareShow: { value: 1 },
+    uHalo: { value: 0 },
+    uParhelia: { value: [0, 1, 2, 3].map(() => new THREE.Vector4(0, 0, 1, 0)) },
+    uScatter: { value: 1 },
     uLimitCurve: { value: new Float32Array(LIMIT_CURVE_SAMPLES) },
     uTrueToGal: { value: new THREE.Matrix3() },
     uMilky: { value: null },
@@ -523,7 +593,7 @@ function createEngine(canvas: HTMLCanvasElement): Engine {
         uHalf: shared.uHalf,
         uGround: shared.uGround,
         uUpView: upView,
-        uMoonDir: shared.uMoonDir, uMoonGlare: shared.uMoonGlare, uLimitCurve: shared.uLimitCurve,
+        uMoonDir: shared.uMoonDir, uMoonGlare: shared.uMoonGlare, uSunGlare: shared.uSunGlare, uSunLocal: shared.uSunLocal, uScatter: shared.uScatter, uLimitCurve: shared.uLimitCurve,
         uSkyGrid: shared.uSkyGrid,
         uLocalToView: shared.uLocalToView,
         uEqToLocal: shared.uEqToLocal,
@@ -534,7 +604,9 @@ function createEngine(canvas: HTMLCanvasElement): Engine {
         uCorona: shared.uCorona,
         uHorizonTex: shared.uHorizonTex,
         uCoronaUnit: shared.uCoronaUnit,
-        uSunLocal: shared.uSunLocal,
+        uGlareShow: shared.uGlareShow,
+        uHalo: shared.uHalo,
+        uParhelia: shared.uParhelia,
         uTwilight: shared.uTwilight,
         uGroundNear: rgb(GROUND),
         uGroundFar: rgb(GROUND_FAR),
@@ -552,7 +624,7 @@ function createEngine(canvas: HTMLCanvasElement): Engine {
     ...blend,
     uniforms: { uEqToLocal: shared.uEqToLocal, uLocalToView: shared.uLocalToView, uRefr: shared.uRefr, uHorizonTex: shared.uHorizonTex, uK: shared.uK, uHalf: shared.uHalf, uGround: shared.uGround, uWidth: { value: 1.5 } },
   })
-  const pointUniforms = { uMoonDir: shared.uMoonDir, uMoonGlare: shared.uMoonGlare, uLimitCurve: shared.uLimitCurve, uHorizonTex: shared.uHorizonTex, uTotality: shared.uTotality, uSkyGrid: shared.uSkyGrid, uEqToLocal: shared.uEqToLocal, uLocalToView: shared.uLocalToView, uRefr: shared.uRefr, uK: shared.uK, uHalf: shared.uHalf, uGround: shared.uGround, uScale: shared.uScale }
+  const pointUniforms = { uMoonDir: shared.uMoonDir, uMoonGlare: shared.uMoonGlare, uSunGlare: shared.uSunGlare, uSunLocal: shared.uSunLocal, uScatter: shared.uScatter, uLimitCurve: shared.uLimitCurve, uHorizonTex: shared.uHorizonTex, uTotality: shared.uTotality, uSkyGrid: shared.uSkyGrid, uEqToLocal: shared.uEqToLocal, uLocalToView: shared.uLocalToView, uRefr: shared.uRefr, uK: shared.uK, uHalf: shared.uHalf, uGround: shared.uGround, uScale: shared.uScale }
   const starMaterial = new THREE.ShaderMaterial({ vertexShader: POINT_VERT, fragmentShader: STAR_FRAG, ...blend, blending: THREE.AdditiveBlending, uniforms: pointUniforms })
   const bodyMaterial = new THREE.ShaderMaterial({ vertexShader: BODY_VERT, fragmentShader: BODY_FRAG, ...blend, uniforms: pointUniforms })
   return { renderer, scene, camera, shared, upView, lineMaterial, starMaterial, bodyMaterial, lines: null, starPoints: null, bodyPoints: null }
@@ -590,6 +662,8 @@ export default function Sky3D(props: Props) {
   const shownLst = useRef({ from: lstDeg, to: lstDeg, start: 0, duration: 0, lastChange: 0 })
   const sunRef = useRef<number[]>([0, 0, -1])
   const moonRef = useRef<number[]>([0, 0, -1])
+  const sunGlareRef = useRef(0)
+  const moonGlareRef = useRef(0)
   const propsRef = useRef(props)
   propsRef.current = props
 
@@ -631,6 +705,12 @@ export default function Sky3D(props: Props) {
       const theta = Math.max((Math.hypot(l[0] - m[0], l[1] - m[1], l[2] - m[2]) * 180) / Math.PI, MOON_GLARE_MIN_DEG)
       const lg = p.snap.skyLight.lgB[k]
       lim += limitCurveAt(p.snap.skyLight.limitCurve, Math.log10(10 ** lg + p.snap.skyLight.moonGlare / (theta * theta))) - limitCurveAt(p.snap.skyLight.limitCurve, lg)
+    }
+    if (sunGlareRef.current > 0) {
+      const s = observed(apply(matrices(currentLst(performance.now())).toLocal, sunRef.current))
+      const theta = Math.max((Math.hypot(l[0] - s[0], l[1] - s[1], l[2] - s[2]) * 180) / Math.PI, MOON_GLARE_MIN_DEG)
+      const lg = p.snap.skyLight.lgB[k]
+      lim += limitCurveAt(p.snap.skyLight.limitCurve, Math.log10(10 ** lg + sunGlareRef.current / (theta * theta))) - limitCurveAt(p.snap.skyLight.limitCurve, lg)
     }
     return lim + 0.5
   }
@@ -841,6 +921,27 @@ export default function Sky3D(props: Props) {
       // 太阳在 −12°—+15° 间有晨昏暖色
       const ramp = (x: number, a: number, b: number) => Math.max(0, Math.min(1, (x - a) / (b - a)))
       s.uTwilight.value = propsRef.current.layers.has('skylight') ? ramp(sunAlt, -12, -3) * (1 - ramp(sunAlt, 3, 15)) : 0
+      // 日月被地形挡住时没有眩光
+      const props = propsRef.current
+      const sunAz = (Math.atan2(sunLocal[0], sunLocal[1]) * 180) / Math.PI
+      const sunHidden = props.layers.has('horizon') && sunAlt < horizonAt(props.horizon, sunAz)
+      s.uSunGlare.value = sunHidden ? 0 : sunGlareRef.current
+      const moonAlt = (Math.asin(moonLocal[2]) * 180) / Math.PI
+      const moonAz = (Math.atan2(moonLocal[0], moonLocal[1]) * 180) / Math.PI
+      s.uMoonGlare.value = props.layers.has('horizon') && moonAlt < horizonAt(props.horizon, moonAz) ? 0 : moonGlareRef.current
+      s.uGlareShow.value = ramp(look.current.fov, 10, 40)
+      s.uHalo.value = props.layers.has('halo') ? 1 : 0
+      ;[sunLocal, moonLocal].forEach((d, b) => {
+        const alt = Math.asin(Math.max(-1, Math.min(1, d[2])))
+        const az = Math.atan2(d[0], d[1])
+        const off = parhelionOffsetDeg((alt * 180) / Math.PI)
+        for (const k of [0, 1]) {
+          const v = s.uParhelia.value[b * 2 + k]
+          if (off === null) { v.set(0, 0, 1, 0); continue }
+          const a = az + ((k ? 1 : -1) * off * Math.PI) / 180
+          v.set(Math.cos(alt) * Math.sin(a), Math.cos(alt) * Math.cos(a), Math.sin(alt), 1)
+        }
+      })
       engine.lineMaterial.uniforms.uWidth.value = 1.5 * dpr
       engine.renderer.render(engine.scene, engine.camera)
       drawLabels(toLocal, toView)
@@ -938,7 +1039,9 @@ export default function Sky3D(props: Props) {
     sunRef.current = unitVector(sun.topoRa, sun.topoDec)
     const moonBody = snap.bodies.find((b) => b.name === 'moon')!
     moonRef.current = unitVector(moonBody.topoRa, moonBody.topoDec)
-    e.shared.uMoonGlare.value = on ? snap.skyLight.moonGlare : 0
+    moonGlareRef.current = on ? snap.skyLight.moonGlare : 0
+    sunGlareRef.current = on ? snap.skyLight.sunGlare : 0
+    e.shared.uScatter.value = on ? 1 : 0
     e.shared.uLimitCurve.value.set(snap.skyLight.limitCurve)
     e.shared.uTrueToGal.value.set(...(snap.trueToGalactic as Mat3))
     e.shared.uSunRadius.value = ((sun.semidiameter ?? 0.27) * Math.PI) / 180
