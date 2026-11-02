@@ -49,6 +49,8 @@ LODGE = re.compile(r'在([^\s，。、]{1,2}?)(初|[一二三四五六七八九�
 
 text = re.sub(r'\{\{YL\|([^}|]*)[^}]*\}\}', r'\1', SRC.read_text(encoding='utf-8'))
 sec = text[text.index('====漢===='):text.index('凡漢著紀十二世')]
+# 点校本校改（中华书局 2013 精装本第五册页 1501）：文帝三年「斗二十(三)〔二〕度」
+sec = sec.replace('三年十月丁酉晦，日有食之，在斗二十三度', '三年十月丁酉晦，日有食之，在斗二十二度')
 
 rows = []
 emp = era = sub = None; year_in = None
@@ -78,6 +80,9 @@ for line in sec.splitlines():
     extent = next((k for k in ('不盡如鉤', '幾盡', '既') if k in body.split('在')[0] + body[:8]), '')
     lm = LODGE.search(body)
     lodge = (lm.group(1) + (lm.group(2) or '')) if lm else ''
+    # 「在」后须为宿名（「占在皇后」「內也」之类不是宿度）
+    if lodge and lodge[0] not in '角亢氐房心尾箕斗牛女虛危室壁奎婁胃昴畢觜參井鬼柳星張翼軫南牽婺營東輿七':
+        lodge = ''
     rows.append(dict(emp=emp, era=era_name, year_in_era=year_in, year=n, month=month, ganzhi=m['gz'], position=pos,
                      extent=extent, lodge=lodge, text=line.split('。')[0] + '。'))
 
