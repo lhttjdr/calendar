@@ -214,3 +214,10 @@ Schaefer B.E. 1987, Heliacal rise phenomena（*JHA* 18, Archaeoastronomy 11, S19
 ## chunqiu_solar_eclipses.csv、chunqiu_zhang_3_1.csv
 
 《春秋》经文日食 37 条，由 `scripts/calendar_data/chunqiu_check.py` 生成（维基文库《春秋左氏傳》經节）。日期由上游春秋历换算，未书干支者取该月朔，观测地为曲阜。`chunqiu_zhang_3_1.csv` 是与张培瑜《中国古代历法》表 3-1 的逐条对照（`scripts/phenomena/chunqiu_table31.py`）。结果见 [main-table-checks.md](../../doc/calendar/main-table-checks.md) 第八节。
+
+## lunar_eclipse_lodges.csv
+
+唐以前史志所载月食实测宿度（月食冲法测日躔的依据），手工转录：《宋书·律历志》何承天表、太史检署与祖冲之驳戴法兴所引元嘉、大明月食，
+《新唐书·历志》大衍历议所引梁天监、大同与唐麟德、开元月食，共 13 条。列：`year`（公历年）、`jdn`（记载之日，按实历朔日表换算）、
+`lodge`、`deg`（「末」取宿宽减 0.1）、`usable`（元嘉十四年「井三十八度」原文已误，记 0）、`source`、`text`（原文节录）。
+检验见 `sky_culture::tests_huangdao::lunar_eclipse_lodge_observations`。

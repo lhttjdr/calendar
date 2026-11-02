@@ -225,3 +225,87 @@ fn eclipse_sun_lodge_degrees() {
     summary.write();
     assert!(n_rec > 100, "{n_rec}");
 }
+
+/// 月食实测宿度（data/phenomena/lunar_eclipse_lodges.csv，何承天、祖冲之、梁大同、唐麟德开元所引）：望时月亮位置按赤道、
+/// 投影黄道、真黄经三种量法与记载比较。月食时月在黄道附近（|β| < 1.5°），三种量法的差主要来自距星黄纬。
+/// 望取地心视黄经相冲之时（记载之日附近），与食既时刻相差一两小时，月行约 1 度，计入误差。
+#[test]
+#[ignore]
+fn lunar_eclipse_lodge_observations() {
+    use crate::astronomy::apparent::body_apparent_equatorial;
+    use crate::astronomy::ephemeris::elpmpp02::{load_all, Elpmpp02Correction};
+    use crate::astronomy::ephemeris::load_earth_vsop87_corrected_from_repo;
+    use crate::astronomy::ephemeris::vsop87_patch::PatchTarget;
+    use crate::astronomy::frame::nutation::try_init_full_nutation_from_repo;
+    use crate::astronomy::pipeline::{Body, Vsop87Elp, Vsop87Planets};
+
+    let _ = try_init_full_nutation_from_repo();
+    let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::De406).unwrap();
+    let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE406).unwrap();
+    let eph = Vsop87Elp { planets: Vsop87Planets { earth: &earth, planets: vec![] }, moon: &elp };
+    let opts = ApparentPipelineOptions::default();
+    let cat = load_hipparcos_bright_from_repo().unwrap();
+    let det = load_lunar_mansion_systems_from_repo().unwrap().into_iter().find(|s| s.id == "chenzhuo").unwrap().determinatives;
+    let stars: Vec<CatalogStar> = det.iter().map(|h| *cat.by_hip(*h).unwrap()).collect();
+    let lines = crate::repo::read_lines("data/phenomena/lunar_eclipse_lodges.csv").unwrap();
+    let mut tab = crate::test_util::CheckTable::new("lunar_eclipse_lodges", &["年", "记载", "计入", "月黄纬°", "赤道 差", "投影黄道 差", "黄经 差", "原文"]);
+    tab.meta("唐以前史志月食实测宿度与望时月亮位置：差 = 推算 − 记载（古度，周天 365.25，自所记之宿的陈卓距星起量）");
+    let mut used: Vec<[f64; 3]> = vec![];
+    for l in lines.iter().filter(|l| !l.starts_with('#')).skip(1) {
+        let f: Vec<&str> = l.splitn(7, ',').collect();
+        let jdn: f64 = f[1].parse().unwrap();
+        let li = MANSIONS.iter().position(|m| *m == f[2]).unwrap();
+        let deg: f64 = f[3].parse().unwrap();
+        let ok = f[4] == "1";
+        let lon_of = |t: f64, b: Body| {
+            let p = body_apparent_equatorial(&eph, b, TimePoint::new(TimeScale::TT, real(t)), &opts);
+            let (a, d) = right_ascension_declination(&p);
+            let (a, d) = (a.rad().as_f64(), d.rad().as_f64());
+            let eps = mean_obliquity(real((t - 2451545.0) / 36525.0)).rad().as_f64();
+            ((a.sin() * eps.cos() + d.tan() * eps.sin()).atan2(a.cos()).to_degrees(), a, d)
+        };
+        let mut t = jdn;
+        for _ in 0..8 {
+            let diff = wrap180(lon_of(t, Body::Moon).0 - lon_of(t, Body::Sun).0 - 180.0);
+            t -= diff / 12.19;
+        }
+        let (lam, a, d) = lon_of(t, Body::Moon);
+        let tc = (t - 2451545.0) / 36525.0;
+        let eps = mean_obliquity(real(tc)).rad().as_f64();
+        let beta = (d.sin() * eps.cos() - d.cos() * eps.sin() * a.sin()).asin().to_degrees();
+        let pos = stars_mean_equatorial(&stars, TimePoint::new(TimeScale::TT, real(t)), &opts);
+        let (a0, d0) = right_ascension_declination(&pos[li]);
+        let (a0, d0) = (a0.rad().as_f64(), d0.rad().as_f64());
+        let k = 365.25 / 360.0;
+        let proj = a.sin().atan2(a.cos() * eps.cos()).to_degrees();
+        let r = [
+            wrap180(a.to_degrees() - a0.to_degrees()) * k - deg,
+            wrap180(proj - a0.sin().atan2(a0.cos() * eps.cos()).to_degrees()) * k - deg,
+            wrap180(lam - (a0.sin() * eps.cos() + d0.tan() * eps.sin()).atan2(a0.cos()).to_degrees()) * k - deg,
+        ];
+        assert!((t - jdn).abs() < 2.0, "{l}: 望距记载日 {:.2}", t - jdn);
+        println!("{} {}{} 赤道 {:+.2} 投影 {:+.2} 黄经 {:+.2} β {beta:+.2}", f[0], f[2], f[3], r[0], r[1], r[2]);
+        tab.row(vec![f[0].into(), format!("{}{}", f[2], f[3]), if ok { "是".into() } else { "否".into() }, format!("{beta:+.2}"),
+            format!("{:+.2}", r[0]), format!("{:+.2}", r[1]), format!("{:+.2}", r[2]), f[6].replace(',', "，")]);
+        if ok {
+            used.push(r);
+        }
+    }
+    tab.write();
+    let names = ["赤道", "投影黄道", "黄经"];
+    let mut summary = crate::test_util::CheckTable::new("lunar_eclipse_lodges_summary", &["量法", "条数", "平均差", "中位绝对差", "均方根"]);
+    summary.meta("月食实测宿度汇总（古度；只计「计入」者）");
+    for m in 0..3 {
+        let v: Vec<f64> = used.iter().map(|r| r[m]).collect();
+        let mut a: Vec<f64> = v.iter().map(|x| x.abs()).collect();
+        a.sort_by(|x, y| x.partial_cmp(y).unwrap());
+        let mean = v.iter().sum::<f64>() / v.len() as f64;
+        println!("{}：平均 {mean:+.2} 中位绝对 {:.2} 均方根 {:.2}", names[m], a[a.len() / 2], rms(&v));
+        summary.row(vec![names[m].into(), v.len().to_string(), format!("{mean:+.2}"), format!("{:.2}", a[a.len() / 2]), format!("{:.2}", rms(&v))]);
+        // 实测宿度按赤道度应无系统差、散布在实测精度内
+        if m == 0 {
+            assert!(mean.abs() < 1.0 && rms(&v) < 3.0, "赤道：平均 {mean:.2} 均方根 {:.2}", rms(&v));
+        }
+    }
+    summary.write();
+}

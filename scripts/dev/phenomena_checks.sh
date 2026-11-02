@@ -45,6 +45,7 @@ TESTS=(
   shishi_catalog_epoch
   ecliptic_lodge_widths_projection_vs_longitude
   eclipse_sun_lodge_degrees
+  lunar_eclipse_lodge_observations
   houhanshu_star_records_check
   hanshu_star_records_check
   jinshu_star_records_check
