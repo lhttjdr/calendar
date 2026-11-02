@@ -221,3 +221,10 @@ Schaefer B.E. 1987, Heliacal rise phenomena（*JHA* 18, Archaeoastronomy 11, S19
 《新唐书·历志》大衍历议所引梁天监、大同与唐麟德、开元月食，共 13 条。列：`year`（公历年）、`jdn`（记载之日，按实历朔日表换算）、
 `lodge`、`deg`（「末」取宿宽减 0.1）、`usable`（元嘉十四年「井三十八度」原文已误，记 0）、`source`、`text`（原文节录）。
 检验见 `sky_culture::tests_huangdao::lunar_eclipse_lodge_observations`。
+
+## chunqiu_han_commentary.csv
+
+《汉书·五行志下之下》春秋日食条下的汉人说解，由 `scripts/calendar_data/qinhan_eval/chunqiu_han_commentary.py` 从维基文库 `漢書/卷027` 解析。
+列：`公`、`年`、`月`、`经文`、`jdn`（取自 `chunqiu_solar_eclipses.csv`）、`董仲舒宿`（「宿在某」）、`刘歆月日`（刘歆改订的三统历月日，如「五月二日」「前年十二月二日」）、
+`刘歆分野`（两国）。检验结果见 `checks/chunqiu_han_commentary.csv`。
+

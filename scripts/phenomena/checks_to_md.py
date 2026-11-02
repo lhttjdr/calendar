@@ -64,6 +64,7 @@ SECTIONS = [
     ("lunar_eclipse_lodges", "唐以前月食实测宿度：逐条", None),
     ("sifen_hunzhong", "后汉四分历与太初昏中星表：表去日与实际几何", None),
     ("han_lodge_emendation", "西汉日食宿度单字改动检验（传抄讹误假设）", None),
+    ("chunqiu_han_commentary", "春秋日食的汉人说解：刘歆月日与分野、董仲舒之宿，对三统历", None),
     ("recorded_distances", "史书所记距离（尺、寸）与推算角距：一尺合多少度", None),
     ("lodge_degrees", "史书所记入宿度与推算入宿度（清时宪历为黄道 360°）", None),
     ("qingshigao_eclipses", "《清史稿》日食在北京：所记时辰、食分与推算", None),
