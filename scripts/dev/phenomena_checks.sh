@@ -138,6 +138,7 @@ echo "== record_date_shift"
 uv run --no-project --with skyfield python -I scripts/phenomena/record_date_shift.py
 uv run --project scripts python scripts/phenomena/recorded_distances.py
 uv run --project scripts python scripts/phenomena/lodge_degrees.py
+uv run --project scripts python scripts/calendar_data/qinhan_eval/han_eclipse_sun_by_calendar.py
 uv run --no-project --with skyfield python -I scripts/phenomena/qingshigao_moon_fullday.py
 uv run --project scripts python scripts/phenomena/qingshigao_eclipse_compare.py
 uv run --project scripts python scripts/phenomena/checks_to_md.py

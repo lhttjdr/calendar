@@ -58,6 +58,8 @@ SECTIONS = [
     ("ecliptic_lodge_widths", "史志黄道宿度：沿赤经圈投影与黄经差（逐宿）", None),
     ("eclipse_sun_lodges_summary", "史书日食所记日躔：六种算法按行用历分组", None),
     ("eclipse_sun_lodges", "史书日食所记日躔：六种算法逐条", None),
+    ("han_eclipse_sun_by_calendar_summary", "汉代日食所记日躔与三统历、四分历日躔：按时期", None),
+    ("han_eclipse_sun_by_calendar", "汉代日食所记日躔与三统历、四分历日躔：逐条", None),
     ("recorded_distances", "史书所记距离（尺、寸）与推算角距：一尺合多少度", None),
     ("lodge_degrees", "史书所记入宿度与推算入宿度（清时宪历为黄道 360°）", None),
     ("qingshigao_eclipses", "《清史稿》日食在北京：所记时辰、食分与推算", None),
