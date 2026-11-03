@@ -47,6 +47,7 @@ TESTS=(
   eclipse_sun_lodge_degrees
   lunar_eclipse_lodge_observations
   pre_qin_sky_positions_epoch_scan
+  zuozhuan_guoyu_sky
   houhanshu_star_records_check
   hanshu_star_records_check
   jinshu_star_records_check
