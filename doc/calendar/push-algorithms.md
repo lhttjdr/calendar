@@ -17,7 +17,7 @@
 
 **函数**：`compute_pingqi(y, para, jdc)`（split.js）
 
-节气间隔 `dqi = solar/24`。从小寒起算的第 0 个节气（J12 小寒）的 JD：`J12 = JDw + y*solar + dqi`；第 i 个节气 JD：`J12 + i*dqi`。相对 jdc 的日数：`stermDate[i] = floor(J12 + i*dqi + 0.5) - jdc`。即**平气 = 冬至历元 + 线性岁实，等分 24 份**。
+节气间隔 $\mathrm{dqi} = \mathrm{solar}/24$。从小寒起算的第 0 个节气（J12 小寒）的 JD：$\mathrm{J12} = \mathrm{JDw} + y\,\mathrm{solar} + \mathrm{dqi}$；第 i 个节气 JD：$\mathrm{J12} + i\,\mathrm{dqi}$。相对 jdc 的日数：$\mathrm{stermDate}_{i} = \lfloor \mathrm{J12} + i\,\mathrm{dqi} + 0.5 \rfloor - \mathrm{jdc}$。即**平气 = 冬至历元 + 线性岁实，等分 24 份**。
 
 ---
 
@@ -25,11 +25,11 @@
 
 **函数**：`cmonthDate_pingshou_noZhongqi(y, para, jdc)`（split.js）
 
-1. **岁首界**：立春附近 Z1 的 JD：`Z1 = JDw + (y + 1/6)*solar`；下一岁 Z1 之后午夜 `Z1b = floor(Z1 + solar + 0.5) + 0.5`。
-2. **正月朔（平朔）**：不晚于 Z1 日界的最近合朔。`i1 = floor((floor(Z1+0.5) + 0.5 - jd_epoch) / lunar)`，`m1 = jd_epoch + i1*lunar`。
-3. **闰年**：若 `m1 + 13*lunar > Z1b` 则无闰（12 月），否则有闰（13 月）。
-4. **岁长**：`cndays = floor(m1 + (12+leap)*lunar + 0.5) - floor(m1 + 0.5)`。
-5. **各月朔**：无闰时第 j 月朔 = `floor(m1 + j*lunar + 0.5) - jdc`，j=0..11。有闰时用**无中气置闰**：中气间隔 `dmqi = solar/12`，从正月起找第一个「该月内无中气日」的月置闰（闰月朔写入 cmonthDate[12]，闰月号写入 cmonthDate[13]）；若 1..11 月均有中气则闰十二月。
+1. **岁首界**：立春附近 Z1 的 JD：$\mathrm{Z1} = \mathrm{JDw} + (y + 1/6)\,\mathrm{solar}$；下一岁 Z1 之后午夜 $\mathrm{Z1b} = \lfloor \mathrm{Z1} + \mathrm{solar} + 0.5 \rfloor + 0.5$。
+2. **正月朔（平朔）**：不晚于 Z1 日界的最近合朔。$\mathrm{i1} = \lfloor (\lfloor \mathrm{Z1}+0.5 \rfloor + 0.5 - \mathrm{jd\_epoch}) / \mathrm{lunar} \rfloor$，$\mathrm{m1} = \mathrm{jd\_epoch} + \mathrm{i1}\,\mathrm{lunar}$。
+3. **闰年**：若 $\mathrm{m1} + 13\,\mathrm{lunar} > \mathrm{Z1b}$ 则无闰（12 月），否则有闰（13 月）。
+4. **岁长**：$\mathrm{cndays} = \lfloor \mathrm{m1} + (12+\mathrm{leap})\,\mathrm{lunar} + 0.5 \rfloor - \lfloor \mathrm{m1} + 0.5 \rfloor$。
+5. **各月朔**：无闰时第 j 月朔 = $\lfloor \mathrm{m1} + j\,\mathrm{lunar} + 0.5 \rfloor - \mathrm{jdc}$，j=0..11。有闰时用**无中气置闰**：中气间隔 $\mathrm{dmqi} = \mathrm{solar}/12$，从正月起找第一个「该月内无中气日」的月置闰（闰月朔写入 cmonthDate[12]，闰月号写入 cmonthDate[13]）；若 1..11 月均有中气则闰十二月。
 6. **输出**：cmonthDate[0..11] 正月～十二月朔相对 jdc；cmonthDate[12] 闰月朔（无闰为 0）；cmonthDate[13] 闰月月份号；cmonthDate[14] 岁长 cndays。
 
 ---
@@ -267,7 +267,7 @@
 
 ## 四、历术参数表
 
-以下为源码中的**精确数值**（合朔历元、冬至历元、舍入修正）。使用前执行 `jd_epoch += dtc_round`、`JDw += dts_round`。**历术与政权/时期**见第六节对应表。
+以下为源码中的**精确数值**（合朔历元、冬至历元、舍入修正）。使用前执行 $\mathrm{jd\_epoch} \mathrel{+}= \mathrm{dtc\_round}$、$\mathrm{JDw} \mathrel{+}= \mathrm{dts\_round}$。**历术与政权/时期**见第六节对应表。
 
 **完整数值表（get_li_parameters）**：
 
@@ -297,9 +297,9 @@
 
 ### 5.1 古六历（guliuli）
 
-**朔策、岁实**：`solar = 365.25`，`lunar = 29 + 499/940`（与四分同）。
+**朔策、岁实**：$\mathrm{solar} = 365.25$，$\mathrm{lunar} = 29 + 499/940$（与四分同）。
 
-**算法**（guliuli_cmonth(y, jdc, yEpoch, jdEpoch, jdEpoch_lunar)）：(1) 年 y-1 冬至 `w0 = jdEpoch + (y - yEpoch - 1)*solar`，年 y 冬至 `w1 = w0 + solar`。(2) w0 前最近合朔 `m0 = jdEpoch_lunar + i*lunar`，其中 `i = floor((floor(w0+1.5)-0.5 - jdEpoch_lunar) / lunar)`。(3) 若 `floor(m0+13*lunar+0.5) < floor(w1+0.5)+0.1` 则 13 个月否则 12 个月。(4) 第 j 月朔 = `floor(m0 + j*lunar + 0.5) - jdc`；无中气判断同第三节（中气间隔 solar/12）。
+**算法**（guliuli_cmonth(y, jdc, yEpoch, jdEpoch, jdEpoch_lunar)）：(1) 年 y-1 冬至 $\mathrm{w0} = \mathrm{jdEpoch} + (y - \mathrm{yEpoch} - 1)\,\mathrm{solar}$，年 y 冬至 $\mathrm{w1} = \mathrm{w0} + \mathrm{solar}$。(2) w0 前最近合朔 $\mathrm{m0} = \mathrm{jdEpoch\_lunar} + i\,\mathrm{lunar}$，其中 $i = \lfloor (\lfloor \mathrm{w0}+1.5 \rfloor-0.5 - \mathrm{jdEpoch\_lunar}) / \mathrm{lunar} \rfloor$。(3) 若 $\lfloor \mathrm{m0}+13\,\mathrm{lunar}+0.5 \rfloor < \lfloor \mathrm{w1}+0.5 \rfloor+0.1$ 则 13 个月否则 12 个月。(4) 第 j 月朔 = $\lfloor \mathrm{m0} + j\,\mathrm{lunar} + 0.5 \rfloor - \mathrm{jdc}$；无中气判断同第三节（中气间隔 solar/12）。
 
 **各历历元（guliuli_calendar_parameters）**：
 
@@ -321,7 +321,7 @@ ziOffset 将「子月起」的月序映射到各历正月：-1=正月亥（闰�
 
 ### 5.3 秦与汉初历（HanZhuanXu）
 
-**朔策**：`lunar = 29 + 499/940`（同四分）。**历元分三段**（出土历简复原）：y≥-162 用 Calendar C（jdEpoch=1646163.5001，accMonEpoch=321）；-201<y<-162 用 B（1633701.5001，174）；y≤-201 用 A（1589523.5001，1670）。**19 年章**：闰周 leapCycle、accMonCycle；`accMons = 235*floor((y-yEpochLeap)/19) + accMonCycle[yInCycle] + accMonEpoch`，闰 = leapCycle[yInCycle]。正月朔 `m0 = accMons*lunar + jdEpoch`。月序：十月、十一月、十二月、正月…九月、后九月（闰）。y=-201 时前三月用 B 的 m0，第 4 月起改用 `1633701.5001 + 470*lunar`。
+**朔策**：$\mathrm{lunar} = 29 + 499/940$（同四分）。**历元分三段**（出土历简复原）：y≥-162 用 Calendar C（jdEpoch=1646163.5001，accMonEpoch=321）；-201<y<-162 用 B（1633701.5001，174）；y≤-201 用 A（1589523.5001，1670）。**19 年章**：闰周 leapCycle、accMonCycle；$\mathrm{accMons} = 235\,\lfloor (y-\mathrm{yEpochLeap})/19 \rfloor + \mathrm{accMonCycle}[\mathrm{yInCycle}] + \mathrm{accMonEpoch}$，闰 = leapCycle[yInCycle]。正月朔 $\mathrm{m0} = \mathrm{accMons}\,\mathrm{lunar} + \mathrm{jdEpoch}$。月序：十月、十一月、十二月、正月…九月、后九月（闰）。y=-201 时前三月用 B 的 m0，第 4 月起改用 $1633701.5001 + 470\,\mathrm{lunar}$。
 
 ---
 
