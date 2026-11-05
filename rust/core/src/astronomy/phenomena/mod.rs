@@ -6,6 +6,7 @@ pub mod eclipse_list;
 pub mod heliacal;
 pub mod lunar_eclipse;
 pub mod lunar_eclipse_map;
+pub mod moon_disk;
 pub mod occultation;
 pub mod planet_events;
 pub mod search;
@@ -19,6 +20,7 @@ pub use eclipse_list::*;
 pub use heliacal::*;
 pub use lunar_eclipse::*;
 pub use lunar_eclipse_map::*;
+pub use moon_disk::{moon_disk_view_in, MoonDiskView};
 pub use occultation::*;
 pub use planet_events::*;
 pub use solar_eclipse::*;
@@ -39,3 +41,5 @@ mod tests_occultation;
 mod tests_planet_events;
 #[cfg(test)]
 mod tests_solar_eclipse_map;
+#[cfg(test)]
+mod tests_moon_disk;

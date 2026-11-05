@@ -1345,6 +1345,26 @@ impl EclipseEngine {
         )
     }
 
+    /// 某地某刻看到的月面，JSON（角度为度）：jdTt、alt（几何）、appAlt（含折射）、az、zenithPa（天顶方向位置角）、
+    /// libLon、libLat（站心天平动）、axisPa（月轴位置角）、vScale（折射竖直缩放）。
+    #[wasm_bindgen(js_name = moonDiskView)]
+    pub fn moon_disk_view(&self, jd_tt_guess: f64, jd_tt: f64, delta_t_s: f64, lon_deg: f64, lat_deg: f64) -> String {
+        use lunar_core::astronomy::geodesy::Observer;
+        use lunar_core::quantity::angle::PlaneAngle;
+        use lunar_core::quantity::length::Length;
+        use lunar_core::quantity::unit::LengthUnit;
+        let obs = Observer::new(PlaneAngle::from_deg(real(lon_deg)), PlaneAngle::from_deg(real(lat_deg)), Length::from_value(real(0.0), LengthUnit::Meter));
+        let v = self.with_frame_window(jd_tt_guess, |win| {
+            lunar_core::astronomy::phenomena::moon_disk_view_in(win, &obs, real(jd_tt), QDuration::in_seconds(real(delta_t_s)))
+        });
+        let d = |a: PlaneAngle| json_f(a.rad().as_f64().to_degrees());
+        format!(
+            "{{\"jdTt\":{},\"alt\":{},\"appAlt\":{},\"az\":{},\"zenithPa\":{},\"libLon\":{},\"libLat\":{},\"axisPa\":{},\"vScale\":{}}}",
+            json_f(jd_tt), d(v.altitude), d(v.apparent_altitude), d(v.azimuth), d(v.zenith_position_angle),
+            d(v.libration_longitude), d(v.libration_latitude), d(v.axis_position_angle), json_f(v.vertical_scale.as_f64())
+        )
+    }
+
     /// 某民用年内的月食列表，JSON 数组：[{greatestTt, gamma, penumbralMagnitude, umbralMagnitude, kind: N/P/T, deltaT, deltaTSigma}, …]。
     #[wasm_bindgen(js_name = lunarEclipsesInYear)]
     pub fn lunar_eclipses_in_year(&self, year: i32) -> String {

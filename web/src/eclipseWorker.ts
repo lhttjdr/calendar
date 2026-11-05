@@ -14,6 +14,7 @@ type Engine = {
   lunarEclipseLocal(jdTtGuess: number, deltaTS: number, lonDeg: number, latDeg: number): string
   solarEclipseFrame(jdTtGuess: number, jdTt: number, deltaTS: number): string
   lunarEclipseFrame(jdTtGuess: number, jdTt: number, deltaTS: number): string
+  moonDiskView(jdTtGuess: number, jdTt: number, deltaTS: number, lonDeg: number, latDeg: number): string
 }
 
 type WasmModule = {
@@ -42,6 +43,7 @@ export type EclipseRequest =
   | { id: number; type: 'lunarLocal'; jd: number; deltaT: number; lon: number; lat: number }
   | { id: number; type: 'solarFrame'; jd: number; t: number; deltaT: number }
   | { id: number; type: 'lunarFrame'; jd: number; t: number; deltaT: number }
+  | { id: number; type: 'moonView'; jd: number; t: number; deltaT: number; lon: number; lat: number }
 
 let enginePromise: Promise<{ wasm: WasmModule; engine: Engine }> | null = null
 
@@ -94,6 +96,9 @@ self.onmessage = async (ev: MessageEvent<EclipseRequest>) => {
         break
       case 'lunarFrame':
         result = JSON.parse(engine.lunarEclipseFrame(req.jd, req.t, req.deltaT))
+        break
+      case 'moonView':
+        result = JSON.parse(engine.moonDiskView(req.jd, req.t, req.deltaT, req.lon, req.lat))
         break
       case 'deltaT':
         result = Array.from(wasm.deltaTEstimate(req.jd))
