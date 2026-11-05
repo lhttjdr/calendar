@@ -32,7 +32,7 @@
 | 1 独立基础层 | 时间尺度/儒略日、VSOP87/ELPMPP02 历表级数、岁差、章动——彼此独立，只依赖时间 T | `astronomy::time`、`astronomy::ephemeris`、`astronomy::frame::{precession,nutation}` |
 | 2 聚合/实算层 | 岁差+章动组成参考架变换，配合历表+光行时/光行差改正，算出某天体在指定架下的视位置 | `astronomy::correction`（光行时/光行差/大气折射/BCRS）、`astronomy::pipeline`（State6/TransformGraph 内部实现）、对外 API：`astronomy::apparent` |
 | 3 派生层 | 依赖第 2 层产出的视位置，做数值求根/极值搜索，得到具体天象时刻 | `astronomy::aspects`：`synodic`（朔望）、`solar_term`（节气）、`longitude.rs`（两者共用的视黄经工具）；月相是朔望/黄经差的直接推论。日月食（角距+视半径，可能以朔望时刻做粗筛）**尚未实现**，若实现应挂在这一层之上（对第 3 层自身的再依赖） |
-| 4 仲裁/路由层 | 选历表数据格式（全二进制/二进制+文本混合/全文本）、选章动表来源（完整 IAU2000A 二进制/回落 77 项） | Web 侧集中在 [`web/src/ephemerisSourceRegistry.ts`](../../web/src/ephemerisSourceRegistry.ts)；Rust 侧章动的"取不到完整表就回落 77 项"逻辑在 `astronomy::frame::nutation::iau2000b::try_init_full_nutation_from_repo`/`_from_binary` |
+| 4 仲裁/路由层 | 选历表数据格式（全二进制/二进制+文本混合/全文本）、选章动表来源（完整 IAU2000A 二进制/回落 77 项） | Web 侧集中在 [`web/src/ephemerisSourceRegistry.ts`](https://github.com/lhttjdr/calendar/blob/master/web/src/ephemerisSourceRegistry.ts)；Rust 侧章动的"取不到完整表就回落 77 项"逻辑在 `astronomy::frame::nutation::iau2000b::try_init_full_nutation_from_repo`/`_from_binary` |
 
 **案例（本仓库真实踩过的坑）**：早期这层的决策逻辑分散在两处——章动表的回落判断写在 Rust 里，历表格式的三级降级判断写在 TypeScript 的 `useLunarWasm.ts` 一个大函数内部，且同一段 fetch+校验逻辑在主线程和 Worker（`yearDataWorker.ts`）各写了一份，两处会逐渐漂移。2026-09-23 提炼出 `ephemerisSourceRegistry.ts` 作为这层的唯一归属地后，两处调用方改为共享同一份决策函数。
 

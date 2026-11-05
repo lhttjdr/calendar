@@ -1,3 +1,7 @@
+<script setup>
+import { withBase } from 'vitepress'
+</script>
+
 # 2. 参考系与坐标
 
 本章先约定**数学与物理量**，再说明**参考系、参考架、坐标系**的含义与关系，天球参考从**各国为政、FK4/FK5 到 ICRS** 的发展历程，以及**动力学坐标、平/真赤道**等概念；最后给出本程序中的架与几何链。
@@ -49,8 +53,8 @@
 
 ## 天球参考的发展历程
 
-<video controls loop muted playsinline preload="metadata" poster="/media/reference-frames/timeline-fk-icrs.jpg" style="width:100%;border-radius:8px">
-  <source src="/media/reference-frames/timeline-fk-icrs.mp4" type="video/mp4" />
+<video controls loop muted playsinline preload="metadata" :poster="withBase('/media/reference-frames/timeline-fk-icrs.jpg')" style="width:100%;border-radius:8px">
+  <source :src="withBase('/media/reference-frames/timeline-fk-icrs.mp4')" type="video/mp4" />
 </video>
 <p style="text-align:center;font-size:0.9em;opacity:0.75">天球参考架的发展：各国为政 → FK4(B1950.0) → FK5(J2000.0) → ICRS/ICRF，以及 FK5→ICRS 的 Frame Bias B</p>
 
@@ -80,8 +84,8 @@
 
 ## 动力学坐标、平赤道与真赤道
 
-<video controls loop muted playsinline preload="metadata" poster="/media/reference-frames/precession-nutation-equator.jpg" style="width:100%;border-radius:8px">
-  <source src="/media/reference-frames/precession-nutation-equator.mp4" type="video/mp4" />
+<video controls loop muted playsinline preload="metadata" :poster="withBase('/media/reference-frames/precession-nutation-equator.jpg')" style="width:100%;border-radius:8px">
+  <source :src="withBase('/media/reference-frames/precession-nutation-equator.mp4')" type="video/mp4" />
 </video>
 <p style="text-align:center;font-size:0.9em;opacity:0.75">平赤道（岁差 P：绕黄极的圆锥进动）叠加章动 N（平极上的短周期小幅摆动）得到真赤道；周期已夸张加速，仅作几何关系示意，非等比例仿真</p>
 

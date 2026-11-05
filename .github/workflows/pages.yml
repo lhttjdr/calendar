@@ -106,6 +106,8 @@ jobs:
         env:
           # 文档站挂在应用子路径 https://<user>.github.io/<repo>/docs/
           DOCS_BASE: /${{ github.event.repository.name }}/docs/
+          # 文档站导航「在线日历」回到应用站
+          APP_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
         run: npm run build
 
       - name: Merge doc site into web build output

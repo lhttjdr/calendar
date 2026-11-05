@@ -11,6 +11,7 @@
 | **文档**（VitePress） | `cd doc && npm install && npm run dev` |
 
 - **数据**：历表在仓库根 `vendor/vsop87/`、`vendor/elpmpp02/`；Rust 运行或测试时工作目录为仓库根。
+- **在线**：应用 <https://lhttjdr.github.io/calendar/>，文档 <https://lhttjdr.github.io/calendar/docs/>（应用顶栏「文档」可进入）。
 - **参考文献**：`doc/references/`；文档按《月相和二十四节气的计算》分章见 [doc/index.md](doc/index.md)，项目结构见 [doc/engineering/project-and-implementation.md](doc/engineering/project-and-implementation.md)。
 
 ## 项目结构

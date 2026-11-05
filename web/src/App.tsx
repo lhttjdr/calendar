@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, createContext, useContext } from 'react'
 import { Button, Card, Select, Radio, Checkbox, Space, Flex, Typography, Tag, Spin, Alert, Modal, Tabs } from 'antd'
-import { LeftOutlined, RightOutlined, CalendarOutlined, SettingOutlined, ApartmentOutlined, EyeOutlined, GlobalOutlined, StarOutlined } from '@ant-design/icons'
+import { LeftOutlined, RightOutlined, CalendarOutlined, SettingOutlined, ApartmentOutlined, EyeOutlined, GlobalOutlined, StarOutlined, ReadOutlined } from '@ant-design/icons'
 import { TransformGraphPage } from './TransformGraphPage'
 import { EclipseMapPage } from './EclipseMapPage'
 import { StarChartPage } from './StarChartPage'
@@ -657,6 +657,10 @@ function App() {
       </Button>
       <Button type={view === 'stars' ? 'primary' : 'link'} icon={<StarOutlined />} onClick={() => setView('stars')}>
         星图
+      </Button>
+      {/* 文档站（VitePress）由 pages.yml 构建后放在应用站 docs/ 子路径；本地 dev 需另起 doc/ 的 npm run dev */}
+      <Button type="link" icon={<ReadOutlined />} href={`${import.meta.env.BASE_URL}docs/`}>
+        文档
       </Button>
     </Flex>
   )
