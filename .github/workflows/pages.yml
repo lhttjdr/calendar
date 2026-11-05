@@ -48,8 +48,11 @@ jobs:
 
       - name: Setup Rust and wasm-pack
         uses: dtolnay/rust-toolchain@stable
+      # 用预编译二进制安装；原先 curl rustwasm.github.io 的安装脚本偶发下载失败，导致整次部署失败
       - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack
 
       - name: Cache Rust target
         uses: actions/cache@v4
