@@ -1,0 +1,93 @@
+[
+ {
+  "text": "一、日月食（对现代星历表与日月食典）",
+  "link": "/appendix/checks/1"
+ },
+ {
+  "text": "二、行星",
+  "link": "/appendix/checks/2"
+ },
+ {
+  "text": "三、近距事件与月掩星",
+  "link": "/appendix/checks/3"
+ },
+ {
+  "text": "四、可见性模型（原文表格复现）",
+  "link": "/appendix/checks/4"
+ },
+ {
+  "text": "五、伏见（晨见夕伏）",
+  "link": "/appendix/checks/5"
+ },
+ {
+  "text": "六、恒星与二十八宿",
+  "link": "/appendix/checks/6"
+ },
+ {
+  "text": "七、史书天象记录（按朝代）",
+  "link": "/appendix/checks/7",
+  "collapsed": true,
+  "items": [
+   {
+    "text": "总表",
+    "link": "/appendix/checks/7-1"
+   },
+   {
+    "text": "西汉（太初以前按复原历，以后按实历朔日表）（-205—8）",
+    "link": "/appendix/checks/7-2"
+   },
+   {
+    "text": "东汉（25—220）",
+    "link": "/appendix/checks/7-3"
+   },
+   {
+    "text": "三国（魏；景初建丑）（220—265）",
+    "link": "/appendix/checks/7-4"
+   },
+   {
+    "text": "西晋（266—316）",
+    "link": "/appendix/checks/7-5"
+   },
+   {
+    "text": "东晋（317—420）",
+    "link": "/appendix/checks/7-6"
+   },
+   {
+    "text": "南朝（宋齐梁陈，实历朔日表）（420—589）",
+    "link": "/appendix/checks/7-7"
+   },
+   {
+    "text": "北朝（北魏、东魏、北齐、北周；北朝推步历，calendar::push_calendar）（386—581）",
+    "link": "/appendix/checks/7-8"
+   },
+   {
+    "text": "隋（589 年平陈前按北周推步历，此后按实历朔日表）（581—618）",
+    "link": "/appendix/checks/7-9"
+   },
+   {
+    "text": "唐（含武周建子、肃宗末建子）（618—907）",
+    "link": "/appendix/checks/7-10"
+   },
+   {
+    "text": "五代十国（907—960）",
+    "link": "/appendix/checks/7-11"
+   },
+   {
+    "text": "宋辽金（960—1279）",
+    "link": "/appendix/checks/7-12"
+   },
+   {
+    "text": "元（1271—1368）",
+    "link": "/appendix/checks/7-13"
+   },
+   {
+    "text": "明（1368—1644）",
+    "link": "/appendix/checks/7-14"
+   },
+   {
+    "text": "清（1644—1911）",
+    "link": "/appendix/checks/7-15"
+   }
+  ]
+ }
+]

@@ -1,5 +1,7 @@
 import { defineConfig } from 'vitepress'
 import cjkFriendly from 'markdown-it-cjk-friendly'
+// 天象逐条校验附录按节、按朝代拆页，条目由 scripts/figures/build_site_pages.py 生成
+import checksSidebar from './appendix-sidebar.json' with { type: 'json' }
 
 // 本站是面向读者的文档（site/），与仓库 doc/ 下供开发与 AI 使用的知识库分开，doc/ 不发布。
 // GitHub Pages 项目站为 /<repo>/docs/，通过环境变量 DOCS_BASE 传入（如 /calendar/docs/）
@@ -67,7 +69,7 @@ export default defineConfig({
         text: '附录',
         collapsed: true,
         items: [
-          { text: '天象逐条校验', link: '/appendix/phenomena-checks' },
+          { text: '天象逐条校验', link: '/appendix/phenomena-checks', collapsed: true, items: checksSidebar },
           { text: '以本纪核验主表', link: '/appendix/main-table-checks' },
           { text: '历法原文摘录', link: '/appendix/source-texts' },
         ],

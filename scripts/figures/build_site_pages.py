@@ -18,8 +18,8 @@ SRC = "doc/astronomy/celestial-phenomena.md"
 SKY = "doc/astronomy/sky-view-3d.md"
 
 
-def conv(a: int, b: int, src: str = SRC) -> str:
-    return subprocess.run(["python3", "scripts/figures/kb_to_site.py", src, str(a), str(b)],
+def conv(a: int, b: int, src: str = SRC, keep_names: bool = False) -> str:
+    return subprocess.run(["python3", "scripts/figures/kb_to_site.py"] + (["--keep-names"] if keep_names else []) + [src, str(a), str(b)],
                           capture_output=True, text=True, check=True).stdout.strip()
 
 
@@ -116,13 +116,17 @@ FIX_PLANETS = [
     (r"^- 附带：`Real` 新增.*\n.*双双精度。\n", ""),
     (r"（此测试约 20 分钟，标 `#\[ignore\]`，需 `--ignored` 单独运行）", ""),
     (r"所据文献 16、29–39，PDF 存 。", "所据文献 16、29–39。"),
+    (r"^-\n  - 用法：.*\n.*\n.*单个天体也可用 。\n", "- 伏见的计算：\n"),
+    (r"；保留开关 。", "；保留为可选项。"),
+    (r"合日时刻取自已对 Skyfield 验证的 。", "合日时刻取自已对 Skyfield 验证的会合现象计算。"),
+    (r"（太阳几何高度在 −18° 与 −50′ 之间， 可调）", "（太阳几何高度在 −18° 与 −50′ 之间，下限可调）"),
+    (r"，经 由几何高度求，", "，由几何高度求，"),
 ]
 FIX_STARS = [
     (r"^## P4 恒星与二十八宿", "## 星表、距星与宿度"),
     (r"一并收入 。", "一并收入星表。"),
     (r"^- 解析：。\n", ""),
-    (r"^- 推算：（按需运行），逐条结果\n\s*。\n", "- 推算：\n"),
-    (r"来源为维基文库 ，", "来源为维基文库，"),
+    (r"^- 读取：。\n", ""),
     (r"；日期有效规则与省略主语的处理见脚本说明", ""),
     (r"^\*\*下一步\*\*：.*\n?", ""),
 ]
@@ -141,10 +145,18 @@ CAL_PAGES = [  # (知识库源, 站点页, 标题, 修补)
     ("doc/calendar/qin-han-calendar-evaluation.md", "site/calendar/qin-han.md", "秦与汉初历法复原", "FIX_QINHAN"),
 ]
 FIX_HISTORICAL = [
+    (r"ChineseCalendar 的 里是", "ChineseCalendar 的程序里是"),
+    (r"原库 \[ChineseCalendar\]\([^)]*\) 即按此思路：主表用实历，其它政权用 `cmonthDate_Shu` / `cmonthDate_Wu` / `cmonthDate_WeiZhouSui` 等，",
+     "廖育栋的 ChineseCalendar 即按此思路：主表用实历，蜀、吴、北朝等政权各按其历术推步，"),
+    (r"我们已提取为 。", "本项目已提取为主表。"),
     (r"(\| 明 \| 178 \| 177 \|[^\n]*)", r'\1\n\n<Chart src="main-table-benji" :height="260" />'),
 ]
-FIX_COMPENDIUM: list[tuple[str, str]] = []
-FIX_PUSH: list[tuple[str, str]] = []
+FIX_COMPENDIUM = [
+    (r"与书的统计全同。转录在 。", "与书的统计全同。"),
+]
+FIX_PUSH = [
+    (r"；以上记录均在 。", "。"),
+]
 FIX_QINHAN: list[tuple[str, str]] = []
 
 
@@ -177,13 +189,53 @@ def drop_dev_sections(t: str) -> str:
 
 def build_calendar() -> None:
     for src, dst, title, fixes in CAL_PAGES:
-        t = drop_dev_sections(conv(1, 10**6, src))
+        t = drop_dev_sections(conv(1, 10**6, src, keep_names=True))
         t = re.sub(r"^# .*", f"# {title}", t, count=1)
         for a, b in GENERIC_CAL:  # 通用替换：各页不一定都有，不报未匹配
             t = re.sub(a, b, t, flags=re.M)
         open(dst, "w").write(fix(t, globals()[fixes], dst) + "\n")
 
 
+def split_checks() -> None:
+    """天象逐条校验全文太大（数 MB），按大节拆页，第七节（史书记录）再按朝代拆；侧栏条目写入 appendix-sidebar.json。"""
+    import json
+    import os
+    import shutil
+
+    full = open("site/appendix/phenomena-checks.md").read()
+    head, *secs = re.split(r"\n(?=## )", full)
+    out_dir = "site/appendix/checks"
+    shutil.rmtree(out_dir, ignore_errors=True)
+    os.makedirs(out_dir)
+    items, toc = [], []
+    for k, sec in enumerate(secs, 1):
+        title = sec.split("\n", 1)[0][3:].strip()
+        if title.startswith("七"):
+            intro, *subs = re.split(r"\n(?=### )", sec)
+            sub_items = []
+            for j, sub in enumerate(subs, 1):
+                st = sub.split("\n", 1)[0][4:].strip()
+                slug = f"{k}-{j}"
+                body = re.sub(r"^### ", "# ", sub, count=1)
+                body = re.sub(r"^#### ", "## ", body, flags=re.M)
+                open(f"{out_dir}/{slug}.md", "w").write(body + "\n")
+                sub_items.append({"text": st, "link": f"/appendix/checks/{slug}"})
+            slug = f"{k}"
+            open(f"{out_dir}/{slug}.md", "w").write("# " + intro[3:].strip() + "\n\n" +
+                "\n".join(f"- [{x['text']}]({x['link']})" for x in sub_items) + "\n")
+            items.append({"text": title, "link": f"/appendix/checks/{slug}", "collapsed": True, "items": sub_items})
+        else:
+            slug = f"{k}"
+            body = re.sub(r"^## ", "# ", sec, count=1)
+            body = re.sub(r"^(#{3,}) ", lambda m: m.group(1)[1:] + " ", body, flags=re.M)
+            open(f"{out_dir}/{slug}.md", "w").write(body + "\n")
+            items.append({"text": title, "link": f"/appendix/checks/{slug}"})
+        toc.append(f"- [{title}](/appendix/checks/{slug})")
+    open("site/appendix/phenomena-checks.md", "w").write(head.strip() + "\n\n" + "\n".join(toc) + "\n")
+    json.dump(items, open("site/.vitepress/appendix-sidebar.json", "w"), ensure_ascii=False, indent=1)
+
+
 if __name__ == "__main__":
     build()
     build_calendar()
+    split_checks()

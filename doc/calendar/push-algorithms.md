@@ -8,7 +8,7 @@
 
 ## 一、通用约定与符号
 
-- **jdc**：计日参考点，通常为「前一年 12 月 31 日 12:00 UT 的儒略日」的整数部分（如 `1429223 + accleap + 365*(y+799)`，`accleap = floor(0.25*(y+799) + 1e-5)`）。输出朔日、节气多为**相对 jdc 的日数**，换算为儒略历/格里高利历时加上 jdc 对应日期。
+- **jdc**：计日参考点，通常为「前一年 12 月 31 日 12:00 UT 的儒略日」的整数部分（如 $\mathrm{jdc} = 1429223 + a + 365(y+799)$，$a = \lfloor 0.25(y+799) + 10^{-5}\rfloor$ 为累计闰日）。输出朔日、节气多为**相对 jdc 的日数**，换算为儒略历/格里高利历时加上 jdc 对应日期。
 - **历术参数 para**：**lunar**（朔策）、**solar**（岁实）、**jd_epoch**（合朔历元 JD）、**JDw**（冬至历元 JD）。约定：年 y 的冬至 JD ≈ JDw + y×solar；合朔序列 JD ≈ jd_epoch + i×lunar（i 整数）。代码中对 jd_epoch、JDw 加小量舍入修正（dtc_round、dts_round）。
 
 ---
@@ -317,7 +317,7 @@ ziOffset 将「子月起」的月序映射到各历正月：-1=正月亥（闰�
 
 ### 5.2 春秋历（chunqiu_cmonth）
 
-**常数**：`lunar = 30328/1027`，`yEpoch = -721`，`jdEpoch = 1457727.761054236`。**闰年表**：`leapYears[0..239]` 对应 -721～-482。步骤：`accMonths = 12*(y - yEpoch) + accLeaps[i]`，正月朔 `m0 = jdEpoch + accMonths*lunar`，月数 n = 12+leap，第 j 月朔 = `floor(m0 + j*lunar + 0.5) - jdc`。即**固定闰年表 + 朔策 30328/1027**，无中气规则。闰年表出自张培瑜《中国古代历法》表 3-7；对《春秋》经文的检验见 [calendar-compendium.md](./calendar-compendium.md) §12。
+**常数**：朔策 $L = 30328/1027$ 日，历元年 $y_0 = -721$，历元朔 $J_0 = 1457727.761054236$。**闰年表**：前 721—前 482 年共 240 年，逐年标明是否有闰。步骤：累计月数 $N = 12(y - y_0) + A_y$（$A_y$ 为此前累计闰月数），正月朔 $m_0 = J_0 + N L$，当年月数 $n = 12 + \text{闰}$，第 $j$ 月朔日 $= \lfloor m_0 + jL + 0.5\rfloor - \mathrm{jdc}$。即**固定闰年表 + 朔策 30328/1027**，无中气规则。闰年表出自张培瑜《中国古代历法》表 3-7；对《春秋》经文的检验见 [calendar-compendium.md](./calendar-compendium.md) §12。
 
 ### 5.3 秦与汉初历（HanZhuanXu）
 
