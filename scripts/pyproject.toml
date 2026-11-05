@@ -29,7 +29,7 @@ chapront-fit = [
     "scipy>=1.7",
     "jplephem>=2.15",
 ]
-# 文档配图/动画（Manim）：scripts/manim/ 下的 Scene，渲染产物提交到 doc/public/media/，不进 CI 构建。
+# 文档配图/动画（Manim）：scripts/manim/ 下的 Scene，渲染产物提交到 site/public/media/，不进 CI 构建。
 # 需系统装 ffmpeg + cairo + pango（见 scripts/manim/README.md），故单列一组，不随主依赖安装。
 # 渲染：uv run --project scripts --only-group manim-docs scripts/render_manim.sh
 manim-docs = [

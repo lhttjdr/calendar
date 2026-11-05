@@ -8,7 +8,7 @@
 |------|------|
 | **Rust**（core + wasm-lib） | `cd rust && cargo build` |
 | **Web**（Vite + React，Rust WASM 后端） | `cd web && npm install && npm run dev` |
-| **文档**（VitePress） | `cd doc && npm install && npm run dev` |
+| **文档站**（VitePress） | `cd site && npm install && npm run dev` |
 
 - **数据**：历表在仓库根 `vendor/vsop87/`、`vendor/elpmpp02/`；Rust 运行或测试时工作目录为仓库根。
 - **在线**：应用 <https://lhttjdr.github.io/calendar/>，文档 <https://lhttjdr.github.io/calendar/docs/>（应用顶栏「文档」可进入）。
@@ -20,7 +20,8 @@
 - **web/** — 前端，Rust WASM 后端
 - **vendor/** — 原样保留的第三方/来源数据，不重排/不改动内部文件：历表（`vsop87/`、`elpmpp02/`、`IAU2000/`、`jpl/`）、节气朔望参考表（`月相和二十四节气的计算/`）、`calendar/`（按来源分 `fang_shiming/`、`lifa_tongzhi/`、`chinese_calendar/` 三个子目录）
 - **data/** — 本项目自己生成/整理：`fit/`（VSOP87–DE406 拟合）、`calendar/`（跨来源汇总的 `lifa.csv`、`regime_era_calendar_matrix.*`、说明文档）
-- **doc/** — VitePress 文档站与 `doc/references/` 参考文献；按《月相和二十四节气的计算》章节索引见 [doc/index.md](doc/index.md)，构建后随 CI 发布到 `/docs/` 子路径
+- **doc/** — 开发知识库（不发布）与 `doc/references/` 参考文献；按《月相和二十四节气的计算》章节索引见 [doc/index.md](doc/index.md)
+- **site/** — 面向读者的文档站（VitePress），构建后随 CI 发布到 `/docs/` 子路径；动画产物在 `site/public/media/`
 - **scripts/** — 数据生成/转换脚本，按用途分 `dev/`、`ephemeris/`、`calendar_data/`、`manim/` 子目录
 
 ## 功能状态

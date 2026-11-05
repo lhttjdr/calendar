@@ -1,0 +1,22 @@
+/* 正文排版：中文长段落的行高与段距 */
+.vp-doc p,
+.vp-doc li {
+  line-height: 1.85;
+}
+
+.vp-doc .anim {
+  margin: 1.5rem 0;
+}
+
+.vp-doc .anim video {
+  width: 100%;
+  border-radius: 8px;
+  background: #0b1021;
+}
+
+.vp-doc .anim figcaption {
+  margin-top: 0.4rem;
+  text-align: center;
+  font-size: 0.9em;
+  color: var(--vp-c-text-2);
+}

@@ -1,5 +1,7 @@
 # 文档索引
 
+> 本目录是开发与 AI 用的知识库（含代码路径、逐条校验与交叉引用），不发布。面向读者的文档在仓库 `site/`，发布于 <https://lhttjdr.github.io/calendar/docs/>，内容由本目录改写而来。
+
 本仓库文档按主题分为五部分：**总体架构**（三大域与域内四段结构）、**天文基础**（时标、参考系、岁差章动、历表、视位置、月相节气等推导）、**农历编算**（由天文量算出农历、实历与古历复原）、**工程实现**（Rust/WASM/前端与数据格式）、**案例分析**（具体问题的排查记录）。参考文献见 [doc/references/](https://github.com/lhttjdr/calendar/tree/master/doc/references)；编算农历网页见 [ChineseCalendar](https://ytliu0.github.io/ChineseCalendar/computation_simp.html)。
 
 ## 〇、总体架构（`architecture/`）

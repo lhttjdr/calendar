@@ -48,8 +48,8 @@ mise.local.toml
 .mise.local.toml
 
 # VitePress 构建产物
-doc/.vitepress/dist
-doc/.vitepress/cache
+site/.vitepress/dist
+site/.vitepress/cache
 
 # Manim 渲染中间产物（最终 .mp4/.jpg 复制到 doc/public/media/ 后提交，见 scripts/manim/README.md）
 scripts/manim/_build/

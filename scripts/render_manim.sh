@@ -1,23 +1,28 @@
 #!/usr/bin/env bash
-# 渲染 scripts/manim/ 下的文档动画，产物复制到 doc/public/media/<topic>/。
+# 渲染 scripts/manim/ 下的文档动画，产物复制到 site/public/media/<topic>/。
 # 系统依赖、渲染约定见 scripts/manim/README.md。
 #
 # 用法（留在仓库根执行，与 AGENTS.md 中其它 scripts/ 调用方式一致）：
 #   uv run --project scripts --only-group manim-docs scripts/render_manim.sh
-#   uv run --project scripts --only-group manim-docs scripts/render_manim.sh reference_frames/timeline_fk_icrs   # 只渲染一个
+#   uv run --project scripts --only-group manim-docs scripts/render_manim.sh celestial_sphere/precession          # 只渲染一个（可开多个终端并行渲染不同场景）
 #   MANIM_QUALITY=-ql uv run --project scripts --only-group manim-docs scripts/render_manim.sh                  # 低清快速预览
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
 MEDIA_DIR="scripts/manim/_build"
-OUT_ROOT="doc/public/media"
-QUALITY="${MANIM_QUALITY:--qh}" # -ql 快速预览，-qh 正式产物（1080p60）
+OUT_ROOT="site/public/media"
+# 正式产物 1080p30（演示动画 30 帧足够，渲染量是 60 帧的一半）；MANIM_QUALITY=-ql 为低清快速预览
+read -r -a QUALITY <<<"${MANIM_QUALITY:--r 1920,1080 --fps 30}"
 
-# 新增动画时在此登记一行："<场景文件相对 scripts/manim/，不含 .py> <场景类名> <doc/public/media/ 下的子路径，不含扩展名>"
+# 新增动画时在此登记一行："<场景文件相对 scripts/manim/，不含 .py> <场景类名> <site/public/media/ 下的子路径，不含扩展名>"
 SCENES=(
-  "reference_frames/timeline_fk_icrs TimelineFkIcrs reference-frames/timeline-fk-icrs"
-  "reference_frames/precession_nutation_equator PrecessionNutationEquator reference-frames/precession-nutation-equator"
+  "celestial_sphere/sphere_basics SphereBasics celestial-sphere/sphere-basics"
+  "celestial_sphere/precession Precession celestial-sphere/precession"
+  "celestial_sphere/nutation Nutation celestial-sphere/nutation"
+  "celestial_sphere/epochs_equinoxes EpochsEquinoxes celestial-sphere/epochs-equinoxes"
+  "celestial_sphere/rotation_sequences RotationSequences celestial-sphere/rotation-sequences"
+  "celestial_sphere/quaternions Quaternions celestial-sphere/quaternions"
 )
 
 want="${1:-}"
@@ -30,9 +35,11 @@ for entry in "${SCENES[@]}"; do
 
   script_file="scripts/manim/${rel_module}.py"
   echo "==> 渲染 $script_file :: $scene_class"
-  manim "$QUALITY" --media_dir "$MEDIA_DIR" --disable_caching "$script_file" "$scene_class"
+  # 每个场景独立 media_dir：可并行渲染多个场景，LaTeX 缓存不会互相覆盖
+  scene_media="$MEDIA_DIR/$scene_class"
+  manim "${QUALITY[@]}" --media_dir "$scene_media" --disable_caching "$script_file" "$scene_class"
 
-  rendered_mp4="$(find "$MEDIA_DIR/videos" -type f -name "${scene_class}.mp4" | sort | tail -n1)"
+  rendered_mp4="$(find "$scene_media/videos" -type f -name "${scene_class}.mp4" | sort | tail -n1)"
   if [[ -z "$rendered_mp4" ]]; then
     echo "未找到渲染产物：$scene_class（检查上面 manim 的输出）" >&2
     exit 1
@@ -45,7 +52,8 @@ for entry in "${SCENES[@]}"; do
 
   dest_poster="$OUT_ROOT/${out_name}.jpg"
   if command -v ffmpeg >/dev/null 2>&1; then
-    ffmpeg -y -loglevel error -i "$dest_mp4" -ss 00:00:01 -frames:v 1 "$dest_poster"
+    # 封面取末帧：动画逐步加元素，结尾画面最完整（取第 1 秒常是空屏）
+    ffmpeg -y -loglevel error -sseof -0.2 -i "$dest_mp4" -frames:v 1 -q:v 3 "$dest_poster"
   else
     echo "警告：未找到 ffmpeg，跳过封面帧 $dest_poster" >&2
   fi

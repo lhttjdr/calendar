@@ -1,7 +1,3 @@
-<script setup>
-import { withBase } from 'vitepress'
-</script>
-
 # 2. 参考系与坐标
 
 本章先约定**数学与物理量**，再说明**参考系、参考架、坐标系**的含义与关系，天球参考从**各国为政、FK4/FK5 到 ICRS** 的发展历程，以及**动力学坐标、平/真赤道**等概念；最后给出本程序中的架与几何链。
@@ -53,11 +49,6 @@ import { withBase } from 'vitepress'
 
 ## 天球参考的发展历程
 
-<video controls loop muted playsinline preload="metadata" :poster="withBase('/media/reference-frames/timeline-fk-icrs.jpg')" style="width:100%;border-radius:8px">
-  <source :src="withBase('/media/reference-frames/timeline-fk-icrs.mp4')" type="video/mp4" />
-</video>
-<p style="text-align:center;font-size:0.9em;opacity:0.75">天球参考架的发展：各国为政 → FK4(B1950.0) → FK5(J2000.0) → ICRS/ICRF，以及 FK5→ICRS 的 Frame Bias B</p>
-
 ### 各国为政、区域星表时代
 
 - 二十世纪前半叶，国际上**没有统一的天球参考**：各国或地区用各自星表与观测网建立赤道、黄道等，历元与岁差常数不一，彼此转换需经验公式或逐星比对。例如：德国 **AGK** 系列（AGK1/2/3）、美国 **N30**、**GC**（General Catalogue）、**Yale** 星表等，分别基于不同观测与岁差系统，跨星表使用时必须注意系统差。
@@ -83,11 +74,6 @@ import { withBase } from 'vitepress'
 ---
 
 ## 动力学坐标、平赤道与真赤道
-
-<video controls loop muted playsinline preload="metadata" :poster="withBase('/media/reference-frames/precession-nutation-equator.jpg')" style="width:100%;border-radius:8px">
-  <source :src="withBase('/media/reference-frames/precession-nutation-equator.mp4')" type="video/mp4" />
-</video>
-<p style="text-align:center;font-size:0.9em;opacity:0.75">平赤道（岁差 P：绕黄极的圆锥进动）叠加章动 N（平极上的短周期小幅摆动）得到真赤道；周期已夸张加速，仅作几何关系示意，非等比例仿真</p>
 
 - **动力学赤道 / 动力学春分点**：由**力学历表**（行星、月球）与**岁差模型**定义的赤道面与春分点方向，不直接依赖恒星观测。历表（VSOP87、ELP、DE）给出的直角坐标或轨道根数通常即在此类「动力学架」下。
 - **平赤道 / 平春分点（of date）**：某历元 t 的赤道面与春分点，只含**岁差**，不含章动；随 t 缓慢变化。J2000.0 平赤道即 t = J2000.0 时的平赤道。

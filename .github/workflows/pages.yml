@@ -44,7 +44,7 @@ jobs:
           cache: "npm"
           cache-dependency-path: |
             web/package-lock.json
-            doc/package-lock.json
+            site/package-lock.json
 
       - name: Setup Rust and wasm-pack
         uses: dtolnay/rust-toolchain@stable
@@ -97,21 +97,21 @@ jobs:
           VITE_BASE: /${{ github.event.repository.name }}/
         run: npm run build
 
-      - name: Install doc dependencies
-        working-directory: doc
+      - name: Install site dependencies
+        working-directory: site
         run: npm ci
 
-      - name: Build doc (VitePress)
-        working-directory: doc
+      - name: Build site (VitePress)
+        working-directory: site
         env:
-          # 文档站挂在应用子路径 https://<user>.github.io/<repo>/docs/
+          # 文档站（site/，面向读者；doc/ 为开发知识库不发布）挂在应用子路径 https://<user>.github.io/<repo>/docs/
           DOCS_BASE: /${{ github.event.repository.name }}/docs/
           # 文档站导航「在线日历」回到应用站
           APP_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
         run: npm run build
 
       - name: Merge doc site into web build output
-        run: cp -r doc/.vitepress/dist web/dist/docs
+        run: cp -r site/.vitepress/dist web/dist/docs
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
