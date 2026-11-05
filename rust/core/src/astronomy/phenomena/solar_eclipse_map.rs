@@ -485,32 +485,65 @@ fn rise_set_points(f: &Frame, n: usize) -> Vec<V3> {
     roots_on_circle(n, h).into_iter().map(|psi| limb_ground_point(f, psi)).collect()
 }
 
-/// 影子轮廓：θ 一周取样，落地的连续段各成一条折线（首尾相接时合并）。
+/// 影子轮廓：θ 一周取样，落地的连续段各成一条折线。
+///
+/// 影锥部分越出地球时，落地段的两端在地球边缘（向日面的边界，即昼夜界）上。只取到最后一个落地的样点为止的话，因边缘
+/// 附近 θ 到地面的映射被急剧拉伸（同 [`roots_on_circle`]），端点离昼夜界可差上千公里。所以在落地/不落地的相邻样点间
+/// 二分出落地边界（母线与椭球相切，交点落在边缘上），并从落地样点向边界按几何级数加密补点。
 fn outline(f: &Frame, kind: Cone, n: usize) -> Vec<Polyline> {
     let two_pi = real_const(2.0) * Real::pi();
-    let pts: Vec<Option<V3>> = (0..n).map(|k| cone_ground_point(f, kind, two_pi * real(k as f64) / real(n as f64))).collect();
-    let mut runs: Vec<Polyline> = Vec::new();
-    let mut cur: Polyline = Vec::new();
-    for p in &pts {
-        match p {
-            Some(g) => cur.push(to_map_point(f.t, *g)),
-            None if !cur.is_empty() => runs.push(std::mem::take(&mut cur)),
-            None => {}
-        }
-    }
+    let at = |k: usize| two_pi * real(k as f64) / real(n as f64);
+    let hit = |th: Real| cone_ground_point(f, kind, th);
+    let pts: Vec<Option<V3>> = (0..n).map(|k| hit(at(k))).collect();
     if pts.iter().all(Option::is_some) {
         // 整圈落地：闭合
-        let first = cur[0];
-        cur.push(first);
-        return vec![cur];
+        let mut ring: Polyline = pts.iter().map(|g| to_map_point(f.t, g.unwrap())).collect();
+        ring.push(ring[0]);
+        return vec![ring];
     }
-    if !cur.is_empty() {
-        // 末段与首段在 θ = 0 处相连
-        if pts[0].is_some() && !runs.is_empty() {
-            let mut head = runs.remove(0);
-            cur.append(&mut head);
+    if pts.iter().all(Option::is_none) {
+        return Vec::new();
+    }
+    // 在 [x 落地, y 不落地] 间二分出落地边界，返回落地一侧
+    let edge = |mut x: Real, mut y: Real| {
+        for _ in 0..60 {
+            let m = (x + y) / real_const(2.0);
+            if hit(m).is_some() {
+                x = m;
+            } else {
+                y = m;
+            }
         }
-        runs.push(cur);
+        x
+    };
+    // 从 start 向边界 x 几何加密的地面点（不含 start），由近到远，末项为边界点
+    let toward_edge = |start: Real, x: Real| -> Vec<MapPoint> {
+        (1..=24)
+            .map(|j| x + (start - x) * real_const(0.5_f64.powi(j)))
+            .chain(std::iter::once(x))
+            .filter_map(|th| hit(th).map(|g| to_map_point(f.t, g)))
+            .collect()
+    };
+    // 从一个「不落地 → 落地」处起走一圈，θ 展开为单调递增，各落地段不跨起点
+    let k0 = (0..n).find(|&k| pts[k].is_some() && pts[(k + n - 1) % n].is_none()).unwrap();
+    let mut runs: Vec<Polyline> = Vec::new();
+    let mut cur: Polyline = Vec::new();
+    for step in 0..n {
+        let k = (k0 + step) % n;
+        let th = at(k0) + two_pi * real(step as f64) / real(n as f64);
+        let th_prev = th - two_pi / real(n as f64);
+        let th_next = th + two_pi / real(n as f64);
+        let Some(g) = pts[k] else { continue };
+        if pts[(k + n - 1) % n].is_none() {
+            let mut head = toward_edge(th, edge(th, th_prev));
+            head.reverse();
+            cur.extend(head);
+        }
+        cur.push(to_map_point(f.t, g));
+        if pts[(k + 1) % n].is_none() {
+            cur.extend(toward_edge(th, edge(th, th_next)));
+            runs.push(std::mem::take(&mut cur));
+        }
     }
     runs.retain(|r| r.len() >= 2);
     runs

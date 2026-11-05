@@ -249,3 +249,45 @@ fn frame_matches_map_outlines_and_central_line() {
     assert!(d < 1.0, "影轴落点到中心线 {d} km");
 }
 
+
+/// 影锥部分越出地球时，轮廓各段的两端落在地球边缘（昼夜界）上：该处影锥母线与椭球相切，太阳中心几何高度在母线倾角 f 以内。
+/// 只取到最后一个落地样点时端点离边缘可差十几度，地图上影子填色在昼夜界旁留出缺口。
+#[test]
+fn frame_outline_ends_on_limb() {
+    let (vsop, elp) = load();
+    let eph = EclipseEphemeris::new(&vsop, &elp);
+    let unit = |lon: f64, lat: f64| {
+        let (lo, la) = (lon.to_radians(), lat.to_radians());
+        [la.cos() * lo.cos(), la.cos() * lo.sin(), la.sin()]
+    };
+    for c in &CASES {
+        let win = eclipse_window(&eph, real(c.jd_tt_guess));
+        let dt = Duration::in_seconds(real(c.delta_t_s));
+        let map = solar_eclipse_map(&win, real(c.jd_tt_guess), dt, &Default::default()).unwrap();
+        let (t0, t1) = (map.penumbra_contacts.0.as_f64(), map.penumbra_contacts.1.as_f64());
+        let (mut worst, mut ends) = (0.0_f64, 0);
+        for i in 0..=40 {
+            let t = t0 + (t1 - t0) * i as f64 / 40.0;
+            let f = solar_eclipse_frame(&win, real(t), dt, 180);
+            let (slon, slat) = deg(&f.subsolar);
+            let k = unit(slon, slat);
+            for run in f.outline.penumbra.iter().chain(&f.outline.umbra) {
+                let (a, b) = (&run[0], &run[run.len() - 1]);
+                if a.longitude.rad() == b.longitude.rad() && a.latitude.rad() == b.latitude.rad() {
+                    continue; // 闭合
+                }
+                for p in [a, b] {
+                    let (lon, lat) = deg(p);
+                    let nrm = unit(lon, lat); // 大地经纬度的单位向量即椭球法向
+                    let alt = (nrm[0] * k[0] + nrm[1] * k[1] + nrm[2] * k[2]).asin().to_degrees();
+                    worst = worst.max(alt.abs());
+                    ends += 1;
+                }
+            }
+        }
+        println!("{}：开口轮廓端点 {ends} 个，端点处太阳几何高度最大 {worst:.4}°", c.name);
+        assert!(ends > 0);
+        // 相切的是影锥母线而非影轴：母线与 k 夹角 f（半影 f₁ ≈ 0.27°），端点处太阳中心几何高度在 ±f 内
+        assert!(worst < 0.3, "{} 轮廓端点离地球边缘 {worst}°", c.name);
+    }
+}
