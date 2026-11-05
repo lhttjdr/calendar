@@ -114,6 +114,8 @@ pub struct SkyLight {
     pub limit_curve: Vec<Real>,
     /// 日面中心亮度的 10⁻⁶（nL），日冕公式（Baumbach 1937）的单位。
     pub corona_unit_nl: Real,
+    /// 天顶消光系数 k（星等/大气质量），前端给银河等贴图减光用。
+    pub zenith_extinction: Real,
 }
 
 /// 太阳 V 星等、视半径 → 日面平均面亮度（nL），再按临边昏暗换算到日面中心，取其 10⁻⁶。
@@ -306,6 +308,7 @@ impl SkySnapshot {
         } else {
             real(0.0)
         };
+        let (zenith_extinction, _) = sky.extinction.at(height_km0, lat, topo[si].ra.rad(), real(0.0));
         let limit_curve = (0..LIMIT_CURVE_SAMPLES)
             .map(|i| limiting_magnitude(dex10(real(i as f64 * LIMIT_CURVE_STEP)), real(0.0), real(SKY_GRID_SOURCE_BV), eye).limiting_magnitude)
             .collect();
@@ -340,7 +343,7 @@ impl SkySnapshot {
                 lim.push(limiting_magnitude(b, dm, bv, eye).limiting_magnitude);
             }
         }
-        SkyLight { log10_brightness_nl: log_b, limiting_magnitude: lim, sun_visible_fraction: fraction, moon_glare_nl_deg2, sun_glare_nl_deg2, limit_curve, corona_unit_nl: corona_unit_nl(topo[si].semidiameter.expect("太阳有视半径")) }
+        SkyLight { log10_brightness_nl: log_b, limiting_magnitude: lim, sun_visible_fraction: fraction, moon_glare_nl_deg2, sun_glare_nl_deg2, limit_curve, zenith_extinction, corona_unit_nl: corona_unit_nl(topo[si].semidiameter.expect("太阳有视半径")) }
     }
 
     pub fn star(&self, hip: u32) -> Option<&StarPlace> {

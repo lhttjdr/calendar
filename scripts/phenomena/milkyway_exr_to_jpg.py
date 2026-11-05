@@ -37,3 +37,17 @@ print(f"拟合 y = {a:.4f}·x^{g:.4f}，样本 {mask.sum()}，rms {np.sqrt(np.me
 out = np.clip(a * np.power(rgb, g), 0.0, 1.0)
 Image.fromarray((out * 255.0 + 0.5).astype(np.uint8)).save(OUT, quality=88, optimize=True, progressive=True)
 print("输出", OUT)
+
+# 亮度定标：从 JPEG 还原线性值（与前端着色器同式），取明度，按 1° 块平均；银道面 |b| < 5° 的中位数定为积分星光 200 S10
+back = np.asarray(Image.open(OUT).convert("RGB"), dtype=np.float64) / 255.0
+lin = np.power(np.clip(back, 1e-4, 1.0) / a, 1.0 / g)
+lum = lin @ np.array([0.2126, 0.7152, 0.0722])
+k = w // 360
+blk = lum[: h // k * k, : w // k * k].reshape(h // k, k, w // k, k).mean(axis=(1, 3))
+b = 90.0 - (np.arange(h // k) + 0.5) * 180.0 / (h // k)
+s10 = 200.0 / np.median(blk[np.abs(b) < 5.0])
+print(f"定标 {s10:.0f} S10/单位（前端 MILKY_S10_PER_UNIT）")
+for lo, hi in [(0, 5), (5, 10), (10, 20), (20, 40), (40, 60), (60, 90)]:
+    m = (np.abs(b) >= lo) & (np.abs(b) < hi)
+    print(f"  |b| {lo}—{hi}°：中位 {np.median(blk[m] * s10):.0f}，p95 {np.percentile(blk[m] * s10, 95):.0f} S10")
+print(f"  1° 块最亮 {blk.max() * s10:.0f} S10，在 b = {b[np.unravel_index(blk.argmax(), blk.shape)[0]]:.1f}°")

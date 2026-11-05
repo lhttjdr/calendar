@@ -58,6 +58,16 @@ const COMMON_GLSL = /* glsl */ `
   vec2 toPixel(vec3 v) { return v.xy * uK * uHalf.y / max(1.0 + v.z, 0.02); }
 `
 
+// 银河贴图：JPEG 灰度 y = A·x^G（x 为 NASA EXR 线性值，见 scripts/phenomena/milkyway_exr_to_jpg.py），
+// 银道面 |b| < 5° 的中位数定为积分星光 200 S10；1 S10 = 每平方度一颗 10 等星 = 27.78 mag/arcsec²，按 Garstang 式换成 nL
+const MILKY_JPEG_A = '1.4936'
+const MILKY_JPEG_G = '0.6147'
+const MILKY_S10_PER_UNIT = 2853
+const S10_NL = 34.08 * Math.exp(20.7233 - 0.92104 * (10 + 2.5 * Math.log10(3600 * 3600)))
+const MILKY_NL_PER_UNIT = MILKY_S10_PER_UNIT * S10_NL
+/** 关掉大气散射时的固定夜空亮度 lg(nL)：暗夜天顶（约 21.9 mag/arcsec²） */
+const DARK_SKY_LG = 1.76
+
 // 冰晶（六角柱，折射率 1.31）60° 棱的最小偏向角，即 22° 晕的内缘
 const ICE_N = 1.31
 const HALO_RADIUS_DEG = 2 * Math.asin(ICE_N * 0.5) * 180 / Math.PI - 60
@@ -113,8 +123,11 @@ const SKY_GLSL = /* glsl */ `
   }
   // 亮度 lg(nL) → 显示色。只是把模型亮度映射到屏幕，不是色度计算
   vec3 skyColor(float lg) {
-    vec3 c = mix(vec3(0.020, 0.032, 0.090), vec3(0.055, 0.085, 0.210), smoothstep(2.3, 4.0, lg));
-    c = mix(c, vec3(0.140, 0.240, 0.460), smoothstep(4.0, 6.0, lg));
+    // 暗端（lg 1.4—2.7）拉开：银河最亮处只比暗夜天空亮约 7 倍，压得太扁就看不出；这一段偏灰，夜视不辨色。
+    // 全程随亮度单调增
+    vec3 c = mix(vec3(0.010, 0.012, 0.025), vec3(0.150, 0.160, 0.200), smoothstep(1.4, 2.7, lg));
+    c = mix(c, vec3(0.160, 0.220, 0.380), smoothstep(2.7, 4.0, lg));
+    c = mix(c, vec3(0.200, 0.300, 0.520), smoothstep(4.0, 6.0, lg));
     c = mix(c, vec3(0.300, 0.500, 0.780), smoothstep(6.0, 7.8, lg));
     c = mix(c, vec3(0.520, 0.720, 0.950), smoothstep(7.8, 9.3, lg));
     return mix(c, vec3(1.0, 0.99, 0.96), smoothstep(9.3, 11.0, lg));
@@ -340,6 +353,7 @@ const BACKDROP_FRAG = /* glsl */ `
   uniform mat3 uTrueToGal;
   uniform sampler2D uMilky;
   uniform float uMilkyOn;
+  uniform float uExtinctionK;
   uniform float uSunRadius;
   uniform float uGlareShow;
   uniform float uHalo;
@@ -363,6 +377,17 @@ const BACKDROP_FRAG = /* glsl */ `
     // 日月光晕：眼内眩光与天光相加。放大相当于减光看圆面，uGlareShow 随视场收到 0
     float lg = log(pow(10.0, skyAt(l).x) + (sunGlareAt(l) + moonGlareAt(l)) * uGlareShow) / log(10.0);
     // 晕与珥（示意层）：位置按冰晶折射算，亮度无据，取眩光在 22° 处的若干倍，见 doc/astronomy/sky-view-3d.md
+    if (uMilkyOn > 0.5) {
+      // 银河：贴图还原成线性值，取明度，按 S10 定标换成 nL，乘大气消光后与天光相加（定标见 doc/astronomy/sky-view-3d.md）
+      // 贴图是银道坐标的等距圆柱投影：中心银心，银经向左增大（大麦哲伦云 l = 280° 在中心右侧 80°）
+      vec3 g = uTrueToGal * (transpose(uEqToLocal) * l);
+      vec2 uv = vec2(fract(0.5 - atan(g.y, g.x) / 6.283185307), 0.5 + asin(clamp(g.z, -1.0, 1.0)) / 3.141592654);
+      vec3 lin = pow(max(texture2D(uMilky, uv).rgb, vec3(1e-4)) / ${MILKY_JPEG_A}, vec3(1.0 / ${MILKY_JPEG_G}));
+      float cz = max(l.z, 0.0);
+      float airMass = 1.0 / (cz + 0.025 * exp(-11.0 * cz));
+      float milky = dot(lin, vec3(0.2126, 0.7152, 0.0722)) * ${MILKY_NL_PER_UNIT.toFixed(3)} * pow(10.0, -0.4 * uExtinctionK * airMass);
+      lg = log(pow(10.0, lg) + milky) / log(10.0);
+    }
     vec3 haloTint = vec3(1.0);
     if (uHalo > 0.5) {
       float h = 0.0;
@@ -397,12 +422,6 @@ const BACKDROP_FRAG = /* glsl */ `
         vec3 base = skyColor(log(total) / log(10.0));
         c = mix(base, vec3(0.93, 0.93, 0.96) * max(max(base.r, base.g), base.b) * 1.05, corona / total);
       }
-    }
-    if (uMilkyOn > 0.5) {
-      // 贴图是银道坐标的等距圆柱投影：中心银心，银经向左增大（大麦哲伦云 l = 280° 在中心右侧 80°）
-      vec3 g = uTrueToGal * (transpose(uEqToLocal) * l);
-      vec2 uv = vec2(fract(0.5 - atan(g.y, g.x) / 6.283185307), 0.5 + asin(clamp(g.z, -1.0, 1.0)) / 3.141592654);
-      c += texture2D(uMilky, uv).rgb * (1.0 - smoothstep(2.6, 4.4, lg));
     }
     // 晨昏时太阳方向近地平偏暖。纯显示效果，亮度仍是模型给的
     float near = pow(max(dot(l, uSunLocal), 0.0), 3.0) * exp(-max(l.z, 0.0) * 5.0);
@@ -511,6 +530,7 @@ type Engine = {
     uTrueToGal: { value: THREE.Matrix3 }
     uMilky: { value: THREE.Texture | null }
     uMilkyOn: { value: number }
+    uExtinctionK: { value: number }
     uSunRadius: { value: number }
     uCorona: { value: number }
     uK: { value: number }
@@ -569,6 +589,7 @@ function createEngine(canvas: HTMLCanvasElement): Engine {
     uTrueToGal: { value: new THREE.Matrix3() },
     uMilky: { value: null },
     uMilkyOn: { value: 0 },
+    uExtinctionK: { value: 0.2 },
     uSunRadius: { value: 0.0046 },
     uCorona: { value: 0 },
     uK: { value: 1 },
@@ -600,6 +621,7 @@ function createEngine(canvas: HTMLCanvasElement): Engine {
         uTrueToGal: shared.uTrueToGal,
         uMilky: shared.uMilky,
         uMilkyOn: shared.uMilkyOn,
+        uExtinctionK: shared.uExtinctionK,
         uSunRadius: shared.uSunRadius,
         uCorona: shared.uCorona,
         uHorizonTex: shared.uHorizonTex,
@@ -1030,7 +1052,7 @@ export default function Sky3D(props: Props) {
     const on = layers.has('skylight')
     const n = SKY_GRID_AZ * SKY_GRID_ALT
     for (let i = 0; i < n; i++) {
-      data[i * 4] = on ? snap.skyLight.lgB[i] : 2.3
+      data[i * 4] = on ? snap.skyLight.lgB[i] : DARK_SKY_LG
       data[i * 4 + 1] = on ? snap.skyLight.lim[i] : 99
     }
     tex.needsUpdate = true
@@ -1046,6 +1068,7 @@ export default function Sky3D(props: Props) {
     e.shared.uTrueToGal.value.set(...(snap.trueToGalactic as Mat3))
     e.shared.uSunRadius.value = ((sun.semidiameter ?? 0.27) * Math.PI) / 180
     e.shared.uCoronaUnit.value = snap.skyLight.coronaUnit
+    e.shared.uExtinctionK.value = on ? snap.skyLight.extinctionK : 0
     e.shared.uCorona.value = on && snap.skyLight.sunVisible < 0.001 ? 1 : 0
     dirty.current = true
   }, [snap, layers])

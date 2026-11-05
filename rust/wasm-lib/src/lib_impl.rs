@@ -1733,14 +1733,15 @@ impl SkyEngine {
         let light = snap.sky_light(&topo, &observer, gast, &atm, &conditions, &lunar_core::astronomy::phenomena::visibility::Eye::default());
         let grid = |v: &[lunar_core::math::real::Real]| v.iter().map(|x| format!("{:.3}", x.as_f64())).collect::<Vec<_>>().join(",");
         let sky_light = format!(
-            "{{\"lgB\":[{}],\"lim\":[{}],\"sunVisible\":{},\"moonGlare\":{},\"sunGlare\":{},\"limitCurve\":[{}],\"coronaUnit\":{}}}",
+            "{{\"lgB\":[{}],\"lim\":[{}],\"sunVisible\":{},\"moonGlare\":{},\"sunGlare\":{},\"limitCurve\":[{}],\"coronaUnit\":{},\"extinctionK\":{}}}",
             grid(&light.log10_brightness_nl),
             grid(&light.limiting_magnitude),
             json_f(light.sun_visible_fraction.as_f64()),
             json_f(light.moon_glare_nl_deg2.as_f64()),
             json_f(light.sun_glare_nl_deg2.as_f64()),
             grid(&light.limit_curve),
-            json_f(light.corona_unit_nl.as_f64())
+            json_f(light.corona_unit_nl.as_f64()),
+            json_f(light.zenith_extinction.as_f64())
         );
         format!(
             "{{\"trueToGalactic\":[{}],\"skyLight\":{},\"jdTt\":{},\"gastDeg\":{},\"eclipticPole\":[{},{}],\"stars\":[{}],\"bodies\":[{}],\"mansionWidths\":{{{}}}}}",
