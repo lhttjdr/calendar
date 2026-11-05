@@ -41,13 +41,14 @@ fn scale_vec(s: impl ToReal, v: [Real; 3]) -> [Real; 3] {
     [v[0] * s, v[1] * s, v[2] * s]
 }
 
-/// F1–F5 月日基本角（弧秒）多项式系数 [T^0, T^1, ...]，T 为儒略世纪
+/// F1–F5 月日基本角（弧秒）多项式系数 [T^0, T^1, ...]，T 为儒略世纪；IERS Conventions 2010 式 5.43（Simon et al. 1994）。
+/// 曾有两处符号抄错（l′ 的 T³、Ω 的 T⁴），前 1000 年 Ω 偏 96″；以 SOFA 测试值核对见 `fundamental_arguments_vs_sofa`。
 const F1_F5_COEFFS: [[f64; 5]; 5] = [
     [485868.249036, 1717915923.2178, 31.8792, 0.051635, -0.00024470],   // l
-    [1287104.79305, 129596581.0481, -0.5532, -0.000136, -0.00001149],  // lp
+    [1287104.79305, 129596581.0481, -0.5532, 0.000136, -0.00001149],   // lp
     [335779.526232, 1739527262.8478, -12.7512, -0.001037, 0.00000417], // F
     [1072260.70369, 1602961601.2090, -6.3706, 0.006593, -0.00003169],  // D
-    [450160.398036, -6962890.5431, 7.4722, 0.007702, 0.00005939],      // Omega
+    [450160.398036, -6962890.5431, 7.4722, 0.007702, -0.00005939],     // Omega
 ];
 
 /// 章动模型：重边时用 edge_key 区分（IAU2000A 完整表 / IAU2000B 77 项）。
@@ -327,6 +328,20 @@ mod tests {
         let omega_expected = arcsec_to_rad(450160.398036);
         assert!(f[0].rad().is_near(l_expected, 1e-10), "F1 (l) at t=0");
         assert!(f[4].rad().is_near(omega_expected, 1e-10), "F5 (Omega) at t=0");
+    }
+
+    /// 与 SOFA 测试集（t_sofa_c.c：iauFal03、iauFalp03、iauFaf03、iauFad03、iauFaom03 在 t = 0.80）比较，模 2π。
+    /// t = 0.8 时高次项已足以检出系数符号错误（Ω 的 T⁴ 项符号错约 2.4e-10 rad）。
+    #[test]
+    fn fundamental_arguments_vs_sofa() {
+        let f = fundamental_arguments(0.80);
+        let sofa = [5.132369751108684, 6.226797973505507, 0.2597711366745499, 1.946709205396925, -5.973618440951302];
+        let two_pi = 2.0 * core::f64::consts::PI;
+        for (i, (got, want)) in f.iter().zip(sofa).enumerate() {
+            let d = (got.rad().as_f64() - want).rem_euclid(two_pi);
+            let d = d.min(two_pi - d);
+            assert!(d < 1e-11, "F{} 与 SOFA 差 {d:e} rad", i + 1);
+        }
     }
 
     /// Omega-only term (0,0,0,0,1) 的组合角等于 F5

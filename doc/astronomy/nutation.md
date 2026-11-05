@@ -91,4 +91,12 @@
 - **输出**：平赤道 of date → 真赤道 of date；**ε_true = ε_mean + Δε**。
 - **本实现**：默认完整 **IAU 2000A**（`vendor/IAU2000`）；不可用时回退 **77 项**（IAU 2000B）。历元 T 与岁差一致；代码：MHB2000 / MHB2000Truncated；在 pipeline 中的位置见 [solar-terms.md](solar-terms.md) 八步之步骤 6。
 
+### 基本角系数订正（2026-11-05）
+
+`iau2000b.rs` 的 `F1_F5_COEFFS` 有两处符号抄错：l′ 的 T³ 项（应为 +0.000136）、Ω 的 T⁴ 项（应为 −0.00005939）；
+`time::earth_rotation` 中另一份同名系数是对的。完整 IAU 2000A 与 77 项都经 `fundamental_arguments` 取基本角，均受影响：
+前 1000 年 Ω 偏 96″（Δψ 偏约 0.008″），前 3000 年 Ω 偏 742″（Δψ 约 0.06″，节气约 1.5 s）。原测试只在 t = 0 检查，发现不了。
+已改正并新增 `fundamental_arguments_vs_sofa`（SOFA t_sofa_c.c 中 iauFal03…iauFaom03 在 t = 0.8 的值，模 2π，容差 1e-11 rad；
+旧系数下 l′、Ω 分别差 6.7e-10、2.4e-10 rad，可检出）。
+
 **参考文献**：IERS Conventions（IAU 2000A，5.43–5.44）；Wahr, Geophys. J. R. Astron. Soc. 64, 705 (1981)；Mathews et al. (MHB2000)；`doc/references/sunMoon_simp.pdf`。
