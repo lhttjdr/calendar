@@ -18,8 +18,9 @@ SRC = "doc/astronomy/celestial-phenomena.md"
 SKY = "doc/astronomy/sky-view-3d.md"
 
 
-def conv(a: int, b: int, src: str = SRC, keep_names: bool = False) -> str:
-    return subprocess.run(["python3", "scripts/figures/kb_to_site.py"] + (["--keep-names"] if keep_names else []) + [src, str(a), str(b)],
+def conv(a: int, b: int, src: str = SRC, keep_names: bool = False, verbatim: bool = False) -> str:
+    flag = ["--verbatim"] if verbatim else (["--keep-names"] if keep_names else [])
+    return subprocess.run(["python3", "scripts/figures/kb_to_site.py"] + flag + [src, str(a), str(b)],
                           capture_output=True, text=True, check=True).stdout.strip()
 
 
@@ -100,11 +101,14 @@ def build() -> None:
     for src, dst, title in [("doc/astronomy/phenomena-checks.md", "site/appendix/phenomena-checks.md", "# 附录：天象逐条校验"),
                             ("doc/calendar/main-table-checks.md", "site/appendix/main-table-checks.md", "# 附录：以本纪核验主表"),
                             ("doc/calendar/calendar-source-texts.md", "site/appendix/source-texts.md", "# 附录：历法原文摘录")]:
-        t = conv(1, 10**6, src)
+        t = conv(1, 10**6, src, verbatim="source-texts" in dst)
         t = re.sub(r"^# .*", title, t, count=1)
         # 生成说明一段（指向脚本与知识库）换成读者说明
         t = re.sub(r"\A(# [^\n]*\n\n)由 .*?\n\n", r"\1本附录是逐条检验的完整结果，由检验程序自动生成；方法与结论见正文各章。\n\n", t, count=1, flags=re.S)
         t = re.sub(r"^数据：\s*$\n?", "", t, flags=re.M)
+        # 原文附录的说明行（正文不动）
+        t = t.replace("由  从维基文库底本截取（勿手改），", "从维基文库底本截取，")
+        t = t.replace("**底本有讹字，引用前须核点校本**（，本地，不入库）", "**底本有讹字，引用前须核中华书局点校本**")
         open(dst, "w").write(t + "\n")
 
 

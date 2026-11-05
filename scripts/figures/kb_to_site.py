@@ -5,7 +5,7 @@
 
 转换只做机械清理，结果须人工通读修补；不在这里改写任何数字。
 
-用法：python3 scripts/figures/kb_to_site.py [--keep-names] <源.md> <起始行> <结束行>  > 片段.md
+用法：python3 scripts/figures/kb_to_site.py [--keep-names | --verbatim] <源.md> <起始行> <结束行>  > 片段.md
 """
 
 import re
@@ -19,6 +19,7 @@ EXTERNAL = re.compile(r"^(iau[A-Z]\w*|[a-z]{2,4}[A-Z]{1,3}\w*|XL[01]|SSQ|SZJ|HXK
                       r"LiaoJinYuanCorrection|action=raw|swehel\.c|VISLIMIT\.BAS|precessionlib\.compute_precession|vsop87\.doc)$")
 
 
+VERBATIM = False  # 原文模式：古籍原文一字不改，只去链接与路径，不做标点清理
 KEEP_NAMES = False  # 保守模式：只删路径，名字一律保留（历法各章描述上游程序的推步算法，变量名是算法的一部分）
 
 
@@ -54,6 +55,7 @@ def drop_code_columns(lines: list[str]) -> list[str]:
 
 
 def clean_line(ln: str) -> str:
+    orig = ln
     # 指向知识库其它文档的链接：「见 [x](y.md) §n」整段去掉；其它 md 链接只留文字
     ln = re.sub(r"[（(]?(?:详)?见\s*\[[^\]]*\]\([^)]*\.md[^)]*\)[^，。；）)]*[）)]?", "", ln)
     ln = re.sub(r"\[([^\]]*)\]\((?!https?:)[^)]*\)", r"\1", ln)
@@ -73,6 +75,7 @@ def clean_line(ln: str) -> str:
     ln = re.sub(ident + r"\s*(输出|的输出)", "计算结果", ln)
     ln = re.sub(r"Rust 侧?(给|按|算|用)", r"计算时\1", ln)
     ln = re.sub(r"Rust 给", "计算端给出", ln)
+    ln = re.sub(r"（(进行中|已完成|完成)）", "", ln)  # 开发进度标注
     # 作者而非仓库名：ytliu0/ChineseCalendar → 廖育栋（Yuk Tung Liu）的 ChineseCalendar（网址保留）
     ln = re.sub(r"\[ytliu0/ChineseCalendar\]\((https?://[^)]*)\)", "廖育栋（Yuk Tung Liu）的 ChineseCalendar", ln)
     ln = re.sub(r"(?<![/.\w])ytliu0/ChineseCalendar(?![\w/])", "廖育栋（Yuk Tung Liu）的 ChineseCalendar", ln)
@@ -94,9 +97,13 @@ def clean_line(ln: str) -> str:
     ln = re.sub(r"本仓库", "本项目", ln)
     ln = re.sub(r"前端", "网页端", ln)
     ln = re.sub(r"(实现在|实现见|数据在|结果在|实现：)\s*(?=[。，；]|$)", "", ln)
+    if VERBATIM or ln == orig:
+        # 原文模式，或本行没有删过任何东西：不做标点清理，以免误改引文
+        return ln.rstrip()
     # 清理残留标点
     ln = re.sub(r"[（(]\s*[，、；,;]*\s*[）)]", "", ln)
     ln = re.sub(r"（\s*[；;]\s*", "（", ln)
+    ln = re.sub(r"\s*[；;，,]\s*[）)]", "）", ln)
     ln = re.sub(r"\s*[，,]\s*[。.]", "。", ln)
     ln = re.sub(r"[，,]\s*[，,]", "，", ln)
     ln = re.sub(r"[：:]\s*[，,]", "：", ln)
@@ -104,7 +111,6 @@ def clean_line(ln: str) -> str:
     ln = re.sub(r"，\s*）", "）", ln)
     ln = re.sub(r"：\s*：", "：", ln)
     ln = re.sub(r"\*\*\s*\*\*", "", ln)
-    ln = re.sub(r"（(进行中|已完成|完成)）", "", ln)
     # 只压缩行内多余空格，保留行首缩进（嵌套列表靠它）
     m = re.match(r"^[ \t]*", ln)
     ln = m.group(0) + re.sub(r"[ \t]{2,}", " ", ln[m.end():])
@@ -113,8 +119,11 @@ def clean_line(ln: str) -> str:
 
 
 def main() -> None:
-    global KEEP_NAMES
+    global KEEP_NAMES, VERBATIM
     args = sys.argv[1:]
+    if args and args[0] == "--verbatim":
+        VERBATIM = KEEP_NAMES = True
+        args = args[1:]
     if args and args[0] == "--keep-names":
         KEEP_NAMES = True
         args = args[1:]
