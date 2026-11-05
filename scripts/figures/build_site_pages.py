@@ -36,13 +36,66 @@ def line_of(marker: str, src: str = SRC) -> int:
     raise SystemExit(f"找不到分节标记：{marker}")
 
 
+# 所有生成章节通用的措辞替换（各页不一定都有，不报未匹配）：知识库文档代号换成读者站章名，开发者用语换成读者能懂的说法
+GENERIC_ALL = [
+    (r"push-algorithms(\.md)?\s*", "《各朝代、政权的推步算法》"),
+    (r"historical-calendar(\.md)?\s*", "《实历与主表》"),
+    (r"calendar-compendium(\.md)?\s*", "《历代历法总录》"),
+    (r"qin-han-calendar-evaluation(\.md)?\s*", "《秦与汉初历法复原》"),
+    (r"celestial-phenomena(\.md)?\s*", "《日月食》等章"),
+    (r"日食见第九节", "日食见《日月食》一章"),
+    (r"与 第十节", "与《史书天象记录检验》一章"),
+    (r"（P1 中 SOFA", "（本项目 SOFA"),
+    (r"本模块", "本项目"),
+    (r"主表上游", "主表所据"),
+    (r"上游 廖育栋", "廖育栋"),
+    (r"上游的", "ChineseCalendar 的"),
+    (r"上游(?=推步|代码|说明页|参数|对比|数据|程序|实现|版本|采用|用于|所用)", "ChineseCalendar "),
+    (r"上游", "ChineseCalendar"),
+]
+
+
 def fix(text: str, pairs: list[tuple[str, str]], page: str) -> str:
+    for a, b in GENERIC_ALL:
+        text = re.sub(a, b, text)
     for a, b in pairs:
         new = re.sub(a, b, text, flags=re.M)
         if new == text:
             print(f"[{page}] 修补未匹配：{a[:50]}")
         text = new
     return text
+
+
+# 对所有生成页面统一生效：知识库文档名换成读者站章名；「上游」写明所指；去掉知识库内部节号与开发阶段编号
+KB_CHAPTERS = {
+    "push-algorithms": "《各朝代、政权的推步算法》",
+    "historical-calendar": "《实历与主表》",
+    "calendar-compendium": "《历代历法总录》",
+    "qin-han-calendar-evaluation": "《秦与汉初历法复原》",
+    "celestial-phenomena": "天象各章",
+    "sky-view-3d": "《当地所见的星空》",
+    "main-table-checks": "附录「以本纪核验主表」",
+}
+GENERIC_ALL = [(rf"(?<![\w/-]){re.escape(k)}(?:\.md)?(?![\w-])", v) for k, v in KB_CHAPTERS.items()] + [
+    (r"主表上游", "主表所据"),
+    (r"上游\s*(?=廖育栋)", ""),
+    (r"上游(?=的)", "ChineseCalendar"),
+    (r"上游(?=推步|代码|说明页|参数|对比|数据|程序|实现|版本|表|采用|用于)", "ChineseCalendar 的"),
+    (r"上游", "ChineseCalendar"),
+    (r"本模块", "本项目"),
+    (r"（P1 中 SOFA 测试值", "（本项目引用 SOFA 测试值时"),
+    (r"日食见第九节(?: P2)?", "日食见《日月食》一章"),
+    (r"与\s*第十节", "与《史书天象记录检验》一章"),
+    (r"见第九节 P2", "见《日月食》一章"),
+    (r"见第九节 P3", "见《行星》一章"),
+    (r"第十节(?=西晋)", "《史书天象记录检验》一章中"),
+]
+
+
+def generic(t: str) -> str:
+    for a, b in GENERIC_ALL:
+        t = re.sub(a, b, t)
+    return t
 
 
 NASA_CHARTS = "\n\n" + "\n\n".join(f'<Chart src="nasa-{k}-{e}" :height="260" />' for k in ("solar", "lunar") for e in ("ancient", "modern"))
@@ -89,12 +142,12 @@ def build() -> None:
                     [conv(p_rec + 1, line_of("## 参考文献") - 1)], FIX_RECORDS),
     }
     for name, (title, intro, parts, fixes) in pages.items():
-        body = fix("\n\n".join(parts), fixes, name)
-        tail = "" if name == "records" else "\n\n" + refs
+        body = generic(fix("\n\n".join(parts), fixes, name))
+        tail = "" if name == "records" else "\n\n" + generic(refs)
         open(f"site/astronomy/{name}.md", "w").write(f"# {title}\n\n{intro}\n\n{body}{tail}\n")
     sky = conv(1, 10**6, SKY).replace("# 3D 星空：当地所见的天空", "# 当地所见的星空", 1)
     sky = fix(sky + "\n\n" + demote(conv(p_refr, p_rec - 1)), FIX_SKY, "sky-view")
-    open("site/astronomy/sky-view.md", "w").write(sky + "\n")
+    open("site/astronomy/sky-view.md", "w").write(generic(sky) + "\n")
     # 附录：逐条校验结果（知识库中由脚本生成，原样转入）
     import os
     os.makedirs("site/appendix", exist_ok=True)
@@ -109,6 +162,8 @@ def build() -> None:
         # 原文附录的说明行（正文不动）
         t = t.replace("由  从维基文库底本截取（勿手改），", "从维基文库底本截取，")
         t = t.replace("**底本有讹字，引用前须核点校本**（，本地，不入库）", "**底本有讹字，引用前须核中华书局点校本**")
+        if "source-texts" not in dst:  # 原文附录一字不动
+            t = generic(t)
         open(dst, "w").write(t + "\n")
 
 
@@ -135,7 +190,7 @@ FIX_STARS = [
     (r"^\*\*下一步\*\*：.*\n?", ""),
 ]
 FIX_RECORDS = [
-    (r"^- 日月食：见第九节 P2。", "- 日月食：方法见《日月食》一章。"),
+    (r"^- 日月食：见《日月食》一章。", "- 日月食：方法见《日月食》一章。"),
     (r"^- 月、五星凌犯与相合：。", "- 月、五星凌犯与相合："),
     (r"^- 日期偏移：。", "- 日期偏移："),
     (r"(\n\| 清 \|[^\n]*)", r'\1\n\n<Chart src="records-conjunction" />'),
@@ -197,7 +252,7 @@ def build_calendar() -> None:
         t = re.sub(r"^# .*", f"# {title}", t, count=1)
         for a, b in GENERIC_CAL:  # 通用替换：各页不一定都有，不报未匹配
             t = re.sub(a, b, t, flags=re.M)
-        open(dst, "w").write(fix(t, globals()[fixes], dst) + "\n")
+        open(dst, "w").write(generic(fix(t, globals()[fixes], dst)) + "\n")
 
 
 def split_checks() -> None:
