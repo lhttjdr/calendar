@@ -13,7 +13,7 @@
 | 本地参考（不入库） | `doc/references/history/点校本二十四史精装版*/` | 中华书局点校本二十四史扫描 PDF（2.8 GB，无文字层，已 gitignore）：按需读页作依据，引用时注明册与页，不要整本提交 |
 | 本地参考（不入库） | `doc/references/history/俄藏敦煌黑水城文献/` | 《俄藏黑水城文献》1—5 册、《俄藏敦煌文獻》1 册（DjVu，520 MB，无文字层）；查阅需 djvulibre |
 | 文档（知识库） | `doc/` | 开发与 AI 用的知识库：按《月相和二十四节气的计算》分章，含代码路径、逐条校验、交叉引用，索引见 [doc/index.md](doc/index.md)；AI 开发用总览见 [INVENTORY.md](INVENTORY.md)。**不发布** |
-| 文档站（读者） | `site/` | 发布到 GitHub Pages `/docs/` 的人读文档（VitePress）：每章自成一体、按顺序读，不写代码路径、不靠跳转阅读；内容取自 `doc/` 改写，数字须与 `doc/` 一致。配图/动画用 Manim 本地渲染、产物提交到 `site/public/media/`，正文用 `<Anim src="..."/>` 引用，见 [scripts/manim/README.md](scripts/manim/README.md) |
+| 文档站（读者） | `site/` | 发布到 GitHub Pages `/docs/` 的人读文档（VitePress）：每章自成一体、按顺序读，不写代码路径、不靠跳转阅读；内容取自 `doc/` 改写，数字须与 `doc/` 一致。配图/动画用 Manim 本地渲染、产物提交到 `site/public/media/`，正文用 `<Anim src="..."/>` 引用，见 [scripts/manim/README.md](scripts/manim/README.md)；统计图 `<Chart src="..."/>` 的数据与天象、历法长章节及附录由 `scripts/figures/` 生成（见 [scripts/figures/README.md](scripts/figures/README.md)），知识库更新后重跑 |
 | 脚本 | `scripts/` | 数据生成/转换脚本，按用途分子目录：`dev/`（构建/测试/覆盖率）、`ephemeris/`（历表拟合、章动表抓取、二进制生成与压缩）、`calendar_data/`（纪年/朔日表处理；`qinhan_eval/zhi_star_records.py` 为正史天文志通用解析器）、`phenomena/`（星表提取、Skyfield 星位对照、天象检验汇总）、`sky_culture/`（距星与史载宿度整理）、`manim/`（文档配图/动画） |
 
 **Rust 运行/测试时工作目录须为仓库根**（数据路径以仓库根 `data/` 为基准）；Web 从 `/data/...` 拉取，需先 `npm run copy-data`。

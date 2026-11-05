@@ -1,0 +1,297 @@
+# 日月食
+
+本章说明日月食的计算方法与所依据的权威算法、$\Delta T$ 不确定度的处理，以及与 NASA 五千年日月食典和《汉书》《后汉书》记录的逐条检验。文中方括号数字指文末参考文献。
+
+## 四、ΔT 不确定度的处理
+
+古代日食局地可见与否，往往取决于 ΔT 的取值：Morrison–Stephenson 2021 给出前 200 年 ΔT = 12770 ± 110 s（约 3.55 小时 ± 1.8 分钟），
+前 700 年 ±170 s，前 2000 年 ±1000 s；越早越不确定。
+
+- 局地日食/月食结果附带**敏感度**：在 ΔT ± σ（可配置倍数）下重算，报告「各取值下都可见 / 仅部分取值下可见 / 都不可见」。
+- 反过来，可见性确凿的史料日食可以**约束** ΔT（Stephenson 一系的方法）。本模块提供正向计算；反演留给下游工具。
+
+## 七、算法来源：权威优先，寿星天文历作参照
+
+**原则**：每个部件采用当前最权威、精度最高的标准或文献算法（IAU/IERS 规范、*Explanatory Supplement to the Astronomical
+Almanac* 第 3 版、JPL 历表、经同行评议的 ΔT 与星表）；许剑伟《寿星天文历》（[sxwnl](https://github.com/sxwnl/sxwnl) 5.10，
+同类需求最完整的中文实现）作为**算法参照与验证基准**——借鉴其问题分解与工程处理，比对其结果；不以其实现为准，也不复制其代码。
+
+| 部件 | 采用的权威算法/标准 | sxwnl 对应（参照、验证） |
+| --- | --- | --- |
+| 地球自转、恒星时 | IAU 2006/2000A，CIO 法 ERA + GST（IERS Conventions 2010；SOFA `iauEra00`/`iauGst06a`） | `pGST` 平恒星时（Meeus 型） |
+| 大地坐标、观测者 | GRS80/WGS84 椭球（IERS 2010） | `cs_ba` 极赤半径比 |
+| 站心视差 | GCRS 中天体与观测者位置向量严格相减（*Explanatory Supplement* 2013 第 7 章） | `parallax` |
+| ΔT | Morrison, Stephenson, Hohenkerk & Zawilski 2021（*Proc. R. Soc. A* 477:20200776）三次样条及其 σ(t)；与月历表 ṅ 配套修正 | `dt_at`（作对照模型） |
+| 月球历表 | ELPMPP02 完整级数（Chapront & Francou 2003）；长时段高精度参考用 JPL 数值历表：现有 DE406，可选新增 DE441（Park et al. 2021，-13200～+17191，JPL 现行标准） | `XL1` 截断 ELP + 修正 |
+| 行星历表 | 同上：VSOP87（体积小，可在网页中计算）+ DE406/DE441（参考）；计入 IAU2000 后岁差速率修正 | `XL0` 截断 VSOP87 + 修正表； 可作误差量级对照 |
+| 日食几何 | 由历表严格计算贝塞尔根数，全球与局地情况均按 *Explanatory Supplement* 2013 第 11 章；月面边缘轮廓（LRO/Kaguya）仅在需秒级接触时刻时选用，古代不需要 | `rsGS`（根数插值、界线）、`rsPL`（局地） |
+| 月食 | 同上；地影放大默认 Danjon 法（NASA 月食典所用），Chauvenet 可选 | `ysPL` |
+| 行星视星等 | Mallama & Hilton 2018（*Astronomy and Computing*，天文年历现行采用） | — |
+| 偕日升落（晨见夕伏） | Schaefer 1993 大气消光可见性模型；传统 arcus visionis 作对照 | — |
+| 行星会合（合冲留大距） | 由视位置数值求根/求极值（与现有朔望、节气同一套方法） | `xingHR`、`xingLiu`、`daJu`、`xingHY` |
+| 出没 | 站心地平高度求根，含大气折射与视半径 | `SZJ` |
+| 恒星 | Hipparcos 新归算（van Leeuwen 2007）；亮星 Hipparcos 优于 Gaia DR3（后者对亮星饱和）；按空间运动严格推算历元（SOFA `iauPmsafe`） | `HXK`（FK5 星表，无中国星官名） |
+| 岁差 | Vondrák et al. 2011 长期岁差（已实现，IAU 推荐用于长时段）；近代可用 P03 | P03 等 |
+| 古代朔气（历法域） | — | `SSQ` 秦汉段平朔拟合 + 修正表：作秦汉初复原评估的对照 |
+
+**验证基准**：NASA《五千年日食典》《五千年月食典》（Espenak & Meeus）为主，sxwnl 结果为辅；比对时统一 ΔT，以区分 ΔT 差异与
+几何算法差异。sxwnl 为 JavaScript，取其结果需在浏览器或 JS 环境中运行（或使用其在线版），作为外部对照数据记录来源与版本。
+
+## 实现与检验
+
+| 内容 | 验证 |
+| --- | --- |
+| 日月位置插值：一次日月食窗口（猜测时刻 ±2 日）取 12 个切比雪夫节点精确计算，搜索与求根在插值上进行；按年列表时先以平升交角距 F 初筛（\|sin F\| ≤ 0.55；掠食实测可到 0.45 以上，Meeus 的 0.36 不够），离交点远的朔望不建窗 | f64 构建下节点数 10 起误差不再下降，只剩时刻舍入（月亮约 5 cm、太阳数米）；初筛在前 3000—3000 年逐朔望检验（见 `node_screen_never_drops_an_eclipse`） |
+| 演示动画的一帧：任意时刻的影子轮廓、影轴落点、日下点（日食）；月下点、月出月没界线、相对影心位置、食分（月食）。逐帧复用同一插值窗 | 与静态图同一时刻逐点相等（`frame_matches_map_outlines_and_central_line`、`curves_agree_with_topocentric_altitude`）；极大时影轴落点在中心线上 |
+| 日食全球情况：贝塞尔根数 x、y、d、l1、l2、tan f1、tan f2，极大食、γ、食分、类型（偏/环/全/全环）[12][20] | 对照 NASA 日食典，见下表 |
+| 日食某地情况：站心日月角距、初亏/食甚/复圆、食既/生光、带食出没、地平以上最大食分 | 《汉书》西汉日食，见下 |
+| 月食：Danjon 地影 [18][21]，半影/本影食分、γ、P1–P4/U1–U4，月亮地平高度 | 对照 NASA 月食典，见下表 |
+| 月食图：各食相月出月没界线（站心几何高度 0，含视差）、月下点、某地食况、穿影路径 | 界线上月亮高度偏差 < 1e-4°（2018 年、前 200 年前后各一次）；ΔT 变化为纯经度平移；各时刻同月食典检验 |
+| 日食地图（食带图）：中心线、本影南北界、半影界、带食出没界线、可见极大食分等值线、影子轮廓、日下点 | 见下「日食地图」 |
+
+**日月食表与图的批量检验**（NASA 日月食典前 199—前 100、2001—2100 两段的全部日月食）：
+
+| 检验 | 结果 |
+| --- | --- |
+| 年表对 NASA 目录逐条（日食 461、月食 468） | 无漏无多 |
+| 月食图逐次生成 468 次 | 无崩溃、NaN；食相数与类型相符、时序正确 |
+| 日食图逐次生成 461 次 | 无崩溃、NaN 或结构异常；半影界端点到带食出没界线顶点最远 18 km |
+| 日食图界线两侧对站心算法（本影界挪 3 km，半影界挪 10 km），按目录类型统计，含 A、T、H、P 及其变体 | 全部相符。全环食带宽不足以挪 3 km 处 45 点不作判定，其中最窄的 5 点带宽 ≤ 0.21 km（由环转全处） |
+| 食分等值线对站心食分（太阳高度 > 2°） | 最大偏差 0.0004 |
+
+**日食地图**（食带图）
+
+算法：
+- 基本面上影锥母线 P(ζ) = (x + L(ζ)cosθ, y + L(ζ)sinθ, ζ)，L = l − ζ tan f，关于 ζ 是线性的，与椭球求交只需解一元二次方程。
+- **中心线、本影南北界、带食出没界线**按时刻扫描，步长 1 分钟：
+  - 本影界是本影轮廓的包络，即在 θ 上求 d(|Δ| − |L|)/dt 的根；
+  - 带食出没界线是半影轮廓与地球边缘的交点；
+  - 相邻两步点数有变化（曲线出现、终止，或成对生灭）时，把这一步递归细分（每层 8 段、共 3 层，最后再二分）；
+  - θ 上落地边界附近按几何级数加密取样，并检查成对的根。
+- **半影界与食分等值线**不再按时刻扫描，改用地面经纬网格（1°）：
+  - 每个格点在时刻表上求太阳在（几何）地平以上时的最大食分 m = (L₁ − Δ)/(L₁ + L₂)；
+  - 用 marching squares 求等值线，在网格边上二分到精确值；
+  - 0 级等值线上，极大出现在中途的部分就是半影界，出现在地平处的部分落在带食出没界线上，两者的交接点再沿等值线二分求出。
+- 改用网格的原因：按时刻扫描的包络，在极昼区（2017-08-21 的北界横过北极圈）和地球边缘附近会出现尖点与短命的分支（边缘附近投影缩短，十几秒的分支在地面上长达数百公里），逐个补救难以周全。网格等值线不受这些情形影响，又能顺带给出食分等值线。
+
+ΔT 只经地球自转角进入：GAST = ERA(UT1) + 只依赖 TT 的项，而 ERA 对 UT1 是线性的，所以换一个 ΔT，整张图严格沿经度平移 +360°×1.00273781191×δΔT/日（ΔT 越大越偏东）。所以改变 ΔT 或画出 ±σ 带都只需平移，不必重算。
+
+检验（双双精度计算）：
+
+| 检验 | 结果 |
+| --- | --- |
+| 极大食点、带宽对照 NASA：2017-08-21（ΔT 70.3 s） | 87.663°W 36.967°N，114.7 km；NASA 87°40′W 36°58′N，115 km |
+| 同上：2024-04-08（ΔT 70.6 s） | 104.141°W 25.289°N，197.5 km；NASA 104°08′W 25°17′N，198 km |
+| 本影界、半影界两侧（各挪 3 km、10 km）与站心局地算法 `solar_eclipse_local` 互验 | 两次日食全部界线，每处都是一侧有食（全/环食）、另一侧无 |
+| 带食出没界线上，初亏或复圆时的站心几何太阳高度 | 最大偏差 0.0023° |
+| 食分 0.2/0.4/0.6/0.8 等值线上（太阳高度 > 2° 处）的站心食分 | 最大偏差 0.0004 |
+| 半影界端点到带食出没界线的距离（前 181-03-04、2017、2024） | 2、9、6 km |
+| ΔT 增加 1200 s 时，极大食点的经度平移与公式比较 | 差 < 1e-6° |
+| 2017-08-21 北界（北极圈）、南界东端（南美东岸尖点）与逐格局地计算的真实可见食区边界 | 一致（曾用 1°–2° 网格逐格核对） |
+
+前 181-03-04（高后七年正月己丑晦「日有食之，既」）按 MS2021 ΔT（12520 ± 108 s），长安食分 1.011（全食），食甚在地方平时 14:51。
+
+**与 NASA 五千年日月食典对照**（各目录每 20 条抽 1 条，各 12 次；全量逐次结果见下图）。
+时刻为力学时（TT），与 ΔT 无关；差值 = 本实现 − NASA。
+
+| 目录 | 极大食时刻差 平均 / 最大 | γ 差 最大 | 食分差 最大 | 类型不一致 |
+| --- | --- | --- | --- | --- |
+| 日食 −199～−100 | −18.3 s / 21.0 s | 0.0002 | 0.0027 | 0 |
+| 日食 2001～2100 | +0.13 s / 0.54 s | < 0.0001 | 0.0008 | 0 |
+| 月食 −199～−100 | −17.7 s / 20.8 s | 0.0003 | 半影 0.0005，本影 0.0004 | 0 |
+| 月食 2001～2100 | −0.15 s / 1.57 s | 0.0001 | 半影 0.0002，本影 0.0001 | 0 |
+
+<Chart src="nasa-solar-ancient" :height="260" />
+
+<Chart src="nasa-solar-modern" :height="260" />
+
+<Chart src="nasa-lunar-ancient" :height="260" />
+
+<Chart src="nasa-lunar-modern" :height="260" />
+
+- 近代时刻差在 NASA 表的 1 s 取整之内（月食极大附近角距变化平缓，最大 1.6 s）。
+- 古代日、月食都有约 −18 s 的一致偏差，γ、食分却没有相应偏差，说明来自月历表而非几何算法：NASA 用 ELP-2000/82 [6]，本实现用
+  拟合 DE406 的 ELPMPP02 [9]。按月日相对运动约 0.5″/s 折算，月亮黄经相差约 9″。对古代记录来说，这比 ΔT 的不确定度（前 200 年
+  σ ≈ 110 s [1]）小一个量级。
+- 检验容差按以上实测设定（近代：时刻 |平均| ≤ 1 s、最大 ≤ 3 s，γ ≤ 5e-4，食分 ≤ 3e-3；古代：时刻 |平均| ≤ 30 s、最大 ≤ 40 s，
+  γ ≤ 1e-3，食分 ≤ 5e-3），类型须全部一致。
+
+**《汉书·五行志》西汉日食检验**
+
+做法：记录日只用历法换算（太初以前用秦汉初复原历，以后用实历朔日表），再独立计算该日 ±1.5 日内有无日食，以及长安
+（108.88°E，34.30°N）所见。ΔT 取 Morrison–Stephenson 2021 [1]，按 ELPMPP02 的 ṅ = −25.857″/cy² [9] 做潮汐修正，长安所见
+在 ΔT 及 ±σ、±2σ 下各算一次（前 2 世纪 ΔT ≈ 12 500 s，σ ≈ 105 s）。原文 [22] 总结作「日食五十三」，所列实为 54 条。
+
+| 历日来源 | 记录 | 当日有日食 | 其中日食恰在记录日 | 长安可见（±2σ 皆然） | 无日食 |
+| --- | --- | --- | --- | --- | --- |
+| 复原历（高帝三年—元封四年） | 29 | 17 | 17 | 17 | 12 |
+| 实历朔日表（太始元年—元始二年） | 25 | 23 | 22 | 22 | 2 |
+
+- **核对**：54 条的日食有无与类型逐条对照 NASA 日食典 [20]（补下载 −299～−200、−99～0、1～100 三页），全部一致。
+- **历日**：有日食的 40 条中 39 条日差为 0，即史书所记干支日就是日食当天；另 1 条（太始元年正月乙巳晦）干支不在所记之月，
+  按最近同名干支日取，差 1 日。复原历时段 17 次真实日食全部落在复原历所排的「晦」「朔」「先晦一日」上，这是对复原历独立于
+  历简的检验。史书多记「晦」，说明当时历法朔日普遍
+  比实际合朔晚约一日，与汉初历「后天」的通行认识一致。
+- **长安所见**：39 次在长安可见，且在 ΔT ±2σ 范围内结论不变；唯一不可见的是五凤元年十二月乙酉朔，长安食甚时太阳在地平下
+  约 14°，可能是他处所报。景帝三年二月壬午晦在长安食分对 ΔT 很敏感（−2σ 为 0.16，+2σ 为 0.04），可用于约束 ΔT。
+- **食分描述**：「既」者高后七年长安食分 1.01（全食）；高帝九年 0.96（环食带附近）；元始二年 0.91。「幾盡」0.76–0.93，
+  「不盡如鉤」0.85–0.93，大体相符。
+- **无日食 14 条**，按 NASA 目录查前后 400 日内的真实日食，可见几种形态（只作线索，未逐条考订）：
+  - 重出：高帝三年十一月癸卯晦、文帝三年十一月丁卯晦，都恰在上一个月已有一次真实日食（十月甲戌晦、十月丁酉晦）；
+  - 月份讹误、干支不变：建昭五年六月壬申晦，60 日后有一次同为壬申的偏食（γ = +1.30）；
+  - 其余（惠帝七年正月、高后二年六月、文帝后元四年四月、后元七年正月、景帝中元元年十二月、中元二年九月、建元二年二月、
+    建元五年正月、元光元年二月、元封四年六月、元寿二年三月）附近没有同干支的日食，需另行考订。
+
+**《后汉书》日月食检验**（同一程序；都城取洛阳 112.62°E，34.73°N；东汉全在太初以后，历日一律按实历朔日表）。
+
+日食：志第十八《五行六》「日蝕」一节 72 条 [23]，条数与原文总结「日蚀七十二」一致。
+
+| 记录 | 当日有日食 | 日差 0 | 日差 +1 | 洛阳可见 | 洛阳不可见 | 无日食 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 72 | 67 | 65 | 2 | 60 | 7 | 5 |
+
+- **核对**：72 条的日食有无与类型逐条对照 NASA 日食典 [20]，全部一致。
+- **历日**：65 条日差为 0。日差 +1 的两条：熹平二年十二月癸酉晦，日食实在次日甲戌，即该月真正的晦日，「晦」字不误而干支差一日；
+  建宁三年三月丙寅晦，日食在洛阳夜间，梁国所报，日期按洛阳地方时算差一日，不足为据。
+- **「史官不见，某郡以闻」与洛阳可见性**：洛阳不可见的 7 次日食（元初三年辽东、元初四年七郡、阳嘉四年零陵、永和三年会稽、
+  建和元年郡国、永寿三年郡国、建宁三年梁相）**全部**注明由郡国报告；其余注明郡国报告者，洛阳所见都很勉强：食甚时太阳在地平附近
+  （建武六年、永元二年、延熹九年、章和元年、元初五年），或食分只有 0.06（建宁二年右扶风）。这与史官在洛阳实测、看不见才由郡国
+  上报的制度相合，是对站心可见性计算的独立检验。反例只有一条：延光四年三月戊午朔，洛阳食分 0.32、太阳高 21°，史书却作
+  「史官不觉」，可能是天阴。
+- **无日食 5 条**
+  - 永平十三年十月甲辰晦：60 日前的甲辰（70-09-23）有一次日环食，是闰月之晦（实历作闰七月，刘昭注引《古今注》作「闰八月」），
+    所以《五行志》的「十月」是月份讹误；
+  - 永宁元年七月乙酉朔、元嘉二年七月二日庚辰、熹平六年十月癸丑朔、光和元年二月辛亥朔：附近没有同干支的日食，需另行考订。
+
+月食：东汉无系统月食记录，收《五行六》「月蚀非其月」2 条与《律历中·论月食》[24] 可定月份者 5 事；「天以某月食，历以某月」者，
+历法预报之月也各收一行检验其无食，共 12 行。有无、类型、食分与 NASA 月食典 [20] 逐条一致（食分差 ≤ 0.0005）。
+
+| 记载 | 计算结果 |
+| --- | --- |
+| 永元元年「天以七月後閏食，術以八月」 | 闰七月望月偏食（本影食分 0.27），洛阳可见；八月望无食 |
+| 永元二年正月宗绀「今月十六日月當食……至期如紺言」 | 正月十六日月全食（1.73），洛阳可见，日差 0 |
+| 本初元年「天以十二月食，曆以後年正月」 | 十二月望月偏食（0.29），洛阳可见；次年正月望无食 |
+| 熹平四年宗诚「今年十二月當食……到期如言」 | 十二月望月偏食（0.20，清晨月落前），洛阳可见；次年正月望无食 |
+| 光和二年三月、四月、五月之争 | 三月望只有半影食（半影食分 0.78，肉眼难辨），四月望半影食在白天，五月望无食：三月、四月、五月都无肉眼可见的月食 |
+| 永寿三年十二月壬戌「月蚀非其月」 | 壬戌确有月偏食（0.21），洛阳可见；但壬戌按实历是十一月望，十二月无壬戌 |
+| 延熹八年正月辛巳「月蚀非其月」 | 辛巳夜（次日清晨 5:30–7:30）月偏食（0.23），洛阳可见；古人以天明为日界，仍属辛巳 |
+
+
+
+## 参考文献
+
+**ΔT 与地球自转**
+
+1. Morrison L.V., Stephenson F.R., Hohenkerk C.Y., Zawilski M. 2021, Addendum 2020 to "Measurement of the Earth's rotation: 720 BC
+   to AD 2015", *Proc. R. Soc. A* 477: 20200776. <https://doi.org/10.1098/rspa.2020.0776>
+2. Stephenson F.R., Morrison L.V., Hohenkerk C.Y. 2016, Measurement of the Earth's rotation: 720 BC to AD 2015, *Proc. R. Soc. A*
+   472: 20160404. <https://doi.org/10.1098/rspa.2016.0404>（开放全文 <https://pmc.ncbi.nlm.nih.gov/articles/PMC5247521/>；§2 所述
+   ṅ = −25.82″/cy² 与 DE430 配合使用，式 (4.1) 长期抛物线）
+3. Morrison, Stephenson, Hohenkerk, Zawilski, Table-S15.2020 – Polynomial coefficients to evaluate DT and change in lod, figshare,
+   CC BY 4.0. <https://doi.org/10.6084/m9.figshare.29920388>
+4. 同上作者，Table of Delta T (DT) & change in the length of day (lod) from −2000 to +2500 (2020), figshare, CC BY 4.0.
+   <https://doi.org/10.6084/m9.figshare.30111661>
+5. HM Nautical Almanac Office, ΔT 数据说明文件 hmnao_a_2021.txt（IERS EOP Product Center 托管，所写 ṅ = −25.85″/cy²）.
+   <https://hpiers.obspm.fr/eoppc/series/longterm/hmnao_a_2021.txt>
+6. Espenak F., Meeus J. 2006, *Five Millennium Canon of Solar Eclipses: −1999 to +3000*, NASA/TP-2006-214141；ΔT 多项式说明
+   （所假定 ṅ = −26″/cy²，配合 ELP-2000/82 的修正 c = −0.000012932·(y−1955)²）. <https://eclipse.gsfc.nasa.gov/SEcat5/deltatpoly.html>
+7. Petit G., Luzum B. (eds.) 2010, *IERS Conventions (2010)*, IERS Technical Note No. 36（第 5 章：ERA、GMST、二分差互补项
+   表 5.2e、Delaunay 基本幅角）.
+8. IAU SOFA Board, *IAU SOFA Software Collection*（`iauEra00`、`iauGmst06`、`iauEe06a`、`iauGst06a`、`iauGd2gc` 及测试程序
+   t_sofa_c.c 的标准值）. <https://www.iausofa.org/>
+
+**月历表**
+
+9. Chapront J., Francou G. 2003, The lunar theory ELP revisited. Introduction of new planetary perturbations, *A&A* 404, 735；
+   仓库内 （§4.1.1 W₁⁽²⁾ 潮汐部分 = ṅ/2，表 3 ΔW₁⁽²⁾，表 6 长期项修正）.
+10. Chapront J., Chapront-Touzé M., Francou G. 2002, A new determination of lunar orbital parameters, precession constant and tidal
+    acceleration from LLR measurements, *A&A* 387, 700（ELP/MPP02(LLR) 的 ṅ = −25.858″/cy²）.
+11. Park R.S., Folkner W.M., Williams J.G., Boggs D.H. 2021, The JPL Planetary and Lunar Ephemerides DE440 and DE441, *AJ* 161, 105.
+    <https://doi.org/10.3847/1538-3881/abd414>
+
+**算法与标准**
+
+12. Urban S.E., Seidelmann P.K. (eds.) 2013, *Explanatory Supplement to the Astronomical Almanac*, 3rd ed., University Science
+    Books（第 7 章站心视差，第 11 章日月食）.
+13. Meeus J. 1998, *Astronomical Algorithms*, 2nd ed., Willmann-Bell（例 13.b 地平坐标；第 49 章真朔）.
+14. Vondrák J., Capitaine N., Wallace P. 2011, New precession expressions, valid for long time intervals, *A&A* 534, A22.
+15. Mallama A., Hilton J.L. 2018, Computing apparent planetary magnitudes for The Astronomical Almanac, *Astronomy and Computing* 25, 10；
+    arXiv:1808.01973；作者程序与测试数据 <https://sourceforge.net/projects/planetary-magnitudes/>（Ap_Mag V3）.
+16. Schaefer B.E. 1993, Astronomy and the limits of vision, *Vistas in Astronomy* 36, 311–361. doi:10.1016/0083-6656(93)90113-X；
+    仓库内 （式 2–16、34、表 3–6、§3.10）.
+17. van Leeuwen F. 2007, Validation of the new Hipparcos reduction, *A&A* 474, 653. doi:10.1051/0004-6361:20078357；
+    星表 CDS I/311（原版 ESA 1997 SP-1200，CDS I/239），见 .
+18. Espenak F., Meeus J. 2009, *Five Millennium Canon of Lunar Eclipses: −1999 to +3000*, NASA/TP-2009-214172（月食地影按
+    Danjon 规则放大；Danjon 原文出处待核后补）.
+
+20. Espenak F., Meeus J., NASA 五千年日月食典目录页（日食 −299～300、2001～2100，月食 −199～−100、1～200、2001～2100），
+    NASA GSFC Eclipse Web Site，公有领域），如 <https://eclipse.gsfc.nasa.gov/SEcat5/SE2001-2100.html>.
+21. Espenak F., NASA 月食典地影说明页（Danjon 地影放大规则）. <https://eclipse.gsfc.nasa.gov/LEcat5/shadow.html>
+
+22. 班固《汉书》卷二十七下之下《五行志》，维基文库 wikitext（`action=raw`，取）.
+    <https://zh.wikisource.org/wiki/漢書/卷027>
+
+23. 司马彪《续汉书·五行志六》（今本《后汉书》志第十八，刘昭注），维基文库 wikitext（取）.
+    <https://zh.wikisource.org/wiki/後漢書/卷108>
+24. 司马彪《续汉书·律历志中》「论月食」（今本《后汉书》志第二），维基文库 wikitext（取）.
+    <https://zh.wikisource.org/wiki/後漢書/卷92>
+
+25. Chapront J. 2000, Improvements of planetary theories over 6000 years, *Celestial Mechanics and Dynamical Astronomy* 78, 75–82；
+    仓库内 （表 II、III；§4 拟合方法，NSEC、MIXT）.
+26. Bretagnon P., Francou G. 1988, Planetary theories in rectangular and spherical variables: VSOP87 solution, *A&A* 202, 309；
+    仓库内 、`vsop87.doc`（PRECISION 节）.
+
+27. Rhodes B. 2019, Skyfield: High precision research-grade positions for planets and Earth satellites generator,
+    Astrophysics Source Code Library, ascl:1907.024. <https://rhodesmill.org/skyfield/>（岁差 `precessionlib.compute_precession`：
+    Capitaine et al. 2003 四角式）
+
+28. Archinal B.A. et al. 2018, Report of the IAU Working Group on Cartographic Coordinates and Rotational Elements: 2015,
+    *Celestial Mechanics and Dynamical Astronomy* 130, 22（土星、天王星自转轴 α₀、δ₀ 的 J2000 值；与 Skyfield 极向量核对）.
+
+29. Schaefer B.E. 1990, Telescopic limiting magnitudes, *PASP* 102, 212–229. doi:10.1086/132629
+    （式 13 颜色修正、14–16、18 天顶极限星等）.
+30. Schaefer B.E., Liller W. 1990, Refraction near the horizon, *PASP* 102, 796–805. doi:10.1086/132705
+    （近地平折射的逆温变化，本实现未用）.
+31. Mallama A., Krobusek B., Pavlov H. 2017, Comprehensive wide-band magnitudes and albedos for the planets, with applications to
+    exo-planets and Planet Nine, *Icarus* 282, 19–33；arXiv:1609.05048）.
+32. Schaefer B.E. 1987, Heliacal rise phenomena, *Journal for the History of Astronomy* 18 (Archaeoastronomy 11), S19–S33.
+    doi:10.1177/002182868701801103
+    （式 1–2 蒙影天空、表 1 实测、表 7 金星、§4 传统视弧）.
+33. Krisciunas K., Schaefer B.E. 1991, A model of the brightness of moonlight, *PASP* 103, 1033–1039. doi:10.1086/132921；
+    仓库内 （式 3、8、9、15–21，表 2）.
+34. Crumey A. 2014, Human contrast threshold and astronomical visibility, *MNRAS* 442, 2600–2619. doi:10.1093/mnras/stu992；
+    仓库内 （式 16、26–28、34、53–56；§1.3、§1.6.4）.
+35. Schaefer B.E. 2000, The heliacal rise of Sirius and ancient Egyptian chronology, *Journal for the History of Astronomy* 31,
+    149–155. doi:10.1177/002182860003100204）.
+
+36. Ruggles C.L.N. (ed.) 1993, *Archaeoastronomy in the 1990s*, Group D Publications（电子版 Ocarina Books 2014，
+    ISBN 978-0-9540867-4-9）
+    Ecsedy & Barlai 第 123–127 页；第 15 章 Schaefer, Basic research in astronomy and its applications to archaeoastronomy，
+    第 155–177 页）.
+
+37. Schaefer B.E. 1998, To the visual limits, *Sky & Telescope* 95(5), 57–60（附程序 VISLIMIT.BAS）
+    （程序 10–2460 行、原文算例）.
+38. Schaefer B.E. 1991, Glare and celestial visibility, *PASP* 103, 645–660. doi:10.1086/132865
+    （式 1–4、21–23，§3.1–3.2）.
+39. Schaefer B.E., Bulder H.J.J., Bourgeois J. 1992, Lunar occultation visibility, *Icarus* 100, 60–72.
+    doi:10.1016/0019-1035(92)90018-3
+
+40. Stellarium 中国星空文化（skycultures/chinese、chinese_chenzhuo、chinese_song_dynasty、chinese_yuan_dynasty、
+    chinese_xianglin），commit 8e3062e，CC BY-SA 4.0。所据：潘鼐《中国恒星观测史》
+    （学林出版社 2009）、伊世同《中西对照恒星图表 1950.0》、杨伯顺对陈卓星表与《天文汇钞》的研究等（见各 description.md）.
+41. 宋濂等《元史》卷五十二《历志一·授时历议》（「岁差」「周天列宿度」「日躔」）、卷五十四《历志三·授时历经》（「赤道宿度」），
+    维基文库 wikitext（、，取）；班固《汉书》卷二十一《律历志》.
+
+42. 潘鼐《中国恒星观测史》（增订版），学林出版社，2009
+    （扫描本，PDF 页 = 书页 + 15；第 14 页表 1.2.1，第 639–641 页及表 9.1.4）.
+43. 黄一农《星占、事应与伪造天象——以「荧惑守心」为例》。题名据俄文书目转引，刊物、年份、页码**待核**，原文未取得
+    ；第十节西晋「荧惑守心」不合天象的结论由本模块推算独立得出，只引此文作背景.
+
+**参照实现**
+
+19. 许剑伟《寿星天文历》5.10（sxwnl）. <https://github.com/sxwnl/sxwnl>；Gitee <https://gitee.com/sxwnl>；
+    署名与授权说明参见其移植版 <https://pub.dev/packages/sxwnl_spa_dart>.
+
+> 核对状态：1–6、9（仓库内 PDF）、15（arXiv 原文）、16、29、31–39（仓库内 PDF，所用公式与表逐式对原版面核对）、17（CDS ReadMe、Crossref）、19–26 的内容本次已直接查阅原件或官方页面；27 只查阅了 Skyfield 源码
+> （岁差、星等实现），ASCL 编目信息按通行引文著录；28 未查阅原文，所用 J2000 极向值与 Skyfield 一致；7、8、10–14、18 的
+> 卷页按通行引文著录，使用到具体公式或数值时须再对原件核实（P1 中 SOFA 测试值即有两处凭记忆写错、经测试发现后更正）。
