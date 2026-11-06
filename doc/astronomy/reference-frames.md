@@ -14,6 +14,8 @@
 
 **四元数与对偶四元数**：**四元数** q = 标量 + 向量，单位四元数表示**纯旋转**，v' = q v q 共轭（Grossman 积）。**对偶四元数** dq = q_real + ε·q_dual（ε²=0）表示**刚体变换**（旋转+平移）；连续刚体步 = 对偶四元数连乘并归一化。本项目中架变换（FK5→ICRS、黄道→赤道）、岁差/章动/光行差在 Rust 侧采用 pipeline 的 TransformGraph（6D 状态与 3×3 旋转矩阵），见 [apparent-longitude-and-syzygy.md](apparent-longitude-and-syzygy.md) §7.2。
 
+**转轴转角实例**（读者站《转动》与动画 `scripts/manim/celestial_sphere/quaternions.py` 所用）：P03 三角式取 t = −30 儒略世纪（公元前 1000 年），ζ_A = −19.28°、θ_A = −16.50°、z_A = −19.09°；P = R3(−z_A)R2(θ_A)R3(−ζ_A) 由迹求得转角 41.64°，转轴（反对称部分）距 J2000 黄极（ε₀ = 84381.406″）0.37°。即三步合成近似绕黄极的一次转动，转轴偏离来自行星岁差。
+
 **物理量与单位**：**时间**用儒略日 JD、TDB、TT，单位日（d）；见 [time-and-timescales.md](time-and-timescales.md)。**长度**历表与地心距常用 **AU**；**速度**与光速 **c** 同单位，光行差中 v/c 无量纲（周年约 10⁻⁴，约 20.5″）。岁差/章动/历表级数中的**儒略世纪、儒略千年**为**无量纲**归一化坐标 t（见第 1 章「儒略世纪与儒略千年」），非带量纲时长。程序中该参数使用类型 `NormalizedTime.JulianCentury`（由 `NormalizedTime.julianCentury(jd)` 得到），参与级数时用 `.value` 取数值。公式与代码中角度→弧度、时间→日或秒、距离→AU 或 m 需一致。
 
 **速度与速率、加速度的区分**（实现见 `lunar.quantity`）：

@@ -1,57 +1,262 @@
 # 转动
 
-视位置计算的大部分工作，是把一个方向从一个参考架换到另一个参考架。每一步都是三维空间中的一次转动，有时还带一次平移（例如从日心换到地心）。这些操作怎样表示、怎样组合，直接影响计算的简洁和精度。
+求日月的视位置，大部分工作是把一个方向从一个参考架换到另一个参考架：从历表所用的黄道架换到赤道架，从 J2000 的平赤道换到观测当日的真赤道，从地心换到观测者所在的站心。每一步都是三维空间中的一次转动，有时还带一次平移。
 
-## 转动矩阵
+本章先讲转动怎样用数来表示（矩阵、欧拉角、转轴与转角、四元数、对偶四元数），以及各自的推导；再讲这些表示是怎样一步步发展出来的；然后把各家并列比较，说明天文学和航天、图形学各自惯用哪一种、为什么；最后说明本项目的取法。
 
-最直接的表示是 3×3 的**转动矩阵**。一个方向写成三维单位向量 $\mathbf{v}$，换到新坐标架就是 $\mathbf{v}' = R\,\mathbf{v}$。几次转动相继进行，就把矩阵依次相乘：先做 $R_1$ 再做 $R_2$，合起来是 $R_2 R_1$。
+## 一、转动矩阵
 
-绕坐标轴转角 $\theta$ 的矩阵最简单，天文上习惯记作 $R_1(\theta)$、$R_2(\theta)$、$R_3(\theta)$，分别绕 $x$、$y$、$z$ 轴：
+### 坐标转动与物体转动
 
-$$R_3(\theta) = \begin{pmatrix} \cos\theta & \sin\theta & 0 \\ -\sin\theta & \cos\theta & 0 \\ 0 & 0 & 1 \end{pmatrix}$$
+在一个右手直角坐标架中，方向写成单位向量 $\mathbf{v} = (x, y, z)^\mathsf{T}$。换一个原点相同、坐标轴转过一定角度的新架，同一个方向在新架里的分量是 $\mathbf{v}' = R\,\mathbf{v}$。$R$ 是 3×3 矩阵，它的三行就是新架三根坐标轴在旧架中的单位向量。新旧两架都是单位正交的，所以
 
-例如岁差的三次旋转法写成
+$$R^\mathsf{T} R = I,\qquad \det R = +1$$
+
+满足这两个条件的矩阵组成"特殊正交群" $SO(3)$。$R^\mathsf{T} R = I$ 给出 6 个独立的方程，9 个元素只剩 3 个自由度，这就是"转动有三个自由度"的代数意义。
+
+同一个矩阵有两种读法。坐标轴转过 $\theta$、方向不动，叫"坐标转动"（被动转动）；坐标轴不动、方向本身转过 $\theta$，叫"物体转动"（主动转动）。两者的矩阵互为转置。天文学一律用坐标转动：问的总是"同一颗星在新架里的坐标是多少"。
+
+绕三根坐标轴转 $\theta$ 的坐标转动矩阵，天文上记作 $R_1$、$R_2$、$R_3$：
+
+$$
+R_1(\theta)=\begin{pmatrix}1&0&0\\0&\cos\theta&\sin\theta\\0&-\sin\theta&\cos\theta\end{pmatrix},\quad
+R_2(\theta)=\begin{pmatrix}\cos\theta&0&-\sin\theta\\0&1&0\\\sin\theta&0&\cos\theta\end{pmatrix},\quad
+R_3(\theta)=\begin{pmatrix}\cos\theta&\sin\theta&0\\-\sin\theta&\cos\theta&0\\0&0&1\end{pmatrix}
+$$
+
+$\theta$ 为正时，从轴的正端看，坐标轴逆时针转；架中的点因此看起来顺时针转。以 $R_3$ 为例：新 $x'$ 轴在旧架中是 $(\cos\theta, \sin\theta, 0)$，与 $\mathbf{v}$ 的点积 $x\cos\theta + y\sin\theta$ 就是第一行。其余两个同理。这套记法通行于 IAU 的天文基本标准库 SOFA，以及 IERS 规范。
+
+### 组合
+
+几次转动相继进行，把矩阵依次左乘：先做 $R_a$、再做 $R_b$，合起来是 $R_b R_a$，读的次序从右到左。转动一般不可交换，$R_b R_a \ne R_a R_b$，所以次序错了结果就错。
+
+天文上最常见的例子是赤道与黄道的互换。赤道架与黄道架共用春分点方向作 $x$ 轴，两者只差绕 $x$ 轴转一个黄赤交角 $\varepsilon$：
+
+$$\mathbf{v}_\text{黄道} = R_1(\varepsilon)\,\mathbf{v}_\text{赤道}$$
+
+### 正交性的维持
+
+矩阵用 9 个数表达 3 个自由度，多出的 6 个约束在计算中只能近似满足。连乘多次后，舍入误差会使 $R^\mathsf{T}R$ 偏离单位阵，矩阵带上微小的伸缩与切变。修复的方法是重新正交化，例如 Gram–Schmidt 逐列正交化，或用极分解取最近的正交阵。这两种做法都不便宜，也不唯一。天文计算中，一次视位置只连乘几个到十几个矩阵，偏离在 $10^{-16}$ 量级，远小于观测精度，一般不必处理。
+
+## 二、欧拉角
+
+### 三次绕轴转
+
+任何转动都能分解为依次绕坐标轴的三次转动，三个角称为欧拉角。欧拉在 18 世纪 50—60 年代研究刚体转动时用三个角描述刚体的方位，后人因以命名。天文学描述轨道面的三个根数，升交点黄经 $\Omega$、轨道倾角 $i$、近点角距 $\omega$，也正是"绕 $z$、绕 $x$、再绕 $z$"的三次转动。
+
+岁差是天文上最典型的欧拉角。从 J2000 平赤道架到观测日的平赤道架，Newcomb 以来的标准写法是
 
 $$P = R_3(-z_A)\,R_2(\theta_A)\,R_3(-\zeta_A)$$
 
-读法是从右往左：先绕 $z$ 轴转 $-\zeta_A$，再绕新的 $y$ 轴转 $\theta_A$，最后绕新的 $z$ 轴转 $-z_A$。（天文上的 $R$ 是“坐标”转动矩阵，表示坐标轴转过 $\theta$；物体本身相对坐标轴则转过 $-\theta$。符号约定稍有不慎就会错，这是矩阵写法最常见的出错点。）
+从右往左读：先绕 $z$ 轴转 $-\zeta_A$，使 $x$ 轴指向两赤道的交点；再绕新的 $y$ 轴转 $\theta_A$，把旧赤道面倾到新赤道面；最后绕新的 $z$ 轴转 $-z_A$，把 $x$ 轴转到新的春分点。三个角各是时间的多项式，详见天文篇《岁差》。
 
-矩阵直观，但有两个缺点：用 9 个数表达只有 3 个自由度的东西；连乘多次后，舍入误差会让它不再是严格的转动矩阵，修正起来不方便。
+章动也是三次转动：
 
-## 欧拉转动定理
+$$N = R_1(-\varepsilon-\Delta\varepsilon)\,R_3(-\Delta\psi)\,R_1(\varepsilon)$$
 
-无论几次转动连在一起，结果都等于**绕某一根轴转一个角**。这是欧拉在 1775 年证明的。
+先由赤道转到平黄道，在黄道上转过黄经章动 $\Delta\psi$，再按真黄赤交角 $\varepsilon + \Delta\varepsilon$ 转回赤道。
 
-以公元前 1000 年的岁差矩阵为例：三次旋转法要三步，合起来却只是绕一根轴转 41.64°。而且这根轴几乎就是黄极——因为岁差的主体，就是天极绕黄极的进动；41.64° 正是三千年间的黄经总岁差。
+### 同一转动的不同分解
 
-## 四元数
+欧拉角的分解不唯一，轴的次序有 12 种选法，各领域习惯不同。即使在岁差这一件事上，天文学也有多种分解并存：
 
-既然任何转动都由“一根轴 $\mathbf{n}$、一个角 $\varphi$”决定，就可以用四个数把它记下来：
+| 分解 | 角 | 经典出处 | 后来的采用 |
+|---|---|---|---|
+| 赤道三角式 | $\zeta_A, \theta_A, z_A$ | Newcomb（1906） | Lieske 等 1977（IAU 1976）；Capitaine 等 2003（P03） |
+| 黄道四角式 | $\varepsilon_0, \psi_A, \omega_A, \chi_A$ | Lieske 等 1977 | P03 |
+| Fukushima–Williams 四角式 | $\bar\gamma, \bar\phi, \bar\psi, \varepsilon_A$ | Williams 1994；Fukushima 2003 | SOFA 中 IAU 2006 岁差的主要形式 |
+
+三角式只有三个角，最省；但它把黄道的运动和赤道的运动混在一起，物理意义不明显。四角式多用一个角，换来每个角都有清楚的物理意义：赤道绕黄极的进动、黄道自身的转动各占一份。Fukushima–Williams 式把岁差和章动写进同一组角，章动只需在 $\bar\psi$、$\varepsilon_A$ 上加 $\Delta\psi$、$\Delta\varepsilon$，不必另乘一个章动矩阵。
+
+各式都是截断的多项式，远离历元时各自的截断误差不同，于是互有出入。按 P03 三角式与四角式两组系数直接构造矩阵比较，公元前 1000 年两者相差 1.25″。
+
+### 万向锁
+
+欧拉角有一个固有的缺陷：当中间那次转动的角为 0 或 180° 时，第一次与第三次转动绕的是同一根轴，两个角只有和（或差）有意义，各自不确定，转动只剩两个自由度。这种退化在机械陀螺上叫"万向锁"（gimbal lock）。它不只是数值问题：在退化点附近，三个角随姿态的微小变化而剧烈变化，求导、插值都会出错。
+
+岁差的 $\theta_A$ 从 0 开始增长，在 J2000 附近正处于这种退化附近：$\zeta_A$ 与 $z_A$ 都含有 2.65″ 的常数项，大小相等、符号相反，单看各自都不为零，合起来却抵消。这正是三角式在历元附近的一个不便之处。
+
+## 三、欧拉转动定理与转轴转角
+
+### 定理
+
+无论几次转动连在一起，结果都等于绕某一根轴转一个角。欧拉在 1775 年写成、1776 年发表的《Formulae generales pro translatione quacunque corporum rigidorum》（刚体任意移动的一般公式）中证明了这一点：球绕球心任意转动后，总有一条直径的位置与原来相同。
+
+用矩阵的语言，这等于说 $R$ 必有特征值 1。证明只需一行：
+
+$$\det(R - I) = \det(R - RR^\mathsf{T}) = \det R\cdot\det(I - R^\mathsf{T}) = \det(I - R)^\mathsf{T} = -\det(R - I)$$
+
+最后一步用到 3 阶矩阵 $\det(-A) = -\det A$。于是 $\det(R - I) = 0$，1 是特征值，对应的特征向量 $\mathbf{n}$ 满足 $R\mathbf{n} = \mathbf{n}$，就是转轴。
+
+转角可从矩阵的迹读出。绕 $\mathbf{n}$ 转 $\varphi$ 的矩阵，在以 $\mathbf{n}$ 为第三轴的架中就是 $R_3(\varphi)$，迹为 $1 + 2\cos\varphi$。迹在换架时不变，所以
+
+$$\cos\varphi = \frac{\operatorname{tr} R - 1}{2}$$
+
+转轴由矩阵的反对称部分给出：$\mathbf{n}\sin\varphi$ 的三个分量分别是 $\tfrac12(R_{23} - R_{32})$、$\tfrac12(R_{31} - R_{13})$、$\tfrac12(R_{12} - R_{21})$（坐标转动的符号）。
+
+### 一个天文实例
+
+按 P03 的三角式，取公元前 1000 年（距 J2000 −30 世纪），三角为 $\zeta_A = -19.28°$、$\theta_A = -16.50°$、$z_A = -19.09°$，三次转动合成的矩阵用上式求转轴转角，得：
+
+- 转角 41.64°；
+- 转轴距 J2000 黄极 0.37°。
+
+三步合成的，其实就是绕黄极的一次转动。这是因为岁差的主体是天极绕黄极的进动，41.64° 大致就是三千年间的黄经总岁差；转轴偏离黄极的那 0.37°，来自黄道本身的缓慢转动（行星岁差）。三个欧拉角都在 16° 到 19° 之间，看不出这一层意思；换成转轴转角，物理图像一目了然。
+
+### 罗德里格斯公式
+
+已知转轴 $\mathbf{n}$ 和转角 $\varphi$，物体转动后的向量是
+
+$$\mathbf{v}' = \mathbf{v}\cos\varphi + (\mathbf{n}\times\mathbf{v})\sin\varphi + \mathbf{n}\,(\mathbf{n}\cdot\mathbf{v})(1 - \cos\varphi)$$
+
+推导：把 $\mathbf{v}$ 分为平行于轴的部分 $\mathbf{v}_\parallel = \mathbf{n}(\mathbf{n}\cdot\mathbf{v})$ 与垂直于轴的部分 $\mathbf{v}_\perp = \mathbf{v} - \mathbf{v}_\parallel$。平行部分不动；垂直部分在与轴垂直的平面内转 $\varphi$，这个平面的两根正交方向是 $\mathbf{v}_\perp$ 与 $\mathbf{n}\times\mathbf{v}$，所以转后为 $\mathbf{v}_\perp\cos\varphi + (\mathbf{n}\times\mathbf{v})\sin\varphi$。两部分相加即得上式。
+
+写成矩阵，记 $K$ 为叉乘 $\mathbf{n}\times$ 对应的反对称矩阵，则
+
+$$R = I + K\sin\varphi + K^2(1 - \cos\varphi)$$
+
+这个式子以 Olinde Rodrigues 命名，他在 1840 年的论文中给出了转动的组合公式。把 $\mathbf{n}\varphi$ 合成一个向量，就是"转动向量"，它只用 3 个数，没有多余的约束；但在 $\varphi = 180°$ 处，$\mathbf{n}$ 与 $-\mathbf{n}$ 表示同一个转动，表示不连续。
+
+## 四、四元数
+
+### 由来
+
+1843 年 10 月 16 日，哈密顿（William Rowan Hamilton）沿都柏林皇家运河散步，想通了困扰他多年的问题：复数能表示平面转动，三维的"数"应该怎样乘？答案是用四个分量，三个虚单位满足
+
+$$i^2 = j^2 = k^2 = ijk = -1$$
+
+据他后来给儿子的信，他当场把这个式子刻在了布鲁姆桥（Broome Bridge）的石头上。今天桥上的纪念牌记的就是这件事。哈密顿次年在《Philosophical Magazine》上陆续发表这一结果。
+
+两年后，凯莱（Arthur Cayley，1845）指出用四元数可以表示三维转动，即下文的 $q\,v\,q^*$。其实四元数乘法的组合规则，罗德里格斯 1840 年已经写出，只是没有把它看成一种新的数；高斯在 1819 年前后的手稿《Mutationen des Raumes》中也有类似公式，生前未发表。所以这四个参数又称"欧拉–罗德里格斯参数"。
+
+### 定义与乘法
+
+四元数 $q = q_0 + q_1 i + q_2 j + q_3 k$，可写成标量与向量之和 $q = q_0 + \mathbf{q}$。由 $i^2 = j^2 = k^2 = ijk = -1$ 推出 $ij = k = -ji$ 等关系，两个四元数的乘积可整理为
+
+$$pq = p_0 q_0 - \mathbf{p}\cdot\mathbf{q} + p_0\mathbf{q} + q_0\mathbf{p} + \mathbf{p}\times\mathbf{q}$$
+
+点积和叉积两种向量运算，就是在这里一并出现的。由于叉积不可交换，四元数乘法也不可交换，正好与转动的不可交换相合。共轭为 $q^* = q_0 - \mathbf{q}$，模为 $|q|^2 = qq^* = q_0^2 + |\mathbf{q}|^2$。
+
+### 转动的表示
+
+绕单位向量 $\mathbf{n}$ 转 $\varphi$，对应单位四元数
 
 $$q = \cos\frac{\varphi}{2} + \mathbf{n}\sin\frac{\varphi}{2}$$
 
-这就是单位**四元数**。前一个数是标量部分，后三个数是向量部分。两次转动的组合对应四元数的乘法 $q_2 \otimes q_1$，规则与矩阵乘法一致。转动一个向量写作 $v' = q\,v\,q^*$（$q^*$ 是 $q$ 的共轭）。
+把向量 $\mathbf{v}$ 写成纯向量四元数（标量为 0），物体转动为
 
-四元数的好处：
+$$\mathbf{v}' = q\,\mathbf{v}\,q^*$$
 
-- **紧凑**：4 个数，只多一个约束（模长为 1）。
-- **易于纠偏**：连乘后舍入误差使模长偏离 1，只需除以模长即可恢复，矩阵则要做正交化。
-- **便于插值**：要在两个姿态之间平滑过渡（例如动画、或在两个时刻之间内插参考架），四元数的球面线性插值（slerp）沿最短路径匀速转过去，矩阵则没有简单的对应办法。
+用上面的乘法公式逐项展开，再用 $\cos\varphi = \cos^2\frac{\varphi}{2} - \sin^2\frac{\varphi}{2}$、$\sin\varphi = 2\sin\frac{\varphi}{2}\cos\frac{\varphi}{2}$ 化简，结果与罗德里格斯公式完全相同。这就是半角出现的原因：$q$ 在两侧各乘一次，各转一半。
+
+由此还有两个推论：
+
+- **组合**：先转 $q_1$ 再转 $q_2$，合起来是 $q_2 q_1$，因为 $q_2(q_1 \mathbf{v} q_1^*)q_2^* = (q_2q_1)\mathbf{v}(q_2q_1)^*$。次序与矩阵相同。
+- **双重覆盖**：$q$ 与 $-q$ 给出同一个转动。单位四元数构成三维球面 $S^3$，转动群 $SO(3)$ 是它把对径点粘合后的结果。
+
+### 好处
+
+- **紧凑**：4 个数，只有一个约束 $|q| = 1$。
+- **易于纠偏**：舍入使模长偏离 1 时，除以模长即恢复，不像矩阵要重新正交化。
+- **没有万向锁**：$S^3$ 上处处光滑，任何姿态附近都没有退化。
+- **便于插值**：在两个姿态之间沿最短路径匀速过渡，有球面线性插值（slerp），由 Shoemake 在 1985 年为计算机动画提出：
+
+$$\operatorname{slerp}(q_a, q_b; s) = q_a\,(q_a^* q_b)^s$$
+
+即把相对转动 $q_a^* q_b$ 的转角按比例 $s$ 缩放。矩阵和欧拉角都没有这样简单的对应办法。
 
 <Anim src="celestial-sphere/quaternions" caption="上：公元前 1000 年的岁差，三步合为绕一根轴的一次转动，三个元素四元数相乘得到同一个 q；下：日心黄道架到地心赤道架的螺旋运动" />
 
-## 对偶四元数：转动加平移
+### 两种乘法约定
+
+四元数在航天界有一段混乱的历史。哈密顿的原始约定是 $ij = k$；美国喷气推进实验室（JPL）等航天机构在 20 世纪后期为了让四元数乘法与坐标转动矩阵乘法次序一致，改用了 $ij = -k$ 的约定，并把标量放在最后。Shuster 1993 年的综述《A survey of attitude representations》对此有系统的整理。两种约定下，同一个公式符号不同，混用就会出错。Sommer 等 2018 年专文主张统一回到哈密顿约定。本章与本项目都用哈密顿约定，标量在前。
+
+## 五、对偶四元数：转动加平移
+
+### 沙勒定理
 
 视位置计算不只有转动。太阳的位置先在日心坐标里给出，要换到地心，需要平移；换到观测者所在的站心，还要再平移一次。
 
-刚体运动（转动 + 平移）也有一个类似欧拉定理的结论——**沙勒定理**：任何刚体运动都等于绕某一根空间直线转动，同时沿这条直线平移，即一次**螺旋运动**。
+刚体运动（转动加平移）也有一个类似欧拉定理的结论：任何刚体运动都等于绕某一根空间直线转动，同时沿这条直线平移，即一次"螺旋运动"。这一定理通常以沙勒（Michel Chasles，1830）命名，但意大利人莫齐（Giulio Mozzi）在 1763 年已经对无穷小运动给出了瞬时螺旋轴。
 
-**对偶四元数**把这件事写成一个代数对象：
+### 对偶数与对偶四元数
 
-$$\hat{q} = q + \hat{\varepsilon}\,\tfrac{1}{2}\,t\,q$$
+克利福德（William Kingdon Clifford）在 1873 年引入"双四元数"（biquaternion），用一个满足 $\varepsilon^2 = 0$ 的"对偶单位"把两个四元数拼成一个对象；后来斯图迪（Eduard Study）把它系统地用于刚体运动学。对偶数 $a + \varepsilon b$ 的要害在于 $\varepsilon^2 = 0$：泰勒展开到一阶就截断，所以
 
-其中 $q$ 是转动四元数，$t$ 是平移向量（写成纯向量四元数），$\hat\varepsilon$ 是满足 $\hat\varepsilon^2 = 0$ 的"对偶单位"。两次刚体运动的组合，就是两个对偶四元数相乘，转动和平移一并处理。
+$$f(a + \varepsilon b) = f(a) + \varepsilon\,b\,f'(a)$$
 
-动画下半部分演示从"日心黄道架"到"地心赤道架"：原点从太阳移到地球，同时坐标轴绕春分点方向转过黄赤交角 23.44°。取春分日，地球恰在太阳的秋分点方向，此时螺旋轴正好是日地连线——坐标架一边沿日地连线滑过去，一边绕它转。
+这使对偶角 $\hat\theta = \theta + \varepsilon d$（转角加沿轴的位移）能像普通角一样代入三角函数。
 
-本项目的数学库实现了四元数与对偶四元数，作为转动矩阵之外的另一种表示，四元数可由转动矩阵直接换算得到。目前视位置的主计算链仍用转动矩阵。
+转动 $q$ 后再平移 $\mathbf{t}$ 的刚体运动，写成对偶四元数为
+
+$$\hat q = q + \varepsilon\,\tfrac12\,\mathbf{t}\,q$$
+
+两次刚体运动的组合，就是两个对偶四元数相乘；转动和平移一并处理，不必像齐次坐标那样用 4×4 矩阵。单位对偶四元数有 8 个分量、两个约束（实部模为 1，实部与对偶部正交），恰好 6 个自由度。
+
+动画下半部分演示从"日心黄道架"到"地心赤道架"：原点从太阳移到地球，同时坐标轴绕春分点方向转过黄赤交角 23.44°。取春分日，地球恰在太阳的秋分点方向，此时螺旋轴正好是日地连线：坐标架一边沿日地连线滑过去，一边绕它转。
+
+对偶四元数如今多用于机器人运动学、计算机动画的骨骼蒙皮，在天文计算中用得很少。原因是天文的平移与转动性质不同：平移来自历表（日、地、月的位置），转动来自岁差章动，两者分别求得，合在一个代数对象里并不省事。
+
+## 六、各家并列
+
+| 表示 | 数的个数 | 约束 | 组合一次（乘法/加法） | 转一个向量 | 退化 | 惯用领域 |
+|---|---|---|---|---|---|---|
+| 转动矩阵 | 9 | 6 | 27 / 18 | 9 / 6 | 无 | 天文（SOFA、IERS 规范）、一般科学计算 |
+| 欧拉角 | 3 | 0 | 需换成矩阵或四元数 | 同左 | 万向锁 | 岁差章动的参数化、轨道根数 |
+| 转轴转角、转动向量 | 4 或 3 | 1 或 0 | 无直接公式 | 罗德里格斯公式 | 180° 处不连续 | 解释、可视化、小转动的线性化 |
+| 单位四元数 | 4 | 1 | 16 / 12 | 两次乘法，或换成矩阵 | 无（双重覆盖） | 航天器姿态、计算机图形、动画插值 |
+| 单位对偶四元数 | 8 | 2 | 48 / 40 | 同上加平移 | 无 | 机器人、骨骼动画 |
+
+运算次数是直接按定义计数的通常值，可通过特殊的分组再省一些。由表可见：
+
+- 只做"转一个向量"，矩阵最快；岁差章动的矩阵每个时刻只构造一次，却要作用于日、月、行星多个向量，所以天文计算惯用矩阵。
+- 要频繁组合、长时间累积、在姿态之间插值的场合，四元数最合适；航天器的姿态控制每秒要积分多次角速度，所以航天惯用四元数。
+- 欧拉角是给人读的：每个角有物理意义，适合作为模型的参数（岁差的 $\zeta_A, \theta_A, z_A$，章动的 $\Delta\psi, \Delta\varepsilon$），但不适合直接拿来算。
+
+## 七、源流小结
+
+| 年代 | 人物 | 贡献 |
+|---|---|---|
+| 1763 | 莫齐 | 刚体无穷小运动的瞬时螺旋轴 |
+| 18 世纪 50—60 年代 | 欧拉 | 用三个角描述刚体方位（欧拉角） |
+| 1775—1776 | 欧拉 | 转动定理：任何转动都是绕一根轴的转动 |
+| 约 1819 | 高斯 | 手稿中的转动组合公式（身后发表） |
+| 1830 | 沙勒 | 刚体运动都是螺旋运动 |
+| 1840 | 罗德里格斯 | 转动的组合公式，四个参数 |
+| 1843—1844 | 哈密顿 | 四元数 |
+| 1845 | 凯莱 | 用四元数表示三维转动 |
+| 1873 | 克利福德 | 双四元数（对偶四元数） |
+| 1891—1903 | 斯图迪 | 对偶四元数用于刚体运动学 |
+| 1906 | Newcomb | 岁差的三角式 $\zeta, \theta, z$ |
+| 1977 | Lieske 等 | IAU 1976 岁差，三角式与黄道四角式 |
+| 1985 | Shoemake | 四元数球面线性插值 |
+| 1993 | Shuster | 姿态表示的系统综述 |
+| 1994、2003 | Williams；Fukushima | 岁差章动的四角式，后为 IAU 2006 所用 |
+
+## 八、本项目的取法
+
+- **主计算链用转动矩阵**，采用坐标转动与 $R_1, R_2, R_3$ 的记法，与 SOFA、IERS 规范一致。岁差、章动、黄赤互换、参考架偏差各构造一个 3×3 矩阵，依次相乘后作用于日、月、行星的位置与速度。
+- **岁差用三角式**（P03 的 $\zeta_A, \theta_A, z_A$），或 Vondrák 等 2011 年的长期岁差式，见天文篇《岁差》；与四角式在公元前 1000 年相差 1.25″，远小于古代观测精度。
+- **四元数与对偶四元数**已在数学库中实现，乘法用哈密顿约定、标量在前，提供共轭、模长归一、由转动矩阵求四元数等运算；目前用于解释与动画，主计算链未用。尚未提供球面线性插值。
+
+## 参考文献
+
+1. L. Euler, "Formulae generales pro translatione quacunque corporum rigidorum", *Novi Commentarii academiae scientiarum Petropolitanae* 20 (1776), 189–207；Opera Omnia, ser. 2, vol. 9, 84–98（Eneström 编号 E478）。书目据欧拉档案（Euler Archive），未核原文。
+2. O. Rodrigues, "Des lois géométriques qui régissent les déplacements d'un système solide dans l'espace", *Journal de Mathématiques Pures et Appliquées* 5 (1840), 380–440。未核原文。
+3. W. R. Hamilton, "On quaternions; or on a new system of imaginaries in algebra", *Philosophical Magazine*, 3rd ser., 25 (1844) 起连载。未核原文。
+4. A. Cayley, "On certain results relating to quaternions", *Philosophical Magazine*, 3rd ser., 26 (1845), 141–145。未核原文。
+5. C. F. Gauss, "Mutationen des Raumes"（约 1819 年手稿），收入 *Werke* 第 8 卷（1900）。未核原书。
+6. M. Chasles, "Note sur les propriétés générales du système de deux corps semblables entr'eux…", *Bulletin des Sciences Mathématiques* (Férussac) 14 (1830), 321–326。未核原文。
+7. G. Mozzi, *Discorso matematico sopra il rotamento momentaneo dei corpi*, Napoli, 1763。未核原书。
+8. W. K. Clifford, "Preliminary sketch of biquaternions", *Proceedings of the London Mathematical Society* 4 (1873), 381–395。未核原文。
+9. E. Study, *Geometrie der Dynamen*, Leipzig, 1903。未核原书。
+10. Yan-Bin Jia, *Dual Quaternion*，爱荷华州立大学 ComS 477/577 讲义。对偶四元数的定义与运算据此。
+11. S. Newcomb, *A Compendium of Spherical Astronomy*, New York: Macmillan, 1906。未核原书。
+12. J. H. Lieske, T. Lederle, W. Fricke, B. Morando, "Expressions for the precession quantities based upon the IAU (1976) system of astronomical constants", *Astronomy and Astrophysics* 58 (1977), 1–16。
+13. N. Capitaine, P. T. Wallace, J. Chapront, "Expressions for IAU 2000 precession quantities", *Astronomy and Astrophysics* 412 (2003), 567–586。
+14. J. G. Williams, "Contributions to the Earth's obliquity rate, precession, and nutation", *Astronomical Journal* 108 (1994), 711–724。未核原文。
+15. T. Fukushima, "A new precession formula", *Astronomical Journal* 126 (2003), 494–534。未核原文。
+16. K. Shoemake, "Animating rotation with quaternion curves", *Computer Graphics* (SIGGRAPH '85) 19(3) (1985), 245–254。未核原文。
+17. M. D. Shuster, "A survey of attitude representations", *Journal of the Astronautical Sciences* 41(4) (1993), 439–517。未核原文。
+18. H. Sommer, I. Gilitschenski, M. Bloesch, S. Weiss, R. Siegwart, J. Nieto, "Why and how to avoid the flipped quaternion multiplication", *Aerospace* 5(3) (2018), 72。未核原文。
+19. IAU SOFA Board, *SOFA Tools for Earth Attitude*；G. Petit, B. Luzum (eds.), *IERS Conventions (2010)*, IERS Technical Note 36, §5。
