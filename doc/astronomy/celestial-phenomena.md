@@ -371,7 +371,7 @@ $\sum_{k\le N_{\mathrm{sec}}} a_k t^k + \sum_f \sum_{k\le N_{\mathrm{mix}}} t^k 
 0.033、0.157、0.500、1.160、0.142、0.046″，为平黄经，口径不同）。
 
 **取舍**：Native 有 DE406 时以 DE406 为准；无 DE406（如 wasm）用 VSOP87 + 改正，与 DE406 差 < 0.4″，对史料（角分级）绰绰有余。
-**2026-10-26 起改正统一**：地球改正同时用于节气、定朔与天象（改正挂在 `Vsop87::patch` 上，缺省 DE406 版，可选 DE441 版），
+**2026-10-26 起改正统一**：地球改正同时用于节气、定朔与天象（改正挂在 `Vsop87::patch` 上，缺省 DE406 版，可选 DE441 版；2026-11-06 起缺省改为 DE431 版，见 [model-pairing.md](model-pairing.md)），
 原地心太阳赤道 patch 与黄道 patch 移除（见 [ephemerides-and-de-align.md](ephemerides-and-de-align.md) §5.3）；wasm 用只含地球的
 二进制 `data/fit/vsop87-<目标>-earth.bin`（约 10 KB）。
 
