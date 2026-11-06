@@ -32,6 +32,7 @@ pub fn ecliptic_j2000_to_icrs(x_ecl: f64, y_ecl: f64, z_ecl: f64) -> (f64, f64, 
 /// 不可与 VSOP87 的「J2000 动力学黄道 → FK5（ε₀ = 84381.406″）→ ICRS」混用，两者春分点差约 0.044″
 /// （doc/astronomy/model-pairing.md）。
 pub fn ecliptic_j2000_to_icrs_matrix() -> crate::quantity::rotation_matrix::RotationMatrix {
+    #[allow(unused_imports)]
     use crate::math::real::{real, RealOps};
     let (eps, phi) = (real(EPSILON_ARCSEC * ARCSEC_TO_RAD), real(PHI_ARCSEC * ARCSEC_TO_RAD));
     let (se, ce) = (eps.sin(), eps.cos());

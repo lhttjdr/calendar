@@ -136,13 +136,12 @@ pub mod lunar_longitude_offset {
     /// DE431 自身（枢纽）：差为 0。
     pub const DE431: LunarLongitudeOffset = LunarLongitudeOffset { name: "DE431 − DE431", coefficients: &[], fitted_years: (-13000.0, 17000.0) };
 
-    /// ELPMPP02 取拟合 DE431 的常数集（缺省，`data/fit/elpmpp02-de431.txt`）相对 DE431，测法同下（2026-11-06）：三次拟合残差
-    /// RMS 0.40″（周期项与理论截断）；二次项 Δṅ = +0.0009″/cy²。配套量前 700 年 0.0 s、前 200 年 +0.2 s——缺省月历表与 MS2021
-    /// 所配月亮实为同一月亮。现代几何位置对 DE431 差 0.001″；三次式在 T = 0 处的 −0.08″ 是全区间拟合受古代周期差带偏所致。
-    /// 本节三条 ELPMPP02 常数为月亮改按 Table 7 进入管线后的重测值（常数项较此前整体约移 −0.07″）。
+    /// ELPMPP02 取拟合 DE431 的常数集并加残差改正（缺省，`data/fit/elpmpp02-de431.txt`、`elpmpp02-de431-patch.txt`）相对 DE431，
+    /// 测法同下（2026-11-06）：三次拟合残差 RMS 0.18″；每 400 年分段均值都在 ±0.16″ 内，配套量各年代 0.0 s——缺省月历表与 MS2021
+    /// 所配月亮实为同一月亮。（未加残差改正时为 [−0.0804, 0.04157, 0.002566, 0.0000348]，RMS 0.40″。）
     pub const ELPMPP02_DE431_MINUS_DE431: LunarLongitudeOffset = LunarLongitudeOffset {
         name: "ELPMPP02(DE431) − DE431",
-        coefficients: &[-0.0804, 0.04157, 0.002566, 0.0000348],
+        coefficients: &[-0.0113, 0.00243, 0.000186, 0.0000026],
         fitted_years: (-2900.0, 2900.0),
     };
 
@@ -162,30 +161,28 @@ pub mod lunar_longitude_offset {
         fitted_years: (-2900.0, 2900.0),
     };
 
-    /// 本仓库月历表 ELPMPP02（论文 DE405 + Table 6 常数集，贴近 DE406）相对 JPL DE431（DE430 的长时段版，
-    /// Morrison–Stephenson 2016/2021 ΔT 所配历表）。
+    /// 本仓库月历表 ELPMPP02 取论文 DE405 + Table 6 常数集并加对 DE406 的残差改正（`data/fit/elpmpp02-de406-patch.txt`）相对
+    /// JPL DE431（DE430 的长时段版，Morrison–Stephenson 2016/2021 ΔT 所配历表）。
     ///
     /// 由 `apparent::tests_lunar_ndot::elpmpp02_effective_ndot_vs_de406_de441` 在前 2900—2900 年 3000 个随机时刻的月亮视黄经差
-    /// 三次拟合得到（2026-11-06，ELPMPP02 幅角修正后重测，残差 RMS 0.49″，为周期项差异；二次拟合 RMS 0.65″）。每 400 年分段均值：
-    /// 前 2900 年 −5.8″、前 900—公元 300 年约 −0.7″、1500 年后约 0；三次式在前 700 年给 −0.88″（分段 −0.69″）。按此修正前 700 年
-    /// +1.6 s、前 200 年 +1.0 s；有效 ṅ 与 DE431 几乎相同（二次项 Δṅ = −0.0064″/cy²），而按 ṅ = −25.857
-    /// （[`super::lunar_tidal_acceleration::ELPMPP02_DE405`]，据论文推得）对 −25.82 的二次修正为 +23.8 s、+15.6 s，系高估。
-    /// 旧值（2026-10-26，幅角修正前，二次）为 [−0.013, −0.0457, −0.00327]。
+    /// 三次拟合得到（2026-11-06，残差 RMS 0.31″）：加残差改正后与 DE406 内核相对 DE431 之差（[`DE406_MINUS_DE431`]）几乎相同。
+    /// 配套量前 2000 年 +6.1 s、前 700 年 +1.3 s、前 200 年 +0.5 s。按 ṅ = −25.857（[`super::lunar_tidal_acceleration::ELPMPP02_DE405`]，
+    /// 据论文推得）对 −25.82 的二次修正为前 700 年 +23.8 s、前 200 年 +15.6 s，系高估。
+    /// 旧值：幅角修正前（2026-10-26，二次）[−0.013, −0.0457, −0.00327]；未加残差改正时（三次）[−0.3089, 0.03750, 0.003725, 0.0001151]。
     pub const ELPMPP02_DE406_MINUS_DE431: LunarLongitudeOffset = LunarLongitudeOffset {
         name: "ELPMPP02(DE406) − DE431",
-        coefficients: &[-0.3089, 0.03750, 0.003725, 0.0001151],
+        coefficients: &[-0.0218, -0.01583, 0.000410, 0.0000725],
         fitted_years: (-2900.0, 2900.0),
     };
 
-    /// ELPMPP02 取拟合 DE441 的常数集（`data/fit/elpmpp02-de441.txt`）时相对 DE431，测法同上（2026-11-06）。
-    ///
-    /// 三次拟合残差 RMS 5.94″，四至八次仍为 5.94″：余下的是两历表近地点、升交点长期运动不同引起的周期差（振幅随 |T| 增大），
-    /// 不是平黄经之差，ΔT 无从配套。每 400 年分段均值：前 2900 年 −328″、前 900 年 −62″、前 100 年 −22″、700 年 −4.2″、
-    /// 1500 年 −0.1″、1900 年 +0.1″，三次式与之相符。修正前 700 年 +112 s、前 200 年 +60 s、公元 0 年 +45 s、1000 年 +5.8 s：
-    /// DE441 的月亮与 MS2021 所配 DE431 差得多，换用 DE441 常数集时必须配此修正。
+    /// ELPMPP02 取拟合 DE441 的常数集并加残差改正（`data/fit/elpmpp02-de441.txt`、`elpmpp02-de441-patch.txt`）相对 DE431，测法同上
+    /// （2026-11-06）：与 DE441 内核相对 DE431 之差（[`DE441_MINUS_DE431`]）几乎相同。三次拟合残差 RMS 5.92″，四至八次仍不减：余下的是
+    /// 两历表近地点、升交点长期运动不同引起的周期差（振幅随 |T| 增大），不是平黄经之差，ΔT 无从配套。每 400 年分段均值：前 2900 年
+    /// −328″、前 900 年 −62″、前 100 年 −21″、700 年 −4.0″、1500 年 −0.2″、1900 年 +0.04″。配套量前 700 年 +112 s、前 200 年 +60 s、
+    /// 公元 0 年 +45 s、1000 年 +5.3 s：DE441 的月亮与 MS2021 所配 DE431 差得多，换用 DE441 常数集时必须配此修正。
     pub const ELPMPP02_DE441_MINUS_DE431: LunarLongitudeOffset = LunarLongitudeOffset {
         name: "ELPMPP02(DE441) − DE431",
-        coefficients: &[0.0559, 0.03610, 0.003559, 0.0032135],
+        coefficients: &[0.1169, -0.00420, 0.001134, 0.0031809],
         fitted_years: (-2900.0, 2900.0),
     };
 }
@@ -375,7 +372,7 @@ mod tests {
         assert!((0.5 / MOON_MEAN_MOTION_ARCSEC_PER_S - 0.91072).abs() < 1e-5);
     }
 
-    /// 黄经差修正：Δλ 只含二次项时与 [`tidal_correction`] 等价；ELPMPP02(DE406) − DE431 实测修正在前 200 年约 +1.0 s。
+    /// 黄经差修正：Δλ 只含二次项时与 [`tidal_correction`] 等价；ELPMPP02(DE406) − DE431 实测修正在前 200 年约 +0.5 s。
     #[test]
     fn lunar_offset_correction() {
         // Δλ = ½Δṅ·T²（T 自 J2000）与 tidal_correction（u 自 1955）只差常数与线性项，取 Δṅ = −0.1、年份 −1000 比二次部分
@@ -386,7 +383,7 @@ mod tests {
         assert!((off.delta_t_correction(real(jd)).seconds().as_f64() - expect).abs() < 0.01 * expect.abs());
         let jd = 2451545.0 + (-200.0 - 2000.0) * 365.25;
         let c = lunar_longitude_offset::ELPMPP02_DE406_MINUS_DE431.delta_t_correction(real(jd)).seconds().as_f64();
-        assert!((c - 1.0).abs() < 0.1, "{c}");
+        assert!((c - 0.5).abs() < 0.1, "{c}");
     }
 
     /// 样条与作者逐年表（由同一样条生成，取整到 10 s 或更细）一致。

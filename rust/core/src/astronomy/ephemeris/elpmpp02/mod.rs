@@ -9,6 +9,7 @@
 
 pub mod fit;
 pub mod parse;
+pub mod patch;
 pub mod parse_constants;
 pub mod table7;
 
@@ -107,6 +108,18 @@ impl Elpmpp02Correction {
         })
     }
 
+    /// 内置残差改正（`data/fit/elpmpp02-<目标>-patch.txt`，编译时嵌入），只对该目标的内置常数集适用；无则 None。
+    pub fn builtin_patch(self) -> Option<patch::Elpmpp02PatchRaw> {
+        let text: &str = match self {
+            Self::LLR | Self::DE405 => return None,
+            Self::DE406 => include_str!("../../../../../../data/fit/elpmpp02-de406-patch.txt"),
+            Self::DE431 => include_str!("../../../../../../data/fit/elpmpp02-de431-patch.txt"),
+            Self::DE441 => include_str!("../../../../../../data/fit/elpmpp02-de441-patch.txt"),
+        };
+        let p = patch::Elpmpp02PatchRaw::parse(text).expect("ELPMPP02 残差改正文件");
+        (!p.terms.is_empty()).then_some(p)
+    }
+
     /// 按名取（不分大小写）：llr、de405、de406、de431、de441。
     pub fn from_name(name: &str) -> Option<Self> {
         Some(match name.to_ascii_lowercase().as_str() {
@@ -150,6 +163,8 @@ pub struct Elpmpp02Data {
     pub correction: Elpmpp02Correction,
     /// 生成本数据所用的常数改正集
     pub fit: Elpmpp02Fit,
+    /// 残差改正（J2000 平黄道黄经、黄纬、距离；空则不加），见 [patch]
+    pub patch: patch::Elpmpp02Patch,
 }
 
 impl Elpmpp02Data {
@@ -164,6 +179,7 @@ impl Elpmpp02Data {
             constants: Elpmpp02Constants::de405(),
             correction: Elpmpp02Correction::DE405,
             fit: Elpmpp02Fit::de405(),
+            patch: Default::default(),
         }
     }
 
@@ -179,6 +195,7 @@ impl Elpmpp02Data {
             constants: Elpmpp02Constants::de405(),
             correction: Elpmpp02Correction::DE406,
             fit: Elpmpp02Fit::de405(),
+            patch: Default::default(),
         }
     }
 
@@ -402,9 +419,16 @@ fn position_velocity_full(
 
     let pos_vec = Vector3::from_lengths([pos_i.x, pos_i.y, pos_i.z]);
     let vel_j2000 = laskar_v_mul(pw, qw, t_cy, c, vel_i, pos_vec);
+    let vel_j2000 = Velocity::from_speeds_in_frame(frame, vel_j2000);
+    if data.patch.is_empty() {
+        return (pos_j2000, vel_j2000);
+    }
+    // 残差改正：在 J2000 平黄道球坐标上加 Δλ、Δβ、Δr 及其导数
+    let pv = data.patch.eval(t_cy.value());
+    let (p2, v2) = patch::apply_to_cartesian(pos_j2000.to_meters(), vel_j2000.to_m_per_s(), &pv);
     (
-        pos_j2000,
-        Velocity::from_speeds_in_frame(frame, vel_j2000),
+        Position::from_si_meters_in_frame(frame, p2[0], p2[1], p2[2]),
+        Velocity::from_si_m_per_s_in_frame(frame, v2[0], v2[1], v2[2]),
     )
 }
 
@@ -532,8 +556,8 @@ mod tests {
         println!("对 Fortran 校验值最大差：位置 {wp:.2e} km，速度 {wv:.2e} km/日");
     }
 
-    /// 拟合 DE441 的常数集（data/fit/elpmpp02-de441.txt）可加载；有 DE441 BSP 时，前 2999—2999 年 200 个随机时刻
-    /// 对 DE441 的几何黄经差 < 3.5″（拟合时 3000 个时刻最大 3.04″，见 doc/astronomy/ephemerides-and-de-align.md §5.4.4）。
+    /// 拟合 DE441 的常数集（data/fit/elpmpp02-de441.txt）及其残差改正可加载；有 DE441 BSP 时，前 2999—2999 年 200 个随机时刻
+    /// 对 DE441 的几何黄经差 < 1.2″（独立检验 3000 个时刻最大 1.07″，见 doc/astronomy/ephemerides-and-de-align.md §5.4.7）。
     #[test]
     #[cfg(not(target_arch = "wasm32"))]
     fn de441_constant_set_matches_de441() {
@@ -559,7 +583,42 @@ mod tests {
             worst = worst.max(d.abs() * 206264.806);
         }
         println!("ELPMPP02(DE441) − DE441 最大黄经差 {worst:.3}″");
-        assert!(worst < 3.5, "{worst}″");
+        assert!(worst < 1.2, "{worst}″");
+    }
+
+    /// 缺省月历表（拟合 DE431 的常数集 + 残差改正）对 DE431：前 2999—2999 年 300 个随机时刻几何黄经差 < 1.2″，
+    /// 1950—2060 年 100 个时刻 < 0.01″（改正从 τ² 起，不碍现代）；改正确已挂上。无 DE431 BSP 时只查后者。
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn default_with_patch_matches_de431() {
+        use crate::astronomy::ephemeris::elpmpp02::table7::icrs_to_ecliptic_j2000;
+        let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT).unwrap();
+        assert!(!elp.patch.is_empty(), "缺省常数集应带残差改正");
+        let Ok(k) = crate::astronomy::ephemeris::De406Kernel::open(crate::repo::repo_root().join(crate::repo::paths::DE431_BSP)) else {
+            println!("skipped: 无 DE431 BSP");
+            return;
+        };
+        let worst = |y0: f64, y1: f64, n: usize, seed0: u64| {
+            let mut seed = seed0;
+            let mut w = 0.0_f64;
+            for _ in 0..n {
+                seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                let y = y0 + (y1 - y0) * ((seed >> 11) as f64 / (1u64 << 53) as f64);
+                let jd = 2451545.0 + (y - 2000.0) * 365.25;
+                let (p, _) = position_velocity(&elp, TimePoint::new(crate::astronomy::time::TimeScale::TT, real(jd)));
+                let m = p.to_meters();
+                let (q, _) = k.geocentric_moon(jd).unwrap();
+                let (x, yy, _) = icrs_to_ecliptic_j2000(q[0], q[1], q[2]);
+                let d = (m[1].as_f64().atan2(m[0].as_f64()) - yy.atan2(x) + std::f64::consts::PI).rem_euclid(std::f64::consts::TAU)
+                    - std::f64::consts::PI;
+                w = w.max(d.abs() * 206264.806);
+            }
+            w
+        };
+        let (a, b) = (worst(-2999.0, 2999.0, 300, 431), worst(1950.0, 2060.0, 100, 432));
+        println!("ELPMPP02(DE431 + 改正) − DE431 最大黄经差：全区间 {a:.3}″，1950—2060 {b:.4}″");
+        assert!(a < 1.2, "{a}″");
+        assert!(b < 0.01, "{b}″");
     }
 
     #[test]

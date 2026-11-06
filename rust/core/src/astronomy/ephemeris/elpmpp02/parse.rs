@@ -131,9 +131,22 @@ impl Elpmpp02Raw {
     }
 
     /// 按常数集生成求值项（Fortran `READFILE` 的振幅改正与相位多项式）。
+    /// 按常数集生成求值项；若常数集即该目标的内置常数集，一并挂上该目标的残差改正（[super::patch]）。
     pub fn build(&self, fit: &Elpmpp02Fit, correction: Elpmpp02Correction) -> super::Elpmpp02Data {
+        let patch = if correction.builtin_fit().as_ref() == Some(fit) { correction.builtin_patch() } else { None };
+        self.build_with_patch(fit, correction, patch.as_ref())
+    }
+
+    /// 同 [Self::build]，残差改正由调用方给出（`None` 为不加改正，拟合工具用）。
+    pub fn build_with_patch(
+        &self,
+        fit: &Elpmpp02Fit,
+        correction: Elpmpp02Correction,
+        patch: Option<&super::patch::Elpmpp02PatchRaw>,
+    ) -> super::Elpmpp02Data {
         let c = ParseConstants::from_fit(fit);
         super::Elpmpp02Data {
+            patch: patch.map(|p| p.build(&c)).unwrap_or_default(),
             period_v: build_main(&self.main[0], &c, false),
             period_u: build_main(&self.main[1], &c, false),
             period_r: build_main(&self.main[2], &c, true),
