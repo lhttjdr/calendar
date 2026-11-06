@@ -69,6 +69,8 @@ $$A^\mathsf{T}A\,x = A^\mathsf{T}b$$
 | 最小绝对偏差 | $\sum \lvert r_i\rvert$ | 博斯科维奇 1757；拉普拉斯 1799 | 抗离群值；需线性规划 |
 | 极小化最大偏差 | $\max \lvert r_i\rvert$ | 拉普拉斯；切比雪夫（1850 年代） | 一致逼近；误差等波动 |
 
+博斯科维奇的准则是为了调和五段子午线弧长的测量。他要求所加的改正满足："ut positivae correctiones negativis aequentur, ut summa sive positivarum, sive negativarum correctionum sit omnium minima"（正改正与负改正相等，正改正或负改正之和为一切可能中最小），即改正值总和为零、绝对值之和最小。他随即承认，这样求出的改正量本身就"enormes"（大得离谱），说明测量与假设的地球形状不合（《博洛尼亚科学院评论》第 4 卷，1757，第 353 页起之文）。
+
 历表拟合的目标是让解析历表在整个时间区间内尽量贴近数值历表，样本是数值历表在随机时刻的精确值，没有离群值。最小二乘既有闭式解、又能给出参数的协方差，是自然的选择。
 
 ### 数值解法：不用法方程
@@ -185,7 +187,7 @@ $\Delta T$ 的配套要知道两部月历表的月亮平黄经之差 $\Delta\lam
 3. A.-M. Legendre, *Nouvelles méthodes pour la détermination des orbites des comètes*, Paris, 1805；附录《Sur la méthode des moindres quarrés》，第 72—73 页。据 archive.org 所存 1805 年本核。
 4. C. F. Gauss, *Theoria motus corporum coelestium in sectionibus conicis solem ambientium*, Hamburg, 1809, §§175–186。据 archive.org 所存 1809 年本核第 186 条。
 5. C. F. Gauss, *Theoria combinationis observationum erroribus minimis obnoxiae*, Göttingen, 1823。未核原书。
-6. R. J. Boscovich, "De litteraria expeditione per pontificiam ditionem", *Bononiensi Scientiarum et Artium Instituto atque Academia Commentarii* 4 (1757), 353–396。未核原文。
+6. R. J. Boscovich, "De litteraria expeditione per pontificiam ditionem", *De Bononiensi Scientiarum et Artium Instituto atque Academia Commentarii* 4 (1757), 353 起。据 archive.org 所存本核所引准则一句（页码未能从扫描文字中确定）。
 7. S. M. Stigler, "Gauss and the invention of least squares", *Annals of Statistics* 9(3) (1981), 465–474。据 Crossref 核书目，doi:10.1214/aos/1176345451。
 8. R. L. Plackett, "The discovery of the method of least squares", *Biometrika* 59(2) (1972), 239–251。据 Crossref 核书目，doi:10.2307/2334569。
 9. A. S. Householder, "Unitary triangularization of a nonsymmetric matrix", *Journal of the ACM* 5(4) (1958), 339–342。据 Crossref 核书目，doi:10.1145/320941.320947。
