@@ -80,7 +80,11 @@ $$N = R_1(-\varepsilon-\Delta\varepsilon)\,R_3(-\Delta\psi)\,R_1(\varepsilon)$$
 
 ### 定理
 
-无论几次转动连在一起，结果都等于绕某一根轴转一个角。欧拉在 1775 年写成、1776 年发表的《Formulae generales pro translatione quacunque corporum rigidorum》（刚体任意移动的一般公式）中证明了这一点：球绕球心任意转动后，总有一条直径的位置与原来相同。
+无论几次转动连在一起，结果都等于绕某一根轴转一个角。欧拉在 1775 年写成、1776 年发表的《Formulae generales pro translatione quacunque corporum rigidorum》（刚体任意移动的一般公式）中证明了这一点。他先说"刚体无论怎样从一个位置移到另一个位置，总有一条直线，其方向不受任何改变"，接着为便于证明，设想一个与刚体固连的球：
+
+> Theorema. Quomodocunque sphaera circa centrum suum convertatur, semper assignari potest diameter, cuius directio in situ translato conveniat cum situ initiali.（E478 第 24 节补遗，《新评论》第 20 卷第 202 页）
+
+即"球无论怎样绕球心转动，总可以指出一条直径，其方向在转后与转前相同"。
 
 用矩阵的语言，这等于说 $R$ 必有特征值 1。证明只需一行：
 
@@ -127,7 +131,21 @@ $$i^2 = j^2 = k^2 = ijk = -1$$
 
 他当场把这个式子刻在了布鲁姆桥的石头上。二十二年后（1865 年 8 月 5 日），他在给儿子 Archibald 的信中回忆："Nor could I resist the impulse — unphilosophical as it may have been — to cut with a knife on a stone of Brougham Bridge"（桥名当时作 Brougham，今作 Broome）。今天桥上的纪念牌记的就是这件事。哈密顿自次年起在《Philosophical Magazine》上分期发表这一结果，一直连载到 1850 年。
 
-两年后，凯莱（Arthur Cayley，1845）写出 $(1+\lambda i+\mu j+\nu k)^{-1}(ix+jy+kz)(1+\lambda i+\mu j+\nu k)$，指出它给出的恰是一组直角坐标轴到另一组直角坐标轴的变换，其中 $\lambda = \tan\frac{\theta}{2}\cos f$ 等（$\theta$ 为转角，$f$ 等为转轴的方向角），并说："In fact the formulae are precisely those given for such a transformation by M. Olinde Rodrigues"（凯莱《论四元数的若干结果》，《数学论文集》第一卷第 124 页）。这就是下文的 $q\,v\,q^*$。不过，这四个参数在四元数之前已经两次出现。第一次是欧拉。他在 1770 年写成的《一个因性质极特殊而值得注意的代数问题》（E407）中，求保持平方和不变的线性变换的系数；对三维的情形，除用三角函数表示外，还给出了有理参数的表示，也就是用四个参数写出全部转动矩阵（据欧拉档案所录 Eneström 提要；四个参数之说为通说，本章未核原文）。第二次是罗德里格斯。他在 1840 年从几何上重新得到这四个参数，与转轴、转角的关系正是 $\cos\frac{\varphi}{2}$ 与 $\mathbf n\sin\frac{\varphi}{2}$，并写出了两次转动相继进行时参数的组合规则。这条规则就是后来的四元数乘法，只是他没有把它看成一种新的数。凯莱所说"与罗德里格斯给出的完全相同"，指的就是这一点。所以这四个参数今天称为"欧拉–罗德里格斯参数"。此外，高斯在 1819 年前后的手稿《Mutationen des Raumes》中也有类似公式，生前未发表。
+两年后，凯莱（Arthur Cayley，1845）写出 $(1+\lambda i+\mu j+\nu k)^{-1}(ix+jy+kz)(1+\lambda i+\mu j+\nu k)$，指出它给出的恰是一组直角坐标轴到另一组直角坐标轴的变换，其中 $\lambda = \tan\frac{\theta}{2}\cos f$ 等（$\theta$ 为转角，$f$ 等为转轴的方向角），并说："In fact the formulae are precisely those given for such a transformation by M. Olinde Rodrigues"（凯莱《论四元数的若干结果》，《数学论文集》第一卷第 124 页）。这就是下文的 $q\,v\,q^*$。不过，这四个参数在四元数之前已经两次出现。第一次是欧拉。他在 1770 年写成的《一个因性质极特殊而值得注意的代数问题》（E407）开篇就提出：把九个数排成方阵，使每行、每列的平方和为 1，两行、两列对应相乘之和为 0，也就是求全部三维正交矩阵。他先用三次平面转动依次复合，得到含三个任意角的解（即今天的欧拉角）；文末又"e methodo Diophantea"（用丢番图的方法）给出有理数解：
+
+> Sumantur pro lubitu quatuor numeri $p, q, r, s$ ac posita quadratorum eorum summa $pp + qq + rr + ss = u$ novem numeri quaesiti ita determinati reperiuntur（E407 §XXXIII，《新评论》第 15 卷第 101 页）
+
+即"任取四个数 $p, q, r, s$，记其平方和为 $u$，则所求九数为"
+
+$$
+\begin{array}{lll}
+A = \dfrac{pp+qq-rr-ss}{u}, & B = \dfrac{2qr+2ps}{u}, & C = \dfrac{2qs-2pr}{u},\\[2mm]
+D = \dfrac{2qr-2ps}{u}, & E = \dfrac{pp-qq+rr-ss}{u}, & F = \dfrac{2pq+2rs}{u},\\[2mm]
+G = \dfrac{2qs+2pr}{u}, & H = \dfrac{2rs-2pq}{u}, & I = \dfrac{pp-qq-rr+ss}{u}.
+\end{array}
+$$
+
+取 $p$ 为标量部分、$(q, r, s)$ 为向量部分，这正是今天由单位四元数写出的转动矩阵（差一个转置，即坐标转动与物体转动之别）。紧接着的第 102 页，欧拉又对四维的情形用八个数 $a, b, c, d, p, q, r, s$ 排出十六个数，每行、每列的平方和都等于 $(aa+bb+cc+dd)(pp+qq+rr+ss)$。这就是四平方和恒等式，也就是后来四元数乘法保持模长的性质。第二次是罗德里格斯。他在 1840 年从几何上重新得到这四个参数，与转轴、转角的关系正是 $\cos\frac{\varphi}{2}$ 与 $\mathbf n\sin\frac{\varphi}{2}$，并写出了两次转动相继进行时参数的组合规则。这条规则就是后来的四元数乘法，只是他没有把它看成一种新的数。凯莱所说"与罗德里格斯给出的完全相同"，指的就是这一点。所以这四个参数今天称为"欧拉–罗德里格斯参数"。此外，高斯在 1819 年前后的手稿《Mutationen des Raumes》中也有类似公式，生前未发表。
 
 ### 定义与乘法
 
@@ -227,7 +245,7 @@ $$\hat q = q + \varepsilon\,\tfrac12\,\mathbf{t}\,q$$
 |---|---|---|
 | 1763 | 莫齐 | 刚体无穷小运动的瞬时螺旋轴 |
 | 18 世纪 50—60 年代 | 欧拉 | 用三个角描述刚体方位（欧拉角） |
-| 1770—1771 | 欧拉 | 保持平方和不变的变换，三维情形的有理参数表示（E407） |
+| 1770—1771 | 欧拉 | 三维正交矩阵的四参数有理表示，即后来的四元数转动矩阵（E407） |
 | 1775—1776 | 欧拉 | 转动定理：任何转动都是绕一根轴的转动 |
 | 约 1819 | 高斯 | 手稿中的转动组合公式（身后发表） |
 | 1830—1831 | 沙勒 | 刚体运动都是螺旋运动 |
@@ -250,8 +268,8 @@ $$\hat q = q + \varepsilon\,\tfrac12\,\mathbf{t}\,q$$
 
 ## 参考文献
 
-1. L. Euler, "Formulae generales pro translatione quacunque corporum rigidorum", *Novi Commentarii academiae scientiarum Petropolitanae* 20 (1776), 189–207；Opera Omnia, ser. 2, vol. 9, 84–98（Eneström 编号 E478）。书目据欧拉档案（Euler Archive），未核原文。
-2. L. Euler, "Problema algebraicum ob affectiones prorsus singulares memorabile", *Novi Commentarii academiae scientiarum Petropolitanae* 15 (1771), 75–106；Opera Omnia, ser. 1, vol. 6, 287–315（Eneström 编号 E407，1770 年写成）。书目与提要据欧拉档案，未核原文。
+1. L. Euler, "Formulae generales pro translatione quacunque corporum rigidorum", *Novi Commentarii academiae scientiarum Petropolitanae* 20 (1776), 189–207；Opera Omnia, ser. 2, vol. 9, 84–98（Eneström 编号 E478）。据 archive.org 所存原刊第 20 卷核第 24—25 节（第 201—202 页）。
+2. L. Euler, "Problema algebraicum ob affectiones prorsus singulares memorabile", *Novi Commentarii academiae scientiarum Petropolitanae* 15 (1771), 75–106；Opera Omnia, ser. 1, vol. 6, 287–315（Eneström 编号 E407，1770 年写成）。据欧拉档案所存原刊扫描本核 §XIV—XIX（第 85—88 页）、§XXXIII—XXXIV（第 101—102 页）。
 3. O. Rodrigues, "Des lois géométriques qui régissent les déplacements d'un système solide dans l'espace, et de la variation des coordonnées provenant de ces déplacements considérés indépendamment des causes qui peuvent les produire", *Journal de Mathématiques Pures et Appliquées*, 1re série, 5 (1840), 380–440。据 Numdam 数字化本核题目卷页。
 4. W. R. Hamilton, "On quaternions; or on a new system of imaginaries in algebra", *Philosophical Magazine*, 3rd ser., 1844—1850 年分期连载（首期在第 25 卷）。据 D. R. Wilkins 所编录文核其刊载情况；卷页未逐期核对。
 5. A. Cayley, "On certain results relating to quaternions", *Philosophical Magazine* 26 (1845), 141–145；重印于 *The Collected Mathematical Papers of Arthur Cayley*, vol. 1, Cambridge, 1889, no. 20, 123–126。据 archive.org 所存重印本核。
