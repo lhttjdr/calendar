@@ -295,7 +295,7 @@ function App() {
   const [wasm, setWasm] = useState<LunarBackend | null>(null)
   const [loading, setLoading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [ganzhiOptions, setGanzhiOptions] = useState<GanzhiOptionsTuple>(() => GANZHI_PRESET_OPTIONS[2]!)
+  const [ganzhiOptions, setGanzhiOptions] = useState<GanzhiOptionsTuple>(() => GANZHI_PRESET_OPTIONS[3]!)
   const [optionsPanelOpen, setOptionsPanelOpen] = useState(false)
   const [displayLayersPanelOpen, setDisplayLayersPanelOpen] = useState(false)
   /** 仅小时变化时更新，用于年月日时与农历/八字；不每秒更新避免整页重算 */

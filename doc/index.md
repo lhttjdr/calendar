@@ -68,3 +68,9 @@
 ---
 
 **参考文献**：[doc/references/](https://github.com/lhttjdr/calendar/tree/master/doc/references)；仓库根 [README.md](https://github.com/lhttjdr/calendar/blob/master/README.md) 快速开始与项目结构总览。AI 辅助开发用的项目总览见仓库根 [INVENTORY.md](https://github.com/lhttjdr/calendar/blob/master/INVENTORY.md)（不纳入本文档站）。
+
+## 五、民俗（`folk/`）
+
+| 文档 | 说明 |
+|------|------|
+| [ganzhi-calendar.md](folk/ganzhi-calendar.md) | 干支历四柱：换年、换月、闰月、换日各选项与预设的原典出处、核对状态、代码位置 |

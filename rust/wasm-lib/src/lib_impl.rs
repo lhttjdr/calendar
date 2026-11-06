@@ -574,15 +574,14 @@ pub fn ganzhi_from_jd_solar_wasm(
     })
 }
 
-/// 预设名称，供 UI 显示：0=子平八字 1=紫微斗数 2=民俗黄历 3=协纪辨方书
+/// 预设名称，供 UI 显示：0=子平（子正） 1=子平（子初） 2=紫微斗数 3=农历月干支
 #[wasm_bindgen]
 pub fn ganzhi_preset_name(preset_index: u8) -> String {
     match preset_index {
-        0 => "子平八字",
-        1 => "紫微斗数",
-        2 => "民俗黄历",
-        3 => "协纪辨方书",
-        _ => "民俗黄历",
+        0 => "子平（子正）",
+        1 => "子平（子初）",
+        2 => "紫微斗数",
+        _ => "农历月干支",
     }
     .to_string()
 }

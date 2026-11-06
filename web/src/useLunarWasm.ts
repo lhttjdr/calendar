@@ -539,16 +539,23 @@ export function getLunarSlotForDay(
   return null
 }
 
-/** 干支历预设：0=子平八字 1=紫微斗数 2=民俗黄历 3=协纪辨方书。每项 [year_boundary, month_boundary, leap_handling, day_boundary] */
+/**
+ * 干支历预设，每项 [year_boundary, month_boundary, leap_handling, day_boundary]，与 Rust gan_zhi_options 的 preset_* 一致：
+ * 0=子平（子正）：立春、十二节、子正换日（《三命通會》《星平大成》《命理探源》；年月同《協紀辨方書》）
+ * 1=子平（子初）：同上而 23 时换日（今人多从，原典未见）
+ * 2=紫微斗数：农历年月、闰月整月作下月（《紫微斗數全書》卷三）、子正
+ * 3=农历月干支：农历年月、闰月随前月、子正（今人万年历，原典未见）
+ * 出处详见 doc/folk/ganzhi-calendar.md
+ */
 export const GANZHI_PRESET_OPTIONS: [number, number, number, number][] = [
+  [0, 0, 0, 1],
   [0, 0, 0, 0],
-  [1, 1, 2, 1],
-  [1, 1, 1, 0],
-  [0, 0, 1, 0],
+  [1, 1, 3, 1],
+  [1, 1, 1, 1],
 ]
 
 /** 预设名称，与 GANZHI_PRESET_OPTIONS 下标对应 */
-export const GANZHI_PRESET_NAMES = ['子平八字', '紫微斗数', '民俗黄历', '协纪辨方书'] as const
+export const GANZHI_PRESET_NAMES = ['子平（子正）', '子平（子初）', '紫微斗数', '农历月干支'] as const
 
 /** 详细选项：年界 0=立春 1=春节 2=冬至 */
 export const GANZHI_YEAR_BOUNDARY_OPTIONS: { value: number; label: string }[] = [
@@ -565,8 +572,8 @@ export const GANZHI_MONTH_BOUNDARY_OPTIONS: { value: number; label: string }[] =
 export const GANZHI_LEAP_MONTH_OPTIONS: { value: number; label: string }[] = [
   { value: 0, label: '忽略' },
   { value: 1, label: '随前月' },
-  { value: 2, label: '分半月' },
-  { value: 3, label: '顺延下一月' },
+  { value: 2, label: '月中切分' },
+  { value: 3, label: '整月作下月' },
 ]
 /** 日界 0=23时(子初) 1=0时(子正) */
 export const GANZHI_DAY_BOUNDARY_OPTIONS: { value: number; label: string }[] = [

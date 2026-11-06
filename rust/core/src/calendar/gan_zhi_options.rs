@@ -1,4 +1,6 @@
-//! 干支历选项与多套标准：换年/换月/闰月处理/换日，及预设（八字、紫微、黄历、协纪辨方）。
+//! 干支历选项与多套标准：换年/换月/闰月处理/换日，及预设。
+//!
+//! 各选项与预设的原典出处见 `doc/folk/ganzhi-calendar.md`；没有原典的选项在注释里注明「原典未见」。
 
 use crate::calendar::gan_zhi::{jd_to_gan_zhi_index, GAN_ZHI_60};
 use crate::calendar::gregorian::Gregorian;
@@ -8,12 +10,12 @@ use crate::math::real::{real, Real, ToReal};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub enum YearBoundary {
-    /// 立春交节时刻（八字、风水等）
+    /// 立春交节时刻：子平（《命理探源》卷二推年法「以立春節為綱」）、择日（《協紀》卷三十四「歳官交承」）
     LiChun,
-    /// 正月初一零点（民俗、紫微等）
+    /// 正月初一零点：农历年；紫微斗数按农历年月起盘（《紫微斗數全書》未明言年界）
     #[default]
     LunarNewYear,
-    /// 冬至交节时刻（奇门遁甲等，预留）
+    /// 冬至交节时刻：太乙积年以上元甲子冬至为元，太乙、奇门以冬至分阴阳遁；以冬至换年柱者原典未见，作选项保留
     WinterSolstice,
 }
 
@@ -21,7 +23,8 @@ pub enum YearBoundary {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub enum MonthBoundary {
-    /// 十二节交节时刻（立春、惊蛰、清明…）
+    /// 十二节交节时刻（立春、惊蛰、清明…）：子平（《命理探源》推月法「以節令為綱」）、
+    /// 时宪书建除（《協紀》卷四「每月交節則疊兩值日」）、太乙月计（「若有閏月只以逐月節氣時刻為正」）
     SolarTerm,
     /// 农历每月初一零点
     #[default]
@@ -34,12 +37,12 @@ pub enum MonthBoundary {
 pub enum LeapMonthHandling {
     /// 按节气时此项不适用
     Ignore,
-    /// 随前月（闰几月用几月干支，黄历常用）
+    /// 随前月（闰几月用几月干支）：今人万年历给农历月配干支的做法，原典未见
     #[default]
     InheritPrevious,
-    /// 月中切分：前 15 日本月，后 15 日下月（紫微古派）
+    /// 月中切分：前 15 日本月，后 15 日下月。近人之说，原典未见
     SplitMidway,
-    /// 整个闰月作下月算（紫微部分现代派）
+    /// 整个闰月作下月：《紫微斗數全書》卷三《安身命例》「若閏正月生者，要在二月內起安身命，凡有閏月俱要依此為例」
     ShiftToNext,
 }
 
@@ -47,9 +50,10 @@ pub enum LeapMonthHandling {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub enum DayBoundary {
-    /// 子初换日 23:00（古典派）
+    /// 子初换日 23:00：今人多从，原典未见（唐傅仁均以子初为朔，李淳风驳之，见《新唐書·曆志一》）
     Hour23,
-    /// 子正换日 00:00（现代派）
+    /// 子正换日 00:00：历法「古曆分日，起於子半」；《三命通會》「上半時在夜半前屬昨日」；
+    /// 《星平大成》「子正者今日之早，夜子者今日之夜」（夜子时时干按次日起，见前端时柱）
     #[default]
     Hour0,
 }
@@ -74,43 +78,44 @@ impl Default for GanzhiOptions {
     }
 }
 
-/// 子平八字/专业风水：立春换年、节气换月、子初换日
+/// 子平八字（子正换日）：立春换年、十二节换月、子正换日。
+/// 依据《三命通會》卷二、《星平大成》（经《命理探源》卷五转引）、《命理探源》卷二。
+/// 年、月两项与《協紀辨方書》择日相同。
 pub fn preset_zi_ping_ba_zi() -> GanzhiOptions {
     GanzhiOptions {
         year_boundary: YearBoundary::LiChun,
         month_boundary: MonthBoundary::SolarTerm,
         leap_month_handling: LeapMonthHandling::Ignore,
-        day_boundary: DayBoundary::Hour23,
-    }
-}
-
-/// 紫微斗数（中州派）：正月初一换年、初一换月、月中切分闰月、子正换日
-pub fn preset_purple_star() -> GanzhiOptions {
-    GanzhiOptions {
-        year_boundary: YearBoundary::LunarNewYear,
-        month_boundary: MonthBoundary::LunarFirstDay,
-        leap_month_handling: LeapMonthHandling::SplitMidway,
         day_boundary: DayBoundary::Hour0,
     }
 }
 
-/// 民俗老黄历：正月初一换年、初一换月、闰月随前月、子初换日
-pub fn preset_folk_almanac() -> GanzhiOptions {
+/// 子平八字（子初换日）：同上，唯 23 时即换日。今人多从，原典未见。
+pub fn preset_zi_ping_zi_chu() -> GanzhiOptions {
+    GanzhiOptions {
+        day_boundary: DayBoundary::Hour23,
+        ..preset_zi_ping_ba_zi()
+    }
+}
+
+/// 紫微斗数：农历年月起盘、闰月整月作下月（《紫微斗數全書》卷三《安身命例》）。
+/// 书中未言日界，取子正。
+pub fn preset_purple_star() -> GanzhiOptions {
+    GanzhiOptions {
+        year_boundary: YearBoundary::LunarNewYear,
+        month_boundary: MonthBoundary::LunarFirstDay,
+        leap_month_handling: LeapMonthHandling::ShiftToNext,
+        day_boundary: DayBoundary::Hour0,
+    }
+}
+
+/// 农历月干支：正月初一换年、初一换月、闰月随前月、子正换日。今人万年历的标注法，原典未见。
+pub fn preset_lunar_month_ganzhi() -> GanzhiOptions {
     GanzhiOptions {
         year_boundary: YearBoundary::LunarNewYear,
         month_boundary: MonthBoundary::LunarFirstDay,
         leap_month_handling: LeapMonthHandling::InheritPrevious,
-        day_boundary: DayBoundary::Hour23,
-    }
-}
-
-/// 协纪辨方书（择吉）：立春换年、节气换月、子初换日
-pub fn preset_xie_ji_bian_fang() -> GanzhiOptions {
-    GanzhiOptions {
-        year_boundary: YearBoundary::LiChun,
-        month_boundary: MonthBoundary::SolarTerm,
-        leap_month_handling: LeapMonthHandling::InheritPrevious,
-        day_boundary: DayBoundary::Hour23,
+        day_boundary: DayBoundary::Hour0,
     }
 }
 
@@ -281,20 +286,20 @@ mod tests {
         let zp = preset_zi_ping_ba_zi();
         assert_eq!(zp.year_boundary, YearBoundary::LiChun);
         assert_eq!(zp.month_boundary, MonthBoundary::SolarTerm);
-        assert_eq!(zp.day_boundary, DayBoundary::Hour23);
+        assert_eq!(zp.day_boundary, DayBoundary::Hour0);
+
+        let zc = preset_zi_ping_zi_chu();
+        assert_eq!(zc.year_boundary, YearBoundary::LiChun);
+        assert_eq!(zc.day_boundary, DayBoundary::Hour23);
 
         let ps = preset_purple_star();
-        assert_eq!(ps.leap_month_handling, LeapMonthHandling::SplitMidway);
+        assert_eq!(ps.month_boundary, MonthBoundary::LunarFirstDay);
+        assert_eq!(ps.leap_month_handling, LeapMonthHandling::ShiftToNext);
         assert_eq!(ps.day_boundary, DayBoundary::Hour0);
 
-        let fa = preset_folk_almanac();
-        assert_eq!(fa.leap_month_handling, LeapMonthHandling::InheritPrevious);
-        assert_eq!(fa.day_boundary, DayBoundary::Hour23);
-
-        let xj = preset_xie_ji_bian_fang();
-        assert_eq!(xj.year_boundary, YearBoundary::LiChun);
-        assert_eq!(xj.month_boundary, MonthBoundary::SolarTerm);
-        assert_eq!(xj.leap_month_handling, LeapMonthHandling::InheritPrevious);
+        let lm = preset_lunar_month_ganzhi();
+        assert_eq!(lm.leap_month_handling, LeapMonthHandling::InheritPrevious);
+        assert_eq!(lm.day_boundary, DayBoundary::Hour0);
     }
 
     #[test]
