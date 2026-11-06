@@ -1,21 +1,83 @@
 # 行星
 
-本章说明行星视位置的计算与检验、视星等、会合现象（合、冲、留、大距）、近距事件、晨见夕伏的可见性模型，以及月掩星。文中方括号数字指文末参考文献。
+古人肉眼可见的行星有五颗：水、金、火、木、土，中国古称辰星、太白、荧惑、岁星、填（镇）星，合称五星。它们在恒星间时顺行、时逆行，时而隐没于日光之中、时而重新出现，史书记载了大量五星的见伏、留、逆、相犯。本章先讲行星视运动的几何，再讲中西行星理论与视星等、见伏理论的源流，然后讲本项目怎样计算行星的视位置、亮度、会合现象、近距事件、晨见夕伏与月掩星，以及各项检验。文中方括号数字指文末参考文献。
 
-## 行星视位置
+## 一、视运动的几何
+
+### 会合周期
+
+从地球看，行星回到相对太阳的同一位置（如两次合）所需的时间称会合周期 $S$。设行星与地球的公转周期为 $P$、$E$，二者的角速度之差决定会合：
+
+$$\frac{1}{S} = \left|\frac{1}{P} - \frac{1}{E}\right|$$
+
+| 行星 | 公转周期（年） | 会合周期（日） |
+|---|---|---|
+| 水星 | 0.2408 | 115.88 |
+| 金星 | 0.6152 | 583.92 |
+| 火星 | 1.8809 | 779.94 |
+| 木星 | 11.862 | 398.88 |
+| 土星 | 29.457 | 378.09 |
+
+金星 5 个会合周期（2919.6 日）几乎等于 8 年（2921.9 日），所以金星的晨昏出没 8 年一循环；这一关系中国、巴比伦、玛雅都很早发现。
+
+### 合、冲、留、大距
+
+- **合**：行星与太阳黄经相同。内行星（水、金）有两种：在太阳与地球之间为下合，在太阳背后为上合。
+- **冲**：外行星与太阳黄经相差 180°，此时离地球最近、最亮，整夜可见。
+- **留与逆行**：地球在内圈跑得快，超越外行星时，从地球看行星好像倒退，即逆行；顺行转逆行、逆行转顺行的那一刻视黄经暂时不变，称"留"。内行星在下合前后逆行。
+- **大距**：内行星与太阳的角距离达到极大。若轨道为圆，$\sin(\text{大距}) = a/a_\oplus$，水星约 18°—28°（轨道偏心大，变化也大）、金星约 45°—47°。
+
+### 见与伏
+
+行星靠近太阳时淹没在日光中看不见，称"伏"；离开太阳足够远、在晨昏的微光中重新可见，称"见"。外行星合日后第一次在黎明前的东方出现，称"晨见"（西方称偕日升，heliacal rising）；冲日后渐近太阳、最后一次在黄昏西方看到，称"夕伏"。能否看见，取决于行星的亮度、它与太阳的高度差（"视弧"）、大气消光与天空亮度，不是一个固定的角距。
+
+## 二、源流
+
+### 行星理论
+
+| 年代 | 人物、文献 | 内容 |
+|---|---|---|
+| 前 2 千纪 | 巴比伦《阿米萨杜卡金星泥板》 | 逐年记录金星的晨昏出没 |
+| 前 2 世纪 | 马王堆帛书《五星占》 | 金星"五出"八年的周期，及木、土、金的会合周期，金星约 584.4 日（据今人研究转引，未核原件） |
+| 汉 | 《史記·天官書》《漢書·律曆志》 | 五星的运行与占验；三统历以"五步"推五星的见伏与顺逆 |
+| 北齐 | 张子信 | 发现五星运动的不均匀与"感召向背"。《隋書·天文志中》："五星見伏，有感召向背" |
+| 隋唐以后 | 刘焯、一行、郭守敬诸历 | 历法中的"步五星"一篇，以盈缩、见伏度等推五星 |
+| 2 世纪 | 托勒密《至大论》 | 本轮—均轮模型；《恒星的出现》（Phaseis）给出见伏的"视弧"（金星 5° 等） |
+| 1543 | 哥白尼《天体运行论》 | 日心体系，逆行成为地球运动的自然结果 |
+| 1609、1619 | 开普勒 | 椭圆轨道与三定律 |
+| 1687 | 牛顿 | 万有引力，行星运动成为摄动问题 |
+| 19 世纪 | 勒维耶、纽康 | 解析行星理论，纽康表通用到 20 世纪后半叶 |
+| 1982、1987 | Bretagnon、Francou | 半解析理论 VSOP82、VSOP87，以三角级数表示行星坐标 |
+| 1970 年代起 | JPL | 数值积分历表 DE 系列，以观测拟合，现行为 DE440、DE441 |
+| 2000 | Chapront | 用 DE 数值历表拟合 VSOP87 的长期改正 |
+
+（西方各条与中国汉以后各条据通行天文学史，未核原书。）
+
+中国古代没有发展出行星的几何模型，而是用表格与经验公式推算一个会合周期中各段的行度（顺、留、逆、伏、见），这与巴比伦的算术方法相近，与希腊的几何模型路径不同。
+
+### 视星等
+
+古希腊（喜帕恰斯、托勒密）把肉眼所见恒星分为六等。1856 年 Pogson 定义 5 个星等相当于亮度比 100，星等成为对数刻度：$m_1 - m_2 = -2.5\lg(I_1/I_2)$。行星的星等随日地距离与相位角（太阳—行星—地球的夹角）变化，Müller 在 19 世纪末、Harris 在 1961 年给出经验公式；现行《天文年历》采用 Mallama 与 Hilton 2018 年的公式 [15]，按各行星的相位曲线分段拟合，火星计入自转与季节、土星计入光环倾角。
+
+### 见伏的理论
+
+传统做法是给每颗行星一个固定的"视弧"或"见伏度"：托勒密取金星 5°、木星 9°—10°、水星 10°—12°；巴比伦金星约 6°；中国历法的金星见伏度平均 10.5°，按黄纬 35° 折合视弧约 8.6°。这些都是经验值，不随大气与季节变化。Schaefer 自 1980 年代起建立物理模型：由大气消光、天空亮度（暮光、月光、夜天光）与人眼的阈值，逐时刻判断天体是否可见，并以实测检验 [16][32][37]。本项目采用这一体系。
+
+## 三、计算方法与检验
+
+### 行星视位置
 
 | 内容 | 验证 |
 | --- | --- |
-| （水星—海王星）；DE406 行星系质心段 | — |
+| 行星历表：VSOP87B（水星—海王星）；DE406 行星系质心段 | — |
 | VSOP87B 各行星加载与地心合成（日心行星 − 日心地球，光行时对地心矢量迭代，与太阳同一做法） | 见下 |
 | VSOP87 → DE406 改正：各行星（含地球）日心 L、B、R，Chapront (2000) 方法 [25] | 见下 |
 | 行星地心视位置（当日真赤道、视黄经黄纬，含距离） | 见下 |
 
 **VSOP87 与 DE406 的差异**。VSOP87 的积分常数拟合自 DE200 [26]，其文档所称「日心 1″」（水星、金星、地月质心、火星在 J2000
-前后 4000 年，木星、土星 2000 年，天王星、海王星 6000 年； PRECISION 节）是相对 DE200 而言。
+前后 4000 年，木星、土星 2000 年，天王星、海王星 6000 年）是相对 DE200 而言。
 Chapront (2000) 指出「其常数来自 DE200，拟合离 DE405 很远；时间跨度超过一两千年后解迅速变差」，并给出前 3000—3000 年
-VSOP87 与 DE406 平黄经最大差：木星 138″、土星 232″、天王星 84″、海王星 130″（表 III）。本项目实测（
-前 2000—2000 年每 125 年一点）与之同量级：
+VSOP87 与 DE406 平黄经最大差：木星 138″、土星 232″、天王星 84″、海王星 130″（表 III）。本项目实测（前 2000 年至 2000 年每 125 年一点）与之同量级：
 
 | 行星 | 日心方向差 原样 → 改正 | 地心视位置差 原样 → 改正 |
 | --- | --- | --- |
@@ -29,29 +91,27 @@ VSOP87 与 DE406 平黄经最大差：木星 138″、土星 232″、天王星 
 
 **改正方法**（Chapront 2000 [25]）：残差 ρ = σ_DE406 − σ_VSOP87 取 VSOP87B 自身的日心 L、B、R，近似为长期多项式加泊松混合项
 $\sum_{k\le N_{\mathrm{sec}}} a_k t^k + \sum_f \sum_{k\le N_{\mathrm{mix}}} t^k (C_k \cos ft + S_k \sin ft)$，频率取该变量 VSOP87 级数中振幅最大的若干项；区间取论文 (a)
-前 3000—3000 年（DE406 全程）；线性最小二乘，不加人为边界。DE406 转回 VSOP87 架所用旋转与 Rust 管线一致（R_x(ε₀ = 84381.406″)
-+ SOFA FK5→ICRS 偏差），使改正与管线配套。论文说明 NSEC、MIXT「可因行星和变量而略有不同」：水星、金星、地球、天王星、海王星
+前 3000—3000 年（DE406 全程）；线性最小二乘，不加人为边界。DE406 转回 VSOP87 架所用旋转与视位置计算一致（$R_x(\varepsilon_0 = 84381.406)$ 加 FK5→ICRS 偏差），使改正与计算配套。论文说明 NSEC、MIXT「可因行星和变量而略有不同」：水星、金星、地球、天王星、海王星
 用 (3, 2, 60 个频率)；火星、木星、土星用 (5, 4, 300)——用 (3, 2, 60) 时木星、土星残差仍有 8″、13″，按独立检验点（不参与拟合的
-4000 个随机时刻）逐步增加到 (5, 4, 300) 后降到与论文表 III 同量级。拟合脚本的独立检验（前 3000—3000 年最大日心方向残差）：
+4000 个随机时刻）逐步增加到 (5, 4, 300) 后降到与论文表 III 同量级。拟合的独立检验（前 3000—3000 年最大日心方向残差）：
 水星 0.32″、金星 0.11″、地球 0.29″、火星 0.14″、木星 0.31″、土星 1.06″、天王星 0.40″、海王星 0.18″（论文表 III：0.005、0.011、
 0.033、0.157、0.500、1.160、0.142、0.046″，为平黄经，口径不同）。
 
 **取舍**：本地有 DE406 时以 DE406 为准；在网页中（不带 DE406）用 VSOP87 + 改正，与 DE406 差 < 0.4″，对史料（角分级）绰绰有余。
 地球改正同时用于节气、定朔与天象（缺省 DE431 版，可选 DE406、DE441 版）；网页端只加载地球一段（约 10 KB）。
 
-**外部核对：Skyfield**。Skyfield [27] 独立实现 IAU 视位置算法，读同一
- 计算 7 颗行星在 5 个时刻（2000、2023、约 1000、约 100、约前 1000 年）的当日真赤道视位置（`scripts/ephemeris/
-用 uv 临时环境运行，不属本项目依赖），与本管线逐点比较：
-- 公元 100 年以来 28 点，差 ≤ 0.07″（Skyfield 另计太阳引力光线偏折，约 0.004″·cot(ψ/2)，本管线未计）；
-- 前 1000 年 7 点，差 0.27–1.20″，即 IAU 2006 岁差三角式（本管线）与四角式（Skyfield）两种截断多项式在远端的分歧（1.25″）。
+**外部核对：Skyfield**。Skyfield [27] 独立实现 IAU 视位置算法，读同一份 DE406，计算 7 颗行星在 5 个时刻（2000、2023、约 1000、约 100、约前 1000 年）的当日真赤道视位置，与本项目逐点比较：
+- 公元 100 年以来 28 点，差 ≤ 0.07″（Skyfield 另计太阳引力光线偏折，约 0.004″·cot(ψ/2)，本项目未计）；
+- 前 1000 年 7 点，差 0.27–1.20″，即 IAU 2006 岁差三角式（本项目）与四角式（Skyfield）两种截断多项式在远端的分歧（1.25″）。
 
 
-**尚未做**：太阳引力光线偏折（行星远离太阳时毫角秒级，近合日可达角秒级）。
+**未计**：太阳引力光线偏折（行星远离太阳时毫角秒级，近合日可达角秒级）。
 
-**行星视星等**
+### 视星等
+
 按 Mallama & Hilton (2018) [15] 式 2—17（V 波段，《天文年历》现行算法），系数核对过论文原文（arXiv:1808.01973；式 13、16 为图片，
 渲染核对）；作者程序 Ap_Mag V3 与官方测试数据原件。
-- 分支与作者程序一致：相位角超出观测范围时照算（ 供调用方提示），只有土星含环超出 α ≤ 6.5°、
+- 分支与作者程序一致：相位角超出观测范围时照算（另给出超出范围的提示），只有土星含环超出 α ≤ 6.5°、
   β ≤ 27°，或海王星 2000 年前 α > 1.9° 时不给星等。
 - 唯一系数出入：土星式 12 三次项论文正文作 −1.505×10⁻⁶，作者程序为 −1.506×10⁻⁶；官方测试输出（α = 169.9° 时 5.206）只与后者
   相符（前者 5.211），采用后者。
@@ -61,52 +121,46 @@ $\sum_{k\le N_{\mathrm{sec}}} a_k t^k + \sum_f \sum_{k\le N_{\mathrm{mix}}} t^k 
 - 几何：行星取光行时修正后地心位置（ICRS），太阳取地心几何位置；土星、天王星自转轴取 IAU J2000 值（α₀, δ₀ = 40.589°, 83.537°；
   257.311°, −15.175°）[28]，天王星直下点纬度按式 13 换算为行星面图纬度（f = 0.0022927）；火星日心黄经取 J2000 黄道。
 - 验证：① Ap_Mag V3 官方测试 27 例（直接解析原件），全部 ≤ 0.001 星等，含火星两项修正与土星不给星等一例；② 同读 DE406 与
-  Skyfield 对照 28 例（4 个时刻 × 7 行星），差 ≤ 0.001 星等（Skyfield 自身的 把太阳当作位于太阳系质心，
+  Skyfield 对照 28 例（4 个时刻 × 7 行星），差 ≤ 0.001 星等（Skyfield 自身的星等函数把太阳当作位于太阳系质心，
   近日行星有 0.01—0.04 星等之差，对照时改用真太阳几何；火星扣除 Skyfield 未计的 L(Ls)）。
 - 已知省略：火星 L(λe)（见上）；土星、天王星极轴的长期变化（土星到前 200 年约 0.8°，对星等 ≤ 0.02）。
 
-**行星会合现象**：合（内行星分上合、下合）、冲、留
-（转逆、转顺）、大距（东、西）。定义取《天文年历》说明书与 Meeus 通行定义：地心视位置，黄经取当日真黄道（含章动）；合、冲为
+### 会合现象
+
+合（内行星分上合、下合）、冲、留（转逆、转顺）、大距（东、西）。定义取《天文年历》说明书与 Meeus 通行定义：地心视位置，黄经取当日真黄道（含章动）；合、冲为
 与太阳视黄经差 0°、180°；留为视黄经变化率为零；大距为内行星与太阳角距极大。取样（水星 1 日、余 2 日）找变号或局部极大，
-再二分求精（大距自 改为求角距五点差分导数之根，见下）。日与行星同一提供者、同一管线（新增 ）。
-- 验证：对照 Skyfield（同读 DE406、同用 P03 岁差，2020—2025 年，241 个事件；合、冲取其 ，
-  留、大距用其 / 独立求得）：事件个数逐类一致；
+再二分求精；大距求角距的五点差分导数之根。日与行星用同一历表、同一套视位置计算。
+- 验证：对照 Skyfield（同读 DE406、同用 P03 岁差，2020—2025 年，241 个事件；合、冲取其现成函数，留、大距用其位置独立求得）：事件个数逐类一致；
   合、冲时刻差 ≤ 0.3 s；大距 ≤ 0.3 s；留 ≤ 4.4 min（海王星；留附近黄经变化率极平缓，
   两边黄经约 0.01″ 的差即使留的时刻差数分钟）（容差合冲大距 2 s、留 10 min）。
-- **极值时刻的数值问题**：大距原以黄金分割求精，比较两点函数值；极大附近 10 s 内角距只变约 1e-12 rad，
-  函数的数值噪声即可使比较出错。实测（金星 2020-03-24 大距前后每 0.5 s 取样）：
-  - DE406 读取器把时刻先折成「距段起点的秒数」（段起点在前 3000 年，约 1.6e11 s），f64 只到约 3e-5 s，行星位置台阶约 0.76 m、
-    方向噪声 2.5e-12 rad，大距时刻抖动约 ±30 s；double-double 构建亦然。改为 (hi − 记录起点) + lo（
-    时刻由 double-double 拆两段传入）后噪声降到 4e-15 rad，与 VSOP87 相同。DE406 位置因此改变 ≤ 约 1 m（时刻误差 ≤ 3e-5 s）。
-  - f64 构建的儒略日本身只到约 40 µs，各历表方向均带约 3e-12 rad 噪声；改以五点差分导数（h = 30 min）求根
-    噪声折合约 0.2 s。近距事件的最接近时刻同法。
-  - 修正后两种构建的大距时刻差 ≤ 0.2 s，近距逐格相同；与 Skyfield 大距差由 31 s 降到 0.3 s。
+- **极值时刻**：极大附近 10 秒内角距只变约 $10^{-12}$ rad，比较两点函数值求极值会被数值噪声左右，所以大距、留、近距的极值时刻都改为求五点差分导数（步长 30 分钟）的根，噪声折合约 0.2 秒。
 
-**近距事件**：两天体（日、月、行星）地心视方向
-角距（当日真赤道下大圆距离）的各次极小，给出时刻与最小角距；「犯」「守」等史书术语的阈值留给下游。取样（有月 0.2 日、否则 1 日）
-找局部极小，再黄金分割求精。新增组合提供者 （VSOP87 日与行星 + ELPMPP02 月），DE406/DE441 内核本身即含全部天体。
-- 验证：① 对照 Skyfield（同读 DE406、P03，
-  ）：木—土、金—木、火—木、水—金（2020—2023）与月—金、月—木、月—火（2023），角距 ≤ 5° 的极小共 49 次，次数逐对
+### 近距事件
+
+两天体（日、月、行星）地心视方向角距（当日真赤道下大圆距离）的各次极小，给出时刻与最小角距；「犯」「守」等史书术语的阈值留给下游。取样（有月 0.2 日、否则 1 日）
+找局部极小，再黄金分割求精。日与行星用 VSOP87、月亮用 ELP/MPP02 组合计算；DE406、DE441 本身即含全部天体。
+- 验证：① 对照 Skyfield（同读 DE406、P03）：木—土、金—木、火—木、水—金（2020—2023）与月—金、月—木、月—火（2023），角距 ≤ 5° 的极小共 49 次，次数逐对
   一致，时刻差 ≤ 0.8 s，最小角距差 ≤ 0.007″（2020-12-21 木土大合最小角距 0.1018°）；② VSOP87（DE406 版改正）+ ELPMPP02 对 DE406（月的配对取
   2023 年前 120 日，共 28 次）：时刻差 ≤ 3.3 s，最小角距差 ≤ 0.025″。
 
-**晨见夕伏**：按原文逐式独立实现，未参照任何现成程序（Swiss Ephemeris 为 AGPL，不引入代码）。
-所据文献 16、29–39。各环节可选项并存，缺省由下面的检验结果选定：
-**缺省为 Schaefer 1998 整套**（文献 37，作者最新版，所附程序 VISLIMIT 程序）。
+### 晨见夕伏
 
-- （纯公式）：
-  - **Schaefer 1998 整套（缺省）**：按 VISLIMIT 程序 逐行实现（V 波段；消光五波段）。
-    - 消光 `Extinction1998`：气溶胶 $0.1(\lambda/0.55)^{-1.3}e^{-H/1.5}(1 - 0.32/\ln S)^{1.33}(1 + \operatorname{sgn}\varphi\,\sin\alpha_S)$，季节项随半球反号；
+按原文逐式独立实现，未参照任何现成程序。所据文献 16、29–39。各环节可选项并存，缺省由下面的检验结果选定：
+**缺省为 Schaefer 1998 整套**（文献 37，作者最新版，附 VISLIMIT 程序）。
+
+- 模型公式：
+  - **Schaefer 1998 整套（缺省）**：按 VISLIMIT 程序逐行实现（V 波段；消光五波段）。
+    - 消光：气溶胶 $0.1(\lambda/0.55)^{-1.3}e^{-H/1.5}(1 - 0.32/\ln S)^{1.33}(1 + \operatorname{sgn}\varphi\,\sin\alpha_S)$，季节项随半球反号；
       加水汽项 $0.94\,w_\lambda S\,e^{T/15}e^{-H/8.2}$；臭氧、Rayleigh 同 1993。
-    - 天空 ：大气质量用 Rozenberg 式。月光、白昼的散射三项相加，另加多次散射项
+    - 天空亮度：大气质量用 Rozenberg 式。月光、白昼的散射三项相加，另加多次散射项
       $440000\,(1 - 10^{-0.4kX_{\text{源}}})$。蒙影 $10^{-0.4(M_S - M_O + 32.5 - h_S - Z/(360k))}\,(100/\rho_S)\,(1 - 10^{-0.4k})$，
       含与太阳角距 ρ_S，向日一侧更亮——这正是 1993 式 15c 方向因子存疑之处，1998 版已改写。夜天光 V 波段约 90 nL，
       原式含太阳活动周因子 1 + 0.3cos(2π(年 − 1992)/11)，古代相位未知，缺省取平均。
-    - 阈值 ：Hecht 两支（1500 nL 分界），$m = -16.57 - 2.5\lg I - \Delta m + 5\lg S_N$，
+    - 阈值：Hecht 两支（1500 nL 分界），$m = -16.57 - 2.5\lg I - \Delta m + 5\lg S_N$，
       不含 1990 的颜色修正与暗视消光 0.48。
     - 实现细节：程序以月份近似太阳赤经（(月 − 3)·30°），此处用实际太阳赤经；纬度 0 时程序除以 0，此处取北半球。
       蒙影项末因子按原文不含 X。
-  - 1993 整套与其它选项（、 等）：
+  - 1993 整套与其它选项：
   - 大气质量：1993 式 2b（Rozenberg，整层）、3a（指数分布，Rayleigh 8.2 km、气溶胶 1.5 km）、3b（20 km 臭氧层）。
   - 消光：1993 式 4b、5a,b、6a 分量估算，或给定实测天顶总消光
     （原文建议有当地实测时优先用；Schaefer 2000 估古埃及夏季 0.35 ± 0.09）。
@@ -122,14 +176,14 @@ $\sum_{k\le N_{\mathrm{sec}}} a_k t^k + \sum_f \sum_{k\le N_{\mathrm{mix}}} t^k 
     - 1993 式 15c 的方向因子 $\max\{1,\ 10^{(\rho_S/90^\circ) - 1.1}\}$ 按原文印刷（已放大核对版面），只在背日方向（ρ_S > 99°）增亮，
       不影响晨见、夕伏；保留为可选项。
   - 阈值：
-    - `Schaefer1993`（缺省）：1993 式 34（Hecht 1947），观测者修正取 1990 式 13–16（暗视颜色 F_c、敏锐度 F_s）与 1993 式 31
+    - Schaefer 1993（缺省）：1993 式 34（Hecht 1947），观测者修正取 1990 式 13–16（暗视颜色 F_c、敏锐度 F_s）与 1993 式 31
       （双眼 F_b、消光 F_e：明视 $10^{0.4kX}$、暗视 $10^{0.48kX}$）。
-    - `Crumey2014 { field_factor }`（文献 34）：式 34 与 Blackwell 1946 表 8 系数（式 28），颜色修正式 16
+    - Crumey 2014（文献 34，视场因子 F 可调）：式 34 与 Blackwell 1946 表 8 系数（式 28），颜色修正式 16
       $m^* = m_{2850} + 0.72 - 0.27(B-V)$，单眼 $\times\sqrt2$ 乘在阈值上（§1.6.4）。Crumey 指出 Schaefer 1990 的颜色修正
       （1 − (B−V)/2）与单眼因子用法有误。
     - 实现细节：Crumey 式 34 在 lg B ≈ −1.7…−1.3 cd m⁻² 有约 2.5% 的回落平台，是拟合函数本身的形状。原文只给暗视的颜色修正，
       此处在其两支分界 7.08×10⁻² cd m⁻² 处切换，极限星等在此跳变约 0.6 等。
-  - 眩光 （Schaefer 1991，文献 38）：大气散射晕 $1.14\times10^7\,I^*\theta^{-2}(10^{-0.4kX} - 10^{-0.8kX})/0.18$（式 1），
+  - 眩光（Schaefer 1991，文献 38）：大气散射晕 $1.14\times10^7\,I^*\theta^{-2}(10^{-0.4kX} - 10^{-0.8kX})/0.18$（式 1），
     眼内散射 $4.63\times10^7\,I\theta^{-2}$（式 3，Holladay 1926）。前者与月光模型中的晕项同源，故伏见中只对月亮加眼内散射
     （缺省开；月亮按月心点源，角距下限 0.26°）。原文以 161 次月旁观测检验，误差约 0.35 等。
   - 夜天光可由观测者天顶极限星等反推（同一阈值模型），Schaefer 1987 即以 m_z 刻画天空。
@@ -141,16 +195,6 @@ $\sum_{k\le N_{\mathrm{sec}}} a_k t^k + \sum_f \sum_{k\le N_{\mathrm{mix}}} t^k 
   - 外行星与恒星的夕见、晨伏即 acronychal rising、cosmical setting，原文（1987 §4、1993 §3.10）指出定义含糊，其日期依赖蒙影下限。
   - 日、月、天体视位置与星等按 1 日取样、四点 Lagrange 插值（月插值误差 < 0.01°）。GAST 每半日算一次，其间按自转角速率外推。
     用 DE441 时 2 年 5 行星约 40 s；用 VSOP87+ELPMPP02 时月历表较慢（2 年日月取样约 4 分钟），两者日期一致。
-- 恒星（P4 地基）：
-  - Hipparcos 亮星表 （V ≤ 6.5，8870 颗）。位置、视差、自行取新归算
-    I/311（文献 17），V、B−V 取原版 I/239；。
-  - 空间运动（视向速度取 0）→ 周年视差 → 一阶周年光行差 → 当日真赤道。
-  - 对 Skyfield（DE406、P03，；5 星 × 1985、2000、2025、−500、−900 年）：
-    最大差 0.08″，主要来自未计的太阳引力偏折与以日心代质心。
-  - 核对中发现 VSOP87 解析速度的原有缺陷：α = 0 块（含中心差等主要周期项）的导数被当作 0，地球速度因此小约 3.3%
-    （表现为恒星光行差差 0.6″）。已修正， 对数值微分检验。
-    默认路径（视黄经速度用数值微分、光行差用 Xproper 折叠）不受影响；受影响的是 与
-     两个可选路径。
 - 验证（模型公式）：
   - 大气质量对 1993 表 3（4 种 × 7 个天顶距，≤5%）。
   - 月光对 Krisciunas & Schaefer 1991 表 2：20 个值逐个复现（≤0.5 nL）。
@@ -164,8 +208,7 @@ $\sum_{k\le N_{\mathrm{sec}}} a_k t^k + \sum_f \sum_{k\le N_{\mathrm{mix}}} t^k 
   - 眩光：Schaefer 1991 §3.2 伽利略卫星（木星 −2.6 等、136 nL、kX = 0.2）：F_s = 1 时四颗都不可见、F_s = 0.15 时大距都可见，
     且眼内散射为主。
 - 验证（实测与作者模型）：
-  - **Schaefer 1987 表 1 的 45 次实测**（
-    ）。按每条记录的纬度、k、m_z 判定观测日能否看见，与实测比对；「干净」指去掉黄道光、
+  - **Schaefer 1987 表 1 的 45 次实测**。按每条记录的纬度、k、m_z 判定观测日能否看见，与实测比对；「干净」指去掉黄道光、
     银河干扰与原文归因于低云的 ?? 后的 25 条：
 
     | 组合 | 一致 / 45 | 一致 / 干净 25 | 模型伏见日 − 作者 1987 预报（均值，\|中位\|） |
@@ -215,13 +258,13 @@ $\sum_{k\le N_{\mathrm{sec}}} a_k t^k + \sum_f \sum_{k\le N_{\mathrm{mix}}} t^k 
   Schaefer 2000 估古埃及夏季 0.35 ± 0.09）。传统视弧（1987 §4 引）：Ptolemy 金星 5°；中国历法金星「见伏度」均值 10.5°，
   乘 cos 35° 合视弧 8.6°；巴比伦金星约 6°（Schoch、Neugebauer、Huber）；Ptolemy 木星 9°—10°、水星 10°—12°（2000 §3）。
 - Ruggles 1993 论文集（文献 36）的核对：第 15 章 Schaefer 综述无新公式，伏见部分概括文献 32、16；作者称蒙影结束取太阳 −18°
-  与其观测吻合（本实现 缺省 −18°），并称个体视觉差异通常小于其他不确定度。第 12 章（Ecsedy & Barlai）
-  引 Ecsedy et al. 1989：北京纬度心宿二（大火）偕日落与秋分重合约在前 2300 年（方法未详），可作 P4 恒星伏见的参照。
+  与其观测吻合（本项目缺省亦取 −18°），并称个体视觉差异通常小于其他不确定度。第 12 章（Ecsedy & Barlai）
+  引 Ecsedy et al. 1989：北京纬度心宿二（大火）偕日落与秋分重合约在前 2300 年（方法未详），可作恒星伏见的参照。
 - 未做：
-  - 与 Swiss Ephemeris 的数值对照：需安装其 Python 包，本次未执行；
+  - 与 Swiss Ephemeris 的数值对照；
   - 行星作眩光源（如金星旁的暗星）尚未接入伏见；观测者经验修正；黄道光与银河背景（1987 表 1 注 ZL、MW）。
 
-**月掩星**
+### 月掩星
 
 - 几何：
   - 月与天体的站心视位置（当日真赤道）；月面视半径 asin(k·a_e/d)，k = 0.2725076、a_e = 6378137 m（同日食半影 k）。
@@ -240,7 +283,7 @@ $\sum_{k\le N_{\mathrm{sec}}} a_k t^k + \sum_f \sum_{k\le N_{\mathrm{mix}}} t^k 
   - 式 46 的计时置信度偏移 ΔM（原文拟合望远镜计时 1.2 等）作为参数，缺省 0（50% 探测）。
 - 验证（可见性）：
   - 满月面 1.65×10⁹ nL（原文）、地照两式一致。
-  - 眩光对 Schaefer 1991 图 1：紧靠满月极限约 0 等、上弦约 2 等（本实现 0.4、2.2 等）。
+  - 眩光对 Schaefer 1991 图 1：紧靠满月极限约 0 等、上弦约 2 等（本项目 0.4、2.2 等）。
   - 夜间暗边比亮边易见、亮面越小越易见、满月亮边肉眼只见 −4 等以上。
   - 原文 1739 次观测为望远镜计时，未逐条发表（只有表 I 观测者、仪器汇总与表 II 分相位汇总），故无法逐条对照；望远镜模型见下。
 - 望远镜目视计时极限星等：按原文式 1–46 全套实现，输入为原文 15 项及 ΔM。
@@ -259,120 +302,36 @@ $\sum_{k\le N_{\mathrm{sec}}} a_k t^k + \sum_f \sum_{k\le N_{\mathrm{mix}}} t^k 
     - §4.A Povenmire 四例差 −0.18 至 +0.23（其中两例原文未写明亮面比例与太阳高度，按假设代入）；
     - 作者自述模型精度约 1/3 等。
 
+## 四、本项目的取法
+
+- **历表**：网页中用 VSOP87B 加拟合 DE 数值历表的长期改正，前 2000 年至 2000 年与 DE406 的地心视位置差小于 0.4″；本地有 DE 历表时以 DE 为准。对史书的五星记录（角分级）绰绰有余。
+- **见伏**：不用固定视弧，按 Schaefer 1998 的物理模型逐时刻判定，缺省由与实测、与作者计算值的比较选定，其它模型作为选项并存。大气消光影响最大，古代对照时宜按当地气候给定。
+- **会合与近距**：合、冲、留、大距与两天体最接近的时刻都由视位置数值求根求得，与 Skyfield 对照到秒级。"犯""守"等史书术语的角距阈值不在这里规定，见《史书天象检验》。
+- **还缺的**：太阳引力光线偏折；火星自转修正项；行星作为眩光源；与 Swiss Ephemeris 的数值对照。
+
 ## 参考文献
 
-**ΔT 与地球自转**
-
-1. Morrison L.V., Stephenson F.R., Hohenkerk C.Y., Zawilski M. 2021, Addendum 2020 to "Measurement of the Earth's rotation: 720 BC
-   to AD 2015", *Proc. R. Soc. A* 477: 20200776. <https://doi.org/10.1098/rspa.2020.0776>
-2. Stephenson F.R., Morrison L.V., Hohenkerk C.Y. 2016, Measurement of the Earth's rotation: 720 BC to AD 2015, *Proc. R. Soc. A*
-   472: 20160404. <https://doi.org/10.1098/rspa.2016.0404>（开放全文 <https://pmc.ncbi.nlm.nih.gov/articles/PMC5247521/>；§2 所述
-   ṅ = −25.82″/cy² 与 DE430 配合使用，式 (4.1) 长期抛物线）
-3. Morrison, Stephenson, Hohenkerk, Zawilski, Table-S15.2020 – Polynomial coefficients to evaluate DT and change in lod, figshare,
-   CC BY 4.0. <https://doi.org/10.6084/m9.figshare.29920388>
-4. 同上作者，Table of Delta T (DT) & change in the length of day (lod) from −2000 to +2500 (2020), figshare, CC BY 4.0.
-   <https://doi.org/10.6084/m9.figshare.30111661>
-5. HM Nautical Almanac Office, ΔT 数据说明文件 （IERS EOP Product Center 托管，所写 ṅ = −25.85″/cy²）.
-   <https://>
-6. Espenak F., Meeus J. 2006, *Five Millennium Canon of Solar Eclipses: −1999 to +3000*, NASA/TP-2006-214141；ΔT 多项式说明
-   （所假定 ṅ = −26″/cy²，配合 ELP-2000/82 的修正 c = −0.000012932·(y−1955)²）. <https://eclipse.gsfc.nasa.gov/SEcat5/deltatpoly.html>
-7. Petit G., Luzum B. (eds.) 2010, *IERS Conventions (2010)*, IERS Technical Note No. 36（第 5 章：ERA、GMST、二分差互补项
-   表 5.2e、Delaunay 基本幅角）.
-8. IAU SOFA Board, *IAU SOFA Software Collection*（`iauEra00`、`iauGmst06`、`iauEe06a`、`iauGst06a`、`iauGd2gc` 及测试程序
-   SOFA 测试程序 的标准值）. <https://www.iausofa.org/>
-
-**月历表**
-
-9. Chapront J., Francou G. 2003, The lunar theory ELP revisited. Introduction of new planetary perturbations, *A&A* 404, 735；
-   仓库内 （§4.1.1 W₁⁽²⁾ 潮汐部分 = ṅ/2，表 3 ΔW₁⁽²⁾，表 6 长期项修正）.
-10. Chapront J., Chapront-Touzé M., Francou G. 2002, A new determination of lunar orbital parameters, precession constant and tidal
-    acceleration from LLR measurements, *A&A* 387, 700（ELP/MPP02(LLR) 的 ṅ = −25.858″/cy²）.
-11. Park R.S., Folkner W.M., Williams J.G., Boggs D.H. 2021, The JPL Planetary and Lunar Ephemerides DE440 and DE441, *AJ* 161, 105.
-    <https://doi.org/10.3847/1538-3881/abd414>
-
-**算法与标准**
-
-12. Urban S.E., Seidelmann P.K. (eds.) 2013, *Explanatory Supplement to the Astronomical Almanac*, 3rd ed., University Science
-    Books（第 7 章站心视差，第 11 章日月食）.
-13. Meeus J. 1998, *Astronomical Algorithms*, 2nd ed., Willmann-Bell（例 13.b 地平坐标；第 49 章真朔）.
-14. Vondrák J., Capitaine N., Wallace P. 2011, New precession expressions, valid for long time intervals, *A&A* 534, A22.
-15. Mallama A., Hilton J.L. 2018, Computing apparent planetary magnitudes for The Astronomical Almanac, *Astronomy and Computing* 25, 10；
-    arXiv:1808.01973；作者程序与测试数据 <https://sourceforge.net/projects/planetary-magnitudes/>（Ap_Mag V3）.
-16. Schaefer B.E. 1993, Astronomy and the limits of vision, *Vistas in Astronomy* 36, 311–361. doi:10.1016/0083-6656(93)90113-X；
-    仓库内 （式 2–16、34、表 3–6、§3.10）.
-17. van Leeuwen F. 2007, Validation of the new Hipparcos reduction, *A&A* 474, 653. doi:10.1051/0004-6361:20078357；
-    星表 CDS I/311（原版 ESA 1997 SP-1200，CDS I/239），见 .
-18. Espenak F., Meeus J. 2009, *Five Millennium Canon of Lunar Eclipses: −1999 to +3000*, NASA/TP-2009-214172（月食地影按
-    Danjon 规则放大；Danjon 原文出处待核后补）.
-
-20. Espenak F., Meeus J., NASA 五千年日月食典目录页（日食 −299～300、2001～2100，月食 −199～−100、1～200、2001～2100），
-    NASA GSFC Eclipse Web Site，公有领域），如 <https://eclipse.gsfc.nasa.gov/SEcat5/SE2001-2100.html>.
-21. Espenak F., NASA 月食典地影说明页（Danjon 地影放大规则）. <https://eclipse.gsfc.nasa.gov/LEcat5/shadow.html>
-
-22. 班固《汉书》卷二十七下之下《五行志》，维基文库 wikitext（`漢書/卷027`，`action=raw`，取）.
-    <https://zh.wikisource.org/wiki/漢書/卷027>
-
-23. 司马彪《续汉书·五行志六》（今本《后汉书》志第十八，刘昭注），维基文库 wikitext（`後漢書/卷108`，取）.
-    <https://zh.wikisource.org/wiki/後漢書/卷108>
-24. 司马彪《续汉书·律历志中》「论月食」（今本《后汉书》志第二），维基文库 wikitext（`後漢書/卷92`，取）.
-    <https://zh.wikisource.org/wiki/後漢書/卷92>
-
-25. Chapront J. 2000, Improvements of planetary theories over 6000 years, *Celestial Mechanics and Dynamical Astronomy* 78, 75–82；
-    仓库内 （表 II、III；§4 拟合方法，NSEC、MIXT）.
-26. Bretagnon P., Francou G. 1988, Planetary theories in rectangular and spherical variables: VSOP87 solution, *A&A* 202, 309；
-    仓库内 、（PRECISION 节）.
-
-27. Rhodes B. 2019, Skyfield: High precision research-grade positions for planets and Earth satellites generator,
-    Astrophysics Source Code Library, ascl:1907.024. <https://rhodesmill.org/skyfield/>（岁差 `precessionlib.compute_precession`：
-    Capitaine et al. 2003 四角式）
-
-28. Archinal B.A. et al. 2018, Report of the IAU Working Group on Cartographic Coordinates and Rotational Elements: 2015,
-    *Celestial Mechanics and Dynamical Astronomy* 130, 22（土星、天王星自转轴 α₀、δ₀ 的 J2000 值；与 Skyfield 极向量核对）.
-
-29. Schaefer B.E. 1990, Telescopic limiting magnitudes, *PASP* 102, 212–229. doi:10.1086/132629
-    （式 13 颜色修正、14–16、18 天顶极限星等）.
-30. Schaefer B.E., Liller W. 1990, Refraction near the horizon, *PASP* 102, 796–805. doi:10.1086/132705
-    （近地平折射的逆温变化，本实现未用）.
-31. Mallama A., Krobusek B., Pavlov H. 2017, Comprehensive wide-band magnitudes and albedos for the planets, with applications to
-    exo-planets and Planet Nine, *Icarus* 282, 19–33；arXiv:1609.05048）.
-32. Schaefer B.E. 1987, Heliacal rise phenomena, *Journal for the History of Astronomy* 18 (Archaeoastronomy 11), S19–S33.
-    doi:10.1177/002182868701801103
-    （式 1–2 蒙影天空、表 1 实测、表 7 金星、§4 传统视弧）.
-33. Krisciunas K., Schaefer B.E. 1991, A model of the brightness of moonlight, *PASP* 103, 1033–1039. doi:10.1086/132921；
-    仓库内 （式 3、8、9、15–21，表 2）.
-34. Crumey A. 2014, Human contrast threshold and astronomical visibility, *MNRAS* 442, 2600–2619. doi:10.1093/mnras/stu992；
-    仓库内 （式 16、26–28、34、53–56；§1.3、§1.6.4）.
-35. Schaefer B.E. 2000, The heliacal rise of Sirius and ancient Egyptian chronology, *Journal for the History of Astronomy* 31,
-    149–155. doi:10.1177/002182860003100204）.
-
-36. Ruggles C.L.N. (ed.) 1993, *Archaeoastronomy in the 1990s*, Group D Publications（电子版 Ocarina Books 2014，
-    ISBN 978-0-9540867-4-9）
-    Ecsedy & Barlai 第 123–127 页；第 15 章 Schaefer, Basic research in astronomy and its applications to archaeoastronomy，
-    第 155–177 页）.
-
-37. Schaefer B.E. 1998, To the visual limits, *Sky & Telescope* 95(5), 57–60（附程序 VISLIMIT 程序）
-    （程序 10–2460 行、原文算例）.
-38. Schaefer B.E. 1991, Glare and celestial visibility, *PASP* 103, 645–660. doi:10.1086/132865
-    （式 1–4、21–23，§3.1–3.2）.
-39. Schaefer B.E., Bulder H.J.J., Bourgeois J. 1992, Lunar occultation visibility, *Icarus* 100, 60–72.
-    doi:10.1016/0019-1035(92)90018-3
-
-40. Stellarium 中国星空文化（skycultures/chinese、chinese_chenzhuo、chinese_song_dynasty、chinese_yuan_dynasty、
-    chinese_xianglin），commit 8e3062e，CC BY-SA 4.0。所据：潘鼐《中国恒星观测史》
-    （学林出版社 2009）、伊世同《中西对照恒星图表 1950.0》、杨伯顺对陈卓星表与《天文汇钞》的研究等（见各 ）.
-41. 宋濂等《元史》卷五十二《历志一·授时历议》（「岁差」「周天列宿度」「日躔」）、卷五十四《历志三·授时历经》（「赤道宿度」），
-    维基文库 wikitext（`元史/卷052`、`元史/卷054`，取）；班固《汉书》卷二十一《律历志》（`漢書/卷021`）.
-
-42. 潘鼐《中国恒星观测史》（增订版），学林出版社，2009
-    （扫描本，PDF 页 = 书页 + 15；第 14 页表 1.2.1，第 639–641 页及表 9.1.4）.
-43. 黄一农《星占、事应与伪造天象——以「荧惑守心」为例》。题名据俄文书目转引，刊物、年份、页码**待核**，原文未取得
-    《史书天象检验》一章中西晋「荧惑守心」不合天象的结论由本项目推算独立得出，只引此文作背景.
-
-**参照实现**
-
-19. 许剑伟《寿星天文历》5.10（sxwnl）. <https://github.com/sxwnl/sxwnl>；Gitee <https://gitee.com/sxwnl>；
-    署名与授权说明参见其移植版 <https://pub.dev/packages/sxwnl_spa_dart>.
-
-> 核对状态：1–6、9（仓库内 PDF）、15（arXiv 原文）、16、29、31–39（仓库内 PDF，所用公式与表逐式对原版面核对）、17（CDS ReadMe、Crossref）、19–26 的内容本次已直接查阅原件或官方页面；27 只查阅了 Skyfield 源码
-> （岁差、星等实现），ASCL 编目信息按通行引文著录；28 未查阅原文，所用 J2000 极向值与 Skyfield 一致；7、8、10–14、18 的
-> 卷页按通行引文著录，使用到具体公式或数值时须再对原件核实（本项目引用 SOFA 测试值时即有两处凭记忆写错、经测试发现后更正）。
+- [15] Mallama A., Hilton J.L. 2018, Computing apparent planetary magnitudes for The Astronomical Almanac, *Astronomy and Computing* 25, 10； arXiv:1808.01973；作者程序与测试数据 <https://sourceforge.net/projects/planetary-magnitudes/>（Ap_Mag V3）.
+- [16] Schaefer B.E. 1993, Astronomy and the limits of vision, *Vistas in Astronomy* 36, 311–361. doi:10.1016/0083-6656(93)90113-X（式 2–16、34、表 3–6、§3.10）.
+- [17] van Leeuwen F. 2007, Validation of the new Hipparcos reduction, *A&A* 474, 653. doi:10.1051/0004-6361:20078357； 星表 CDS I/311（原版 ESA 1997 SP-1200，CDS I/239）。
+- [25] Chapront J. 2000, Improvements of planetary theories over 6000 years, *Celestial Mechanics and Dynamical Astronomy* 78, 75–82（表 II、III；§4 拟合方法，NSEC、MIXT）.
+- [26] Bretagnon P., Francou G. 1988, Planetary theories in rectangular and spherical variables: VSOP87 solution, *A&A* 202, 309（PRECISION 节）.
+- [27] Rhodes B. 2019, Skyfield: High precision research-grade positions for planets and Earth satellites generator, Astrophysics Source Code Library, ascl:1907.024. <https://rhodesmill.org/skyfield/>（岁差用 Capitaine et al. 2003 四角式）
+- [28] Archinal B.A. et al. 2018, Report of the IAU Working Group on Cartographic Coordinates and Rotational Elements: 2015, *Celestial Mechanics and Dynamical Astronomy* 130, 22（土星、天王星自转轴 α₀、δ₀ 的 J2000 值；与 Skyfield 极向量核对）.
+- [29] Schaefer B.E. 1990, Telescopic limiting magnitudes, *PASP* 102, 212–229. doi:10.1086/132629 （式 13 颜色修正、14–16、18 天顶极限星等）.
+- [30] Schaefer B.E., Liller W. 1990, Refraction near the horizon, *PASP* 102, 796–805. doi:10.1086/132705 （近地平折射的逆温变化，本项目未用）.
+- [31] Mallama A., Krobusek B., Pavlov H. 2017, Comprehensive wide-band magnitudes and albedos for the planets, with applications to exo-planets and Planet Nine, *Icarus* 282, 19–33；arXiv:1609.05048.
+- [32] Schaefer B.E. 1987, Heliacal rise phenomena, *Journal for the History of Astronomy* 18 (Archaeoastronomy 11), S19–S33. doi:10.1177/002182868701801103 （式 1–2 蒙影天空、表 1 实测、表 7 金星、§4 传统视弧）.
+- [33] Krisciunas K., Schaefer B.E. 1991, A model of the brightness of moonlight, *PASP* 103, 1033–1039. doi:10.1086/132921（式 3、8、9、15–21，表 2）.
+- [34] Crumey A. 2014, Human contrast threshold and astronomical visibility, *MNRAS* 442, 2600–2619. doi:10.1093/mnras/stu992（式 16、26–28、34、53–56；§1.3、§1.6.4）.
+- [35] Schaefer B.E. 2000, The heliacal rise of Sirius and ancient Egyptian chronology, *Journal for the History of Astronomy* 31, 149–155. doi:10.1177/002182860003100204.
+- [36] Ruggles C.L.N. (ed.) 1993, *Archaeoastronomy in the 1990s*, Group D Publications（电子版 Ocarina Books 2014， ISBN 978-0-9540867-4-9） Ecsedy & Barlai 第 123–127 页；第 15 章 Schaefer, Basic research in astronomy and its applications to archaeoastronomy， 第 155–177 页.
+- [37] Schaefer B.E. 1998, To the visual limits, *Sky & Telescope* 95(5), 57–60（附 VISLIMIT 程序；程序 10–2460 行、原文算例）.
+- [38] Schaefer B.E. 1991, Glare and celestial visibility, *PASP* 103, 645–660. doi:10.1086/132865 （式 1–4、21–23，§3.1–3.2）.
+- [39] Schaefer B.E., Bulder H.J.J., Bourgeois J. 1992, Lunar occultation visibility, *Icarus* 100, 60–72. doi:10.1016/0019-1035(92)90018-3
+- [44] 马王堆汉墓帛书整理小组：《五星占》释文，载《马王堆汉墓帛书（肆）》，文物出版社。金星会合周期等数据据今人研究转引，未核原件。
+- [45] 《隋書》卷二十《天文志中》，唐魏徵等撰，据维基文库录文。
+- [46] Ptolemy, *Almagest*; *Phaseis*（视弧据 Schaefer 1987 [32] 转引）。
+- [47] Pogson, N. R. 1856, Magnitudes of thirty-six of the minor planets, *MNRAS* 17, 12—15。未核原文。
+- [48] Harris, D. L. 1961, Photometry and colorimetry of planets and satellites, in Kuiper & Middlehurst (eds.), *Planets and Satellites*, University of Chicago Press。未核原文。
+- [49] 许剑伟：寿星天文历 5.10（业余编写的程序，只作对照）。
