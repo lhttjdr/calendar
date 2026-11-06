@@ -392,7 +392,7 @@ mod tests {
     #[test]
     fn widths_vs_yuanshi_table() {
         let _ = try_init_full_nutation_from_repo();
-        let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::De406).unwrap();
+        let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::DEFAULT).unwrap();
         let eph = Vsop87Planets { earth: &earth, planets: vec![] };
         let cat = load_hipparcos_bright_from_repo().unwrap();
         let systems = load_lunar_mansion_systems_from_repo().unwrap();
@@ -454,7 +454,7 @@ mod tests {
     #[test]
     fn winter_solstice_lodge_positions_vs_yuanshi() {
         let _ = try_init_full_nutation_from_repo();
-        let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::De406).unwrap();
+        let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::DEFAULT).unwrap();
         let eph = Vsop87Planets { earth: &earth, planets: vec![] };
         let cat = load_hipparcos_bright_from_repo().unwrap();
         let systems = load_lunar_mansion_systems_from_repo().unwrap();

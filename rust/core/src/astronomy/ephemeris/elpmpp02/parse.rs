@@ -204,7 +204,7 @@ pub fn build_pert(raw: &[PertTermRaw], c: &ParseConstants) -> Vec<Elpmpp02Term> 
 }
 
 /// 从数据目录加载完整 ELPMPP02；base_path 下需有 ELP_MAIN.S1/S2/S3、ELP_PERT.S1/S2/S3。
-/// 常数集由 `correction` 决定，[Elpmpp02Correction::DE441] 经同一 loader 读 `data/fit/elpmpp02-de441.txt`。
+/// 常数集由 `correction` 决定（全部内置）。
 pub fn load_all(
     loader: &dyn DataLoader,
     base_path: &str,
@@ -317,7 +317,7 @@ impl Elpmpp02Raw {
 }
 
 /// 从 6 个二进制 buffer 加载完整 ELPMPP02（零解析）。顺序：MAIN.S1, MAIN.S2, MAIN.S3, PERT.S1, PERT.S2, PERT.S3。
-/// 常数集须为内置的（LLR、DE405、DE406）；拟合所得常数集（DE441）用 [load_all_from_binary_with_fit]。
+/// 常数集由 `correction` 决定（全部内置）；自定常数集用 [load_all_from_binary_with_fit]。
 pub fn load_all_from_binary(
     elp_main_s1: &[u8],
     elp_main_s2: &[u8],
@@ -327,9 +327,7 @@ pub fn load_all_from_binary(
     elp_pert_s3: &[u8],
     correction: Elpmpp02Correction,
 ) -> Result<super::Elpmpp02Data, LoadError> {
-    let fit = correction
-        .builtin_fit()
-        .ok_or_else(|| LoadError::Io(format!("{correction:?} 的常数集须另行读入，请用 load_all_from_binary_with_fit")))?;
+    let fit = correction.builtin_fit().expect("全部常数集均内置");
     load_all_from_binary_with_fit(
         [elp_main_s1, elp_main_s2, elp_main_s3, elp_pert_s1, elp_pert_s2, elp_pert_s3],
         &fit,

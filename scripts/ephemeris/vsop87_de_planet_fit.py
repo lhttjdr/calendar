@@ -19,10 +19,11 @@ IAU 2006/P03，`frame::precession::mean_obliquity(0)`）到 FK5，再乘 SOFA FK
 时间 t = (JD_TDB − J2000)/365250（儒略千年，同 VSOP87）。L、B 改正单位角秒，R 改正单位 AU。
 
 依赖：numpy、jplephem（uv dependency-group chapront-fit）
-用法（仓库根）：uv run --project scripts --only-group chapront-fit python scripts/ephemeris/vsop87_de_planet_fit.py [de406|de441]
-目标历表缺省 de406。DE406：vendor/jpl/de406/de406.bsp（或环境变量 DE406_BSP）；DE441：vendor/jpl/de441/de441.bsp（本地验证用，
-不入库，见该目录 README），每个天体分两段（以 JD 2440432.5 为界），按时刻选段。
-输出：data/fit/vsop87-<目标>-planets.txt（两套并存，Rust 侧 `Vsop87DePatch::from_repo(PatchTarget)` 选用）
+用法（仓库根）：uv run --project scripts --only-group chapront-fit python scripts/ephemeris/vsop87_de_planet_fit.py [de406|de431|de441]
+目标历表缺省 de406。DE406：vendor/jpl/de406/de406.bsp（或环境变量 DE406_BSP）；DE431：vendor/jpl/de431/de431t.bsp、
+DE441：vendor/jpl/de441/de441.bsp（本地验证用，不入库，见各目录 README），每个天体分若干段，按时刻选段。
+输出：data/fit/vsop87-<目标>-planets.txt（三套并存，Rust 侧 `Vsop87DePatch::from_repo(PatchTarget)` 选用；DE431 与 MS2021 ΔT
+所配历表一致，作缺省，见 doc/astronomy/model-pairing.md）
 """
 
 import os
@@ -32,8 +33,8 @@ import numpy as np
 
 VSOP_DIR = "vendor/vsop87"
 TARGET = (sys.argv[1] if len(sys.argv) > 1 else "de406").lower()
-if TARGET not in ("de406", "de441"):
-    sys.exit("目标历表须为 de406 或 de441")
+if TARGET not in ("de406", "de431", "de441"):
+    sys.exit("目标历表须为 de406、de431 或 de441")
 OUT = f"data/fit/vsop87-{TARGET}-planets.txt"
 BODIES = [  # (VSOP87 后缀, NAIF 质心号；地球特殊处理)
     ("mer", 1), ("ven", 2), ("ear", None), ("mar", 4), ("jup", 5), ("sat", 6), ("ura", 7), ("nep", 8),
@@ -62,6 +63,7 @@ M_ICRS_TO_VSOP = np.linalg.inv(M_VSOP_TO_ICRS)
 def bsp_path():
     cands = {
         "de406": (os.environ.get("DE406_BSP"), "vendor/jpl/de406.bsp", "vendor/jpl/de406/de406.bsp"),
+        "de431": (os.environ.get("DE431_BSP"), "vendor/jpl/de431/de431t.bsp"),
         "de441": (os.environ.get("DE441_BSP"), "vendor/jpl/de441/de441.bsp"),
     }[TARGET]
     for p in cands:

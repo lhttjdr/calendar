@@ -7,18 +7,21 @@
 //!   逐年表及原论文长期抛物线；数据原样保存在 `vendor/delta_t/morrison_stephenson_2021/`（CC BY 4.0）。古代天象默认推荐。
 //! - [`EspenakMeeus2006`]：NASA《五千年日食典》所用多项式（即 [`super::delta_t`]），与 NASA 日食典对照时使用。
 //!
-//! 配套修正有两种可选：[`delta_t_for_ephemeris`]（只按 ṅ 差的二次项，NASA 做法）；[`delta_t_for_lunar_offset`]（按两月历表
-//! 实测的月亮黄经差 Δλ(T)，含常数与平运动差，更完整）。
+//! 配套以 **DE431 为枢纽**（doc/astronomy/model-pairing.md）：ΔT 模型先按其 ṅ 换算到「以 DE431 月亮为准」（MS2021 本就配
+//! DE430/431，不变；Espenak–Meeus 2006 假定 ṅ = −26，按 ṅ 差换到 −25.82），所用月历表再按其相对 DE431 的实测月亮黄经差
+//! Δλ(T) 修正（[`delta_t_for_lunar_offset`]）。只按 ṅ 差的二次修正（[`delta_t_for_ephemeris`]，NASA 做法）保留为选项。
+//! 1955 年以后 ΔT 由原子时直接测得，与月历表无关，两种修正都只用于 1955 年以前。
 //!
-//! 现有全局 [`super::delta_t`] 仍是 Espenak–Meeus，节气/定朔的时刻换算沿用它；何时切换默认模型属仲裁层决策，不在本模块。
+//! 时间尺度换算（[`super::delta_t`]，TT↔UT1，及 1972 年前以 UT1 近似 UTC）用 Espenak–Meeus 2006 多项式，按
+//! [`time_scale_lunar_offset`]（缺省为缺省月历表 ELPMPP02(DE431)）同法配套；何时改用 MS2021 属仲裁层决策，不在本模块。
 //! 设计见 doc/astronomy/celestial-phenomena.md。
 
-use std::sync::OnceLock;
+use std::sync::{OnceLock, RwLock};
 
 use crate::math::real::{real, real_const, Real, RealOps};
 use crate::quantity::duration::Duration;
 
-use super::scales::{delta_t as espenak_meeus_delta_t, jd_to_decimal_year};
+use super::scales::{espenak_meeus_2006 as espenak_meeus_delta_t, jd_to_decimal_year};
 
 /// 月球潮汐加速度 ṅ（角秒/儒略世纪²）的参考值。
 pub mod lunar_tidal_acceleration {
@@ -62,11 +65,18 @@ pub trait DeltaTModel {
     }
 }
 
-/// 月历表 ṅ 与 ΔT 模型 ṅ 不同时加到 ΔT 上的修正：c = −0.91072·(ṅ_历表 − ṅ_ΔT)·u²，u = (年 − 1955)/100。
+/// ΔT 配套修正只用于此年以前：1955.5 起有原子时，ΔT 由地球自转直接测得，与月历表无关；此前的 ΔT（古代日月食、
+/// 1600—1955 年月掩星）都经月历表反推。
+pub const PAIRING_END_YEAR: f64 = 1955.0;
+
+/// 月历表 ṅ 与 ΔT 模型 ṅ 不同时加到 ΔT 上的修正：c = −0.91072·(ṅ_历表 − ṅ_ΔT)·u²，u = (年 − 1955)/100；1955 年以后为 0。
 ///
 /// 依据：NASA ΔT 多项式说明页给出的特例 c = −0.000012932·(y−1955)²（ṅ_ΔT = −26，ṅ_历表 = −25.858），
 /// 即 −0.91072 × 0.142 × u²。
 pub fn tidal_correction(year: Real, ndot_ephemeris: Real, ndot_model: Real) -> Duration {
+    if year >= real(PAIRING_END_YEAR) {
+        return Duration::in_seconds(real(0.0));
+    }
     let u = (year - 1955.0) / 100.0;
     Duration::in_seconds(real_const(-0.91072) * (ndot_ephemeris - ndot_model) * u.clone() * u)
 }
@@ -110,28 +120,60 @@ impl LunarLongitudeOffset {
         sum
     }
 
-    /// 配套修正 δΔT = −Δλ/n。
+    /// 配套修正 δΔT = −Δλ/n；1955 年以后为 0（见 [`PAIRING_END_YEAR`]）。
     pub fn delta_t_correction(&self, jd_tt: Real) -> Duration {
+        if jd_to_decimal_year(jd_tt.clone()) >= real(PAIRING_END_YEAR) {
+            return Duration::in_seconds(real(0.0));
+        }
         Duration::in_seconds(-self.arcsec_at(jd_tt) / real(MOON_MEAN_MOTION_ARCSEC_PER_S))
     }
 }
 
-/// 实测的月历表黄经差。
+/// 实测的月历表黄经差，一律相对枢纽 DE431。
 pub mod lunar_longitude_offset {
     use super::LunarLongitudeOffset;
+
+    /// DE431 自身（枢纽）：差为 0。
+    pub const DE431: LunarLongitudeOffset = LunarLongitudeOffset { name: "DE431 − DE431", coefficients: &[], fitted_years: (-13000.0, 17000.0) };
+
+    /// ELPMPP02 取拟合 DE431 的常数集（缺省，`data/fit/elpmpp02-de431.txt`）相对 DE431，测法同下（2026-11-06）：三次拟合残差
+    /// RMS 0.40″（周期项与理论截断）；二次项 Δṅ = +0.0009″/cy²。配套量前 700 年 0.0 s、前 200 年 +0.2 s——缺省月历表与 MS2021
+    /// 所配月亮实为同一月亮。现代几何位置对 DE431 差 0.001″；三次式在 T = 0 处的 −0.08″ 是全区间拟合受古代周期差带偏所致。
+    /// 本节三条 ELPMPP02 常数为月亮改按 Table 7 进入管线后的重测值（常数项较此前整体约移 −0.07″）。
+    pub const ELPMPP02_DE431_MINUS_DE431: LunarLongitudeOffset = LunarLongitudeOffset {
+        name: "ELPMPP02(DE431) − DE431",
+        coefficients: &[-0.0804, 0.04157, 0.002566, 0.0000348],
+        fitted_years: (-2900.0, 2900.0),
+    };
+
+    /// JPL DE406 内核相对 DE431，测法同下（2026-11-06）：三次拟合残差 RMS 0.27″，二次项 Δṅ = −0.0080″/cy²；每 400 年分段均值
+    /// 前 2900 年 −5.9″。用 DE406 内核算古代日月食时配此修正。
+    pub const DE406_MINUS_DE431: LunarLongitudeOffset = LunarLongitudeOffset {
+        name: "DE406 − DE431",
+        coefficients: &[-0.0092, -0.01814, 0.000230, 0.0000699],
+        fitted_years: (-2900.0, 2900.0),
+    };
+
+    /// JPL DE441 内核相对 DE431，测法同下（2026-11-06）：三次拟合残差 RMS 5.92″（周期差，见 [`ELPMPP02_DE441_MINUS_DE431`]），
+    /// 二次项 Δṅ = −0.38″/cy²；每 400 年分段均值前 2900 年 −328″。用 DE441 内核算古代日月食并配 MS2021 时须配此修正。
+    pub const DE441_MINUS_DE431: LunarLongitudeOffset = LunarLongitudeOffset {
+        name: "DE441 − DE431",
+        coefficients: &[0.1276, -0.00655, 0.000959, 0.0031785],
+        fitted_years: (-2900.0, 2900.0),
+    };
 
     /// 本仓库月历表 ELPMPP02（论文 DE405 + Table 6 常数集，贴近 DE406）相对 JPL DE431（DE430 的长时段版，
     /// Morrison–Stephenson 2016/2021 ΔT 所配历表）。
     ///
     /// 由 `apparent::tests_lunar_ndot::elpmpp02_effective_ndot_vs_de406_de441` 在前 2900—2900 年 3000 个随机时刻的月亮视黄经差
     /// 三次拟合得到（2026-11-06，ELPMPP02 幅角修正后重测，残差 RMS 0.49″，为周期项差异；二次拟合 RMS 0.65″）。每 400 年分段均值：
-    /// 前 2900 年 −5.8″、前 900—公元 300 年约 −0.7″、1500 年后约 0；三次式在前 700 年给 −0.80″（分段 −0.69″）。按此修正前 700 年
-    /// +1.5 s、前 200 年 +0.9 s；有效 ṅ 与 DE431 几乎相同（二次项 Δṅ = −0.0064″/cy²），而按 ṅ = −25.857
+    /// 前 2900 年 −5.8″、前 900—公元 300 年约 −0.7″、1500 年后约 0；三次式在前 700 年给 −0.88″（分段 −0.69″）。按此修正前 700 年
+    /// +1.6 s、前 200 年 +1.0 s；有效 ṅ 与 DE431 几乎相同（二次项 Δṅ = −0.0064″/cy²），而按 ṅ = −25.857
     /// （[`super::lunar_tidal_acceleration::ELPMPP02_DE405`]，据论文推得）对 −25.82 的二次修正为 +23.8 s、+15.6 s，系高估。
     /// 旧值（2026-10-26，幅角修正前，二次）为 [−0.013, −0.0457, −0.00327]。
     pub const ELPMPP02_DE406_MINUS_DE431: LunarLongitudeOffset = LunarLongitudeOffset {
         name: "ELPMPP02(DE406) − DE431",
-        coefficients: &[-0.2382, 0.03751, 0.003724, 0.0001151],
+        coefficients: &[-0.3089, 0.03750, 0.003725, 0.0001151],
         fitted_years: (-2900.0, 2900.0),
     };
 
@@ -139,19 +181,39 @@ pub mod lunar_longitude_offset {
     ///
     /// 三次拟合残差 RMS 5.94″，四至八次仍为 5.94″：余下的是两历表近地点、升交点长期运动不同引起的周期差（振幅随 |T| 增大），
     /// 不是平黄经之差，ΔT 无从配套。每 400 年分段均值：前 2900 年 −328″、前 900 年 −62″、前 100 年 −22″、700 年 −4.2″、
-    /// 1500 年 −0.1″、1900 年 +0.1″，三次式与之相符。修正前 700 年 +112 s、前 200 年 +60 s、公元 0 年 +45 s、1000 年 +5.6 s：
+    /// 1500 年 −0.1″、1900 年 +0.1″，三次式与之相符。修正前 700 年 +112 s、前 200 年 +60 s、公元 0 年 +45 s、1000 年 +5.8 s：
     /// DE441 的月亮与 MS2021 所配 DE431 差得多，换用 DE441 常数集时必须配此修正。
     pub const ELPMPP02_DE441_MINUS_DE431: LunarLongitudeOffset = LunarLongitudeOffset {
         name: "ELPMPP02(DE441) − DE431",
-        coefficients: &[0.1267, 0.03611, 0.003559, 0.0032135],
+        coefficients: &[0.0559, 0.03610, 0.003559, 0.0032135],
         fitted_years: (-2900.0, 2900.0),
     };
 }
 
-/// 按月历表黄经差配套修正 ΔT（σ 不变）。`offset` 须是「所用月历表 − 该 ΔT 模型所配历表」（MS2021 配 DE430/431）。
+/// 按枢纽 DE431 配套修正 ΔT（σ 不变）：先按模型的 ṅ 换到 DE431（ṅ = −25.82，MS2021 为 0），再按 `offset`
+/// （须是「所用月历表 − DE431」，见 [`lunar_longitude_offset`] 与 `Elpmpp02Correction::lunar_offset_vs_de431`）修正。
 pub fn delta_t_for_lunar_offset(model: &dyn DeltaTModel, jd_tt: Real, offset: &LunarLongitudeOffset) -> DeltaTEstimate {
+    let year = jd_to_decimal_year(jd_tt.clone());
     let est = model.estimate(jd_tt.clone());
-    DeltaTEstimate { value: est.value.add(offset.delta_t_correction(jd_tt)), sigma: est.sigma }
+    let to_hub = tidal_correction(year, real(lunar_tidal_acceleration::DE430), model.lunar_tidal_acceleration());
+    DeltaTEstimate { value: est.value.add(to_hub).add(offset.delta_t_correction(jd_tt)), sigma: est.sigma }
+}
+
+static TIME_SCALE_LUNAR_OFFSET: RwLock<LunarLongitudeOffset> = RwLock::new(lunar_longitude_offset::ELPMPP02_DE431_MINUS_DE431);
+
+/// 时间尺度换算（TT↔UT1）所配的月历表（相对 DE431 的黄经差）。缺省为缺省月历表 ELPMPP02(DE431)。
+pub fn time_scale_lunar_offset() -> LunarLongitudeOffset {
+    *TIME_SCALE_LUNAR_OFFSET.read().unwrap()
+}
+
+/// 换用别的月历表时一并设置（如 wasm 选 DE441 常数集），使 TT↔UT1 与所用月亮配套。
+pub fn set_time_scale_lunar_offset(offset: LunarLongitudeOffset) {
+    *TIME_SCALE_LUNAR_OFFSET.write().unwrap() = offset;
+}
+
+/// 时间尺度换算所用 ΔT：Espenak–Meeus 2006 按 [`time_scale_lunar_offset`] 经枢纽配套。
+pub fn time_scale_delta_t(jd_tt: Real) -> Duration {
+    delta_t_for_lunar_offset(&EspenakMeeus2006, jd_tt, &time_scale_lunar_offset()).value
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -310,7 +372,7 @@ mod tests {
         assert!((0.5 / MOON_MEAN_MOTION_ARCSEC_PER_S - 0.91072).abs() < 1e-5);
     }
 
-    /// 黄经差修正：Δλ 只含二次项时与 [`tidal_correction`] 等价；ELPMPP02 − DE431 实测修正在前 200 年约 +0.9 s。
+    /// 黄经差修正：Δλ 只含二次项时与 [`tidal_correction`] 等价；ELPMPP02(DE406) − DE431 实测修正在前 200 年约 +1.0 s。
     #[test]
     fn lunar_offset_correction() {
         // Δλ = ½Δṅ·T²（T 自 J2000）与 tidal_correction（u 自 1955）只差常数与线性项，取 Δṅ = −0.1、年份 −1000 比二次部分
@@ -321,7 +383,7 @@ mod tests {
         assert!((off.delta_t_correction(real(jd)).seconds().as_f64() - expect).abs() < 0.01 * expect.abs());
         let jd = 2451545.0 + (-200.0 - 2000.0) * 365.25;
         let c = lunar_longitude_offset::ELPMPP02_DE406_MINUS_DE431.delta_t_correction(real(jd)).seconds().as_f64();
-        assert!((c - 0.9).abs() < 0.1, "{c}");
+        assert!((c - 1.0).abs() < 0.1, "{c}");
     }
 
     /// 样条与作者逐年表（由同一样条生成，取整到 10 s 或更细）一致。
@@ -359,10 +421,12 @@ mod tests {
         assert!(s >= 1000.0);
     }
 
-    /// 配套修正公式还原 NASA 给出的特例 c = −0.000012932·(y−1955)²。
+    /// 配套修正公式还原 NASA 给出的特例 c = −0.000012932·(y−1955)²；1955 年以后 ΔT 由原子时测得，不配套，为 0。
     #[test]
     fn tidal_correction_matches_nasa_special_case() {
-        for y in [-1000.0, -200.0, 1000.0, 2100.0] {
+        let c = tidal_correction(real(2100.0), real(lunar_tidal_acceleration::ELP2000_82), real(lunar_tidal_acceleration::MORRISON_STEPHENSON_2004));
+        assert_eq!(c.seconds().as_f64(), 0.0);
+        for y in [-1000.0, -200.0, 1000.0, 1900.0] {
             let c = tidal_correction(real(y), real(lunar_tidal_acceleration::ELP2000_82), real(lunar_tidal_acceleration::MORRISON_STEPHENSON_2004));
             let nasa = -0.000012932 * (y - 1955.0) * (y - 1955.0);
             // NASA 系数 0.000012932 为 0.91072×0.142=0.12932224 取整，相对差约 2e-5

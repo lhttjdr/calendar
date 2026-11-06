@@ -352,7 +352,7 @@ function App() {
     }
     const nutationFull = typeof wasm.get_repo_aux_nutation_full === 'function' ? wasm.get_repo_aux_nutation_full() : false
     const earthPatch = typeof wasm.get_repo_aux_earth_patch === 'function' ? wasm.get_repo_aux_earth_patch() : false
-    const elpCorrection = typeof wasm.get_elpmpp02_correction === 'function' ? wasm.get_elpmpp02_correction() : 'DE406'
+    const elpCorrection = typeof wasm.get_elpmpp02_correction === 'function' ? wasm.get_elpmpp02_correction() : 'DE431'
     setRepoAux({ nutationFull, earthPatch, elpCorrection })
   }, [wasm, ephemerisSource])
 
@@ -1259,7 +1259,7 @@ function App() {
                     VSOP87 地球改正（拟合 {EARTH_PATCH_TARGET.toUpperCase()}）：{repoAux.earthPatch ? '已加载（二进制）' : '未加载'}
                   </Text>
                   <Text type="secondary" style={{ fontSize: 11 }}>
-                    ELPMPP02 常数集：{repoAux.elpCorrection === 'DE441' ? '拟合 DE441' : '论文 DE405 + Table 6（贴近 DE406）'}
+                    ELPMPP02 常数集：{repoAux.elpCorrection === 'DE441' ? '拟合 DE441' : repoAux.elpCorrection === 'DE406' ? '论文 DE405 + Table 6（贴近 DE406）' : '拟合 DE431（与 MS2021 ΔT 配套）'}
                   </Text>
                 </>
               )}

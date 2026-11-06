@@ -587,7 +587,7 @@ mod tests {
     #[cfg(not(target_arch = "wasm32"))]
     fn new_moon_2026_vs_reference() {
         let base = crate::repo::repo_root();
-        let vsop = match load_earth_vsop87_corrected_from_repo(PatchTarget::De406) {
+        let vsop = match load_earth_vsop87_corrected_from_repo(PatchTarget::DEFAULT) {
             Ok(v) => v,
             Err(_) => {
                 println!("new_moon_2026_vs_reference: skipped ({})", crate::repo::paths::VSOP87_EARTH);
@@ -595,7 +595,7 @@ mod tests {
             }
         };
         let loader = crate::repo::default_loader();
-        let elp = match load_all(&loader, crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE406) {
+        let elp = match load_all(&loader, crate::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT) {
             Ok(e) => e,
             Err(_) => {
                 println!("new_moon_2026_vs_reference: skipped ({})", crate::repo::paths::ELPMPP02);

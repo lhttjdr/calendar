@@ -378,12 +378,12 @@ mod tests {
     #[test]
     fn snapshot_consistency() {
         let _ = try_init_full_nutation_from_repo();
-        let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::De406).unwrap();
+        let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::DEFAULT).unwrap();
         let planets: Vec<_> = [Planet::Mercury, Planet::Venus, Planet::Mars, Planet::Jupiter, Planet::Saturn]
             .iter()
-            .map(|&p| (p, load_planet_vsop87_corrected_from_repo(p, PatchTarget::De406).unwrap()))
+            .map(|&p| (p, load_planet_vsop87_corrected_from_repo(p, PatchTarget::DEFAULT).unwrap()))
             .collect();
-        let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE406).unwrap();
+        let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT).unwrap();
         let eph = Vsop87Elp { planets: Vsop87Planets { earth: &earth, planets: planets.iter().map(|(p, v)| (*p, v)).collect() }, moon: &elp };
         let cat = load_hipparcos_bright_from_repo().unwrap();
         let opts = ApparentPipelineOptions::default();
@@ -437,12 +437,12 @@ mod tests {
         use crate::astronomy::time::earth_rotation::gast;
         use crate::quantity::length::Length;
         let _ = try_init_full_nutation_from_repo();
-        let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::De406).unwrap();
+        let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::DEFAULT).unwrap();
         let planets: Vec<_> = [Planet::Mercury, Planet::Venus, Planet::Mars, Planet::Jupiter, Planet::Saturn]
             .iter()
-            .map(|&p| (p, load_planet_vsop87_corrected_from_repo(p, PatchTarget::De406).unwrap()))
+            .map(|&p| (p, load_planet_vsop87_corrected_from_repo(p, PatchTarget::DEFAULT).unwrap()))
             .collect();
-        let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE406).unwrap();
+        let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT).unwrap();
         let eph = Vsop87Elp {
             planets: Vsop87Planets { earth: &earth, planets: planets.iter().map(|(p, v)| (*p, v)).collect() },
             moon: &elp,
@@ -505,12 +505,12 @@ mod tests {
         use crate::quantity::length::Length;
         use crate::quantity::unit::LengthUnit;
         let _ = try_init_full_nutation_from_repo();
-        let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::De406).unwrap();
+        let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::DEFAULT).unwrap();
         let planets: Vec<_> = [Planet::Mercury, Planet::Venus, Planet::Mars, Planet::Jupiter, Planet::Saturn]
             .iter()
-            .map(|&p| (p, load_planet_vsop87_corrected_from_repo(p, PatchTarget::De406).unwrap()))
+            .map(|&p| (p, load_planet_vsop87_corrected_from_repo(p, PatchTarget::DEFAULT).unwrap()))
             .collect();
-        let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE406).unwrap();
+        let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT).unwrap();
         let eph = Vsop87Elp { planets: Vsop87Planets { earth: &earth, planets: planets.iter().map(|(p, v)| (*p, v)).collect() }, moon: &elp };
         let cat = StarCatalog { stars: vec![] };
         let opts = ApparentPipelineOptions::default();
@@ -570,12 +570,12 @@ mod tests {
         assert!((ngp[2] - 1.0).abs() < 1e-8, "北银极 {ngp:?}");
 
         let _ = try_init_full_nutation_from_repo();
-        let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::De406).unwrap();
+        let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::DEFAULT).unwrap();
         let planets: Vec<_> = [Planet::Mercury, Planet::Venus, Planet::Mars, Planet::Jupiter, Planet::Saturn]
             .iter()
-            .map(|&p| (p, load_planet_vsop87_corrected_from_repo(p, PatchTarget::De406).unwrap()))
+            .map(|&p| (p, load_planet_vsop87_corrected_from_repo(p, PatchTarget::DEFAULT).unwrap()))
             .collect();
-        let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE406).unwrap();
+        let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT).unwrap();
         let eph = Vsop87Elp { planets: Vsop87Planets { earth: &earth, planets: planets.iter().map(|(p, v)| (*p, v)).collect() }, moon: &elp };
         let cat = load_hipparcos_bright_from_repo().unwrap();
         let opts = ApparentPipelineOptions::default();
@@ -621,12 +621,12 @@ mod tests {
         assert!(r(&cold, 5.0) > r(&std, 5.0) && r(&inv, 0.0) > r(&std, 0.0));
 
         let _ = try_init_full_nutation_from_repo();
-        let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::De406).unwrap();
+        let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::DEFAULT).unwrap();
         let planets: Vec<_> = [Planet::Mercury, Planet::Venus, Planet::Mars, Planet::Jupiter, Planet::Saturn]
             .iter()
-            .map(|&p| (p, load_planet_vsop87_corrected_from_repo(p, PatchTarget::De406).unwrap()))
+            .map(|&p| (p, load_planet_vsop87_corrected_from_repo(p, PatchTarget::DEFAULT).unwrap()))
             .collect();
-        let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE406).unwrap();
+        let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT).unwrap();
         let eph = Vsop87Elp { planets: Vsop87Planets { earth: &earth, planets: planets.iter().map(|(p, v)| (*p, v)).collect() }, moon: &elp };
         let cat = StarCatalog { stars: vec![] };
         let opts = ApparentPipelineOptions::default();

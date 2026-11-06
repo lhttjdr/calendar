@@ -26,6 +26,25 @@ pub fn ecliptic_j2000_to_icrs(x_ecl: f64, y_ecl: f64, z_ecl: f64) -> (f64, f64, 
     (x2, y2, z1)
 }
 
+/// J2000 平黄道 → ICRS 的旋转矩阵 Rz(φ) Rx(−ε)（Real），供历表提供者把月亮状态转到 ICRS。
+///
+/// ELP/MPP02 的 J2000 平黄道由 Table 7 相对 ICRS 定位，本项目拟合 DE431/DE441 也按此架（冗余旋转 ≤ 0.0013″ 验证其适用）；
+/// 不可与 VSOP87 的「J2000 动力学黄道 → FK5（ε₀ = 84381.406″）→ ICRS」混用，两者春分点差约 0.044″
+/// （doc/astronomy/model-pairing.md）。
+pub fn ecliptic_j2000_to_icrs_matrix() -> crate::quantity::rotation_matrix::RotationMatrix {
+    use crate::math::real::{real, RealOps};
+    let (eps, phi) = (real(EPSILON_ARCSEC * ARCSEC_TO_RAD), real(PHI_ARCSEC * ARCSEC_TO_RAD));
+    let (se, ce) = (eps.sin(), eps.cos());
+    let (sp, cp) = (phi.sin(), phi.cos());
+    let z = real(0.0);
+    // Rx(−ε)：[[1,0,0],[0,cε,−sε],[0,sε,cε]]；Rz(φ)：[[cφ,−sφ,0],[sφ,cφ,0],[0,0,1]]
+    crate::quantity::rotation_matrix::RotationMatrix::from_array([
+        [cp, -sp * ce, sp * se],
+        [sp, cp * ce, -cp * se],
+        [z, se, ce],
+    ])
+}
+
 /// ICRS(GCRF) 直角坐标 → J2000 平黄道直角坐标：[ecliptic_j2000_to_icrs] 之逆，v_ecl = Rx(ε) Rz(−φ) v_icrs。
 #[inline]
 pub fn icrs_to_ecliptic_j2000(x: f64, y: f64, z: f64) -> (f64, f64, f64) {
@@ -42,6 +61,15 @@ pub fn icrs_to_ecliptic_j2000(x: f64, y: f64, z: f64) -> (f64, f64, f64) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn matrix_matches_f64_function() {
+        use crate::math::real::{real, RealOps};
+        let m = super::ecliptic_j2000_to_icrs_matrix();
+        let v = m.mul_vec([real(1.0e5), real(-2.0e5), real(3.0e4)]);
+        let (x, y, z) = super::ecliptic_j2000_to_icrs(1.0e5, -2.0e5, 3.0e4);
+        assert!((v[0].as_f64() - x).abs() < 1e-8 && (v[1].as_f64() - y).abs() < 1e-8 && (v[2].as_f64() - z).abs() < 1e-8);
+    }
+
     #[test]
     fn inverse_round_trip() {
         let (x, y, z) = super::ecliptic_j2000_to_icrs(1.0e5, -2.0e5, 3.0e4);

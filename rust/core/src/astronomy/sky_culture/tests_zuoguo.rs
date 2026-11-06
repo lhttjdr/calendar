@@ -27,9 +27,9 @@ fn wrap180(x: f64) -> f64 {
 #[ignore]
 fn zuozhuan_guoyu_sky() {
     let _ = try_init_full_nutation_from_repo();
-    let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::De406).unwrap();
-    let loaded: Vec<_> = Planet::ALL.iter().map(|p| (*p, load_planet_vsop87_corrected_from_repo(*p, PatchTarget::De406).unwrap())).collect();
-    let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE406).unwrap();
+    let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::DEFAULT).unwrap();
+    let loaded: Vec<_> = Planet::ALL.iter().map(|p| (*p, load_planet_vsop87_corrected_from_repo(*p, PatchTarget::DEFAULT).unwrap())).collect();
+    let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT).unwrap();
     let eph = Vsop87Elp { planets: Vsop87Planets { earth: &earth, planets: loaded.iter().map(|(p, v)| (*p, v)).collect() }, moon: &elp };
     let opts = ApparentPipelineOptions::default();
     let cat = load_hipparcos_bright_from_repo().unwrap();

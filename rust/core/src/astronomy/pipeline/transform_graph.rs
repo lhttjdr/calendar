@@ -315,8 +315,8 @@ pub struct SourceEdge {
 const SOURCE_EDGES: [SourceEdge; 6] = [
     SourceEdge { from_id: "VSOP87", to_id: HELIOCENTRIC_MEAN_ECLIPTIC, kind: TransitionKind::LightTime, label: "历表求值（含 DE406/DE441 拟合改正）；光行时可选，在 tr 求值" },
     SourceEdge { from_id: HELIOCENTRIC_MEAN_ECLIPTIC, to_id: "MeanEcliptic(J2000)", kind: TransitionKind::FrameTranslation, label: "日心→地心" },
-    SourceEdge { from_id: "ELPMPP02", to_id: "ELPMPP02_MEAN_LUNAR", kind: TransitionKind::GeneralMapping, label: "历表求值（含 DE405/Table6 修正）；光行时可选" },
-    SourceEdge { from_id: "ELPMPP02_MEAN_LUNAR", to_id: "MeanEcliptic(J2000)", kind: TransitionKind::FrameRotation, label: "Laskar P,Q 旋转" },
+    SourceEdge { from_id: "ELPMPP02", to_id: "ELPMPP02_MEAN_LUNAR", kind: TransitionKind::GeneralMapping, label: "历表求值（所选常数集，缺省拟合 DE431）；光行时可选" },
+    SourceEdge { from_id: "ELPMPP02_MEAN_LUNAR", to_id: "ICRS", kind: TransitionKind::FrameRotation, label: "Laskar P,Q 旋转 → ELP 的 J2000 平黄道 → Table 7（ICRS 行）" },
     SourceEdge { from_id: "DE406/DE441", to_id: "ICRS", kind: TransitionKind::LightTime, label: "历表求值；光行时可选" },
     SourceEdge { from_id: "Hipparcos", to_id: "ICRS", kind: TransitionKind::GeneralMapping, label: "星表方向（自行、周年视差）" },
 ];

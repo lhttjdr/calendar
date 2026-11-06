@@ -52,8 +52,8 @@ fn stride() -> usize {
 }
 
 pub(super) fn load() -> Option<(crate::astronomy::ephemeris::Vsop87, crate::astronomy::ephemeris::Elpmpp02Data)> {
-    let vsop = load_earth_vsop87_corrected_from_repo(PatchTarget::De406).ok()?;
-    let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE406).ok()?;
+    let vsop = load_earth_vsop87_corrected_from_repo(PatchTarget::DEFAULT).ok()?;
+    let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT).ok()?;
     assert!(try_init_full_nutation_from_repo(), "未能加载 IAU 2000A 章动表");
     Some((vsop, elp))
 }

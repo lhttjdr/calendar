@@ -47,9 +47,9 @@ fn horizontal_matches_meeus_example_13b() {
 }
 
 fn load() -> Option<(crate::astronomy::ephemeris::Vsop87, crate::astronomy::ephemeris::Elpmpp02Data)> {
-    let vsop = load_earth_vsop87_corrected_from_repo(PatchTarget::De406).ok()?;
+    let vsop = load_earth_vsop87_corrected_from_repo(PatchTarget::DEFAULT).ok()?;
     let loader = crate::repo::default_loader();
-    let elp = load_all(&loader, crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE406).ok()?;
+    let elp = load_all(&loader, crate::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT).ok()?;
     assert!(try_init_full_nutation_from_repo(), "未能加载 IAU 2000A 章动表");
     Some((vsop, elp))
 }
@@ -511,9 +511,10 @@ fn source_edges_end_at_provider_frames() {
     let earth = load_earth_vsop87_from_repo().unwrap();
     let t = TimePoint::new(TimeScale::TDB, real(2460000.25));
     assert_eq!(earth.compute_state(Body::Sun, t).frame().id_str(), "MeanEcliptic(J2000)");
-    let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE406).unwrap();
+    let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT).unwrap();
     let tt = TimePoint::new(TimeScale::TT, real(2460000.25));
-    assert_eq!(elp.compute_state(Body::Moon, tt).frame().id_str(), "MeanEcliptic(J2000)");
+    // 月亮按 ELP 的 Table 7 直接转到 ICRS（不走 VSOP87 的动力学黄道 → FK5 链，见 doc/astronomy/model-pairing.md）
+    assert_eq!(elp.compute_state(Body::Moon, tt).frame().id_str(), "ICRS");
 }
 
 /// 可视化不再拆节点：FK5、J2000 平黄道各只有一个节点，且每条架到架的边都有逆边。
@@ -560,7 +561,7 @@ fn obliquity_rate_matches_finite_difference() {
 fn analytic_longitude_velocity_matches_numerical() {
     let _ = try_init_full_nutation_from_repo();
     let earth = load_earth_vsop87_from_repo().unwrap();
-    let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE406).unwrap();
+    let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT).unwrap();
     for jd in [2451545.0, 2451635.0, 2451725.0, 2451815.0, 2460000.5, 1000000.5] {
         let t = TimePoint::new(TimeScale::TT, real(jd));
         let mut a = ApparentPipelineOptions::pipeline_default();

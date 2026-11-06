@@ -19,9 +19,9 @@ use crate::quantity::unit::LengthUnit;
 
 fn with_eph<F: FnOnce(&Vsop87Elp)>(f: F) {
     let _ = try_init_full_nutation_from_repo();
-    let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::De406).unwrap();
-    let loaded: Vec<_> = Planet::ALL.iter().map(|p| (*p, load_planet_vsop87_corrected_from_repo(*p, PatchTarget::De406).unwrap())).collect();
-    let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE406).unwrap();
+    let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::DEFAULT).unwrap();
+    let loaded: Vec<_> = Planet::ALL.iter().map(|p| (*p, load_planet_vsop87_corrected_from_repo(*p, PatchTarget::DEFAULT).unwrap())).collect();
+    let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT).unwrap();
     let eph = Vsop87Elp { planets: Vsop87Planets { earth: &earth, planets: loaded.iter().map(|(p, v)| (*p, v)).collect() }, moon: &elp };
     f(&eph)
 }
@@ -161,7 +161,7 @@ fn site(lat: f64) -> (f64, f64) {
 #[ignore]
 fn schaefer1987_table1_observations() {
     let _ = try_init_full_nutation_from_repo();
-    let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::De406).unwrap();
+    let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::DEFAULT).unwrap();
     let eph = Vsop87Planets { earth: &earth, planets: vec![] };
     let cat = load_hipparcos_bright_from_repo().unwrap();
     let rows = table1();
@@ -254,8 +254,8 @@ fn schaefer1987_table1_observations() {
 #[ignore]
 fn schaefer1987_table7_venus_yucatan() {
     let _ = try_init_full_nutation_from_repo();
-    let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::De406).unwrap();
-    let venus = load_planet_vsop87_corrected_from_repo(Planet::Venus, PatchTarget::De406).unwrap();
+    let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::DEFAULT).unwrap();
+    let venus = load_planet_vsop87_corrected_from_repo(Planet::Venus, PatchTarget::DEFAULT).unwrap();
     let eph = Vsop87Planets { earth: &earth, planets: vec![(Planet::Venus, &venus)] };
     let (j0, j1) = (2443144.5, 2446066.5); // 1977-01-01 … 1985-01-01
     let tracks = GeocentricTracks::new(&eph, real(j0), real(j1), false, &ApparentPipelineOptions::default());
@@ -309,7 +309,7 @@ fn schaefer1987_table7_venus_yucatan() {
 fn schaefer2000_sirius_egypt() {
     use crate::astronomy::time::delta_t::{DeltaTModel, MorrisonStephenson2021};
     let _ = try_init_full_nutation_from_repo();
-    let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::De406).unwrap();
+    let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::DEFAULT).unwrap();
     let eph = Vsop87Planets { earth: &earth, planets: vec![] };
     let sirius = *load_hipparcos_bright_from_repo().unwrap().by_hip(32349).unwrap();
     let table = [(-3499, 87.8), (-2999, 92.3), (-2499, 95.8), (-1999, 100.3), (-1499, 104.8), (-999, 108.2), (-499, 112.9), (1, 117.3), (500, 123.0)];

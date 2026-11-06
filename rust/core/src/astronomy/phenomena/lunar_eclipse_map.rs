@@ -300,8 +300,8 @@ mod tests {
     /// ΔT 变化为纯经度平移；局地可见段自洽；穿影路径的最小角距等于食甚角距。
     #[test]
     fn curves_agree_with_topocentric_altitude() {
-        let vsop = load_earth_vsop87_corrected_from_repo(PatchTarget::De406).unwrap();
-        let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE406).unwrap();
+        let vsop = load_earth_vsop87_corrected_from_repo(PatchTarget::DEFAULT).unwrap();
+        let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT).unwrap();
         assert!(try_init_full_nutation_from_repo());
         let eph = EclipseEphemeris::new(&vsop, &elp);
         for (jd, dt) in [(2458327.35, 69.0), (1648000.5, 12600.0)] {

@@ -1,6 +1,6 @@
-//! 将 VSOP87 → DE406/DE441 改正系数表转为 wasm 用的二进制（只含地球 `ear`，节气、定朔只需地球）。
+//! 将 VSOP87 → DE406/DE431/DE441 改正系数表转为 wasm 用的二进制（只含地球 `ear`，节气、定朔只需地球）。
 //! 运行：cargo run -p lunar-core --example patch_to_bin --no-default-features --features twofloat
-//! 读取 data/fit/vsop87-{de406,de441}-planets.txt，写出 data/fit/vsop87-{de406,de441}-earth.bin。
+//! 读取 data/fit/vsop87-{de406,de431,de441}-planets.txt，写出 data/fit/vsop87-{de406,de431,de441}-earth.bin。
 
 fn main() {
     use lunar_core::astronomy::ephemeris::vsop87_patch::{PatchTarget, Vsop87DePatch};
@@ -9,6 +9,7 @@ fn main() {
 
     for (target, out) in [
         (PatchTarget::De406, paths::FIT_VSOP87_DE406_EARTH_BIN),
+        (PatchTarget::De431, paths::FIT_VSOP87_DE431_EARTH_BIN),
         (PatchTarget::De441, paths::FIT_VSOP87_DE441_EARTH_BIN),
     ] {
         let mut patch = Vsop87DePatch::from_repo(target).unwrap_or_else(|e| panic!("{}: {e}", target.repo_path()));

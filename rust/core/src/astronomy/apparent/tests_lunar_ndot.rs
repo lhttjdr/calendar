@@ -83,6 +83,8 @@ fn elpmpp02_effective_ndot_vs_de406_de441() {
     let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE406).unwrap();
     // 拟合 DE441 的常数集（data/fit/elpmpp02-de441.txt），有则一并检验
     let elp441 = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE441).ok();
+    // 缺省常数集（拟合 DE431）
+    let elp431 = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE431).unwrap();
     let opts = ApparentPipelineOptions::pipeline_default();
     let wrap = |d: f64| ((d + std::f64::consts::PI).rem_euclid(std::f64::consts::TAU) - std::f64::consts::PI).to_degrees() * 3600.0;
     // 确定性伪随机（线性同余），避开整日
@@ -95,6 +97,8 @@ fn elpmpp02_effective_ndot_vs_de406_de441() {
     let (mut ts, mut d406, mut d441, mut d441_406, mut d431) = (vec![], vec![], vec![], vec![], vec![]);
     // ELPMPP02(DE441 常数集) 相对 DE441、DE431
     let (mut e441_441, mut e441_431) = (vec![], vec![]);
+    // 相对枢纽 DE431：ELPMPP02(DE431)、DE406 内核、DE441 内核
+    let (mut e431_431, mut k406_431, mut k441_431) = (vec![], vec![], vec![]);
     for _ in 0..3000 {
         let jd = jd0 + (jd1 - jd0) * rnd();
         let t = TimePoint::new(TimeScale::TT, real(jd));
@@ -114,6 +118,13 @@ fn elpmpp02_effective_ndot_vs_de406_de441() {
             if let Some(el) = &elp441 {
                 let e2 = moon_apparent_ecliptic_longitude_with_options(el, t, &opts).rad().as_f64();
                 e441_431.push(wrap(e2 - b));
+            }
+            let e3 = moon_apparent_ecliptic_longitude_with_options(&elp431, t, &opts).rad().as_f64();
+            e431_431.push(wrap(e3 - b));
+            k406_431.push(wrap(a - b));
+            if let Some(k4) = &k441 {
+                let c = moon_apparent_ecliptic_longitude_de406_with_options(k4, t, &opts).rad().as_f64();
+                k441_431.push(wrap(c - b));
             }
         }
         if let (Some(el), Some(k)) = (&elp441, &k441) {
@@ -140,7 +151,6 @@ fn elpmpp02_effective_ndot_vs_de406_de441() {
         report("ELPMPP02 − DE431", &d431);
         print_bins(&ts, &d431);
         let (c, _) = fit_poly(&ts, &d431, 3);
-        assert_offset_matches(&crate::astronomy::time::delta_t::lunar_longitude_offset::ELPMPP02_DE406_MINUS_DE431, &c);
         for year in [-700.0, -200.0, 0.0, 500.0, 1000.0, 1500.0, 1900.0] {
             let tc = (year - 2000.0) / 100.0;
             let dl = c[0] + c[1] * tc + c[2] * tc * tc + c[3] * tc * tc * tc;
@@ -157,11 +167,38 @@ fn elpmpp02_effective_ndot_vs_de406_de441() {
         report("ELPMPP02(DE441) − DE431", &e441_431);
         print_bins(&ts, &e441_431);
         let (c, _) = fit_poly(&ts, &e441_431, 3);
-        assert_offset_matches(&crate::astronomy::time::delta_t::lunar_longitude_offset::ELPMPP02_DE441_MINUS_DE431, &c);
         for year in [-700.0, -200.0, 0.0, 500.0, 1000.0, 1500.0, 1900.0] {
             let tc = (year - 2000.0) / 100.0;
             let dl = c[0] + c[1] * tc + c[2] * tc * tc + c[3] * tc * tc * tc;
             println!("  {year} 年：Δλ = {dl:+.2}″ → δΔT = {:+.1} s", -dl / 0.549016);
+        }
+    }
+    // 相对枢纽 DE431 的黄经差：先全部报告，再逐条检查 delta_t 中的常数与重测一致
+    use crate::astronomy::time::delta_t::lunar_longitude_offset as o;
+    let mut checks: Vec<(&crate::astronomy::time::delta_t::LunarLongitudeOffset, &Vec<f64>)> = Vec::new();
+    if k431.is_some() {
+        report("ELPMPP02(DE431) − DE431", &e431_431);
+        print_bins(&ts, &e431_431);
+        report("DE406 − DE431", &k406_431);
+        print_bins(&ts, &k406_431);
+        checks.push((&o::ELPMPP02_DE406_MINUS_DE431, &d431));
+        checks.push((&o::ELPMPP02_DE431_MINUS_DE431, &e431_431));
+        checks.push((&o::DE406_MINUS_DE431, &k406_431));
+        if !e441_431.is_empty() {
+            checks.push((&o::ELPMPP02_DE441_MINUS_DE431, &e441_431));
+        }
+        if !k441_431.is_empty() {
+            report("DE441 − DE431", &k441_431);
+            print_bins(&ts, &k441_431);
+            checks.push((&o::DE441_MINUS_DE431, &k441_431));
+        }
+        for (off, ys) in &checks {
+            let (c, _) = fit_poly(&ts, ys, 3);
+            println!("{}：三次系数 [{:+.4}, {:+.5}, {:+.6}, {:+.7}]", off.name, c[0], c[1], c[2], c[3]);
+        }
+        for (off, ys) in &checks {
+            let (c, _) = fit_poly(&ts, ys, 3);
+            assert_offset_matches(off, &c);
         }
     }
     // ELPMPP02 的 DE406 改正应使二者 ṅ 基本一致

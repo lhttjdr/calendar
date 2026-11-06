@@ -34,7 +34,7 @@ fn elp_sum(terms: &[Elpmpp02Term], alpha_t: &[Real; 5], mixed: bool) -> Real {
 }
 
 fn main() {
-    let elp = load_all(&lunar_core::repo::default_loader(), lunar_core::repo::paths::ELPMPP02, Elpmpp02Correction::DE406).unwrap();
+    let elp = load_all(&lunar_core::repo::default_loader(), lunar_core::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT).unwrap();
     let earth = load_earth_vsop87_from_repo().unwrap();
     let jds: Vec<f64> = (0..=60).map(|i| 625_000.5 + i as f64 * 36_525.0).collect(); // 前 3000—公元 3000，每百年
     let groups: [(&str, &[Elpmpp02Term], &[Elpmpp02Term], f64); 3] = [

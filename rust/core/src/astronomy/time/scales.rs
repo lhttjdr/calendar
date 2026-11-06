@@ -90,14 +90,25 @@ pub fn leap_seconds_at_tai(jd_tai: Real) -> i32 {
     leap
 }
 
-/// UTC 儒略日 → TAI 儒略日
+/// 闰秒制 UTC 起点 1972-01-01 0h（JD）。此前无今义的 UTC（1961—1971 年为频率偏置的「橡皮」UTC，更早则只有世界时），
+/// 以 UT1 近似：UTC ≈ UT1 = TT − ΔT，误差在 1 s 以内。
+pub const UTC_LEAP_SECOND_START_JD: f64 = 2441317.5;
+
+/// UTC 儒略日 → TAI 儒略日（1972 年以前按 UT1 近似 UTC，经 ΔT）
 #[inline]
 pub fn utc_to_tai_jd(jd_utc: Real) -> Real {
+    if jd_utc < real_const(UTC_LEAP_SECOND_START_JD) {
+        return ut1_to_tt_jd(jd_utc) - tt_tai_offset_days();
+    }
     jd_utc + from_i32(tai_minus_utc_at_utc_jd(jd_utc)) / SECONDS_PER_DAY
 }
 
-/// TAI 儒略日 → UTC 儒略日
+/// TAI 儒略日 → UTC 儒略日（1972 年以前按 UT1 近似 UTC，经 ΔT）
 pub fn tai_to_utc_jd(jd_tai: Real) -> Real {
+    if jd_tai < real_const(UTC_LEAP_SECOND_START_JD + 10.0 / 86400.0) {
+        let jd_tt = jd_tai + tt_tai_offset_days();
+        return jd_tt - delta_t(jd_tt).seconds() / SECONDS_PER_DAY;
+    }
     let leap = leap_seconds_at_tai(jd_tai);
     jd_tai - from_i32(leap) / SECONDS_PER_DAY
 }
@@ -263,8 +274,14 @@ pub fn jd_to_decimal_year(jd: Real) -> Real {
     real_const(2000.0) + (jd - J2000) / real_const(365.25)
 }
 
-/// ΔT = TT − UT1。jd 为 TT 儒略日；适用约 -1999 ～ +3000 年。
+/// ΔT = TT − UT1，时间尺度换算所用：Espenak–Meeus 2006 多项式，按所用月历表经枢纽 DE431 配套
+/// （[`super::delta_t::time_scale_delta_t`]，缺省月历表 ELPMPP02(DE431)）。jd 为 TT 儒略日；适用约 -1999 ～ +3000 年。
 pub fn delta_t(jd_tt: Real) -> Duration {
+    super::delta_t::time_scale_delta_t(jd_tt)
+}
+
+/// Espenak–Meeus 2006 多项式原值（NASA 五千年日食典；假定 ṅ = −26″/cy²，未配套）。
+pub fn espenak_meeus_2006(jd_tt: Real) -> Duration {
     let y = jd_to_decimal_year(jd_tt);
     Duration::in_seconds(delta_t_eval(y))
 }
@@ -295,7 +312,7 @@ fn delta_t_eval(y: Real) -> Real {
         13.72 - 0.332447 * t + 0.0068612 * t * t + 0.0041116 * t * t * t
             - 0.00037436 * t * t * t * t + 0.0000121272 * t * t * t * t * t
             - 0.0000001699 * t * t * t * t * t * t
-            + 0.000000000875 * t * t * t * t * t * t * t * t
+            + 0.000000000875 * t * t * t * t * t * t * t
     } else if y < 1900.0 {
         let t = y - 1860.0;
         7.62 + 0.5737 * t - 0.251754 * t * t + 0.01680668 * t * t * t
@@ -491,5 +508,61 @@ mod tests_time_point {
         let neg = TimeInterval::from_days(real_const(-1.0));
         assert!(neg.in_days() < real(0));
         assert!(neg.in_days().is_near(real(-1.0), 1e-12));
+    }
+}
+
+#[cfg(test)]
+mod delta_t_pairing_tests {
+    use super::*;
+    use crate::math::real::{real, RealOps};
+
+    fn jd(y: f64) -> Real {
+        real(2451545.0 + (y - 2000.0) * 365.25)
+    }
+
+    /// Espenak–Meeus 2006 各段在分界处连续（NASA 原式在分界处相差至多约 1 s）。1800—1860 段末项曾误写为 t⁸，
+    /// 1859 年差达 1.5 天，此测试即为防这类抄写错误。
+    #[test]
+    fn espenak_meeus_segments_continuous() {
+        for y in [-500.0, 500.0, 1600.0, 1700.0, 1800.0, 1860.0, 1900.0, 1920.0, 1941.0, 1961.0, 1986.0, 2005.0, 2050.0, 2150.0] {
+            let a = espenak_meeus_2006(jd(y - 1e-6)).seconds().as_f64();
+            let b = espenak_meeus_2006(jd(y + 1e-6)).seconds().as_f64();
+            assert!((a - b).abs() < 1.5, "{y} 年分界：{a} vs {b}");
+        }
+        // NASA 表值（eclipse.gsfc.nasa.gov/SEhelp/deltat2004.html）：1840 年 5.7 s、1850 年 7.1 s
+        assert!((espenak_meeus_2006(jd(1840.0)).seconds().as_f64() - 5.7).abs() < 0.5);
+        assert!((espenak_meeus_2006(jd(1850.0)).seconds().as_f64() - 7.1).abs() < 0.5);
+    }
+
+    /// 时间尺度换算所用 ΔT = EM2006 原值 + 由 ṅ = −26 换到枢纽 DE431（−25.82）+ 缺省月历表 ELPMPP02(DE431) 的黄经差；
+    /// 1955 年以后不配套。
+    #[test]
+    fn time_scale_delta_t_is_paired() {
+        let y = -200.0;
+        let raw = espenak_meeus_2006(jd(y)).seconds().as_f64();
+        let u = (y - 1955.0) / 100.0;
+        let bridge = -0.91072 * (-25.82 + 26.0) * u * u;
+        let off = super::super::delta_t::lunar_longitude_offset::ELPMPP02_DE431_MINUS_DE431.delta_t_correction(jd(y)).seconds().as_f64();
+        let got = delta_t(jd(y)).seconds().as_f64();
+        assert!((got - (raw + bridge + off)).abs() < 1e-6, "{got} vs {}", raw + bridge + off);
+        assert!((bridge + 76.0).abs() < 1.0, "前 200 年 ṅ 换算约 −76 s：{bridge}");
+        assert_eq!(delta_t(jd(2000.0)).seconds().as_f64(), espenak_meeus_2006(jd(2000.0)).seconds().as_f64());
+    }
+
+    /// 1972 年以前 UTC 以 UT1 近似：TT − UTC = ΔT（而非 32.184 s）；往返一致。1972 年以后按闰秒表。
+    #[test]
+    fn utc_before_1972_is_ut1() {
+        for y in [0.0, 1000.0, 1850.0, 1960.0] {
+            let tt = TimePoint::new(TimeScale::TT, jd(y));
+            let utc = tt.to_scale(TimeScale::UTC);
+            let dt = (jd(y) - utc.jd).as_f64() * 86400.0;
+            let want = delta_t(jd(y)).seconds().as_f64();
+            assert!((dt - want).abs() < 0.01, "{y}：TT−UTC {dt} vs ΔT {want}");
+            let back = utc.to_scale(TimeScale::TT).jd.as_f64();
+            assert!((back - jd(y).as_f64()).abs() * 86400.0 < 0.05, "{y} 往返差 {} s", (back - jd(y).as_f64()) * 86400.0);
+        }
+        let tt = TimePoint::new(TimeScale::TT, jd(2020.0));
+        let dt = (jd(2020.0) - tt.to_scale(TimeScale::UTC).jd).as_f64() * 86400.0;
+        assert!((dt - 69.184).abs() < 0.01, "2020：{dt}");
     }
 }

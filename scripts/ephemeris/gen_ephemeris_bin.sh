@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 一次性生成 VSOP87、ELP-MPP02、章动 tab5.3a、VSOP87 地球改正的 .bin，供前端零解析加载。
 # 用法（在项目根目录 calendar/ 下）：./scripts/ephemeris/gen_ephemeris_bin.sh [vendor 目录]
-# 默认 vendor 目录为 ./vendor；生成：vendor/vsop87/VSOP87B.ear.bin、vendor/elpmpp02/*.bin、vendor/IAU2000/tab5.3a.bin、data/fit/vsop87-{de406,de441}-earth.bin（由已提交的 data/fit/vsop87-{de406,de441}-planets.txt）
+# 默认 vendor 目录为 ./vendor；生成：vendor/vsop87/VSOP87B.ear.bin、vendor/elpmpp02/*.bin、vendor/IAU2000/tab5.3a.bin、data/fit/vsop87-{de406,de431,de441}-earth.bin（由已提交的 data/fit/vsop87-{de406,de431,de441}-planets.txt）
 
 set -e
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

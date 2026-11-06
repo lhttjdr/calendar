@@ -85,14 +85,21 @@ impl LbrPatch {
 pub enum PatchTarget {
     /// JPL DE406（1998，前 3000—3000 年）
     De406,
+    /// JPL DE431（Folkner et al. 2014，前 13200—17191 年）：Morrison–Stephenson 2016/2021 ΔT 所配历表，作缺省
+    De431,
     /// JPL DE441（Park et al. 2021，前 13200—17191 年）
     De441,
 }
 
 impl PatchTarget {
+    /// 缺省目标：DE431，与缺省月历表常数集（`Elpmpp02Correction::DEFAULT`）、MS2021 ΔT 同一历表
+    /// （doc/astronomy/model-pairing.md）。
+    pub const DEFAULT: Self = Self::De431;
+
     pub fn repo_path(self) -> &'static str {
         match self {
             PatchTarget::De406 => crate::repo::paths::FIT_VSOP87_DE406_PLANETS,
+            PatchTarget::De431 => crate::repo::paths::FIT_VSOP87_DE431_PLANETS,
             PatchTarget::De441 => crate::repo::paths::FIT_VSOP87_DE441_PLANETS,
         }
     }

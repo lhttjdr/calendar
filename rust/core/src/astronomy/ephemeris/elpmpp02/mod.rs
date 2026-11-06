@@ -4,7 +4,7 @@
 //! `load()` 加载后可用 `position_velocity()` 得完整位置与速度。另有仅平均根数的轻量版。
 //!
 //! **常数集**（[Elpmpp02Correction]）：论文的 LLR、DE405（+Table 6，即贴近 DE406 的用法），以及本项目按论文方法
-//! 拟合 DE441 所得的一组（`data/fit/elpmpp02-de441.txt`）。常数集只影响加载时生成的振幅与相位多项式
+//! 拟合 DE431（缺省）、DE441 所得的两组（`data/fit/elpmpp02-<目标>.txt`，编译时嵌入）。常数集只影响加载时生成的振幅与相位多项式
 //! （[parse::Elpmpp02Raw::build]），求值过程相同。
 
 pub mod fit;
@@ -73,7 +73,10 @@ impl Elpmpp02Constants {
     }
 }
 
-/// 常数集：与哪套观测或 JPL 历表拟合。
+/// 常数集：与哪套观测或 JPL 历表拟合。缺省见 [Elpmpp02Correction::DEFAULT]。
+///
+/// 配套规则（见 doc/astronomy/model-pairing.md）：古代 ΔT 由月历表反推，月历表换了，ΔT 须按两者月亮平黄经之差修正，
+/// 各常数集相对枢纽 DE431 的实测差由 [Elpmpp02Correction::lunar_offset_vs_de431] 给出。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Elpmpp02Correction {
     /// 论文 Table 3 第 3 列（拟合 1970—2001 LLR）
@@ -82,18 +85,38 @@ pub enum Elpmpp02Correction {
     DE405,
     /// 同 DE405：论文 §4.3.3 说 DE405 拟合 + Table 6 即贴近 DE406 的用法，无另一套常数
     DE406,
+    /// 本项目按论文两步法拟合 DE431 的常数集（`data/fit/elpmpp02-de431.txt`）：Morrison–Stephenson 2016/2021 ΔT
+    /// 所配历表，作缺省
+    DE431,
     /// 本项目按论文两步法拟合 DE441 的常数集（`data/fit/elpmpp02-de441.txt`，`examples/elpmpp02_de_fit.rs` 生成）
     DE441,
 }
 
 impl Elpmpp02Correction {
-    /// 内置常数集；须从数据文件读入的（DE441）返回 None。
+    /// 缺省常数集：DE431——本项目 ΔT（MS2021）由 DE430/431 的月亮反推，月历表取同一月亮则 ΔT 无须配套修正
+    /// （doc/astronomy/ephemerides-and-de-align.md §5.4.5、doc/astronomy/model-pairing.md）。
+    pub const DEFAULT: Self = Self::DE431;
+
+    /// 常数集。全部内置（拟合所得的两组编译时嵌入）。
     pub fn builtin_fit(self) -> Option<Elpmpp02Fit> {
-        match self {
-            Self::LLR => Some(Elpmpp02Fit::llr()),
-            Self::DE405 | Self::DE406 => Some(Elpmpp02Fit::de405()),
-            Self::DE441 => None,
-        }
+        Some(match self {
+            Self::LLR => Elpmpp02Fit::llr(),
+            Self::DE405 | Self::DE406 => Elpmpp02Fit::de405(),
+            Self::DE431 => Elpmpp02Fit::de431(),
+            Self::DE441 => Elpmpp02Fit::de441(),
+        })
+    }
+
+    /// 按名取（不分大小写）：llr、de405、de406、de431、de441。
+    pub fn from_name(name: &str) -> Option<Self> {
+        Some(match name.to_ascii_lowercase().as_str() {
+            "llr" => Self::LLR,
+            "de405" => Self::DE405,
+            "de406" => Self::DE406,
+            "de431" => Self::DE431,
+            "de441" => Self::DE441,
+            _ => return None,
+        })
     }
 
     /// 该常数集的月亮黄经相对 DE431（Morrison–Stephenson 2016/2021 ΔT 所配历表）的实测差，供 ΔT 配套修正
@@ -102,17 +125,15 @@ impl Elpmpp02Correction {
         use crate::astronomy::time::delta_t::lunar_longitude_offset as o;
         match self {
             Self::DE405 | Self::DE406 => Some(o::ELPMPP02_DE406_MINUS_DE431),
+            Self::DE431 => Some(o::ELPMPP02_DE431_MINUS_DE431),
             Self::DE441 => Some(o::ELPMPP02_DE441_MINUS_DE431),
             Self::LLR => None,
         }
     }
 
-    /// 常数集：内置的直接给出，DE441 经 loader 读 [crate::repo::paths::FIT_ELPMPP02_DE441]。
-    pub fn fit(self, loader: &dyn crate::platform::DataLoader) -> Result<Elpmpp02Fit, crate::platform::LoadError> {
-        match self.builtin_fit() {
-            Some(f) => Ok(f),
-            None => Elpmpp02Fit::parse(&loader.read_lines(crate::repo::paths::FIT_ELPMPP02_DE441)?.join("\n")),
-        }
+    /// 常数集（全部内置，loader 不再使用；保留签名以兼容调用方）。
+    pub fn fit(self, _loader: &dyn crate::platform::DataLoader) -> Result<Elpmpp02Fit, crate::platform::LoadError> {
+        Ok(self.builtin_fit().expect("全部常数集均内置"))
     }
 }
 

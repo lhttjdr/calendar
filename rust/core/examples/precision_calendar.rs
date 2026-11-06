@@ -10,7 +10,7 @@ use lunar_core::quantity::angle::PlaneAngle;
 
 fn main() {
     let _ = try_init_full_nutation_from_repo();
-    let elp = load_all(&lunar_core::repo::default_loader(), lunar_core::repo::paths::ELPMPP02, Elpmpp02Correction::DE406).unwrap();
+    let elp = load_all(&lunar_core::repo::default_loader(), lunar_core::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT).unwrap();
     let earth = load_earth_vsop87_from_repo().unwrap();
     let tolerance = PlaneAngle::from_deg(real(1e-9));
     // 前 3000—公元 3000 每 500 年取一年，每年 120 日（double-double 约 20 倍慢）

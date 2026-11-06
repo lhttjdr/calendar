@@ -5,8 +5,8 @@
 //! - [Elpmpp02Fit::llr]：Table 3 第 3 列（拟合 1970—2001 LLR），无长期项改正（Fortran icor=0）；
 //! - [Elpmpp02Fit::de405]：Table 3 第 2 列（拟合 DE405，1950—2060）+ Table 6（使 6000 年内贴近 DE406）（Fortran icor=1）。
 //!
-//! 另可从文本读入本项目按同一方法对其它 JPL 历表的拟合结果（如 `data/fit/elpmpp02-de441.txt`，
-//! 由 `examples/elpmpp02_de_fit.rs` 生成），格式见 [Elpmpp02Fit::parse]。
+//! 本项目按同一方法对 JPL 历表的拟合结果（`data/fit/elpmpp02-<目标>.txt`，由 `examples/elpmpp02_de_fit.rs` 生成，
+//! 格式见 [Elpmpp02Fit::parse]）编译时嵌入：[Elpmpp02Fit::de431]（缺省，MS2016/2021 ΔT 所配历表）、[Elpmpp02Fit::de441]。
 
 use crate::platform::LoadError;
 
@@ -95,6 +95,16 @@ impl Elpmpp02Fit {
             dep: 0.00224,
             secular,
         }
+    }
+
+    /// 本项目按论文两步法拟合 DE431 的常数集（嵌入 `data/fit/elpmpp02-de431.txt`）。
+    pub fn de431() -> Self {
+        Self::parse(include_str!("../../../../../../data/fit/elpmpp02-de431.txt")).expect("data/fit/elpmpp02-de431.txt")
+    }
+
+    /// 本项目按论文两步法拟合 DE441 的常数集（嵌入 `data/fit/elpmpp02-de441.txt`）。
+    pub fn de441() -> Self {
+        Self::parse(include_str!("../../../../../../data/fit/elpmpp02-de441.txt")).expect("data/fit/elpmpp02-de441.txt")
     }
 
     fn scalar_mut(&mut self, key: &str) -> Option<&mut f64> {

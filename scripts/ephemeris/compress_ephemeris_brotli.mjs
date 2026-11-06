@@ -24,6 +24,7 @@ const files = [
   path.join(vendorDir, 'elpmpp02', 'ELP_PERT.S3.bin'),
   path.join(vendorDir, 'IAU2000', 'tab5.3a.bin'),
   path.join(dataDir, 'fit', 'vsop87-de406-earth.bin'),
+  path.join(dataDir, 'fit', 'vsop87-de431-earth.bin'),
   path.join(dataDir, 'fit', 'vsop87-de441-earth.bin'),
 ]
 

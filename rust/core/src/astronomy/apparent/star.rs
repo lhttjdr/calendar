@@ -205,7 +205,7 @@ mod tests {
     #[test]
     fn batch_matches_single() {
         let _ = try_init_full_nutation_from_repo();
-        let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::De406).unwrap();
+        let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::DEFAULT).unwrap();
         let eph = Vsop87Planets { earth: &earth, planets: vec![] };
         let cat = load_hipparcos_bright_from_repo().unwrap();
         let opts = ApparentPipelineOptions::default();

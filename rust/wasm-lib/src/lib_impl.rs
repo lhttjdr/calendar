@@ -64,10 +64,12 @@ fn earth_patch_loaded() -> bool {
     EARTH_PATCH.lock().unwrap().is_some()
 }
 
-/// ELPMPP02 常数集：缺省论文 DE405 + Table 6（贴近 DE406）；前端选 DE441 时经 [`init_elpmpp02_fit_from_text`] 换成
-/// `data/fit/elpmpp02-de441.txt`，与地球改正的目标历表一致。
-static ELP_FIT: Lazy<Mutex<(Elpmpp02Fit, Elpmpp02Correction)>> =
-    Lazy::new(|| Mutex::new((Elpmpp02Fit::de405(), Elpmpp02Correction::DE406)));
+/// ELPMPP02 常数集：缺省 [`Elpmpp02Correction::DEFAULT`]（拟合 DE431，与 MS2021 ΔT 同一月亮）；前端经
+/// [`set_elpmpp02_correction`] 换（如选 DE441 时与 VSOP87 地球的 DE441 改正一起换）。
+static ELP_FIT: Lazy<Mutex<(Elpmpp02Fit, Elpmpp02Correction)>> = Lazy::new(|| {
+    let c = Elpmpp02Correction::DEFAULT;
+    Mutex::new((c.builtin_fit().unwrap(), c))
+});
 
 fn elp_fit() -> (Elpmpp02Fit, Elpmpp02Correction) {
     ELP_FIT.lock().unwrap().clone()
@@ -86,17 +88,16 @@ fn load_elp_binary(bufs: [&[u8]; 6]) -> Result<Elpmpp02Data, lunar_core::platfor
     load_all_from_binary_with_fit(bufs, &fit, corr)
 }
 
-/// 设置 ELPMPP02 常数集为拟合 DE441 的一组（`data/fit/elpmpp02-de441.txt` 的文本）。前端选 DE441 时在计算前调用；
-/// 解析失败返回 false，常数集不变。
+/// 设置 ELPMPP02 常数集（"DE431" 缺省、"DE406"、"DE441"，不分大小写）；时间尺度换算（TT↔UT1）的 ΔT 配套随之换。
+/// 名称无效或该常数集无实测黄经差（LLR）时返回 false，不变。计算前调用；已建的引擎不受影响。
 #[wasm_bindgen]
-pub fn init_elpmpp02_fit_from_text(text: &str) -> bool {
-    match Elpmpp02Fit::parse(text) {
-        Ok(f) => {
-            *ELP_FIT.lock().unwrap() = (f, Elpmpp02Correction::DE441);
-            true
-        }
-        Err(_) => false,
-    }
+pub fn set_elpmpp02_correction(name: &str) -> bool {
+    let Some(c) = Elpmpp02Correction::from_name(name) else { return false };
+    let Some(offset) = c.lunar_offset_vs_de431() else { return false };
+    *ELP_FIT.lock().unwrap() = (c.builtin_fit().unwrap(), c);
+    lunar_core::astronomy::time::delta_t::set_time_scale_lunar_offset(offset);
+    *VSOP87_CACHE.lock().unwrap() = None;
+    true
 }
 
 /// 当前 ELPMPP02 常数集名（DE406 或 DE441），供状态栏展示。

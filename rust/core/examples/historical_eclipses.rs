@@ -3,14 +3,15 @@
 //! 输入由 scripts/calendar_data/qinhan_eval/ 下的脚本生成（记录日的儒略日数只由历法换算得出），格式与输出列见
 //! data/phenomena/README.md。ΔT 取 Morrison–Stephenson 2021；与月历表 ELPMPP02 的配套修正可选（第 6 个参数）：
 //! `offset`（缺省，按 ELPMPP02 − DE431 实测月亮黄经差，`delta_t::lunar_longitude_offset`）或 `ndot`（按 ṅ = −25.857 的二次修正，
-//! 2026-10-26 前的做法）。都城所见在 ΔT 及 ±σ、±2σ 下各算一次。第 7 个参数选日月历表对齐的目标：`de406`（缺省，VSOP87 地球
-//! DE406 改正 + ELPMPP02 论文常数集）或 `de441`（DE441 改正 + 拟合 DE441 的常数集），`offset` 配套随常数集取
+//! 2026-10-26 前的做法）。都城所见在 ΔT 及 ±σ、±2σ 下各算一次。第 7 个参数选日月历表对齐的目标：`de431`（缺省，VSOP87 地球
+//! DE431 改正 + ELPMPP02 拟合 DE431 的常数集）、`de406`（DE406 改正 + 论文常数集）或 `de441`（DE441 改正 + 拟合 DE441
+//! 的常数集），`offset` 配套随常数集取
 //! （`Elpmpp02Correction::lunar_offset_vs_de431`，见 doc/astronomy/ephemerides-and-de-align.md §5.4.5）。
 //!
 //! 运行（仓库根下）：缺省用 f64 构建（2026-10-28 对《汉书》《后汉书》《清史稿》四表，f64 与 TwoFloat 在输出精度下逐列全同，
 //! f64 约快十倍，见 doc/engineering/project-and-implementation.md §11.2.2）；需对照时把 real-f64 换成 twofloat。
 //!   cargo run --release -p lunar-core --example historical_eclipses --no-default-features --features real-f64 -- \
-//!     <solar|lunar> <输入 csv> <输出 csv> <东经°> <北纬°> [offset|ndot] [de406|de441]
+//!     <solar|lunar> <输入 csv> <输出 csv> <东经°> <北纬°> [offset|ndot] [de431|de406|de441]
 //! 输入有 site_lon、site_lat 列者逐行取观测地（命令行经纬度为缺省）。
 //! 例：《汉书》日食在长安：solar data/phenomena/hanshu_solar_eclipses.csv data/phenomena/hanshu_solar_eclipses_check.csv 108.88 34.30
 //!     《后汉书》在洛阳：solar|lunar data/phenomena/houhanshu_{solar,lunar}_eclipses.csv … 112.62 34.73
@@ -62,7 +63,7 @@ fn delta_t(jd_tt: Real) -> (f64, f64) {
     let dt = if *PAIRING_NDOT.get().unwrap_or(&false) {
         delta_t_for_ephemeris(&MorrisonStephenson2021, jd_tt, real(lunar_tidal_acceleration::ELPMPP02_DE405))
     } else {
-        let corr = *ELP_CORRECTION.get().unwrap_or(&Elpmpp02Correction::DE406);
+        let corr = *ELP_CORRECTION.get().unwrap_or(&Elpmpp02Correction::DEFAULT);
         delta_t_for_lunar_offset(&MorrisonStephenson2021, jd_tt, &corr.lunar_offset_vs_de431().expect("常数集有实测黄经差"))
     };
     (dt.value.seconds().as_f64(), dt.sigma.map(|s| s.seconds().as_f64()).unwrap_or(0.0))
@@ -194,9 +195,10 @@ fn lunar(w: &InterpolatedSunMoon, row: &Row, header: &[String], observer: &Obser
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let usage = "参数：<solar|lunar> <输入 csv> <输出 csv> <东经°> <北纬°> [offset|ndot] [de406|de441]";
+    let usage = "参数：<solar|lunar> <输入 csv> <输出 csv> <东经°> <北纬°> [offset|ndot] [de431|de406|de441]";
     assert!((6..=8).contains(&args.len()), "{usage}");
-    let (patch_target, elp_corr) = match args.get(7).map(String::as_str).unwrap_or("de406") {
+    let (patch_target, elp_corr) = match args.get(7).map(String::as_str).unwrap_or("de431") {
+        "de431" => (PatchTarget::De431, Elpmpp02Correction::DE431),
         "de406" => (PatchTarget::De406, Elpmpp02Correction::DE406),
         "de441" => (PatchTarget::De441, Elpmpp02Correction::DE441),
         _ => panic!("{usage}"),

@@ -110,9 +110,9 @@ export interface LunarBackend {
   }
   /** 加载 VSOP87 地球改正（拟合到 DE406/DE441，.bin 或解压后的 .br）。可选，有则状态栏显示「地球改正: 已加载」。 */
   init_vsop87_earth_patch_from_binary?(bytes: Uint8Array): boolean
-  /** 设置 ELPMPP02 常数集为拟合 DE441 的一组（data/fit/elpmpp02-de441.txt 文本）。可选；不调用则为内置 DE406 常数集。 */
-  init_elpmpp02_fit_from_text?(text: string): boolean
-  /** 当前 ELPMPP02 常数集名（"DE406" 或 "DE441"）。可选，供状态栏展示。 */
+  /** 设置 ELPMPP02 常数集（"DE431" 缺省、"DE406"、"DE441"），时间尺度换算的 ΔT 配套随之换。可选。 */
+  set_elpmpp02_correction?(name: string): boolean
+  /** 当前 ELPMPP02 常数集名（"DE431"、"DE406" 或 "DE441"）。可选，供状态栏展示。 */
   get_elpmpp02_correction?(): string
   /** 上次岁数据计算时章动表是否已加载为完整 IAU2000A（否则为 77 项）。可选，供状态栏展示。 */
   get_repo_aux_nutation_full?(): boolean

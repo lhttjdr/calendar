@@ -157,9 +157,9 @@ fn main() {
         stage_noise("DE406", &k);
         noise("DE406", &k, &opts);
     }
-    let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::De406).unwrap();
-    let loaded: Vec<_> = Planet::ALL.iter().map(|p| (*p, load_planet_vsop87_corrected_from_repo(*p, PatchTarget::De406).unwrap())).collect();
-    let elp = load_all(&lunar_core::repo::default_loader(), lunar_core::repo::paths::ELPMPP02, Elpmpp02Correction::DE406).unwrap();
+    let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::DEFAULT).unwrap();
+    let loaded: Vec<_> = Planet::ALL.iter().map(|p| (*p, load_planet_vsop87_corrected_from_repo(*p, PatchTarget::DEFAULT).unwrap())).collect();
+    let elp = load_all(&lunar_core::repo::default_loader(), lunar_core::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT).unwrap();
     let eph = Vsop87Elp { planets: Vsop87Planets { earth: &earth, planets: loaded.iter().map(|(p, v)| (*p, v)).collect() }, moon: &elp };
     raw_noise("VSOP87 + ELPMPP02", &eph, Body::Planet(Planet::Venus));
     raw_noise("VSOP87 + ELPMPP02", &eph, Body::Sun);

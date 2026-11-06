@@ -39,6 +39,16 @@ fn planets_vsop87_vs_de406() {
     check_vsop87_patch_against(&De406Kernel::open(&bsp).unwrap(), PatchTarget::De406);
 }
 
+/// 同上，目标历表 DE431（缺省；`vendor/jpl/de431/de431t.bsp` 本地验证用，不入库；缺文件时跳过）。
+#[test]
+fn planets_vsop87_vs_de431() {
+    let Ok(kernel) = De406Kernel::open(crate::repo::repo_root().join(crate::repo::paths::DE431_BSP)) else {
+        println!("skipped: 无 DE431 BSP");
+        return;
+    };
+    check_vsop87_patch_against(&kernel, PatchTarget::De431);
+}
+
 /// 同上，目标历表 DE441（`vendor/jpl/de441/de441.bsp` 本地验证用，不入库；缺文件时跳过）。
 #[test]
 fn planets_vsop87_vs_de441() {

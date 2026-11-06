@@ -26,11 +26,14 @@ pub mod paths {
     /// VSOP87–DE406 各行星（含地球）日心 L、B、R 改正（Chapront 2000 方法）
     pub const FIT_VSOP87_DE406_PLANETS: &str = "data/fit/vsop87-de406-planets.txt";
     /// VSOP87–DE441 各行星（含地球）日心 L、B、R 改正（同上方法，目标历表 DE441）
+    pub const FIT_VSOP87_DE431_PLANETS: &str = "data/fit/vsop87-de431-planets.txt";
     pub const FIT_VSOP87_DE441_PLANETS: &str = "data/fit/vsop87-de441-planets.txt";
-    /// ELPMPP02 常数改正集：按论文两步法拟合 DE441（`examples/elpmpp02_de_fit.rs` 生成）
+    /// ELPMPP02 常数改正集：按论文两步法拟合 DE431、DE441（`examples/elpmpp02_de_fit.rs` 生成；编译时嵌入，路径供工具用）
+    pub const FIT_ELPMPP02_DE431: &str = "data/fit/elpmpp02-de431.txt";
     pub const FIT_ELPMPP02_DE441: &str = "data/fit/elpmpp02-de441.txt";
     /// wasm 用：地球改正二进制（`examples/patch_to_bin.rs` 由上两表生成，只含 `ear`）
     pub const FIT_VSOP87_DE406_EARTH_BIN: &str = "data/fit/vsop87-de406-earth.bin";
+    pub const FIT_VSOP87_DE431_EARTH_BIN: &str = "data/fit/vsop87-de431-earth.bin";
     pub const FIT_VSOP87_DE441_EARTH_BIN: &str = "data/fit/vsop87-de441-earth.bin";
 
     /// 《月相和二十四节气的计算》§7.4 节气朔望标准时刻表

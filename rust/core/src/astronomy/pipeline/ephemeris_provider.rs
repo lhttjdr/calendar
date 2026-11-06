@@ -104,7 +104,8 @@ impl EphemerisProvider for Vsop87 {
     }
 }
 
-/// ELPMPP02 月球（地心）；公式用 TT 儒略世纪。
+/// ELPMPP02 月球（地心）；公式用 TT 儒略世纪。输出 ICRS：历表的 J2000 平黄道按论文 Table 7（ICRS 行）转到 ICRS，
+/// 不走 VSOP87 的「动力学黄道 → FK5 → ICRS」（两者春分点差约 0.044″，见 doc/astronomy/model-pairing.md）。
 impl EphemerisProvider for Elpmpp02Data {
     fn evaluation_time_scale(&self) -> TimeScale {
         TimeScale::TT
@@ -114,7 +115,11 @@ impl EphemerisProvider for Elpmpp02Data {
         match body {
             Body::Moon => {
                 let (pos, vel) = position_velocity(self, epoch);
-                State6::new(pos, vel)
+                let m = crate::astronomy::ephemeris::elpmpp02::table7::ecliptic_j2000_to_icrs_matrix();
+                State6::new(
+                    pos.apply_transform(crate::quantity::reference_frame::ReferenceFrame::ICRS, |v| m.mul_vec(v)),
+                    vel.apply_transform(crate::quantity::reference_frame::ReferenceFrame::ICRS, |v| m.mul_vec(v)),
+                )
             }
             Body::Sun => panic!("Elpmpp02Data does not provide Sun; use Vsop87"),
             Body::Planet(p) => panic!("Elpmpp02Data does not provide {p:?}; use Vsop87Planets"),

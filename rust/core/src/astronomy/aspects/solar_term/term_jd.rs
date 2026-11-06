@@ -707,7 +707,7 @@ mod tests {
     #[cfg(not(target_arch = "wasm32"))]
     fn solar_term_2026_vs_reference() {
         let base = crate::repo::repo_root();
-        let vsop = match load_earth_vsop87_corrected_from_repo(PatchTarget::De406) {
+        let vsop = match load_earth_vsop87_corrected_from_repo(PatchTarget::DEFAULT) {
             Ok(v) => v,
             Err(_) => {
                 println!("solar_term_2026_vs_reference: skipped ({})", crate::repo::paths::VSOP87_EARTH);
@@ -867,7 +867,7 @@ mod tests {
     #[cfg(not(target_arch = "wasm32"))]
     fn solar_term_2026_explicit_aberration_vs_reference() {
         let base = crate::repo::repo_root();
-        let vsop = match load_earth_vsop87_corrected_from_repo(PatchTarget::De406) {
+        let vsop = match load_earth_vsop87_corrected_from_repo(PatchTarget::DEFAULT) {
             Ok(v) => v,
             Err(_) => {
                 println!("solar_term_2026_explicit_aberration_vs_reference: skipped ({})", crate::repo::paths::VSOP87_EARTH);

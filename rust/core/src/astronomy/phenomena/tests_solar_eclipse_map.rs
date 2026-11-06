@@ -18,8 +18,8 @@ use crate::quantity::length::Length;
 use crate::quantity::unit::LengthUnit;
 
 fn load() -> (crate::astronomy::ephemeris::Vsop87, crate::astronomy::ephemeris::Elpmpp02Data) {
-    let vsop = load_earth_vsop87_corrected_from_repo(PatchTarget::De406).expect("VSOP87");
-    let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE406).expect("ELPMPP02");
+    let vsop = load_earth_vsop87_corrected_from_repo(PatchTarget::DEFAULT).expect("VSOP87");
+    let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT).expect("ELPMPP02");
     assert!(try_init_full_nutation_from_repo(), "未能加载 IAU 2000A 章动表");
     (vsop, elp)
 }

@@ -83,25 +83,24 @@ export async function fetchNutationTab53aBin(): Promise<Uint8Array> {
 }
 
 /**
- * 旁路可选数据：VSOP87 地球改正二进制（拟合到 DE406 或 DE441，见 EARTH_PATCH_TARGET）与 DE441 时的 ELPMPP02 常数集，并在 wasm 后端上应用
+ * 旁路可选数据：VSOP87 地球改正二进制（拟合到 DE406 或 DE441，见 EARTH_PATCH_TARGET）与 ELPMPP02 常数集，并在 wasm 后端上应用
  * （若后端支持该导出函数）。取不到时静默跳过——Rust 侧对应函数未被调用，地球改正就是「未加载」状态，不算错误。
  */
 export async function applyEarthPatchIfAvailable(w: {
   init_vsop87_earth_patch_from_binary?: (bytes: Uint8Array) => boolean
-  init_elpmpp02_fit_from_text?: (text: string) => boolean
+  set_elpmpp02_correction?: (name: string) => boolean
 }): Promise<void> {
-  // 月亮常数集与地球改正同一目标历表：DE441 时取拟合 DE441 的常数集；取不到则保持内置 DE406 常数集
-  if (EARTH_PATCH_TARGET === 'de441' && typeof w.init_elpmpp02_fit_from_text === 'function') {
-    try {
-      const r = await fetch(EPHEMERIS_BINARY_URLS.elp_fit_de441_txt)
-      if (r.ok) w.init_elpmpp02_fit_from_text(await r.text())
-    } catch {
-      // 可选数据，网络失败则跳过
-    }
+  // 月亮常数集与地球改正同一目标历表（DE406 时为论文常数集）
+  if (typeof w.set_elpmpp02_correction === 'function') {
+    w.set_elpmpp02_correction(EARTH_PATCH_TARGET.toUpperCase())
   }
   if (typeof w.init_vsop87_earth_patch_from_binary !== 'function') return
   try {
-    const url = EARTH_PATCH_TARGET === 'de441' ? EPHEMERIS_BINARY_URLS.earth_patch_de441_bin : EPHEMERIS_BINARY_URLS.earth_patch_de406_bin
+    const url = {
+      de406: EPHEMERIS_BINARY_URLS.earth_patch_de406_bin,
+      de431: EPHEMERIS_BINARY_URLS.earth_patch_de431_bin,
+      de441: EPHEMERIS_BINARY_URLS.earth_patch_de441_bin,
+    }[EARTH_PATCH_TARGET]
     const buf = await fetchBinaryMaybeBrotli(url)
     w.init_vsop87_earth_patch_from_binary(buf)
   } catch {

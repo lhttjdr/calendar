@@ -465,11 +465,19 @@ def charts_elp_fit() -> None:
         ],
         "caption": "论文常数集贴近 DE406，对 DE441 在古代差到数百角秒；按同法拟合 DE441 后降到 1″ 量级",
     })
-    # ΔT 配套量：δΔT = −Δλ(T)/n_月，Δλ 为各常数集对 DE431 的三次式（T 为距 J2000 的儒略世纪）
+    # ΔT 配套量：δΔT = −Δλ(T)/n_月，Δλ 为各常数集对 DE431 的三次式（T 为距 J2000 的儒略世纪）；
+    # 系数直接取 rust/core/src/astronomy/time/delta_t.rs 的 lunar_longitude_offset 常数（由 tests_lunar_ndot 断言与实测一致）
     n_moon = 0.549016  # ″/s
+    src = open("rust/core/src/astronomy/time/delta_t.rs").read()
+
+    def offset_coeffs(const):
+        m = re.search(rf"pub const {const}: LunarLongitudeOffset = LunarLongitudeOffset \{{.*?coefficients: &\[([^\]]*)\]", src, re.S)
+        return [float(x) for x in m.group(1).split(",") if x.strip()]
+
     cubic = {
-        "论文常数集（DE406）": [-0.2382, 0.03751, 0.003724, 0.0001151],
-        "拟合 DE441 的常数集": [0.1267, 0.03611, 0.003559, 0.0032135],
+        "拟合 DE431 的常数集（缺省）": offset_coeffs("ELPMPP02_DE431_MINUS_DE431"),
+        "论文常数集（DE406）": offset_coeffs("ELPMPP02_DE406_MINUS_DE431"),
+        "拟合 DE441 的常数集": offset_coeffs("ELPMPP02_DE441_MINUS_DE431"),
     }
     years = np.arange(-3000, 3001, 25)
     series = []
@@ -482,7 +490,7 @@ def charts_elp_fit() -> None:
         "x": {"label": "年份"},
         "y": {"label": "ΔT 配套修正（配 MS2021）", "unit": "s"},
         "series": series,
-        "caption": "按月亮平黄经之差（对 MS2021 所配 DE431 的三次式）折算的 ΔT 配套修正：论文常数集在 2 秒以内，拟合 DE441 的常数集古代达数分钟",
+        "caption": "按月亮平黄经之差（对 MS2021 所配 DE431 的三次式）折算的 ΔT 配套修正：拟合 DE431 的常数集（缺省）在 0.5 秒以内，论文常数集在 6 秒以内，拟合 DE441 的常数集古代达数分钟",
     })
 
 

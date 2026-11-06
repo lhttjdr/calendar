@@ -21,6 +21,7 @@
 | [precession.md](astronomy/precession.md) | 岁差（P03、Vondrák 2011） |
 | [nutation.md](astronomy/nutation.md) | 章动（IAU 2000A） |
 | [ephemerides-and-de-align.md](astronomy/ephemerides-and-de-align.md) | 历表与 DE 对齐（VSOP87、Chapront、ELPMPP02） |
+| [model-pairing.md](astronomy/model-pairing.md) | 模型配套表：历表、ΔT、标架、岁差章动各以何为基准，以 DE431 为枢纽；不允许的组合与代码保证 |
 | [light-time-and-aberration.md](astronomy/light-time-and-aberration.md) | 光行时与光行差 |
 | [apparent-longitude-and-syzygy.md](astronomy/apparent-longitude-and-syzygy.md) | 视位置计算（因素与两条路径、Rust 管线 §7.2、其它效应） |
 | [lunar-phases-and-syzygy.md](astronomy/lunar-phases-and-syzygy.md) | 月相与合朔、望/上弦/下弦、W0 公式、精度事实 |

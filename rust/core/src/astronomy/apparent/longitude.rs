@@ -395,18 +395,19 @@ fn moon_apparent_ecliptic_longitude_velocity_analytic(
     let t_cent = julian_centuries_from_jd(jd_work);
     let precession_model = options.effective_precession_model();
     let (pos_m, vel_m) = state.to_meters_and_m_per_s();
-    let eps0 = mean_obliquity(0.0).rad();
-    let (ce, se) = (eps0.cos(), eps0.sin());
-    let r_fk5 = [
-        pos_m[0],
-        pos_m[1] * ce - pos_m[2] * se,
-        pos_m[1] * se + pos_m[2] * ce,
-    ];
-    let v_fk5 = [
-        vel_m[0],
-        vel_m[1] * ce - vel_m[2] * se,
-        vel_m[1] * se + vel_m[2] * ce,
-    ];
+    // 历表提供者按 Table 7 输出 ICRS；岁差从 FK5（J2000 平赤道）起算，先去掉架偏差
+    let (r_fk5, v_fk5) = if state.frame() == crate::quantity::reference_frame::ReferenceFrame::ICRS {
+        let to_fk5 = |v: [Real; 3]| {
+            let (x, y, z) = crate::astronomy::frame::fixed::fk5_icrs::rotate_equatorial_icrs_to_fk5(v[0], v[1], v[2]);
+            [x, y, z]
+        };
+        (to_fk5(pos_m), to_fk5(vel_m))
+    } else {
+        let eps0 = mean_obliquity(0.0).rad();
+        let (ce, se) = (eps0.cos(), eps0.sin());
+        let ecl_to_eq = |v: [Real; 3]| [v[0], v[1] * ce - v[2] * se, v[1] * se + v[2] * ce];
+        (ecl_to_eq(pos_m), ecl_to_eq(vel_m))
+    };
     let pt = precession_transform_for(t_cent, precession_model);
     let pos_me = pt.apply_vec(r_fk5);
     let dpr = precession_derivative_times_vector_for(r_fk5, t_cent, precession_model);
