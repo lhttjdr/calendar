@@ -274,8 +274,8 @@ pub fn jd_to_decimal_year(jd: Real) -> Real {
     real_const(2000.0) + (jd - J2000) / real_const(365.25)
 }
 
-/// ΔT = TT − UT1，时间尺度换算所用：Espenak–Meeus 2006 多项式，按所用月历表经枢纽 DE431 配套
-/// （[`super::delta_t::time_scale_delta_t`]，缺省月历表 ELPMPP02(DE431)）。jd 为 TT 儒略日；适用约 -1999 ～ +3000 年。
+/// ΔT = TT − UT1，时间尺度换算所用：Morrison–Stephenson 2021，按所用月历表相对 DE431 的黄经差配套
+/// （[`super::delta_t::time_scale_delta_t`]，缺省月历表 ELPMPP02(DE431)）。jd 为 TT 儒略日。
 pub fn delta_t(jd_tt: Real) -> Duration {
     super::delta_t::time_scale_delta_t(jd_tt)
 }
@@ -534,19 +534,22 @@ mod delta_t_pairing_tests {
         assert!((espenak_meeus_2006(jd(1850.0)).seconds().as_f64() - 7.1).abs() < 0.5);
     }
 
-    /// 时间尺度换算所用 ΔT = EM2006 原值 + 由 ṅ = −26 换到枢纽 DE431（−25.82）+ 缺省月历表 ELPMPP02(DE431) 的黄经差；
-    /// 1955 年以后不配套。
+    /// 时间尺度换算所用 ΔT = MS2021 + 缺省月历表 ELPMPP02(DE431) 相对 DE431 的黄经差修正（< 0.5 s）；1955 年以后即 MS2021。
     #[test]
     fn time_scale_delta_t_is_paired() {
-        let y = -200.0;
-        let raw = espenak_meeus_2006(jd(y)).seconds().as_f64();
-        let u = (y - 1955.0) / 100.0;
-        let bridge = -0.91072 * (-25.82 + 26.0) * u * u;
-        let off = super::super::delta_t::lunar_longitude_offset::ELPMPP02_DE431_MINUS_DE431.delta_t_correction(jd(y)).seconds().as_f64();
-        let got = delta_t(jd(y)).seconds().as_f64();
-        assert!((got - (raw + bridge + off)).abs() < 1e-6, "{got} vs {}", raw + bridge + off);
-        assert!((bridge + 76.0).abs() < 1.0, "前 200 年 ṅ 换算约 −76 s：{bridge}");
-        assert_eq!(delta_t(jd(2000.0)).seconds().as_f64(), espenak_meeus_2006(jd(2000.0)).seconds().as_f64());
+        use super::super::delta_t::{lunar_longitude_offset, DeltaTModel, MorrisonStephenson2021};
+        for y in [-700.0, -200.0, 1000.0] {
+            let ms = MorrisonStephenson2021.estimate(jd(y)).value.seconds().as_f64();
+            let off = lunar_longitude_offset::ELPMPP02_DE431_MINUS_DE431.delta_t_correction(jd(y)).seconds().as_f64();
+            let got = delta_t(jd(y)).seconds().as_f64();
+            assert!((got - (ms + off)).abs() < 1e-6, "{y}：{got} vs {}", ms + off);
+            assert!(off.abs() < 0.5, "{y}：缺省月历表配套量 {off}");
+        }
+        for y in [2000.0, 2026.0] {
+            assert_eq!(delta_t(jd(y)).seconds().as_f64(), MorrisonStephenson2021.estimate(jd(y)).value.seconds().as_f64());
+        }
+        // 2026 年实测 ΔT 约 69.1 s（TAI−UTC 37 s + 32.184 s + UT1−UTC），MS2021 在其 σ 量级之内
+        assert!((delta_t(jd(2026.0)).seconds().as_f64() - 69.1).abs() < 2.0);
     }
 
     /// 1972 年以前 UTC 以 UT1 近似：TT − UTC = ΔT（而非 32.184 s）；往返一致。1972 年以后按闰秒表。

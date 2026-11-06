@@ -152,14 +152,19 @@ $$t = \frac{T - T_0}{\Delta T_{\mathrm{ref}}}$$
 ## ΔT（世界时与力学时差）
 
 - **定义**：ΔT = TT − UT1；历史与远期无 UT1 时，常用 TT − UTC 或由拟合/外推公式给出。
-- **本实现**：`StephensonMorrisonDeltaT`（Stephenson、Morrison 等拟合与外推），见 `lunar.astronomy.time`；数据来源见 [NAO LVM](http://astro.ukho.gov.uk/nao/lvm/)。
+- **本实现**（2026-11-06 起）：时间尺度换算与天象检验同用 Morrison–Stephenson 2021（`time::delta_t::MorrisonStephenson2021`，
+  −720—2019 年作者样条，范围外按作者长时段表与抛物线；数据 `vendor/delta_t/morrison_stephenson_2021/`，来源
+  [NAO LVM](http://astro.ukho.gov.uk/nao/lvm/)），并按所用月历表相对 DE431 的月亮黄经差配套（`time_scale_delta_t`，缺省月历表
+  ELPMPP02(DE431) 修正 < 0.5 s；1955 年以后不配套）。Espenak–Meeus 2006 多项式（`scales::espenak_meeus_2006`）只用于与 NASA 典
+  对照。配套规则见 [model-pairing.md](model-pairing.md)。
 
 ---
 
 ## 本程序中的约定
 
 - **内部与合朔/定气**：统一使用 **JD(TT)**；TT→TDB 由 `TimePoint` 的周期项近似换算，数千年内 TDB−TT 约 2 ms 内可忽略时可不改。
-- **历书输出到 UTC+8**：由 JD(TT) 经 TAI 与闰秒表得到 UTC，再加 8 小时得到北京时间；历史与远期无闰秒时用 ΔT 由 TT 推 UT1 再近似 UTC。
+- **历书输出到 UTC+8**：由 JD(TT) 经 TAI 与闰秒表得到 UTC，再加 8 小时得到北京时间；1972-01-01 以前无闰秒制 UTC，以 UT1 近似
+  （UTC ≈ TT − ΔT，`scales::UTC_LEAP_SECOND_START_JD`；2026-11-06 前此处误为只减 32.184 s，见 model-pairing.md 第七节）。
 - **闰秒**：TAI↔UTC 使用内建 IERS 闰秒表；若 IERS 发布新闰秒，需更新表中最后一笔之后的条目。
 - **GPST**：需要时可经 TT→TAI→GPST（GPST = TAI − 19 s）换算。
 

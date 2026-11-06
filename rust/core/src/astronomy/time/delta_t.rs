@@ -5,15 +5,15 @@
 //!
 //! - [`MorrisonStephenson2021`]：Morrison, Stephenson, Hohenkerk & Zawilski (2021) 样条，-720～2019 按作者系数，范围外按作者
 //!   逐年表及原论文长期抛物线；数据原样保存在 `vendor/delta_t/morrison_stephenson_2021/`（CC BY 4.0）。古代天象默认推荐。
-//! - [`EspenakMeeus2006`]：NASA《五千年日食典》所用多项式（即 [`super::delta_t`]），与 NASA 日食典对照时使用。
+//! - [`EspenakMeeus2006`]：NASA《五千年日食典》所用多项式（[`super::espenak_meeus_2006`]），与 NASA 日食典对照时使用。
 //!
 //! 配套以 **DE431 为枢纽**（doc/astronomy/model-pairing.md）：ΔT 模型先按其 ṅ 换算到「以 DE431 月亮为准」（MS2021 本就配
 //! DE430/431，不变；Espenak–Meeus 2006 假定 ṅ = −26，按 ṅ 差换到 −25.82），所用月历表再按其相对 DE431 的实测月亮黄经差
 //! Δλ(T) 修正（[`delta_t_for_lunar_offset`]）。只按 ṅ 差的二次修正（[`delta_t_for_ephemeris`]，NASA 做法）保留为选项。
 //! 1955 年以后 ΔT 由原子时直接测得，与月历表无关，两种修正都只用于 1955 年以前。
 //!
-//! 时间尺度换算（[`super::delta_t`]，TT↔UT1，及 1972 年前以 UT1 近似 UTC）用 Espenak–Meeus 2006 多项式，按
-//! [`time_scale_lunar_offset`]（缺省为缺省月历表 ELPMPP02(DE431)）同法配套；何时改用 MS2021 属仲裁层决策，不在本模块。
+//! 时间尺度换算（[`super::delta_t`]，TT↔UT1，及 1972 年前以 UT1 近似 UTC）也用 MS2021，按 [`time_scale_lunar_offset`]
+//! （缺省为缺省月历表 ELPMPP02(DE431)，修正 < 0.5 s）配套，与天象检验同一 ΔT。Espenak–Meeus 2006 只用于与 NASA 典对照。
 //! 设计见 doc/astronomy/celestial-phenomena.md。
 
 use std::sync::{OnceLock, RwLock};
@@ -211,9 +211,12 @@ pub fn set_time_scale_lunar_offset(offset: LunarLongitudeOffset) {
     *TIME_SCALE_LUNAR_OFFSET.write().unwrap() = offset;
 }
 
-/// 时间尺度换算所用 ΔT：Espenak–Meeus 2006 按 [`time_scale_lunar_offset`] 经枢纽配套。
+/// 时间尺度换算所用 ΔT：Morrison–Stephenson 2021（本就配 DE431，无须 ṅ 换算）按 [`time_scale_lunar_offset`] 配套。
+///
+/// 取 MS2021 而非 Espenak–Meeus 2006：后者假定 ṅ = −26、须换算才配得上本项目的月亮，且 2019 年以后外推偏大（2026 年 75 s、
+/// 2100 年 203 s，MS2021 为 68 s、80 s）。见 doc/astronomy/model-pairing.md。
 pub fn time_scale_delta_t(jd_tt: Real) -> Duration {
-    delta_t_for_lunar_offset(&EspenakMeeus2006, jd_tt, &time_scale_lunar_offset()).value
+    delta_t_for_lunar_offset(&MorrisonStephenson2021, jd_tt, &time_scale_lunar_offset()).value
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
