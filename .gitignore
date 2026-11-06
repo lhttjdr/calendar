@@ -72,6 +72,7 @@ scripts/sky_culture/_cache/
 /doc/references/history/点校本二十四史精装版*/
 
 /doc/references/history/俄藏敦煌黑水城文献/
+/doc/references/folk/
 # 放在仓库根的书先不入库（曾因 git add -A 误提交）
 /*.pdf
 /*.djvu

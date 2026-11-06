@@ -1,0 +1,12 @@
+{{SKQS read all header|title=星命溯源|section=全覽|prev=|prev_link=|next=|next_link=|type=子}}<!--
+
+請根據四庫全書掃描版校對本頁，標準見[[Wikisource:四庫全書原文]]。加標點請另外建立頁面。
+
+
+-->{{SKQS readall starter}}﻿{{:星命溯源 (四庫全書本)}}{{SKQS readall ender}}
+{{SKQS readall starter}}﻿{{:星命溯源 (四庫全書本)/卷1}}{{SKQS readall ender}}
+{{SKQS readall starter}}﻿{{:星命溯源 (四庫全書本)/卷2}}{{SKQS readall ender}}
+{{SKQS readall starter}}﻿{{:星命溯源 (四庫全書本)/卷3}}{{SKQS readall ender}}
+{{SKQS readall starter}}﻿{{:星命溯源 (四庫全書本)/卷4}}{{SKQS readall ender}}
+{{SKQS readall starter}}﻿{{:星命溯源 (四庫全書本)/卷5}}{{SKQS readall ender}}
+{{SKQS read all footer|title=星命溯源|section=全覽|prev=|prev_link=|next=|next_link=|type=子}}{{PD-old}}
