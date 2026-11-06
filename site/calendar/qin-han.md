@@ -1,4 +1,4 @@
-# 秦与汉初历法复原
+# 秦与汉初历法
 
 > 评估对象：廖育栋（Yuk Tung Liu）的 ChineseCalendar[9] 采用的李忠林（2012）[1] 复原方案（ChineseCalendar `HanZhuanXu`）。
 > 复现脚本：（ 复原历、 天文定朔对照、 《汉书》检验）。

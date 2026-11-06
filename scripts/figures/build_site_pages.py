@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 由开发知识库（doc/）生成读者文档站中内容较长的各章：
-- 天象（site/astronomy/）：日月食、行星、恒星与二十八宿、史书天象检验、当地所见的星空；
+- 天象（site/astronomy/）：日月食、行星、恒星与二十八宿、史书天象检验、当地星空；
 - 历法（site/calendar/）：实历与主表、历代历法总录、各朝推步算法、秦汉初历法复原；
 - 附录（site/appendix/）：天象逐条校验、以本纪核验主表、历法原文摘录。
 
@@ -38,13 +38,13 @@ def line_of(marker: str, src: str = SRC) -> int:
 
 # 所有生成章节通用的措辞替换（各页不一定都有，不报未匹配）：知识库文档代号换成读者站章名，开发者用语换成读者能懂的说法
 GENERIC_ALL = [
-    (r"push-algorithms(\.md)?\s*", "《各朝代、政权的推步算法》"),
+    (r"push-algorithms(\.md)?\s*", "《各朝推步》"),
     (r"historical-calendar(\.md)?\s*", "《实历与主表》"),
     (r"calendar-compendium(\.md)?\s*", "《历代历法总录》"),
-    (r"qin-han-calendar-evaluation(\.md)?\s*", "《秦与汉初历法复原》"),
+    (r"qin-han-calendar-evaluation(\.md)?\s*", "《秦与汉初历法》"),
     (r"celestial-phenomena(\.md)?\s*", "《日月食》等章"),
     (r"日食见第九节", "日食见《日月食》一章"),
-    (r"与 第十节", "与《史书天象记录检验》一章"),
+    (r"与 第十节", "与《史书天象检验》一章"),
     (r"（P1 中 SOFA", "（本项目 SOFA"),
     (r"本模块", "本项目"),
     (r"主表上游", "主表所据"),
@@ -68,13 +68,13 @@ def fix(text: str, pairs: list[tuple[str, str]], page: str) -> str:
 
 # 对所有生成页面统一生效：知识库文档名换成读者站章名；「上游」写明所指；去掉知识库内部节号与开发阶段编号
 KB_CHAPTERS = {
-    "push-algorithms": "《各朝代、政权的推步算法》",
+    "push-algorithms": "《各朝推步》",
     "historical-calendar": "《实历与主表》",
     "calendar-compendium": "《历代历法总录》",
-    "qin-han-calendar-evaluation": "《秦与汉初历法复原》",
+    "qin-han-calendar-evaluation": "《秦与汉初历法》",
     "celestial-phenomena": "天象各章",
-    "sky-view-3d": "《当地所见的星空》",
-    "main-table-checks": "附录「以本纪核验主表」",
+    "sky-view-3d": "《当地星空》",
+    "main-table-checks": "附录《本纪核验主表》",
 }
 GENERIC_ALL = [(rf"(?<![\w/-]){re.escape(k)}(?:\.md)?(?![\w-])", v) for k, v in KB_CHAPTERS.items()] + [
     (r"主表上游", "主表所据"),
@@ -85,10 +85,10 @@ GENERIC_ALL = [(rf"(?<![\w/-]){re.escape(k)}(?:\.md)?(?![\w-])", v) for k, v in 
     (r"本模块", "本项目"),
     (r"（P1 中 SOFA 测试值", "（本项目引用 SOFA 测试值时"),
     (r"日食见第九节(?: P2)?", "日食见《日月食》一章"),
-    (r"与\s*第十节", "与《史书天象记录检验》一章"),
+    (r"与\s*第十节", "与《史书天象检验》一章"),
     (r"见第九节 P2", "见《日月食》一章"),
     (r"见第九节 P3", "见《行星》一章"),
-    (r"第十节(?=西晋)", "《史书天象记录检验》一章中"),
+    (r"第十节(?=西晋)", "《史书天象检验》一章中"),
 ]
 
 
@@ -135,13 +135,13 @@ def build() -> None:
                      [conv(line_of("## 四、ΔT 不确定度的处理"), line_of("## 五、数据需求") - 1),
                       conv(line_of("## 七、算法来源"), line_of("## 八、已定事项") - 1),
                       demote(conv(p_eclipse, p_planet - 1))], FIX_ECLIPSES),
-        "planets": ("行星：位置、星等、会合与伏见",
+        "planets": ("行星",
                     "本章说明行星视位置的计算与检验、视星等、会合现象（合、冲、留、大距）、近距事件、晨见夕伏的可见性模型，以及月掩星。文中方括号数字指文末参考文献。",
                     [demote(conv(p_planet, p_untested)), demote(conv(p_mag, p_star - 1))], FIX_PLANETS),
         "stars": ("恒星与二十八宿",
                   "本章说明恒星视位置、二十八宿距星的历代体系、宿度与入宿度去极度的计算，以及用历代实测宿度、石氏星表、史书日躔对这些计算与古代坐标量法所做的检验。文中方括号数字指文末参考文献。",
                   [demote(conv(p_star, p_refr - 1))], FIX_STARS),
-        "records": ("史书天象记录检验",
+        "records": ("史书天象检验",
                     "二十四史的天文志、五行志、本纪记有数千条日月食与凌犯。本章逐条按当时实行的历法换算日期，在当时都城推算是否真有其事，按朝代汇总。",
                     [conv(p_rec + 1, line_of("## 参考文献") - 1)], FIX_RECORDS),
     }
@@ -149,15 +149,15 @@ def build() -> None:
         body = generic(fix("\n\n".join(parts), fixes, name))
         tail = "" if name == "records" else "\n\n" + generic(refs)
         open(f"site/astronomy/{name}.md", "w").write(f"# {title}\n\n{intro}\n\n{body}{tail}\n")
-    sky = conv(1, 10**6, SKY).replace("# 3D 星空：当地所见的天空", "# 当地所见的星空", 1)
+    sky = conv(1, 10**6, SKY).replace("# 3D 星空：当地所见的天空", "# 当地星空", 1)
     sky = fix(sky + "\n\n" + demote(conv(p_refr, p_rec - 1)), FIX_SKY, "sky-view")
     open("site/astronomy/sky-view.md", "w").write(generic(sky) + "\n")
     # 附录：逐条校验结果（知识库中由脚本生成，原样转入）
     import os
     os.makedirs("site/appendix", exist_ok=True)
-    for src, dst, title in [("doc/astronomy/phenomena-checks.md", "site/appendix/phenomena-checks.md", "# 附录：天象逐条校验"),
-                            ("doc/calendar/main-table-checks.md", "site/appendix/main-table-checks.md", "# 附录：以本纪核验主表"),
-                            ("doc/calendar/calendar-source-texts.md", "site/appendix/source-texts.md", "# 附录：历法原文摘录")]:
+    for src, dst, title in [("doc/astronomy/phenomena-checks.md", "site/appendix/phenomena-checks.md", "# 天象逐条校验"),
+                            ("doc/calendar/main-table-checks.md", "site/appendix/main-table-checks.md", "# 本纪核验主表"),
+                            ("doc/calendar/calendar-source-texts.md", "site/appendix/source-texts.md", "# 历法原文摘录")]:
         t = conv(1, 10**6, src, verbatim="source-texts" in dst)
         t = re.sub(r"^# .*", title, t, count=1)
         # 生成说明一段（指向脚本与知识库）换成读者说明
@@ -210,8 +210,8 @@ FIX_SKY = [
 CAL_PAGES = [  # (知识库源, 站点页, 标题, 修补)
     ("doc/calendar/historical-calendar.md", "site/calendar/historical.md", "实历与主表", "FIX_HISTORICAL"),
     ("doc/calendar/calendar-compendium.md", "site/calendar/compendium.md", "历代历法总录", "FIX_COMPENDIUM"),
-    ("doc/calendar/push-algorithms.md", "site/calendar/push-algorithms.md", "各朝代、政权的推步算法", "FIX_PUSH"),
-    ("doc/calendar/qin-han-calendar-evaluation.md", "site/calendar/qin-han.md", "秦与汉初历法复原", "FIX_QINHAN"),
+    ("doc/calendar/push-algorithms.md", "site/calendar/push-algorithms.md", "各朝推步", "FIX_PUSH"),
+    ("doc/calendar/qin-han-calendar-evaluation.md", "site/calendar/qin-han.md", "秦与汉初历法", "FIX_QINHAN"),
 ]
 FIX_HISTORICAL = [
     (r"ChineseCalendar 的 里是", "ChineseCalendar 的程序里是"),
@@ -222,6 +222,9 @@ FIX_HISTORICAL = [
     (r"\n\s*此前曾把这一改正也用于 1182 年后[^\n]*", ""),
     (r"以前 `year_data` 误把表中日期当前推格里高利历，\n\s*1582 年以前的朔日 JD 因此偏了上述日数，已修正。", ""),
     (r"此前 ?把该日当作庚辰（庚辰是 2000 年的\*\*年\*\*干支），\n\s*所有日干支偏 38 日，已修正，并以", "以"),
+    # 日期约定、年号两节移至历法篇《历日与纪日》《年号纪年》（手写章）
+    (r"^## 日期约定[\s\S]*?(?=^## )", ""),
+    (r"^## 年号模块[\s\S]*?(?=^## )", ""),
 ]
 FIX_COMPENDIUM = [
     (r"与书的统计全同。转录在 。", "与书的统计全同。"),
