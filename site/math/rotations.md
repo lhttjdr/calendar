@@ -177,7 +177,11 @@ $$\operatorname{slerp}(q_a, q_b; s) = q_a\,(q_a^* q_b)^s$$
 
 视位置计算不只有转动。太阳的位置先在日心坐标里给出，要换到地心，需要平移；换到观测者所在的站心，还要再平移一次。
 
-刚体运动（转动加平移）也有一个类似欧拉定理的结论：任何刚体运动都等于绕某一根空间直线转动，同时沿这条直线平移，即一次"螺旋运动"。这一定理通常以沙勒（Michel Chasles，1830）命名，但意大利人莫齐（Giulio Mozzi）在 1763 年已经对无穷小运动给出了瞬时螺旋轴。
+刚体运动（转动加平移）也有一个类似欧拉定理的结论：任何刚体运动都等于绕某一根空间直线转动，同时沿这条直线平移，即一次"螺旋运动"。这一定理通常以沙勒（Michel Chasles）命名。他在 1831 年 2 月向巴黎爱智学会宣读的短文中，先证明刚体任意位移后总有一条直线回到原处，接着说：
+
+> …l'on peut toujours transporter un corps solide libre d'une position dans une autre position quelconque déterminée, par le mouvement continu d'une vis à laquelle ce corps serait fixé invariablement.（《费吕萨克通报》数学部分第 14 卷，1830 年 11 月号，第 324 页）
+
+即"自由刚体从一个位置到任一指定位置，总可以由固定在它上面的一根螺杆的连续运动来完成"。同文又指出无穷小运动"n'est autre que celui d'une vis dans son écrou"（就是螺杆在螺母中的运动）。不过意大利人莫齐（Giulio Mozzi）在 1763 年已经对无穷小运动给出了瞬时螺旋轴。
 
 ### 对偶数与对偶四元数
 
@@ -225,7 +229,7 @@ $$\hat q = q + \varepsilon\,\tfrac12\,\mathbf{t}\,q$$
 | 18 世纪 50—60 年代 | 欧拉 | 用三个角描述刚体方位（欧拉角） |
 | 1775—1776 | 欧拉 | 转动定理：任何转动都是绕一根轴的转动 |
 | 约 1819 | 高斯 | 手稿中的转动组合公式（身后发表） |
-| 1830 | 沙勒 | 刚体运动都是螺旋运动 |
+| 1830—1831 | 沙勒 | 刚体运动都是螺旋运动 |
 | 1840 | 罗德里格斯 | 转动的组合公式，四个参数 |
 | 1843—1844 | 哈密顿 | 四元数 |
 | 1845 | 凯莱 | 用四元数表示三维转动 |
@@ -250,7 +254,7 @@ $$\hat q = q + \varepsilon\,\tfrac12\,\mathbf{t}\,q$$
 3. W. R. Hamilton, "On quaternions; or on a new system of imaginaries in algebra", *Philosophical Magazine*, 3rd ser., 1844—1850 年分期连载（首期在第 25 卷）。据 D. R. Wilkins 所编录文核其刊载情况；卷页未逐期核对。
 4. A. Cayley, "On certain results relating to quaternions", *Philosophical Magazine* 26 (1845), 141–145；重印于 *The Collected Mathematical Papers of Arthur Cayley*, vol. 1, Cambridge, 1889, no. 20, 123–126。据 archive.org 所存重印本核。
 5. C. F. Gauss, "Mutationen des Raumes"（约 1819 年手稿），收入 *Werke* 第 8 卷（1900）。未核原书。
-6. M. Chasles, "Note sur les propriétés générales du système de deux corps semblables entr'eux…", *Bulletin des Sciences Mathématiques* (Férussac) 14 (1830), 321–326。未核原文。
+6. M. Chasles, "Note sur les propriétés générales du système de deux corps semblables entr'eux, et placés d'une manière quelconque dans l'espace; et sur le déplacement fini, ou infiniment petit, d'un corps solide libre", *Bulletin des Sciences Mathématiques, Astronomiques, Physiques et Chimiques*（费吕萨克编）14（1830 年 11 月号，题下注 1831 年 2 月 5 日宣读）, no. 198, 321–326。据 archive.org 所存本核。
 7. G. Mozzi, *Discorso matematico sopra il rotamento momentaneo dei corpi*, Napoli, 1763。未核原书。
 8. W. K. Clifford, "Preliminary sketch of biquaternions", *Proceedings of the London Mathematical Society* 4 (1873), nos. 64–65, 381–395；重印于 R. Tucker (ed.), *Mathematical Papers by William Kingdon Clifford*, London: Macmillan, 1882, 181–200。据 archive.org 所存重印本核。
 9. E. Study, *Geometrie der Dynamen*, Leipzig, 1903。未核原书。
