@@ -10,8 +10,8 @@
 
 | 年代 | 测定 | $\dot n$（$''/\mathrm{cy}^2$） | 方法 |
 |---|---|---|---|
-| 1939 | Spencer Jones | −22.44 | 太阳、水星、金星、月亮的历史观测比较 |
-| 1975 | Morrison、Ward | −26 | 水星凌日 |
+| 1939 | Spencer Jones | −22.44（值据通说） | 太阳、水星、金星、月亮的历史观测比较 |
+| 1975 | Morrison、Ward | −26 ± 2 | 1677—1973 年约 2400 次水星凌日观测 |
 | 1994 | Dickey 等 | −25.88 ± 0.5 | 激光测月 |
 | 2002 | Chapront 等（ELP/MPP02 所用） | −25.858 | 激光测月 |
 | 2014 | DE430/DE431 | −25.82 | 激光测月，数值历表 |
@@ -90,8 +90,8 @@ DE441 是 JPL 现行的长时段历表，月亮在古代与 DE431 差得很多�
 
 ## 参考文献
 
-1. H. Spencer Jones, "The rotation of the earth, and the secular accelerations of the sun, moon and planets", *Monthly Notices of the Royal Astronomical Society* 99 (1939), 541–558。未核原文。
-2. L. V. Morrison, C. G. Ward, "An analysis of the transits of Mercury: 1677–1973", *Monthly Notices of the Royal Astronomical Society* 173 (1975), 183–206。未核原文。
+1. H. Spencer Jones, "The rotation of the earth, and the secular accelerations of the sun, moon and planets", *Monthly Notices of the Royal Astronomical Society* 99 (1939), 541–558。据 ADS 扫描本核首页；表中 −22.44 未在首页见到，据通说。
+2. L. V. Morrison, C. G. Ward, "An analysis of the transits of Mercury: 1677–1973", *Monthly Notices of the Royal Astronomical Society* 173 (1975), 183–206。据 ADS 扫描本核摘要。
 3. J. O. Dickey et al., "Lunar laser ranging: a continuing legacy of the Apollo program", *Science* 265 (1994), 482–490。未核原文。
 4. J. Chapront, M. Chapront-Touzé, G. Francou, "A new determination of lunar orbital parameters, precession constant and tidal acceleration from LLR measurements", *Astronomy and Astrophysics* 387 (2002), 700–709。
 5. W. M. Folkner, J. G. Williams, D. H. Boggs, R. S. Park, P. Kuchynka, "The Planetary and Lunar Ephemerides DE430 and DE431", *IPN Progress Report* 42-196 (2014)。

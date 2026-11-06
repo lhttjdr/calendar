@@ -111,7 +111,7 @@ $$
 
 1. J. Bradley, "A letter … concerning an apparent motion observed in some of the fixed stars", *Philosophical Transactions of the Royal Society* 45 (1748), 1–43。未核原文。
 2. J. le R. d'Alembert, *Recherches sur la précession des equinoxes et sur la nutation de l'axe de la terre*, Paris, 1749。未核原书。
-3. S. C. Chandler, "On the variation of latitude", *Astronomical Journal* 11 (1891), 59–61 起连载。未核原文。
+3. S. C. Chandler, "On the variation of latitude", *Astronomical Journal* 11 (1891), 59 起连载。据 ADS 扫描本核首页。
 4. E. W. Woolard, "Theory of the rotation of the Earth around its center of mass", *Astronomical Papers of the American Ephemeris* 15, part 1 (1953)。未核原书。
 5. J. M. Wahr, "The forced nutations of an elliptical, rotating, elastic and oceanless Earth", *Geophysical Journal of the Royal Astronomical Society* 64 (1981), 705–727。
 6. P. M. Mathews, T. A. Herring, B. A. Buffett, "Modeling of nutation and precession: New nutation series for nonrigid Earth and insights into the Earth's interior", *Journal of Geophysical Research* 107(B4) (2002), 2068。
