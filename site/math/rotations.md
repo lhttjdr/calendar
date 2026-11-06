@@ -181,7 +181,11 @@ $$\operatorname{slerp}(q_a, q_b; s) = q_a\,(q_a^* q_b)^s$$
 
 ### 对偶数与对偶四元数
 
-克利福德（William Kingdon Clifford）在 1873 年引入"双四元数"（biquaternion），用一个满足 $\varepsilon^2 = 0$ 的"对偶单位"把两个四元数拼成一个对象；后来斯图迪（Eduard Study）把它系统地用于刚体运动学。对偶数 $a + \varepsilon b$ 的要害在于 $\varepsilon^2 = 0$：泰勒展开到一阶就截断，所以
+克利福德（William Kingdon Clifford）在 1873 年引入"双四元数"（biquaternion），用一个满足 $\varepsilon^2 = 0$ 的"对偶单位"把两个四元数拼成一个对象；后来斯图迪（Eduard Study）把它系统地用于刚体运动学。克利福德引入的符号 $\omega$ 把绕某轴的转动变成沿该轴的平移，他写道：
+
+> …if made to operate twice upon a motor, it reduces it to zero; or $\omega^2 A = 0$ always. The portion of any expression which involves $\omega$ must therefore be treated as an infinitesimal of the first order; all higher orders being uniformly neglected.（克利福德《双四元数初探》，《Mathematical Papers》第 186 页）
+
+这就是今天对偶数 $a + \varepsilon b$ 的要义：$\varepsilon^2 = 0$，泰勒展开到一阶就截断，所以
 
 $$f(a + \varepsilon b) = f(a) + \varepsilon\,b\,f'(a)$$
 
@@ -248,7 +252,7 @@ $$\hat q = q + \varepsilon\,\tfrac12\,\mathbf{t}\,q$$
 5. C. F. Gauss, "Mutationen des Raumes"（约 1819 年手稿），收入 *Werke* 第 8 卷（1900）。未核原书。
 6. M. Chasles, "Note sur les propriétés générales du système de deux corps semblables entr'eux…", *Bulletin des Sciences Mathématiques* (Férussac) 14 (1830), 321–326。未核原文。
 7. G. Mozzi, *Discorso matematico sopra il rotamento momentaneo dei corpi*, Napoli, 1763。未核原书。
-8. W. K. Clifford, "Preliminary sketch of biquaternions", *Proceedings of the London Mathematical Society* 4 (1873), 381–395。未核原文。
+8. W. K. Clifford, "Preliminary sketch of biquaternions", *Proceedings of the London Mathematical Society* 4 (1873), nos. 64–65, 381–395；重印于 R. Tucker (ed.), *Mathematical Papers by William Kingdon Clifford*, London: Macmillan, 1882, 181–200。据 archive.org 所存重印本核。
 9. E. Study, *Geometrie der Dynamen*, Leipzig, 1903。未核原书。
 10. Yan-Bin Jia, *Dual Quaternion*，爱荷华州立大学 ComS 477/577 讲义。对偶四元数的定义与运算据此。
 11. S. Newcomb, *A Compendium of Spherical Astronomy*, New York: Macmillan, 1906。未核原书。
