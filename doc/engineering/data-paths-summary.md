@@ -57,7 +57,7 @@ TDB↔TT 差约 1.6 ms 量级（TT ≈ TDB − 0.001658 sin(g) 等），定气/�
 |------|-----------------|------|
 | **默认路径** | `vendor/elpmpp02` | `DEFAULT_ELPMPP02_PATH`（目录：ELP_MAIN.S1/S2/S3、ELP_PERT.S1/S2/S3） |
 | **加载** | `load_all(loader, "vendor/elpmpp02", Elpmpp02Correction::DE406)` | 测试中写死 `vendor/elpmpp02` |
-| **示例** | `cargo run --example elpmpp02_to_bin -- ../vendor/elpmpp02` | 从 rust 目录跑时用 `../vendor/elpmpp02` |
+| **示例** | `cargo run -p lunar-core --example elpmpp02_to_bin --no-default-features --features real-f64 -- ../vendor/elpmpp02` | 从 rust 目录跑时用 `../vendor/elpmpp02` |
 
 无环境变量；测试/代码中直接写 `vendor/elpmpp02`。
 

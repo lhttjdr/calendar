@@ -72,7 +72,7 @@
 - API（`elpmpp02::parse`）：`main_to_binary`/`main_from_binary`、`pert_to_binary`/`pert_from_binary`、`Elpmpp02Raw::from_binary`；
   `load_all_from_binary(s1..s3, p1..p3, correction)` 用内置常数集（LLR、DE405、DE406），
   `load_all_from_binary_with_fit(bufs, fit, correction)` 用调用方给出的常数集（如 DE441 拟合）。
-- 生成 .bin：`cargo run -p lunar-core --example elpmpp02_to_bin -- ../vendor/elpmpp02`，在 `vendor/elpmpp02/` 下生成 6 个 `.bin`
+- 生成 .bin：`cargo run -p lunar-core --example elpmpp02_to_bin --no-default-features --features real-f64 -- ../vendor/elpmpp02`，在 `vendor/elpmpp02/` 下生成 6 个 `.bin`
   （生成物，不入库；入库的是 `web/public/data/elpmpp02/` 下的副本）。前端按魔数 `ELPM`/`ELPP` 判断，URL 缓存参数 `?v=3`。
 
 ---
@@ -97,7 +97,7 @@
   默认使用 `./vendor`（可传参指定 vendor 目录），拟合表部分固定读写 `./data/fit`。会生成 `vendor/vsop87/VSOP87B.ear.bin`、`vendor/elpmpp02/` 下 6 个 `.bin`、`vendor/IAU2000/tab5.3a.bin`。
 - **分别生成**：在 `rust` 目录下  
   VSOP87：`cargo run -p lunar-core --example vsop87_to_bin --no-default-features --features twofloat -- ../vendor/vsop87/VSOP87B.ear ../vendor/vsop87/VSOP87B.ear.bin`  
-  ELP：`cargo run -p lunar-core --example elpmpp02_to_bin -- ../vendor/elpmpp02`  
+  ELP：`cargo run -p lunar-core --example elpmpp02_to_bin --no-default-features --features real-f64 -- ../vendor/elpmpp02`  
   章动：`cargo run -p lunar-core --example tab53a_to_bin --no-default-features --features twofloat -- ..`（项目根）
 - **Brotli 压缩**（可选）：在项目根目录执行 `node scripts/ephemeris/compress_ephemeris_brotli.mjs [vendor 目录] [数据目录]`，会在 `vendor/`（含 `IAU2000/tab5.3a.bin`）与 `data/fit/` 下为每个 .bin 生成同名的 .br；前端会优先请求 .bin.br 并解压。
 - **前端数据**：在 `web` 目录执行 `npm run copy-data` 会把 `vendor/vsop87/`、`vendor/elpmpp02/`、`vendor/IAU2000/`（以及 `data/fit/`）拷贝到 `web/public/data/`（含 .txt/.ear、.bin、.br 若存在），供 fetch 使用。

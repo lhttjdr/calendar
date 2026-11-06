@@ -1,5 +1,6 @@
 //! 将 ELP-MPP02 六个文本文件的原始系数转为二进制 .bin（格式 v2，与常数集无关），供前端零解析加载。
-//! 运行（在 rust 目录）：cargo run -p lunar-core --example elpmpp02_to_bin -- ../vendor/elpmpp02
+//! 运行（在 rust 目录）：cargo run -p lunar-core --example elpmpp02_to_bin --no-default-features --features real-f64 -- ../vendor/elpmpp02
+//! 不带 python-test 特性：缺省特性会链接 libpython，CI（Pages 部署）环境没有（见 scripts/ephemeris/gen_ephemeris_bin.sh）。
 //! 会在同目录下生成 ELP_MAIN.S1.bin … ELP_PERT.S3.bin。
 
 use lunar_core::astronomy::ephemeris::elpmpp02::parse::{main_to_binary, pert_to_binary, Elpmpp02Raw};
