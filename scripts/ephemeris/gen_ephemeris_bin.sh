@@ -18,7 +18,8 @@ cargo run -p lunar-core --example vsop87_to_bin $CARGO_FEATURES -- \
 
 echo ""
 echo "=== ELP-MPP02 ==="
-cargo run -p lunar-core --example elpmpp02_to_bin -- \
+# 用 f64 且不带 python-test：缺省特性会链接 libpython，Pages 构建环境没有，此步因而失败（0c952cc、bf80750 两次部署）
+cargo run -p lunar-core --example elpmpp02_to_bin --no-default-features --features real-f64 -- \
   "$VENDOR_DIR/elpmpp02"
 
 echo ""
