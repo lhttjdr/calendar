@@ -186,7 +186,7 @@ $\sqrt{n}$ 来自截去的众多小项相位杂乱、正负相消，与上一节
 9. P. M. Mathews, T. A. Herring, B. A. Buffett, "Modeling of nutation and precession: New nutation series for nonrigid Earth and insights into the Earth's interior", *Journal of Geophysical Research* 107(B4) (2002), 2068。
 10. D. D. McCarthy, B. J. Luzum, "An abridged model of the precession-nutation of the celestial pole", *Celestial Mechanics and Dynamical Astronomy* 85 (2003), 37–49。未核原文。
 11. X X Newhall, "Numerical representation of planetary ephemerides", *Celestial Mechanics* 45 (1989), 305–310。据 ADS 扫描本核。
-12. W. G. Horner, "A new method of solving numerical equations of all orders, by continuous approximation", *Philosophical Transactions of the Royal Society* 109 (1819), 308–335。未核原文。
+12. W. G. Horner, "A new method of solving numerical equations of all orders, by continuous approximation", *Philosophical Transactions of the Royal Society* 109 (1819), 308–335。据 archive.org 所存 JSTOR 早期期刊本核题目卷页。
 13. W. Kahan, "Further remarks on reducing truncation errors", *Communications of the ACM* 8(1) (1965), 40。未核原文。
 14. A. Neumaier, "Rundungsfehleranalyse einiger Verfahren zur Summation endlicher Summen", *Zeitschrift für Angewandte Mathematik und Mechanik* 54 (1974), 39–51。未核原文。
 15. J. Meeus, *Astronomical Algorithms*, 2nd ed., Willmann-Bell, 1998，第 31 章《行星位置》、第 45 章《月球位置》。论断据 Meeus 原书；查阅所用为许剑伟的业余中译本（2008），未与英文原书逐字核对。
