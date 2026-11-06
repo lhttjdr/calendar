@@ -15,6 +15,8 @@
 | `precession-p03-vondrak` | P03 三角式与 Vondrák 2011（与 `rust/core` 同系数） |
 | `nutation-series` | `vendor/IAU2000/tab5.3a.txt` 日月项，IERS 2010 基本角 |
 | `synodic-month-length`、`solar-term-intervals` | 参考表 `vendor/月相和二十四节气的计算/TDBtimes.txt` |
+| `elp-de441-fit`、`elp-paper-vs-de441` | ELP/MPP02 两步法拟合 DE441 的逐世纪残差 `data/fit/elpmpp02-de441-residuals.csv` |
+| `delta-t-lunar-offset` | 两套 ELP/MPP02 常数集对 DE431 的月亮黄经差三次式（与 `rust/core` 时间模块常数一致），折算 ΔT 配套修正 |
 | `nasa-*` | `data/phenomena/checks/nasa_*.csv` |
 | `records-conjunction` | `doc/astronomy/phenomena-checks.md` 第七部分总表（检验脚本生成） |
 | `main-table-benji` | `doc/calendar/historical-calendar.md` 以本纪核验主表汇总 |

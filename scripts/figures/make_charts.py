@@ -438,7 +438,56 @@ def charts_lunation_terms() -> None:
     print(f"  朔望月 {len(pts)} 个：{min(lens):.4f}—{max(lens):.4f}；定气间隔 {min(gaps)}—{max(gaps)} 日")
 
 
+# ---------------------------------------------------------------- ELP/MPP02 拟合 DE441（data/fit/elpmpp02-de441-residuals.csv）
+
+def charts_elp_fit() -> None:
+    rows = list(csv.DictReader(open("data/fit/elpmpp02-de441-residuals.csv")))
+    fit = [r_ for r_ in rows if r_["constants"] == "fit"]
+    paper = [r_ for r_ in rows if r_["constants"] != "fit"]
+    mid = lambda r_: int(r_["century_start"]) + 50
+    save("elp-de441-fit", {
+        "type": "line",
+        "x": {"label": "年份（世纪中点）"},
+        "y": {"label": "ELP/MPP02（拟合 DE441 的常数集）− DE441，月亮黄经", "unit": "″"},
+        "series": [
+            {"name": "每世纪最大差", "data": [[mid(r_), float(r_["max_abs_dlon_arcsec"])] for r_ in fit]},
+            {"name": "每世纪 RMS", "data": [[mid(r_), float(r_["rms_dlon_arcsec"])] for r_ in fit]},
+        ],
+        "caption": "按两步法拟合 DE441 后，月亮黄经与 DE441 之差（前 3000—公元 3000 年，每世纪 60 个随机时刻）",
+    })
+    save("elp-paper-vs-de441", {
+        "type": "line",
+        "x": {"label": "年份（世纪中点）"},
+        "y": {"label": "月亮黄经与 DE441 之差，每世纪 RMS", "unit": "″"},
+        "series": [
+            {"name": "论文常数集（DE405 + Table 6）", "data": [[mid(r_), float(r_["rms_dlon_arcsec"])] for r_ in paper]},
+            {"name": "拟合 DE441 的常数集", "data": [[mid(r_), float(r_["rms_dlon_arcsec"])] for r_ in fit]},
+        ],
+        "caption": "论文常数集贴近 DE406，对 DE441 在古代差到数百角秒；按同法拟合 DE441 后降到 1″ 量级",
+    })
+    # ΔT 配套量：δΔT = −Δλ(T)/n_月，Δλ 为各常数集对 DE431 的三次式（T 为距 J2000 的儒略世纪）
+    n_moon = 0.549016  # ″/s
+    cubic = {
+        "论文常数集（DE406）": [-0.2382, 0.03751, 0.003724, 0.0001151],
+        "拟合 DE441 的常数集": [0.1267, 0.03611, 0.003559, 0.0032135],
+    }
+    years = np.arange(-3000, 3001, 25)
+    series = []
+    for name, c in cubic.items():
+        T = (years - 2000) / 100.0
+        dl = c[0] + c[1] * T + c[2] * T**2 + c[3] * T**3
+        series.append({"name": name, "data": [[int(y), r(-v / n_moon)] for y, v in zip(years, dl)]})
+    save("delta-t-lunar-offset", {
+        "type": "line",
+        "x": {"label": "年份"},
+        "y": {"label": "ΔT 配套修正（配 MS2021）", "unit": "s"},
+        "series": series,
+        "caption": "按月亮平黄经之差（对 MS2021 所配 DE431 的三次式）折算的 ΔT 配套修正：论文常数集在 2 秒以内，拟合 DE441 的常数集古代达数分钟",
+    })
+
+
 if __name__ == "__main__":
+    charts_elp_fit()
     charts_lunation_terms()
     charts_nutation()
     charts_precession()
