@@ -138,7 +138,7 @@ Dekker 在 1971 年据此提出：用两个双精度数之和 $x = x_\text{hi} +
 ## 参考文献
 
 1. 《元史》卷五十三《曆志二·授時曆議下·不用積年日法》，卷五十四《曆志三·授時曆經上·步氣朔第一》，明宋濂等撰。据维基文库录文。
-2. IEEE, *IEEE Standard for Binary Floating-Point Arithmetic*, ANSI/IEEE Std 754-1985；*IEEE Standard for Floating-Point Arithmetic*, IEEE Std 754-2008。未核原文。
+2. IEEE, *IEEE Standard for Binary Floating-Point Arithmetic*, ANSI/IEEE Std 754-1985（doi:10.1109/IEEESTD.1985.82928）；*IEEE Standard for Floating-Point Arithmetic*, IEEE Std 754-2008。据 Crossref 核 1985 版书目；标准正文未核。
 3. J. H. Wilkinson, *Rounding Errors in Algebraic Processes*, London: HMSO, 1963。未核原书。
 4. O. Møller, "Quasi double-precision in floating point addition", *BIT* 5 (1965), 37–50。据 Crossref 核书目，doi:10.1007/BF01975722。
 5. D. E. Knuth, *The Art of Computer Programming*, vol. 2: *Seminumerical Algorithms*, Reading: Addison-Wesley, 1969, §4.2.2。未核原书。

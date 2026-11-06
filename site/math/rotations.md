@@ -127,7 +127,7 @@ $$i^2 = j^2 = k^2 = ijk = -1$$
 
 他当场把这个式子刻在了布鲁姆桥的石头上。二十二年后（1865 年 8 月 5 日），他在给儿子 Archibald 的信中回忆："Nor could I resist the impulse — unphilosophical as it may have been — to cut with a knife on a stone of Brougham Bridge"（桥名当时作 Brougham，今作 Broome）。今天桥上的纪念牌记的就是这件事。哈密顿自次年起在《Philosophical Magazine》上分期发表这一结果，一直连载到 1850 年。
 
-两年后，凯莱（Arthur Cayley，1845）指出用四元数可以表示三维转动，即下文的 $q\,v\,q^*$。其实四元数乘法的组合规则，罗德里格斯 1840 年已经写出，只是没有把它看成一种新的数；高斯在 1819 年前后的手稿《Mutationen des Raumes》中也有类似公式，生前未发表。所以这四个参数又称"欧拉–罗德里格斯参数"。
+两年后，凯莱（Arthur Cayley，1845）写出 $(1+\lambda i+\mu j+\nu k)^{-1}(ix+jy+kz)(1+\lambda i+\mu j+\nu k)$，指出它给出的恰是一组直角坐标轴到另一组直角坐标轴的变换，其中 $\lambda = \tan\frac{\theta}{2}\cos f$ 等（$\theta$ 为转角，$f$ 等为转轴的方向角），并说："In fact the formulae are precisely those given for such a transformation by M. Olinde Rodrigues"（凯莱《论四元数的若干结果》，《数学论文集》第一卷第 124 页）。这就是下文的 $q\,v\,q^*$。其实四元数乘法的组合规则，罗德里格斯 1840 年已经写出，只是没有把它看成一种新的数；高斯在 1819 年前后的手稿《Mutationen des Raumes》中也有类似公式，生前未发表。所以这四个参数又称"欧拉–罗德里格斯参数"。
 
 ### 定义与乘法
 
@@ -248,7 +248,7 @@ $$\hat q = q + \varepsilon\,\tfrac12\,\mathbf{t}\,q$$
 1. L. Euler, "Formulae generales pro translatione quacunque corporum rigidorum", *Novi Commentarii academiae scientiarum Petropolitanae* 20 (1776), 189–207；Opera Omnia, ser. 2, vol. 9, 84–98（Eneström 编号 E478）。书目据欧拉档案（Euler Archive），未核原文。
 2. O. Rodrigues, "Des lois géométriques qui régissent les déplacements d'un système solide dans l'espace, et de la variation des coordonnées provenant de ces déplacements considérés indépendamment des causes qui peuvent les produire", *Journal de Mathématiques Pures et Appliquées*, 1re série, 5 (1840), 380–440。据 Numdam 数字化本核题目卷页。
 3. W. R. Hamilton, "On quaternions; or on a new system of imaginaries in algebra", *Philosophical Magazine*, 3rd ser., 1844—1850 年分期连载（首期在第 25 卷）。据 D. R. Wilkins 所编录文核其刊载情况；卷页未逐期核对。
-4. A. Cayley, "On certain results relating to quaternions", *Philosophical Magazine*, 3rd ser., 26 (1845), 141–145。未核原文。
+4. A. Cayley, "On certain results relating to quaternions", *Philosophical Magazine* 26 (1845), 141–145；重印于 *The Collected Mathematical Papers of Arthur Cayley*, vol. 1, Cambridge, 1889, no. 20, 123–126。据 archive.org 所存重印本核。
 5. C. F. Gauss, "Mutationen des Raumes"（约 1819 年手稿），收入 *Werke* 第 8 卷（1900）。未核原书。
 6. M. Chasles, "Note sur les propriétés générales du système de deux corps semblables entr'eux…", *Bulletin des Sciences Mathématiques* (Férussac) 14 (1830), 321–326。未核原文。
 7. G. Mozzi, *Discorso matematico sopra il rotamento momentaneo dei corpi*, Napoli, 1763。未核原书。

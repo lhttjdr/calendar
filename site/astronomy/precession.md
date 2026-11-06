@@ -25,7 +25,7 @@
 
 希帕恰斯（约前 130 年）比较自己与一百多年前提摩恰里斯（Timocharis）由月食推得的角宿一位置：角宿一在秋分点之前，提摩恰里斯时约 8°，他自己时约 6°；其他恒星也有同样的移动。于是推断是二分二至点在退，他在《论年长》中说每年"不少于 1/100 度"。托勒密比较自己与希帕恰斯所测的轩辕十四等星，得"约 100 年 1°"（《至大论》卷七第 2 章，Toomer 英译本第 327—328 页），即每年 36″，偏小近三成。阿拉伯天文学家巴塔尼（al-Battānī，约 900 年）得每 66 年 1°；中世纪还流行过"颤动说"（trepidation），认为春分点来回摆动，直到第谷的精确观测才被否定。
 
-岁差的物理原因由牛顿在《原理》（1687）中首次给出：日月对地球赤道隆起的力矩使地轴进动。牛顿的定量计算有误，达朗贝尔（1749）给出第一个严格的推导。此后岁差常数随观测不断修订：贝塞尔、斯特鲁维、纽康（1895 年定出的值为 IAU 1976 以前的标准），到 IAU 1976、IAU 2006。
+岁差的物理原因由牛顿在《原理》（1687）中首次给出：日月对地球赤道隆起的力矩使地轴进动。牛顿的定量计算有误，达朗贝尔（1749）给出第一个严格的推导。此后岁差常数随观测不断修订：贝塞尔、斯特鲁维、纽康，到 IAU 1976、IAU 2006。纽康的值是受 1896 年巴黎基本星会议之托重新测定的，1897 年先在《天文学杂志》发表（"At the Conference on a system of fundamental stars to be adopted for international use, held at Paris in May 1896, I was requested to make a new determination of the constant of precession"），此后一直是国际通用的岁差常数，直到 IAU 1976。
 
 ### 中国：岁差的发现与入历
 
@@ -171,7 +171,7 @@ J2000 前后几个世纪两者一致到毫角秒级（20、21 世纪之差小于
 3. C. Ptolemy, *Almagest*, trans. G. J. Toomer, London: Duckworth, 1984，卷七第 2—3 章（第 327—338 页）。据 archive.org 所存本核。
 4. I. Newton, *Philosophiae Naturalis Principia Mathematica*, London, 1687，第三卷命题三十九。未核原书。
 5. J. le R. d'Alembert, *Recherches sur la précession des equinoxes et sur la nutation de l'axe de la terre*, Paris, 1749。未核原书。
-6. S. Newcomb, "A new determination of the precessional constant", *Astronomical Papers of the American Ephemeris* 8 (1897)。未核原文。
+6. S. Newcomb, "A new determination of the precessional motion", *Astronomical Journal* 17 (1897), no. 405, 161 起。据 ADS 扫描本核首页；完整的正式刊本在 *Astronomical Papers of the American Ephemeris* 第 8 卷，未核。
 7. J. H. Lieske, T. Lederle, W. Fricke, B. Morando, "Expressions for the precession quantities based upon the IAU (1976) system of astronomical constants", *Astronomy and Astrophysics* 58 (1977), 1–16。
 8. N. Capitaine, P. T. Wallace, J. Chapront, "Expressions for IAU 2000 precession quantities", *Astronomy and Astrophysics* 412 (2003), 567–586。
 9. J. Vondrák, N. Capitaine, P. Wallace, "New precession expressions, valid for long time intervals", *Astronomy and Astrophysics* 534 (2011), A22。

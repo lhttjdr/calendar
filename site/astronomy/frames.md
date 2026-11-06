@@ -148,7 +148,7 @@ $$\mathbf r_{\text{地心}}(\text{天体}) = \mathbf r_{\text{日心}}(\text{天
 1. 《元史》卷五十二《曆志一·授時曆議上·周天列宿度》，明宋濂等撰。据维基文库录文。
 2. 潘鼐：《中国恒星观测史》（增订版），学林出版社，2009 年，第 14 页表 1.2.1，第 639—641 页。
 3. 《开元占经》，唐瞿昙悉达撰，卷六十至七十（石氏星表）。四库本。
-4. J. Kovalevsky, I. I. Mueller, "Comments on conventional terrestrial and quasi-inertial reference systems", in E. M. Gaposchkin, B. Kołaczek (eds.), *Reference Coordinate Systems for Earth Dynamics*, IAU Colloquium 56, Dordrecht: Reidel, 1981。未核原文。
+4. J. Kovalevsky, I. I. Mueller, "Comments on conventional terrestrial and quasi-inertial reference systems", in E. M. Gaposchkin, B. Kołaczek (eds.), *Reference Coordinate Systems for Earth Dynamics*, IAU Colloquium 56, Astrophysics and Space Science Library 86, Dordrecht: Reidel, 1981, 375–384。据 Crossref 核书目，doi:10.1007/978-94-009-8456-1_48。
 5. F. W. Bessel, *Fundamenta Astronomiae pro anno MDCCLV deducta ex observationibus viri incomparabilis James Bradley*, Königsberg, 1818。未核原书。
 6. W. Fricke et al., *Fifth Fundamental Catalogue (FK5)*, Veröffentlichungen Astronomisches Rechen-Institut Heidelberg 32, 1988。未核原书。
 7. C. Ma et al., "The International Celestial Reference Frame as realized by Very Long Baseline Interferometry", *Astronomical Journal* 116 (1998), 516–546。据 Crossref 核书目，doi:10.1086/300408。

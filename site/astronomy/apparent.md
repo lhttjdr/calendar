@@ -4,7 +4,7 @@
 
 ## 源流
 
-**光速有限。** 古人多以为光的传播是瞬时的。1676 年罗默（Ole Rømer）发现木卫一的食在木星远离地球时推迟、靠近时提前，推断光走过地球轨道直径要二十余分钟，这是光速有限的第一个证据，也是"光行时"的由来。
+**光速有限。** 古人多以为光的传播是瞬时的。1676 年罗默（Ole Rømer）发现木卫一的食在木星远离地球时推迟、靠近时提前，推断光走过地球轨道直径要约 22 分钟（实际约 16.6 分钟）。他据此预言当年 11 月 9 日木卫一的复现会比按 8 月观测推算的晚约 10 分钟，结果应验。这是光速有限的第一个证据，也是"光行时"的由来。
 
 **光行差。** 布拉德雷本想测量恒星的周年视差，1725—1728 年观测天龙座 γ 星，发现它确有周年的位移，但方向与视差应有的方向差了 90°：位移最大时，不是地球离该星最远或最近之时，而是地球运动方向与星的方向垂直之时。他认识到这是地球运动速度与光速合成的结果，1729 年发表，由此测得光速，并给出地球公转的第一个直接证据。光行差常数约 20″，比当时任何恒星的视差都大得多；恒星视差直到 1838 年才由贝塞尔测出（天鹅座 61，约 0.3″）。
 
@@ -128,7 +128,7 @@ $\dot R$ 是转动矩阵对时间的导数。速度用于求根时的解析导�
 
 ## 参考文献
 
-1. O. Rømer, "Démonstration touchant le mouvement de la lumière", *Journal des Sçavans* (1676), 233–236。未核原文。
+1. O. Rømer, "Démonstration touchant le mouvement de la lumière", *Journal des Sçavans* (1676 年 12 月 7 日)，法文原刊未核；英译 "A demonstration concerning the motion of light, communicated from Paris, in the Journal des Sçavans, and here made English", *Philosophical Transactions* 12 (1677), 893–894，据 archive.org 所存 JSTOR 早期期刊本核。
 2. J. Bradley, "A letter … to Dr. Edmond Halley … giving an account of a new discovered motion of the fix'd stars", *Philosophical Transactions of the Royal Society* 35（卷期标 1727—1728 年，1729 年刊出）, 636–660。据 archive.org 所存 JSTOR 早期期刊本核题目卷页。
 3. F. W. Bessel, "Bestimmung der Entfernung des 61sten Sterns des Schwans", *Astronomische Nachrichten* 16 (1838), Nr. 365–366, 65–96。据 ADS 扫描本核。
 4. I. I. Shapiro, "Fourth test of general relativity", *Physical Review Letters* 13 (1964), 789–791。据 Crossref 核书目，doi:10.1103/PhysRevLett.13.789。
