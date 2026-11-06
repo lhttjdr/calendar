@@ -207,16 +207,7 @@ FIX_SKY = [
     (r"此前 Bennett 的结果与之相比", "Bennett 公式的结果与之相比"),
 ]
 
-CAL_PAGES = [  # (知识库源, 站点页, 标题, 修补)
-    ("doc/calendar/calendar-compendium.md", "site/calendar/compendium.md", "历代历法总录", "FIX_COMPENDIUM"),
-]
-FIX_COMPENDIUM = [
-    (r"与书的统计全同。转录在 。", "与书的统计全同。"),
-    (r"（此前本文误作「本志无」）", ""),
-    (r"（有明文，此前本文误作「志文无」）", "（有明文）"),
-    (r"（有明文，此前本文误作由本纪归纳）", "（有明文）"),
-    (r"本项目文档和代码注释原先标反，已改。", ""),
-    (r"\n\*\*改正的 ?程序错误\*\*[^\n]*\n", "\n"),
+CAL_PAGES: list[tuple[str, str, str, str]] = [  # 历法篇各章已全部改为手写；保留机制备用 (知识库源, 站点页, 标题, 修补)
 ]
 
 
