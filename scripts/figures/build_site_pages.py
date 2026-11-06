@@ -209,7 +209,6 @@ FIX_SKY = [
 
 CAL_PAGES = [  # (知识库源, 站点页, 标题, 修补)
     ("doc/calendar/calendar-compendium.md", "site/calendar/compendium.md", "历代历法总录", "FIX_COMPENDIUM"),
-    ("doc/calendar/push-algorithms.md", "site/calendar/push-algorithms.md", "各朝推步", "FIX_PUSH"),
     ("doc/calendar/qin-han-calendar-evaluation.md", "site/calendar/qin-han.md", "秦与汉初历法", "FIX_QINHAN"),
 ]
 FIX_COMPENDIUM = [
@@ -219,10 +218,6 @@ FIX_COMPENDIUM = [
     (r"（有明文，此前本文误作由本纪归纳）", "（有明文）"),
     (r"本项目文档和代码注释原先标反，已改。", ""),
     (r"\n\*\*改正的 ?程序错误\*\*[^\n]*\n", "\n"),
-]
-FIX_PUSH = [
-    (r"；以上记录均在 。", "。"),
-    (r"， 改为 551 年仍用兴和历。原 3.3 列「北齐天保二年三月三日只合主表」由此\n解决：", "；551 年仍用兴和历。北齐天保二年三月三日只合主表，原因在此："),
 ]
 FIX_QINHAN: list[tuple[str, str]] = []
 
