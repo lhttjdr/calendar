@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, createContext, useContext } from 'react'
-import { Button, Card, Select, Radio, Checkbox, Space, Flex, Typography, Tag, Spin, Alert, Modal, Tabs } from 'antd'
+import { Button, Card, Select, Radio, Checkbox, Space, Flex, Typography, Tag, Spin, Alert, Modal, Tabs, InputNumber } from 'antd'
 import { LeftOutlined, RightOutlined, CalendarOutlined, SettingOutlined, ApartmentOutlined, EyeOutlined, GlobalOutlined, StarOutlined, ReadOutlined } from '@ant-design/icons'
 import { TransformGraphPage } from './TransformGraphPage'
 import { EclipseMapPage } from './EclipseMapPage'
@@ -23,6 +23,9 @@ import {
   GANZHI_MONTH_BOUNDARY_OPTIONS,
   GANZHI_LEAP_MONTH_OPTIONS,
   GANZHI_DAY_BOUNDARY_OPTIONS,
+  GANZHI_SOLAR_TERM_MODE_OPTIONS,
+  HOUR_CLOCK_OPTIONS,
+  getLocalSolarHours,
   LUNAR_MONTH_NAMES,
   lunarDayStr,
   type YearData,
@@ -30,7 +33,7 @@ import {
   type GanzhiOptionsTuple,
   type RealBackendVariant,
 } from './useLunarWasm'
-import { civilMonthDays, convertDisplayDateTime, displayCivilToJd, formatDateInTimeZone, civilToProleptic, clampCivilDay, displayCalendarName, isCalendarMode, isFullyGregorianMonth, jdToDisplayDate, localDate, ROMAN_SCHEMES, setCalendarMode, type CalendarMode } from './civilTime'
+import { utcFromLocalInZone, civilMonthDays, convertDisplayDateTime, displayCivilToJd, formatDateInTimeZone, civilToProleptic, clampCivilDay, displayCalendarName, isCalendarMode, isFullyGregorianMonth, jdToDisplayDate, localDate, ROMAN_SCHEMES, setCalendarMode, type CalendarMode } from './civilTime'
 import { EPHEMERIS_SOURCE_LABELS, EPHEMERIS_FORMAT_LABELS, type EphemerisDataSource } from './ephemerisSourceRegistry'
 import { EARTH_PATCH_TARGET } from './ephemerisUrls'
 
@@ -297,6 +300,9 @@ function App() {
   const [error, setError] = useState<string | null>(null)
   const [ganzhiOptions, setGanzhiOptions] = useState<GanzhiOptionsTuple>(() => GANZHI_PRESET_OPTIONS[3]!)
   const [optionsPanelOpen, setOptionsPanelOpen] = useState(false)
+  /** 时柱所用钟点：0=时区钟点 1=当地平太阳时 2=当地真太阳时；经度为东经度数 */
+  const [hourClockMode, setHourClockMode] = useState(0)
+  const [observerLongitude, setObserverLongitude] = useState(116.4)
   const [displayLayersPanelOpen, setDisplayLayersPanelOpen] = useState(false)
   /** 仅小时变化时更新，用于年月日时与农历/八字；不每秒更新避免整页重算 */
   const [nowForLunar, setNowForLunar] = useState(() => new Date())
@@ -620,12 +626,36 @@ function App() {
         })()
       : []
 
-  // 子初换日（日界选项 0）：23 时起日柱已是次日；格子和 selectedGanzhi 按日期，这里再按时刻进一日
-  const dayPillar = selectedGanzhi?.dayName && ganzhiOptions[3] === 0 && displayHour === 23
-    ? GAN[(GAN.indexOf(selectedGanzhi.dayName[0]!) + 1) % 10]! + ZHI[(ZHI.indexOf(selectedGanzhi.dayName[1]!) + 1) % 12]!
+  // 时柱钟点：按所选时区钟点，或换成当地平太阳时、真太阳时（《協紀辨方書》卷三十四取太阳到方时刻）。
+  // 当地太阳时与钟点之差可跨日（如西部地区），日柱随之进退一日。
+  const wallHours = displayHour + displayMinute / 60 + displaySecond / 3600
+  const localSolarHours = hourClockMode === 0 || !wasm
+    ? null
+    : (() => {
+        const utc = utcFromLocalInZone({ year: displayY, month: displayM, day: displayD, hour: displayHour, minute: displayMinute, second: displaySecond }, timeZone)
+        const jdUt = utc.getTime() / 86400000 + 2440587.5
+        return getLocalSolarHours(wasm, jdUt, observerLongitude, hourClockMode as 1 | 2)
+      })()
+  let pillarDayShift = 0
+  let pillarHour = displayHour
+  if (localSolarHours != null) {
+    let diff = localSolarHours - wallHours
+    diff -= 24 * Math.round(diff / 24)
+    const t = wallHours + diff
+    pillarDayShift = Math.floor(t / 24)
+    pillarHour = Math.floor(t - 24 * pillarDayShift)
+  }
+  const shiftGanzhi = (name: string, n: number) =>
+    GAN[(((GAN.indexOf(name[0]!) + n) % 10) + 10) % 10]! + ZHI[(((ZHI.indexOf(name[1]!) + n) % 12) + 12) % 12]!
+  const baseDayName = selectedGanzhi?.dayName && /^[\u4e00-\u9fa5]{2}$/.test(selectedGanzhi.dayName)
+    ? shiftGanzhi(selectedGanzhi.dayName, pillarDayShift)
     : selectedGanzhi?.dayName
-  const hourGanzhi = selectedGanzhi?.dayName && /^[\u4e00-\u9fa5]{2}$/.test(selectedGanzhi.dayName)
-    ? getHourGanzhi(selectedGanzhi.dayName, displayHour)
+  // 子初换日（日界选项 0）：23 时起日柱已是次日；格子和 selectedGanzhi 按日期，这里再按时刻进一日
+  const dayPillar = baseDayName && /^[\u4e00-\u9fa5]{2}$/.test(baseDayName) && ganzhiOptions[3] === 0 && pillarHour === 23
+    ? shiftGanzhi(baseDayName, 1)
+    : baseDayName
+  const hourGanzhi = baseDayName && /^[\u4e00-\u9fa5]{2}$/.test(baseDayName)
+    ? getHourGanzhi(baseDayName, pillarHour)
     : ''
 
   const yearOptions = useMemo(() => {
@@ -1145,7 +1175,7 @@ function App() {
                       <Text type="secondary" style={{ fontSize: 11 }}>年界</Text>
                       <Radio.Group
                         value={ganzhiOptions[0]}
-                        onChange={(e) => setGanzhiOptions((o) => [e.target.value, o[1], o[2], o[3]])}
+                        onChange={(e) => setGanzhiOptions((o) => [e.target.value, o[1], o[2], o[3], o[4]])}
                         options={GANZHI_YEAR_BOUNDARY_OPTIONS.map(({ value, label }) => ({ value, label }))}
                         style={{ marginTop: 4, display: 'block' }}
                       />
@@ -1154,7 +1184,7 @@ function App() {
                       <Text type="secondary" style={{ fontSize: 11 }}>月界</Text>
                       <Radio.Group
                         value={ganzhiOptions[1]}
-                        onChange={(e) => setGanzhiOptions((o) => [o[0], e.target.value, o[2], o[3]])}
+                        onChange={(e) => setGanzhiOptions((o) => [o[0], e.target.value, o[2], o[3], o[4]])}
                         options={GANZHI_MONTH_BOUNDARY_OPTIONS.map(({ value, label }) => ({ value, label }))}
                         style={{ marginTop: 4, display: 'block' }}
                       />
@@ -1163,7 +1193,7 @@ function App() {
                       <Text type="secondary" style={{ fontSize: 11 }}>闰月</Text>
                       <Radio.Group
                         value={ganzhiOptions[2]}
-                        onChange={(e) => setGanzhiOptions((o) => [o[0], o[1], e.target.value, o[3]])}
+                        onChange={(e) => setGanzhiOptions((o) => [o[0], o[1], e.target.value, o[3], o[4]])}
                         options={GANZHI_LEAP_MONTH_OPTIONS.map(({ value, label }) => ({ value, label }))}
                         style={{ marginTop: 4, display: 'block' }}
                       />
@@ -1172,10 +1202,42 @@ function App() {
                       <Text type="secondary" style={{ fontSize: 11 }}>日界</Text>
                       <Radio.Group
                         value={ganzhiOptions[3]}
-                        onChange={(e) => setGanzhiOptions((o) => [o[0], o[1], o[2], e.target.value])}
+                        onChange={(e) => setGanzhiOptions((o) => [o[0], o[1], o[2], e.target.value, o[4]])}
                         options={GANZHI_DAY_BOUNDARY_OPTIONS.map(({ value, label }) => ({ value, label }))}
                         style={{ marginTop: 4, display: 'block' }}
                       />
+                    </div>
+                    <div style={{ marginTop: 12 }}>
+                      <Text type="secondary" style={{ fontSize: 11 }}>节气</Text>
+                      <Radio.Group
+                        value={ganzhiOptions[4]}
+                        onChange={(e) => setGanzhiOptions((o) => [o[0], o[1], o[2], o[3], e.target.value])}
+                        options={GANZHI_SOLAR_TERM_MODE_OPTIONS.map(({ value, label }) => ({ value, label }))}
+                        style={{ marginTop: 4, display: 'block' }}
+                      />
+                    </div>
+                    <div style={{ marginTop: 12 }}>
+                      <Text type="secondary" style={{ fontSize: 11 }}>时柱钟点</Text>
+                      <Radio.Group
+                        value={hourClockMode}
+                        onChange={(e) => setHourClockMode(e.target.value)}
+                        options={HOUR_CLOCK_OPTIONS.map(({ value, label }) => ({ value, label }))}
+                        style={{ marginTop: 4, display: 'block' }}
+                      />
+                      {hourClockMode !== 0 && (
+                        <div style={{ marginTop: 6 }}>
+                          <Text type="secondary" style={{ fontSize: 11, marginRight: 6 }}>东经</Text>
+                          <InputNumber
+                            size="small"
+                            min={-180}
+                            max={180}
+                            step={0.1}
+                            value={observerLongitude}
+                            onChange={(v) => v != null && setObserverLongitude(v)}
+                            addonAfter="°"
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

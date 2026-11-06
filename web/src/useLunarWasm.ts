@@ -176,6 +176,28 @@ export async function ensureVsop87Cached(): Promise<void> {
   if (GANZHI_DEBUG) console.log('[干支历] ensureVsop87Cached 已设置 长度', cachedVsop87Ear.length)
 }
 
+/**
+ * 当地太阳时（小时，[0, 24)），供时柱按当地时间划分时辰。
+ * mode：1=平太阳时（UT+经度/15），2=视太阳时（真太阳时，含均时差，需已缓存 VSOP87）。
+ * 不可用时返回 null。
+ */
+export function getLocalSolarHours(wasm: LunarBackend, jdUt: number, longitudeDeg: number, mode: 1 | 2): number | null {
+  if (typeof wasm.local_solar_hours_wasm !== 'function') return null
+  if (mode === 2 && cachedVsop87Ear == null) return null
+  try {
+    return wasm.local_solar_hours_wasm(jdUt, longitudeDeg, mode, cachedVsop87Ear ?? '')
+  } catch {
+    return null
+  }
+}
+
+/** 时柱所用钟点：0=所选时区钟点，1=当地平太阳时，2=当地真太阳时 */
+export const HOUR_CLOCK_OPTIONS: { value: number; label: string }[] = [
+  { value: 0, label: '时区钟点' },
+  { value: 1, label: '当地平太阳时' },
+  { value: 2, label: '当地真太阳时' },
+]
+
 /** 是否已缓存 VSOP87（节气历年/月干支兜底用）。用于避免重复触发加载。 */
 export function isVsop87Cached(): boolean {
   return cachedVsop87Ear != null
@@ -540,18 +562,18 @@ export function getLunarSlotForDay(
 }
 
 /**
- * 干支历预设，每项 [year_boundary, month_boundary, leap_handling, day_boundary]，与 Rust gan_zhi_options 的 preset_* 一致：
+ * 干支历预设，每项 [year_boundary, month_boundary, leap_handling, day_boundary, solar_term_mode]，与 Rust gan_zhi_options 的 preset_* 一致：
  * 0=子平（子正）：立春、十二节、子正换日（《三命通會》《星平大成》《命理探源》；年月同《協紀辨方書》）
  * 1=子平（子初）：同上而 23 时换日（今人多从，原典未见）
  * 2=紫微斗数：农历年月、闰月整月作下月（《紫微斗數全書》卷三）、子正
  * 3=农历月干支：农历年月、闰月随前月、子正（今人万年历，原典未见）
  * 出处详见 doc/folk/ganzhi-calendar.md
  */
-export const GANZHI_PRESET_OPTIONS: [number, number, number, number][] = [
-  [0, 0, 0, 1],
-  [0, 0, 0, 0],
-  [1, 1, 3, 1],
-  [1, 1, 1, 1],
+export const GANZHI_PRESET_OPTIONS: GanzhiOptionsTuple[] = [
+  [0, 0, 0, 1, 0],
+  [0, 0, 0, 0, 0],
+  [1, 1, 3, 1, 0],
+  [1, 1, 1, 1, 0],
 ]
 
 /** 预设名称，与 GANZHI_PRESET_OPTIONS 下标对应 */
@@ -581,12 +603,18 @@ export const GANZHI_DAY_BOUNDARY_OPTIONS: { value: number; label: string }[] = [
   { value: 1, label: '0时(子正)' },
 ]
 
-export type GanzhiOptionsTuple = [number, number, number, number]
+/** 节气 0=定气 1=授时、大统平气（只影响立春换年、按节换月） */
+export const GANZHI_SOLAR_TERM_MODE_OPTIONS: { value: number; label: string }[] = [
+  { value: 0, label: '定气' },
+  { value: 1, label: '平气（授时、大统，1281—1644）' },
+]
+
+/** [年界, 月界, 闰月, 日界, 节气] */
+export type GanzhiOptionsTuple = [number, number, number, number, number]
 
 /** 当前选项与某预设一致则返回其下标，否则返回 -1 */
 export function getPresetIndexFromOptions(opts: GanzhiOptionsTuple): number {
-  const [yb, mb, leap, db] = opts
-  const idx = GANZHI_PRESET_OPTIONS.findIndex((p) => p[0] === yb && p[1] === mb && p[2] === leap && p[3] === db)
+  const idx = GANZHI_PRESET_OPTIONS.findIndex((p) => p.every((v, i) => v === opts[i]))
   return idx >= 0 ? idx : -1
 }
 
@@ -604,7 +632,7 @@ export function getGanzhiForMonth(
   opts: GanzhiOptionsTuple
 ): Record<number, GanzhiResult | null> {
   const days = new Date(year, month, 0).getDate()
-  const [yb, mb, leap, db] = opts
+  const [yb, mb, leap, db, tm] = opts
 
   if (typeof wasm.ganzhiForGregorianMonthWasm === 'function' && yearDataList.length > 0) {
     const primary = yearDataList[0]!
@@ -623,7 +651,8 @@ export function getGanzhiForMonth(
       mb,
       leap,
       db,
-      cachedVsop87Ear ?? ''
+      cachedVsop87Ear ?? '',
+      tm
     )
     const yearNames = res.yearNames ?? []
     const monthNames = res.monthNames ?? []
@@ -670,7 +699,7 @@ export function getGanzhiForDay(
   yearDataList: YearData[],
   opts: GanzhiOptionsTuple
 ): GanzhiResult {
-  const [yb, mb, leap, db] = opts
+  const [yb, mb, leap, db, tm] = opts
   const jd = wasm.gregorian_to_jd(year, month, day)
   const dayName = wasm.gregorian_to_gan_zhi_day_with_options(year, month, day, db)
 
@@ -697,7 +726,7 @@ export function getGanzhiForDay(
   let solarFallback: { yearName: string; monthName: string } | null = null
   if (cachedVsop87Ear != null) {
     try {
-      const r = wasm.ganzhi_from_jd_solar_wasm(jd, cachedVsop87Ear, db)
+      const r = wasm.ganzhi_from_jd_solar_wasm(jd, cachedVsop87Ear, db, tm)
       const yn = getStr(r, 'year_name')
       const mn = getStr(r, 'month_name')
       if (GANZHI_DEBUG) {

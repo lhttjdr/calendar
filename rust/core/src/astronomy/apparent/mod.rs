@@ -4,12 +4,14 @@ mod equatorial;
 mod longitude;
 mod magnitude;
 mod planets;
+mod solar_time;
 mod star;
 mod topocentric;
 pub use equatorial::*;
 pub use longitude::*;
 pub use magnitude::*;
 pub use planets::*;
+pub use solar_time::*;
 pub use star::*;
 pub use topocentric::*;
 

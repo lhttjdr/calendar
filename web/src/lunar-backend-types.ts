@@ -39,7 +39,7 @@ export interface LunarBackend {
   gregorian_to_gan_zhi_day(year: number, month: number, day: number): string
   gregorian_to_gan_zhi_day_with_options(year: number, month: number, day: number, day_boundary: number): string
   ganzhi_preset_name(preset_index: number): string
-  ganzhi_from_jd_solar_wasm(jd: number, vsop87_ear: string, day_boundary: number): { year_name: string; month_name: string; day_name: string }
+  ganzhi_from_jd_solar_wasm(jd: number, vsop87_ear: string, day_boundary: number, solar_term_mode: number): { year_name: string; month_name: string; day_name: string }
   ganzhi_from_jd_lunar_wasm(
     jd: number,
     lunar_year: number,
@@ -65,7 +65,8 @@ export interface LunarBackend {
     month_boundary: number,
     leap_month_handling: number,
     day_boundary: number,
-    vsop87_ear: string
+    vsop87_ear: string,
+    solar_term_mode: number
   ): { yearNames: string[]; monthNames: string[]; dayNames: string[] }
   compute_year_data_wasm(
     lunar_year: number,
@@ -120,6 +121,8 @@ export interface LunarBackend {
   get_repo_aux_earth_patch?(): boolean
   /** ΔT 秒数（TT − UT），用于将岁数据中的 JD(TT) 转为 JD(UT) 以显示合朔/交节时刻。可选。 */
   delta_t_seconds?(jd_tt: number): number
+  /** 当地太阳时（小时）；mode 1=平太阳时 2=真太阳时 */
+  local_solar_hours_wasm?(jd_ut: number, longitude_deg: number, mode: number, vsop87_ear: string): number
   /** 主线该农历年行用之历的名称（麟德历、时宪历……）。 */
   get_calendar_name?(lunar_year: number): string
   /** 该农历年通行的计时写法；时制不明的年代返回空串。 */

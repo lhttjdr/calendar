@@ -4,7 +4,7 @@
 
 use crate::calendar::gan_zhi::{jd_to_gan_zhi_index, GAN_ZHI_60};
 use crate::calendar::gregorian::Gregorian;
-use crate::math::real::{real, Real, ToReal};
+use crate::math::real::{real, real_const, Real, RealOps, ToReal};
 
 /// 换年干支
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -58,6 +58,19 @@ pub enum DayBoundary {
     Hour0,
 }
 
+/// 节气派用定气还是平气（只影响立春换年、按节换月；农历派的月份来自实历表与定朔）
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum SolarTermMode {
+    /// 定气：太阳视黄经每 15° 一气。清时宪历顺治二年（1645）起行用
+    #[default]
+    Dingqi,
+    /// 授时、大统平气：天正冬至 = 气应 + 距算 × 岁实，每气加气策（岁实/24）。
+    /// 《元史》卷五十四《授時曆經上》：歲實 365.2425 日、氣應 55.0600 日（至元十八年辛巳为元）；
+    /// 《明史》卷三十一：元统「取《授時曆》，去其歲實消長之說」为《大統曆》。适用 1281—1644 年，范围外为外推。
+    PingqiShoushiDatong,
+}
+
 /// 干支历完整配置
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GanzhiOptions {
@@ -65,6 +78,7 @@ pub struct GanzhiOptions {
     pub month_boundary: MonthBoundary,
     pub leap_month_handling: LeapMonthHandling,
     pub day_boundary: DayBoundary,
+    pub solar_term_mode: SolarTermMode,
 }
 
 impl Default for GanzhiOptions {
@@ -74,6 +88,7 @@ impl Default for GanzhiOptions {
             month_boundary: MonthBoundary::default(),
             leap_month_handling: LeapMonthHandling::default(),
             day_boundary: DayBoundary::default(),
+            solar_term_mode: SolarTermMode::default(),
         }
     }
 }
@@ -87,6 +102,7 @@ pub fn preset_zi_ping_ba_zi() -> GanzhiOptions {
         month_boundary: MonthBoundary::SolarTerm,
         leap_month_handling: LeapMonthHandling::Ignore,
         day_boundary: DayBoundary::Hour0,
+        solar_term_mode: SolarTermMode::Dingqi,
     }
 }
 
@@ -106,6 +122,7 @@ pub fn preset_purple_star() -> GanzhiOptions {
         month_boundary: MonthBoundary::LunarFirstDay,
         leap_month_handling: LeapMonthHandling::ShiftToNext,
         day_boundary: DayBoundary::Hour0,
+        solar_term_mode: SolarTermMode::Dingqi,
     }
 }
 
@@ -116,6 +133,7 @@ pub fn preset_lunar_month_ganzhi() -> GanzhiOptions {
         month_boundary: MonthBoundary::LunarFirstDay,
         leap_month_handling: LeapMonthHandling::InheritPrevious,
         day_boundary: DayBoundary::Hour0,
+        solar_term_mode: SolarTermMode::Dingqi,
     }
 }
 
@@ -160,6 +178,37 @@ pub const LI_CHUN_TERM_INDEX: usize = 21;
 #[allow(dead_code)]
 pub const WINTER_SOLSTICE_TERM_INDEX: usize = 18;
 
+// ---------- 授时、大统平气 ----------
+
+/// 授时历岁实（日）：《元史》卷五十四「歲實，三百六十五萬二千四百二十五分」，日周一万。
+pub const SHOUSHI_SUI_SHI_DAYS: Real = real_const(365.2425);
+/// 至元十八年辛巳（1281）岁前天正冬至，北京地方平时的 JD：
+/// 气应 55.0600 日（「氣應，五十五萬六百分」），即甲子起第 55 日己未、夜半后 0.06 日；
+/// 该日为儒略历 1280-12-14，夜半 JD 2188925.5。
+pub const SHOUSHI_WINTER_SOLSTICE_1281_JD_LOCAL: Real = real_const(2188925.56);
+/// 授时、大统推步所据地方时的经度（°E）：大都、北京约 116.4°。
+pub const SHOUSHI_LONGITUDE_DEG: Real = real_const(116.4);
+
+/// 授时、大统平气：把某公历年的 24 定气（索引同 solar_term_jds_for_year：0=春分 … 18=冬至 … 23=惊蛰）
+/// 换成同名平气，返回 JD(TT)。每个平气取与同名定气最接近的一次（两者相差不过两日余）。
+/// 地方平时 → UT 减经度/360 日，UT → TT 加 ΔT。
+pub fn pingqi_shoushi_datong_jds(dingqi_tt: &[Real]) -> Vec<Real> {
+    use crate::astronomy::time::delta_t;
+    let s = SHOUSHI_SUI_SHI_DAYS;
+    let w0_ut = SHOUSHI_WINTER_SOLSTICE_1281_JD_LOCAL - SHOUSHI_LONGITUDE_DEG / real_const(360.0);
+    dingqi_tt
+        .iter()
+        .enumerate()
+        .map(|(k, &dq)| {
+            let q = real((k as i64 - 18).rem_euclid(24) as f64); // 距冬至的气数
+            let base_ut = w0_ut + q * s / real_const(24.0);
+            let j = ((dq - base_ut) / s + real_const(0.5)).floor();
+            let ut = base_ut + j * s;
+            ut + delta_t(ut).in_days_value()
+        })
+        .collect()
+}
+
 // ---------- 干支纪年/纪月（节气派：立春换年 + 十二节换月） ----------
 
 /// 用节气派（立春换年、十二节换月）计算 JD 对应的年/月/日干支序。需 VSOP87。JD 用 Real。
@@ -172,12 +221,19 @@ pub fn ganzhi_from_jd_solar(
 
     let jd_r = real(jd);
     let (y, _, _) = Gregorian::from_julian_day(jd_r);
-    let terms_this = solar_term_jds_for_year_cached(vsop, y);
-    let terms_next = solar_term_jds_for_year_cached(vsop, y + 1);
+    let terms = |year: i32| {
+        let dq = solar_term_jds_for_year_cached(vsop, year);
+        match options.solar_term_mode {
+            SolarTermMode::PingqiShoushiDatong => pingqi_shoushi_datong_jds(&dq),
+            _ => dq,
+        }
+    };
+    let terms_this = terms(y);
+    let terms_next = terms(y + 1);
     let lichun_this = terms_this[LI_CHUN_TERM_INDEX];
 
     let (ganzhi_year, jie_jds): (i32, [Real; 12]) = if jd_r < lichun_this {
-        let terms_prev = solar_term_jds_for_year_cached(vsop, y - 1);
+        let terms_prev = terms(y - 1);
         let jie = [
             terms_prev[JIE_TERM_INDICES[0]],
             terms_prev[JIE_TERM_INDICES[1]],
@@ -343,6 +399,37 @@ mod tests {
                 assert_eq!(m % 12, (ord + 2) % 12, "月支");
             }
         }
+    }
+
+    /// 授时历元：1281 年天正冬至为己未日（气应 55.06），且平气与定气相差不过两日余。
+    #[test]
+    fn shoushi_epoch_and_pingqi_offset() {
+        let jdn = (SHOUSHI_WINTER_SOLSTICE_1281_JD_LOCAL + real(0.5)).floor().as_f64() as i64;
+        assert_eq!(GAN_ZHI_60[((jdn + 49).rem_euclid(60)) as usize], "己未");
+        // 用均匀分布的假定气检验最近匹配：平气与给定时刻同名且相差 < 半岁
+        let fake: Vec<Real> = (0..24)
+            .map(|k| real(2451623.8 + (k as f64) * 365.2422 / 24.0))
+            .collect();
+        let pq = pingqi_shoushi_datong_jds(&fake);
+        for k in 0..24 {
+            assert!((pq[k].as_f64() - fake[k].as_f64()).abs() < 3.0, "气 {k} 偏离 {}", pq[k].as_f64() - fake[k].as_f64());
+        }
+    }
+
+    /// 用真实定气检验：1600 年平气冬至与定气冬至相差在半日内；二分前后平气与定气相差约两日
+    /// （王锡阐「西人既用定氣……因譏中歷節氣差至二日」，《清史稿》卷五百六）。
+    #[test]
+    fn pingqi_vs_dingqi_1600() {
+        use crate::astronomy::aspects::solar_term_jds_for_year_cached;
+        use crate::astronomy::ephemeris::load_earth_vsop87_from_repo;
+        let vsop = load_earth_vsop87_from_repo().unwrap();
+        let dq = solar_term_jds_for_year_cached(&vsop, 1600);
+        let pq = pingqi_shoushi_datong_jds(&dq);
+        let d = |k: usize| (pq[k] - dq[k]).as_f64();
+        println!("1600 平气−定气（日）：冬至 {:.3} 春分 {:.3} 夏至 {:.3} 秋分 {:.3}", d(18), d(0), d(6), d(12));
+        assert!(d(18).abs() < 0.5, "冬至 {}", d(18));
+        assert!(d(0) > 1.5 && d(0) < 2.6, "春分 {}", d(0));
+        assert!(d(12) < -1.5 && d(12) > -2.6, "秋分 {}", d(12));
     }
 
     #[test]

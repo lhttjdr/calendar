@@ -473,11 +473,21 @@ fn day_boundary_from_u8(n: u8) -> lunar_core::calendar::gan_zhi_options::DayBoun
     }
 }
 
+/// 节气模式：0=定气，1=授时、大统平气
+fn solar_term_mode_from_u8(v: u8) -> lunar_core::calendar::gan_zhi_options::SolarTermMode {
+    if v == 1 {
+        lunar_core::calendar::gan_zhi_options::SolarTermMode::PingqiShoushiDatong
+    } else {
+        lunar_core::calendar::gan_zhi_options::SolarTermMode::Dingqi
+    }
+}
+
 fn options_from_u8s(
     year_b: u8,
     month_b: u8,
     leap_b: u8,
     day_b: u8,
+    term_b: u8,
 ) -> lunar_core::calendar::gan_zhi_options::GanzhiOptions {
     use lunar_core::calendar::gan_zhi_options::{LeapMonthHandling, MonthBoundary, YearBoundary};
     lunar_core::calendar::gan_zhi_options::GanzhiOptions {
@@ -498,6 +508,7 @@ fn options_from_u8s(
             _ => LeapMonthHandling::InheritPrevious,
         },
         day_boundary: day_boundary_from_u8(day_b),
+        solar_term_mode: solar_term_mode_from_u8(term_b),
     }
 }
 
@@ -545,6 +556,7 @@ pub fn ganzhi_from_jd_solar_wasm(
     jd: f64,
     vsop87_ear: &str,
     day_boundary: u8,
+    solar_term_mode: u8,
 ) -> Result<GanzhiResult, JsValue> {
     let vsop = {
         let mut guard = VSOP87_CACHE.lock().unwrap();
@@ -564,6 +576,7 @@ pub fn ganzhi_from_jd_solar_wasm(
     let opts = lunar_core::calendar::gan_zhi_options::preset_zi_ping_ba_zi();
     let opts = lunar_core::calendar::gan_zhi_options::GanzhiOptions {
         day_boundary: day_boundary_from_u8(day_boundary),
+        solar_term_mode: solar_term_mode_from_u8(solar_term_mode),
         ..opts
     };
     let (yi, mi, di) = lunar_core::calendar::gan_zhi_options::ganzhi_from_jd_solar(vsop.as_ref(), jd, &opts);
@@ -572,6 +585,37 @@ pub fn ganzhi_from_jd_solar_wasm(
         month_name: lunar_core::calendar::gan_zhi_options::gan_zhi_index_to_name(mi).to_string(),
         day_name: lunar_core::calendar::gan_zhi_options::gan_zhi_index_to_name(di).to_string(),
     })
+}
+
+/// 取缓存的地球 VSOP87；未缓存时用传入文本解析一次。
+fn vsop87_cached(vsop87_ear: &str) -> Result<Arc<Vsop87>, JsValue> {
+    let mut guard = VSOP87_CACHE.lock().unwrap();
+    if let Some(cached) = guard.as_ref() {
+        return Ok(Arc::clone(cached));
+    }
+    let mut files = HashMap::new();
+    files.insert(VSOP87_EAR_PATH.to_string(), vsop87_ear.to_string());
+    lunar_core::repo::set_loader(Box::new(DataLoaderWasm::new(files)));
+    let parsed = with_earth_patch(load_earth_vsop87_from_repo().map_err(|e| JsValue::from_str(&e.to_string()))?);
+    let arc = Arc::new(parsed);
+    *guard = Some(Arc::clone(&arc));
+    Ok(arc)
+}
+
+/// 当地太阳时（小时，[0, 24)），供时柱按当地时间划分时辰。
+/// jd_ut：UT 儒略日；longitude_deg：东经；mode：1=平太阳时，2=视太阳时（真太阳时）。
+#[wasm_bindgen]
+pub fn local_solar_hours_wasm(jd_ut: f64, longitude_deg: f64, mode: u8, vsop87_ear: &str) -> Result<f64, JsValue> {
+    use lunar_core::astronomy::apparent::{local_apparent_solar_hours, local_mean_solar_hours};
+    use lunar_core::quantity::angle::PlaneAngle;
+    let lon = PlaneAngle::from_deg(real(longitude_deg));
+    let h = if mode == 2 {
+        let vsop = vsop87_cached(vsop87_ear)?;
+        local_apparent_solar_hours(vsop.as_ref(), real(jd_ut), lon)
+    } else {
+        local_mean_solar_hours(real(jd_ut), lon)
+    };
+    Ok(h.as_f64())
 }
 
 /// 预设名称，供 UI 显示：0=子平（子正） 1=子平（子初） 2=紫微斗数 3=农历月干支
@@ -602,7 +646,7 @@ pub fn ganzhi_from_jd_lunar_wasm(
     let zq: Vec<_> = zhong_qi_jds.into_iter().map(real).collect();
     let year_data =
         lunar_core::calendar::chinese_lunar::ChineseLunarYearData::new(lunar_year, nm, zq);
-    let opts = options_from_u8s(year_boundary, month_boundary, leap_month_handling, day_boundary);
+    let opts = options_from_u8s(year_boundary, month_boundary, leap_month_handling, day_boundary, 0);
     let (yi, mi, di) = lunar_core::calendar::gan_zhi_options::ganzhi_from_jd_lunar(real(jd), &year_data, &opts)?;
     Some(GanzhiResult {
         year_name: lunar_core::calendar::gan_zhi_options::gan_zhi_index_to_name(yi).to_string(),
@@ -653,10 +697,11 @@ pub fn ganzhi_for_gregorian_month_wasm(
     leap_month_handling: u8,
     day_boundary: u8,
     vsop87_ear: &str,
+    solar_term_mode: u8,
 ) -> MonthGanzhiResult {
     use lunar_core::calendar::gan_zhi_options::gan_zhi_index_to_name;
     let days = lunar_core::calendar::gregorian::Gregorian::days_in_month(year, month) as i32;
-    let opts = options_from_u8s(year_boundary, month_boundary, leap_month_handling, day_boundary);
+    let opts = options_from_u8s(year_boundary, month_boundary, leap_month_handling, day_boundary, solar_term_mode);
     let db = day_boundary_from_u8(day_boundary);
 
     let year_data_1 = {

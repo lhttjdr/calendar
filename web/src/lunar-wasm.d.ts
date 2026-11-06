@@ -39,10 +39,12 @@ declare module 'lunar-wasm' {
     day_boundary: number
   ): string
   export function ganzhi_preset_name(preset_index: number): string
+  export function local_solar_hours_wasm(jd_ut: number, longitude_deg: number, mode: number, vsop87_ear: string): number
   export function ganzhi_from_jd_solar_wasm(
     jd: number,
     vsop87_ear: string,
-    day_boundary: number
+    day_boundary: number,
+    solar_term_mode: number
   ): { year_name: string; month_name: string; day_name: string }
   export function ganzhi_from_jd_lunar_wasm(
     jd: number,
