@@ -4,6 +4,7 @@
 //! 所以平气要按行用历逐朝推算。参数表 `data/calendar/pingqi_lifa.csv` 每部历一行：
 //! 日法、岁实（分）、某一岁天正冬至的大余（甲子起算的日序）与小余（夜半后的分）、
 //! 都城地方时经度、出处与核对状态。只收已据正史律历志核过的历；表外年代不给平气。
+//! 各行顺序不限（多人分头追加），行用年不得重叠，由测试检查。
 //!
 //! 推算：岁 Y 的天正冬至（在公历 Y−1 年 12 月）= 基准冬至 + (Y − 基准岁) × 岁实分 / 日法，
 //! 第 q 气（冬至起算）再加 q × 岁实 / 24。地方平时减经度/360 日为 UT，再加 ΔT 为 TT。
@@ -126,8 +127,9 @@ mod tests {
 
     #[test]
     fn table_rows_cover_without_overlap() {
-        let t = pingqi_table();
+        let mut t: Vec<_> = pingqi_table().iter().collect();
         assert!(!t.is_empty());
+        t.sort_by_key(|l| l.from_year);
         for (a, b) in t.iter().zip(t.iter().skip(1)) {
             assert!(a.to_year < b.from_year, "{} 与 {} 行用年重叠", a.name, b.name);
         }
