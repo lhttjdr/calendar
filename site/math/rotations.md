@@ -127,7 +127,7 @@ $$i^2 = j^2 = k^2 = ijk = -1$$
 
 他当场把这个式子刻在了布鲁姆桥的石头上。二十二年后（1865 年 8 月 5 日），他在给儿子 Archibald 的信中回忆："Nor could I resist the impulse — unphilosophical as it may have been — to cut with a knife on a stone of Brougham Bridge"（桥名当时作 Brougham，今作 Broome）。今天桥上的纪念牌记的就是这件事。哈密顿自次年起在《Philosophical Magazine》上分期发表这一结果，一直连载到 1850 年。
 
-两年后，凯莱（Arthur Cayley，1845）写出 $(1+\lambda i+\mu j+\nu k)^{-1}(ix+jy+kz)(1+\lambda i+\mu j+\nu k)$，指出它给出的恰是一组直角坐标轴到另一组直角坐标轴的变换，其中 $\lambda = \tan\frac{\theta}{2}\cos f$ 等（$\theta$ 为转角，$f$ 等为转轴的方向角），并说："In fact the formulae are precisely those given for such a transformation by M. Olinde Rodrigues"（凯莱《论四元数的若干结果》，《数学论文集》第一卷第 124 页）。这就是下文的 $q\,v\,q^*$。其实四元数乘法的组合规则，罗德里格斯 1840 年已经写出，只是没有把它看成一种新的数；高斯在 1819 年前后的手稿《Mutationen des Raumes》中也有类似公式，生前未发表。所以这四个参数又称"欧拉–罗德里格斯参数"。
+两年后，凯莱（Arthur Cayley，1845）写出 $(1+\lambda i+\mu j+\nu k)^{-1}(ix+jy+kz)(1+\lambda i+\mu j+\nu k)$，指出它给出的恰是一组直角坐标轴到另一组直角坐标轴的变换，其中 $\lambda = \tan\frac{\theta}{2}\cos f$ 等（$\theta$ 为转角，$f$ 等为转轴的方向角），并说："In fact the formulae are precisely those given for such a transformation by M. Olinde Rodrigues"（凯莱《论四元数的若干结果》，《数学论文集》第一卷第 124 页）。这就是下文的 $q\,v\,q^*$。不过，这四个参数在四元数之前已经两次出现。第一次是欧拉。他在 1770 年写成的《一个因性质极特殊而值得注意的代数问题》（E407）中，求保持平方和不变的线性变换的系数；对三维的情形，除用三角函数表示外，还给出了有理参数的表示，也就是用四个参数写出全部转动矩阵（据欧拉档案所录 Eneström 提要；四个参数之说为通说，本章未核原文）。第二次是罗德里格斯。他在 1840 年从几何上重新得到这四个参数，与转轴、转角的关系正是 $\cos\frac{\varphi}{2}$ 与 $\mathbf n\sin\frac{\varphi}{2}$，并写出了两次转动相继进行时参数的组合规则。这条规则就是后来的四元数乘法，只是他没有把它看成一种新的数。凯莱所说"与罗德里格斯给出的完全相同"，指的就是这一点。所以这四个参数今天称为"欧拉–罗德里格斯参数"。此外，高斯在 1819 年前后的手稿《Mutationen des Raumes》中也有类似公式，生前未发表。
 
 ### 定义与乘法
 
@@ -227,10 +227,11 @@ $$\hat q = q + \varepsilon\,\tfrac12\,\mathbf{t}\,q$$
 |---|---|---|
 | 1763 | 莫齐 | 刚体无穷小运动的瞬时螺旋轴 |
 | 18 世纪 50—60 年代 | 欧拉 | 用三个角描述刚体方位（欧拉角） |
+| 1770—1771 | 欧拉 | 保持平方和不变的变换，三维情形的有理参数表示（E407） |
 | 1775—1776 | 欧拉 | 转动定理：任何转动都是绕一根轴的转动 |
 | 约 1819 | 高斯 | 手稿中的转动组合公式（身后发表） |
 | 1830—1831 | 沙勒 | 刚体运动都是螺旋运动 |
-| 1840 | 罗德里格斯 | 转动的组合公式，四个参数 |
+| 1840 | 罗德里格斯 | 四个参数的几何意义与转动的组合公式 |
 | 1843—1844 | 哈密顿 | 四元数 |
 | 1845 | 凯莱 | 用四元数表示三维转动 |
 | 1873 | 克利福德 | 双四元数（对偶四元数） |
@@ -250,22 +251,23 @@ $$\hat q = q + \varepsilon\,\tfrac12\,\mathbf{t}\,q$$
 ## 参考文献
 
 1. L. Euler, "Formulae generales pro translatione quacunque corporum rigidorum", *Novi Commentarii academiae scientiarum Petropolitanae* 20 (1776), 189–207；Opera Omnia, ser. 2, vol. 9, 84–98（Eneström 编号 E478）。书目据欧拉档案（Euler Archive），未核原文。
-2. O. Rodrigues, "Des lois géométriques qui régissent les déplacements d'un système solide dans l'espace, et de la variation des coordonnées provenant de ces déplacements considérés indépendamment des causes qui peuvent les produire", *Journal de Mathématiques Pures et Appliquées*, 1re série, 5 (1840), 380–440。据 Numdam 数字化本核题目卷页。
-3. W. R. Hamilton, "On quaternions; or on a new system of imaginaries in algebra", *Philosophical Magazine*, 3rd ser., 1844—1850 年分期连载（首期在第 25 卷）。据 D. R. Wilkins 所编录文核其刊载情况；卷页未逐期核对。
-4. A. Cayley, "On certain results relating to quaternions", *Philosophical Magazine* 26 (1845), 141–145；重印于 *The Collected Mathematical Papers of Arthur Cayley*, vol. 1, Cambridge, 1889, no. 20, 123–126。据 archive.org 所存重印本核。
-5. C. F. Gauss, "Mutationen des Raumes"（约 1819 年手稿），收入 *Werke* 第 8 卷（1900）。未核原书。
-6. M. Chasles, "Note sur les propriétés générales du système de deux corps semblables entr'eux, et placés d'une manière quelconque dans l'espace; et sur le déplacement fini, ou infiniment petit, d'un corps solide libre", *Bulletin des Sciences Mathématiques, Astronomiques, Physiques et Chimiques*（费吕萨克编）14（1830 年 11 月号，题下注 1831 年 2 月 5 日宣读）, no. 198, 321–326。据 archive.org 所存本核。
-7. G. Mozzi, *Discorso matematico sopra il rotamento momentaneo dei corpi*, Napoli, 1763。未核原书。
-8. W. K. Clifford, "Preliminary sketch of biquaternions", *Proceedings of the London Mathematical Society* 4 (1873), nos. 64–65, 381–395；重印于 R. Tucker (ed.), *Mathematical Papers by William Kingdon Clifford*, London: Macmillan, 1882, 181–200。据 archive.org 所存重印本核。
-9. E. Study, *Geometrie der Dynamen*, Leipzig, 1903。未核原书。
-10. Yan-Bin Jia, *Dual Quaternion*，爱荷华州立大学 ComS 477/577 讲义。对偶四元数的定义与运算据此。
-11. S. Newcomb, *A Compendium of Spherical Astronomy*, New York: Macmillan, 1906。未核原书。
-12. J. H. Lieske, T. Lederle, W. Fricke, B. Morando, "Expressions for the precession quantities based upon the IAU (1976) system of astronomical constants", *Astronomy and Astrophysics* 58 (1977), 1–16。
-13. N. Capitaine, P. T. Wallace, J. Chapront, "Expressions for IAU 2000 precession quantities", *Astronomy and Astrophysics* 412 (2003), 567–586。
-14. J. G. Williams, "Contributions to the Earth's obliquity rate, precession, and nutation", *Astronomical Journal* 108 (1994), 711–724。据 ADS 扫描本核首页。
-15. T. Fukushima, "A new precession formula", *Astronomical Journal* 126 (2003), 494–534。据 Crossref 核书目，doi:10.1086/375641。
-16. K. Shoemake, "Animating rotation with quaternion curves", *Computer Graphics* (SIGGRAPH '85) 19(3) (1985), 245–254。据 Crossref 核书目，doi:10.1145/325165.325242。
-17. M. D. Shuster, "A survey of attitude representations", *Journal of the Astronautical Sciences* 41(4) (1993), 439–517。未核原文。
-18. H. Sommer, I. Gilitschenski, M. Bloesch, S. Weiss, R. Siegwart, J. Nieto, "Why and how to avoid the flipped quaternion multiplication", *Aerospace* 5(3) (2018), 72。据 Crossref 核书目，doi:10.3390/aerospace5030072。
-19. IAU SOFA Board, *SOFA Tools for Earth Attitude*；G. Petit, B. Luzum (eds.), *IERS Conventions (2010)*, IERS Technical Note 36, §5。
-20. W. R. Hamilton, 致 A. H. Hamilton 书，1865 年 8 月 5 日。据都柏林三一学院数学系 D. R. Wilkins 所编哈密顿文献录文。
+2. L. Euler, "Problema algebraicum ob affectiones prorsus singulares memorabile", *Novi Commentarii academiae scientiarum Petropolitanae* 15 (1771), 75–106；Opera Omnia, ser. 1, vol. 6, 287–315（Eneström 编号 E407，1770 年写成）。书目与提要据欧拉档案，未核原文。
+3. O. Rodrigues, "Des lois géométriques qui régissent les déplacements d'un système solide dans l'espace, et de la variation des coordonnées provenant de ces déplacements considérés indépendamment des causes qui peuvent les produire", *Journal de Mathématiques Pures et Appliquées*, 1re série, 5 (1840), 380–440。据 Numdam 数字化本核题目卷页。
+4. W. R. Hamilton, "On quaternions; or on a new system of imaginaries in algebra", *Philosophical Magazine*, 3rd ser., 1844—1850 年分期连载（首期在第 25 卷）。据 D. R. Wilkins 所编录文核其刊载情况；卷页未逐期核对。
+5. A. Cayley, "On certain results relating to quaternions", *Philosophical Magazine* 26 (1845), 141–145；重印于 *The Collected Mathematical Papers of Arthur Cayley*, vol. 1, Cambridge, 1889, no. 20, 123–126。据 archive.org 所存重印本核。
+6. C. F. Gauss, "Mutationen des Raumes"（约 1819 年手稿），收入 *Werke* 第 8 卷（1900）。未核原书。
+7. M. Chasles, "Note sur les propriétés générales du système de deux corps semblables entr'eux, et placés d'une manière quelconque dans l'espace; et sur le déplacement fini, ou infiniment petit, d'un corps solide libre", *Bulletin des Sciences Mathématiques, Astronomiques, Physiques et Chimiques*（费吕萨克编）14（1830 年 11 月号，题下注 1831 年 2 月 5 日宣读）, no. 198, 321–326。据 archive.org 所存本核。
+8. G. Mozzi, *Discorso matematico sopra il rotamento momentaneo dei corpi*, Napoli, 1763。未核原书。
+9. W. K. Clifford, "Preliminary sketch of biquaternions", *Proceedings of the London Mathematical Society* 4 (1873), nos. 64–65, 381–395；重印于 R. Tucker (ed.), *Mathematical Papers by William Kingdon Clifford*, London: Macmillan, 1882, 181–200。据 archive.org 所存重印本核。
+10. E. Study, *Geometrie der Dynamen*, Leipzig, 1903。未核原书。
+11. Yan-Bin Jia, *Dual Quaternion*，爱荷华州立大学 ComS 477/577 讲义。对偶四元数的定义与运算据此。
+12. S. Newcomb, *A Compendium of Spherical Astronomy*, New York: Macmillan, 1906。未核原书。
+13. J. H. Lieske, T. Lederle, W. Fricke, B. Morando, "Expressions for the precession quantities based upon the IAU (1976) system of astronomical constants", *Astronomy and Astrophysics* 58 (1977), 1–16。
+14. N. Capitaine, P. T. Wallace, J. Chapront, "Expressions for IAU 2000 precession quantities", *Astronomy and Astrophysics* 412 (2003), 567–586。
+15. J. G. Williams, "Contributions to the Earth's obliquity rate, precession, and nutation", *Astronomical Journal* 108 (1994), 711–724。据 ADS 扫描本核首页。
+16. T. Fukushima, "A new precession formula", *Astronomical Journal* 126 (2003), 494–534。据 Crossref 核书目，doi:10.1086/375641。
+17. K. Shoemake, "Animating rotation with quaternion curves", *Computer Graphics* (SIGGRAPH '85) 19(3) (1985), 245–254。据 Crossref 核书目，doi:10.1145/325165.325242。
+18. M. D. Shuster, "A survey of attitude representations", *Journal of the Astronautical Sciences* 41(4) (1993), 439–517。未核原文。
+19. H. Sommer, I. Gilitschenski, M. Bloesch, S. Weiss, R. Siegwart, J. Nieto, "Why and how to avoid the flipped quaternion multiplication", *Aerospace* 5(3) (2018), 72。据 Crossref 核书目，doi:10.3390/aerospace5030072。
+20. IAU SOFA Board, *SOFA Tools for Earth Attitude*；G. Petit, B. Luzum (eds.), *IERS Conventions (2010)*, IERS Technical Note 36, §5。
+21. W. R. Hamilton, 致 A. H. Hamilton 书，1865 年 8 月 5 日。据都柏林三一学院数学系 D. R. Wilkins 所编哈密顿文献录文。
