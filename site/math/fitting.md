@@ -55,7 +55,11 @@ $$A^\mathsf{T}A\,x = A^\mathsf{T}b$$
 
 ### 为什么是平方和
 
-勒让德提出最小二乘时，理由是它计算方便、又把误差均匀地分摊到各个方程，在各误差之间建立一种平衡，使最大的误差不至于过大（据 Stigler 1981 转述）。高斯给出了概率上的理由：若观测误差独立、服从正态分布，最小二乘的解就是最可能的解（极大似然）；后来他又证明，不论误差服从什么分布，只要独立、等方差、均值为零，最小二乘在所有线性无偏估计中方差最小（高斯–马尔可夫定理）。
+勒让德提出最小二乘时，理由是它计算方便、又能使最大的误差不至于过大：
+
+> …qui consiste à rendre minimum la somme des quarrés des erreurs. Par ce moyen, il s'établit entre les erreurs une sorte d'équilibre qui empêchant les extrêmes de prévaloir, est très-propre à faire connoître l'état du système le plus proche de la vérité.（勒让德《彗星轨道测定的新方法》附录，1805，第 72—73 页）
+
+即"使误差平方和最小。用这一办法，误差之间建立起一种平衡，不让极端的误差占上风，最适于揭示最接近真实的系统状态"。高斯给出了概率上的理由：若观测误差独立、服从正态分布，最小二乘的解就是最可能的解（极大似然）；后来他又证明，不论误差服从什么分布，只要独立、等方差、均值为零，最小二乘在所有线性无偏估计中方差最小（高斯–马尔可夫定理）。
 
 别的准则也有人用：
 
@@ -118,7 +122,11 @@ $$\min_\delta \lVert J\,\delta + r \rVert$$
 | 1944、1963 | Levenberg；Marquardt | 阻尼高斯–牛顿法 |
 | 1958、1965 | 豪斯霍尔德；戈卢布 | 正交变换解最小二乘 |
 
-最小二乘的发明权之争，是数学史上有名的公案。勒让德先发表，高斯后来声称更早使用；高斯 1801 年对谷神星的预报有书信与旁证，但当时用的是不是最小二乘，史家意见不一（Stigler 1981；Plackett 1972）。无论如何，最小二乘是在天文学中诞生的：它的第一个用途，就是从有误差的观测里定出行星、彗星的轨道。
+最小二乘的发明权之争，是数学史上有名的公案。勒让德先发表，高斯四年后在《天体运动论》中写道：
+
+> Ceterum principium nostrum, quo iam inde ab anno 1795 usi sumus, nuper etiam a clar. Legendre … prolatum est.（高斯《天体运动论》，1809，第 186 条）
+
+即"我们这一原理，自 1795 年起即已使用，近来著名的勒让德也提出了"。高斯 1801 年对谷神星的预报有书信与旁证，但当时用的是不是最小二乘，史家意见不一（Stigler 1981；Plackett 1972）。无论如何，最小二乘是在天文学中诞生的：它的第一个用途，就是从有误差的观测里定出行星、彗星的轨道。
 
 ## 四、本项目的拟合
 
@@ -174,8 +182,8 @@ $\Delta T$ 的配套要知道两部月历表的月亮平黄经之差 $\Delta\lam
 
 1. 《元史》卷五十四《曆志三·授時曆經上》，明宋濂等撰。据维基文库录文；《步日躔第三·求盈縮差》。
 2. 张培瑜、陈美东、薄树人、胡铁珠：《中国古代历法》，中国科学技术出版社，2013 年，第一章《历表及表格计算法》，第 5、51、55 页。
-3. A.-M. Legendre, *Nouvelles méthodes pour la détermination des orbites des comètes*, Paris, 1805；附录《Sur la méthode des moindres quarrés》。未核原书。
-4. C. F. Gauss, *Theoria motus corporum coelestium in sectionibus conicis solem ambientium*, Hamburg, 1809, §§175–186。未核原书。
+3. A.-M. Legendre, *Nouvelles méthodes pour la détermination des orbites des comètes*, Paris, 1805；附录《Sur la méthode des moindres quarrés》，第 72—73 页。据 archive.org 所存 1805 年本核。
+4. C. F. Gauss, *Theoria motus corporum coelestium in sectionibus conicis solem ambientium*, Hamburg, 1809, §§175–186。据 archive.org 所存 1809 年本核第 186 条。
 5. C. F. Gauss, *Theoria combinationis observationum erroribus minimis obnoxiae*, Göttingen, 1823。未核原书。
 6. R. J. Boscovich, "De litteraria expeditione per pontificiam ditionem", *Bononiensi Scientiarum et Artium Instituto atque Academia Commentarii* 4 (1757), 353–396。未核原文。
 7. S. M. Stigler, "Gauss and the invention of least squares", *Annals of Statistics* 9(3) (1981), 465–474。未核原文。
