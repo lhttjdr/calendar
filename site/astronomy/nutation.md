@@ -56,16 +56,25 @@ $$
 | 0 | 0 | 0 | 0 | 2 | 3399.2 日（9.3 年） | 207.4554 | −89.7492 |
 | 0 | 1 | 0 | 0 | 0 | 365.3 日 | 147.5877 | 7.3871 |
 
+## 源流
+
+**发现。** 章动是布拉德雷（James Bradley）发现的。他在 1727 年发现光行差之后，继续以天顶仪观测恒星，发现星的赤纬还有一种周期约 18.6 年的微小变化，与月球轨道交点的运动同周期。他观测了整整一个周期，到 1748 年才在致麦克尔斯菲尔德伯爵的信中发表。
+
+**理论。** 次年（1749），达朗贝尔把日月对地球赤道隆起的力矩写成运动方程，同时解出了岁差与章动。欧拉进而指出，刚体地球除受迫章动外还应有一种自由摆动（周期约 305 日）；1891 年钱德勒（S. C. Chandler）在纬度变化中找到了它，周期却是约 433 日，差别来自地球并非刚体。从此章动理论与地球内部结构联系在一起。
+
+**级数。** 20 世纪的章动级数一步步引入地球内部的物理：Woolard（1953）用刚体地球；Wahr（1981）加入弹性地幔与液态外核，成为 IAU 1980 章动的基础；甚长基线干涉测量（VLBI）把章动观测精度提高到 0.1 毫角秒量级，暴露出 IAU 1980 的毫角秒级误差，于是有 Mathews、Herring、Buffett（2002）拟合观测的 MHB2000，即 IAU 2000A。其中的"自由核章动"（液核相对地幔的摆动，周期约 430 日）的参数，反过来成为测量地核扁率的手段。
+
+中国古代历法没有章动的概念：其振幅不到 20″，远在古代仪器的分辨率（最好约 5′）以下。
+
 ## 模型沿革
 
 | 模型 | 说明 | 项数 | 精度 |
 |---|---|---|---|
 | Wahr 1981 | 弹性地球与流体地核的章动理论，为后续级数提供物理基础 | — | 理论框架 |
 | IAU 1980 | 刚体地球加 Wahr 形变改正；与 IAU 1976 岁差配套，DE200/VSOP87 时代通用 | 106 | 约 1—5 mas |
-| IAU 2000A（MHB2000） | Mathews、Herring、Buffett；考虑非刚体地球、液核、海洋等；与 IAU 2006 岁差配套，IERS、SOFA 采用 | 1300 余（日月项与行星项） | 约 0.2 mas |
+| IAU 2000A（MHB2000） | Mathews、Herring、Buffett；考虑非刚体地球、液核、海洋等，拟合甚长基线干涉测量的章动观测；与 IAU 2006 岁差配套，IERS、SOFA 采用 | 日月项 678、行星项 687，合 1365 | 约 0.2 mas |
 | IAU 2000B | 2000A 的简化版 | 77 | 约 1 mas |
 
-本项目默认完整的 IAU 2000A（IERS 表 5.3a、5.3b）；网页端若完整系数表未能加载，退回 77 项的 IAU 2000B——二者之差在 1 毫角秒量级，对节气、合朔的影响远小于 1 秒。
 
 ## 章动矩阵
 
@@ -91,13 +100,20 @@ $$
 
 合朔是日月黄经**相等**的时刻，章动对两者加同一个 $\Delta\psi$，差值不变——定朔可以不计章动。
 
-## 一处系数订正
+## 本项目的取法
 
-本项目章动模块里的基本角系数曾有两处符号抄错：$l'$ 的 $T^3$ 项（应为 $+0.000136$）和 $\Omega$ 的 $T^4$ 项（应为 $-0.00005939$）。J2000 附近影响极小，所以原有只在 $T = 0$ 的测试发现不了；公元前 1000 年 $\Omega$ 偏 96″，使 $\Delta\psi$ 偏约 0.008″，公元前 3000 年偏约 0.06″（节气时刻约 1.5 秒）。现已改正，并以 SOFA 测试集在 $T = 0.8$ 的标准值核对，五个基本角模 $2\pi$ 相差不超过 $10^{-11}$ rad。
+- 默认完整的 IAU 2000A（IERS 表 5.3a、5.3b，日月项与行星项全部），网页端若完整系数表未能加载，退回 IAU 2000B；二者之差在 1 毫角秒量级，对节气时刻的影响远小于 1 秒。
+- 基本角按 IERS Conventions 2010 式 5.43，以 SOFA 测试集在 $T = 0.8$ 的标准值核对，五个基本角模 $2\pi$ 相差不超过 $10^{-11}$ rad。核对取远离 J2000 的时刻，是因为高次项的系数错误在 $T = 0$ 附近显不出来。
+- 节气计章动；合朔时章动对日月黄经的影响相同，两者相减即抵消。
+- 配 IAU 2006 岁差时，IAU 2006 规定对章动的微小调整（量级 10 µas）未施加。
 
 ## 参考文献
 
-- IERS Conventions (2010), 第 5 章（式 5.43、表 5.3a—5.3b）.
-- Wahr J.M. 1981, *Geophys. J. R. Astron. Soc.* 64, 705.
-- Mathews P.M., Herring T.A., Buffett B.A. 2002, *J. Geophys. Res.* 107, B4（MHB2000）.
-- McCarthy D.D., Luzum B.J. 2003, *Celest. Mech. Dyn. Astron.* 85, 37（IAU 2000B）.
+1. J. Bradley, "A letter … concerning an apparent motion observed in some of the fixed stars", *Philosophical Transactions of the Royal Society* 45 (1748), 1–43。未核原文。
+2. J. le R. d'Alembert, *Recherches sur la précession des equinoxes et sur la nutation de l'axe de la terre*, Paris, 1749。未核原书。
+3. S. C. Chandler, "On the variation of latitude", *Astronomical Journal* 11 (1891), 59–61 起连载。未核原文。
+4. E. W. Woolard, "Theory of the rotation of the Earth around its center of mass", *Astronomical Papers of the American Ephemeris* 15, part 1 (1953)。未核原书。
+5. J. M. Wahr, "The forced nutations of an elliptical, rotating, elastic and oceanless Earth", *Geophysical Journal of the Royal Astronomical Society* 64 (1981), 705–727。
+6. P. M. Mathews, T. A. Herring, B. A. Buffett, "Modeling of nutation and precession: New nutation series for nonrigid Earth and insights into the Earth's interior", *Journal of Geophysical Research* 107(B4) (2002), 2068。
+7. D. D. McCarthy, B. J. Luzum, "An abridged model of the precession-nutation of the celestial pole", *Celestial Mechanics and Dynamical Astronomy* 85 (2003), 37–49。
+8. G. Petit, B. Luzum (eds.), *IERS Conventions (2010)*, IERS Technical Note 36, 第 5 章（式 5.43、表 5.3a—5.3b）。
