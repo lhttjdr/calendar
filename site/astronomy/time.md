@@ -39,7 +39,7 @@
 
 于是设想一个沿赤道匀速运行的"平太阳"，它定义的时间叫**平太阳时**。视太阳时减平太阳时叫**均时差**，一年中在约 −14 分钟到 +16 分钟之间变化，是上面两个原因叠加的结果：前者周期一年、振幅约 7.7 分钟，后者周期半年、振幅约 9.9 分钟。
 
-托勒密在《至大论》中已讨论过日长不等的这两个原因。17 世纪摆钟出现后，惠更斯（1665）与弗拉姆斯蒂德（1672）编制了均时差表，用来以日晷校钟。18 世纪末起，欧洲城市陆续改用平太阳时。
+托勒密在《至大论》卷三第 9 章已指出这两个原因："一是太阳视运动的不均，二是黄道上相等的弧过地平或子午圈所需的时间不等"（Toomer 英译本第 169—170 页），并据以给出均时差的算法。17 世纪摆钟出现后，惠更斯（1665）与弗拉姆斯蒂德（1672）编制了均时差表，用来以日晷校钟。18 世纪末起，欧洲城市陆续改用平太阳时。
 
 ### 地方时与区时
 
@@ -228,3 +228,4 @@ $\Delta T$ 是用某一套月球理论反推的，反推时假定了月球的潮
 8. L. V. Morrison, F. R. Stephenson, C. Y. Hohenkerk, M. Zawilski, "Addendum 2020 to 'Measurement of the Earth's rotation: 720 BC to AD 2015'", *Proceedings of the Royal Society A* 477 (2021), 20200776。
 9. F. Espenak, J. Meeus, *Five Millennium Canon of Solar Eclipses: −1999 to +3000*, NASA/TP-2006-214141, 2006。
 10. D. D. McCarthy, P. K. Seidelmann, *Time: From Earth Rotation to Atomic Physics*, Weinheim: Wiley-VCH, 2009。时标沿革据此，未核原书。
+11. C. Ptolemy, *Almagest*, trans. G. J. Toomer, London: Duckworth, 1984，卷三第 9 章（第 169—170 页）。据 archive.org 所存本核。
