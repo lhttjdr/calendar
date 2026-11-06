@@ -2,6 +2,16 @@
 
 历表给出的是天体的**几何位置**——某时刻它在哪里。我们看见的方向与之不同，节气、合朔要的是**视位置**。二者之间隔着两个与光速有限有关的效应：光行时与光行差。
 
+## 源流
+
+**光速有限。** 古人多以为光的传播是瞬时的。1676 年罗默（Ole Rømer）发现木卫一的食在木星远离地球时推迟、靠近时提前，推断光走过地球轨道直径要二十余分钟，这是光速有限的第一个证据，也是"光行时"的由来。
+
+**光行差。** 布拉德雷本想测量恒星的周年视差，1725—1728 年观测天龙座 γ 星，发现它确有周年的位移，但方向与视差应有的方向差了 90°：位移最大时，不是地球离该星最远或最近之时，而是地球运动方向与星的方向垂直之时。他认识到这是地球运动速度与光速合成的结果，1729 年发表，由此测得光速，并给出地球公转的第一个直接证据。光行差常数约 20″，比当时任何恒星的视差都大得多；恒星视差直到 1838 年才由贝塞尔测出（天鹅座 61，约 0.3″）。
+
+**相对论。** 1905 年爱因斯坦的狭义相对论给出光行差的严格公式；广义相对论又预言光线经过太阳附近会偏折，1919 年日全食时由爱丁顿等观测证实。1964 年夏皮罗（I. Shapiro）指出雷达回波经过太阳附近会有额外延迟。今天的视位置计算（IERS 规范、SOFA）把光行时、光行差、引力偏折统一在广义相对论的框架里处理，但对太阳和月亮，到 $v/c$ 一阶已足够。
+
+中国古代历法没有光行时与光行差的概念；它们都在 20″ 量级，远在古代仪器的分辨率以下。
+
 ## 光行时
 
 我们在时刻 $t$ 收到的光，是天体在更早的**推迟时** $t_r$ 发出的。设天体与观测者（地心）在质心系中的世界线为 $\mathbf x(t)$、$\mathbf x_E(t)$，光沿直线传播：
@@ -118,6 +128,11 @@ $\dot R$ 是转动矩阵对时间的导数。速度用于求根时的解析导�
 
 ## 参考文献
 
-- 《月相和二十四节气的计算》（推导与参考表）.
-- IERS Conventions (2010)；IAU SOFA.
-- Kaplan G.H. 2005, USNO Circular 179.
+1. O. Rømer, "Démonstration touchant le mouvement de la lumière", *Journal des Sçavans* (1676), 233–236。未核原文。
+2. J. Bradley, "A letter … giving an account of a new discovered motion of the fixed stars", *Philosophical Transactions of the Royal Society* 35 (1729), 637–661。未核原文。
+3. F. W. Bessel, "Bestimmung der Entfernung des 61sten Sterns des Schwans", *Astronomische Nachrichten* 16 (1839), 65–96。未核原文。
+4. I. I. Shapiro, "Fourth test of general relativity", *Physical Review Letters* 13 (1964), 789–791。未核原文。
+5. G. H. Kaplan, *The IAU Resolutions on Astronomical Reference Systems, Time Scales, and Earth Rotation Models*, USNO Circular 179, 2005。
+6. G. Petit, B. Luzum (eds.), *IERS Conventions (2010)*, IERS Technical Note 36；IAU SOFA。
+7. 中华人民共和国国家标准 GB/T 33661—2017《农历的编算和颁行》。
+8. 廖育栋：《月相和二十四节气的计算》（网络文稿，2018 年初稿，2025 年修订）。业余整理的计算说明，本章只用作对照；推导与公式以上列 IERS 规范、Kaplan 2005 为准。
