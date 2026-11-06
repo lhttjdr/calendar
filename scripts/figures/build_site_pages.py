@@ -15,7 +15,6 @@ import re
 import subprocess
 
 SRC = "doc/astronomy/celestial-phenomena.md"
-SKY = "doc/astronomy/sky-view-3d.md"
 
 
 def conv(a: int, b: int, src: str = SRC, keep_names: bool = False, verbatim: bool = False) -> str:
@@ -98,24 +97,11 @@ def generic(t: str) -> str:
     return t
 
 
-NASA_CHARTS = "\n\n" + "\n\n".join(f'<Chart src="nasa-{k}-{e}" :height="260" />' for k in ("solar", "lunar") for e in ("ancient", "modern"))
 
 
 
 def build() -> None:
-    refs = conv(line_of("## 参考文献"), 10**6)
-    p_planet, p_untested = line_of("### P3 行星"), line_of("**尚未做**：太阳引力光线偏折")
-    p_mag, p_star = line_of("**行星视星等"), line_of("### P4 恒星与二十八宿")
-    p_refr, p_rec = line_of("### 大气折射的模型与依据"), line_of("## 十、史书天象记录检验")
-    pages = {
-        "records": ("史书天象检验",
-                    "二十四史的天文志、五行志、本纪记有数千条日月食与凌犯。本章逐条按当时实行的历法换算日期，在当时都城推算是否真有其事，按朝代汇总。",
-                    [conv(p_rec + 1, line_of("## 参考文献") - 1)], FIX_RECORDS),
-    }
-    for name, (title, intro, parts, fixes) in pages.items():
-        body = generic(fix("\n\n".join(parts), fixes, name))
-        tail = "" if name == "records" else "\n\n" + generic(refs)
-        open(f"site/astronomy/{name}.md", "w").write(f"# {title}\n\n{intro}\n\n{body}{tail}\n")
+    """正文各章已全部改为手写（见 README）；这里只生成三个附录。"""
     # 附录：逐条校验结果（知识库中由脚本生成，原样转入）
     import os
     os.makedirs("site/appendix", exist_ok=True)
@@ -134,52 +120,6 @@ def build() -> None:
             t = generic(t)
         open(dst, "w").write(t + "\n")
 
-
-FIX_RECORDS = [
-    (r"^- 日月食：见《日月食》一章。", "- 日月食：方法见《日月食》一章。"),
-    (r"^- 月、五星凌犯与相合：。", "- 月、五星凌犯与相合："),
-    (r"^- 日期偏移：。", "- 日期偏移："),
-    (r"(\n\| 清 \|[^\n]*)", r'\1\n\n<Chart src="records-conjunction" />'),
-]
-
-CAL_PAGES: list[tuple[str, str, str, str]] = [  # 历法篇各章已全部改为手写；保留机制备用 (知识库源, 站点页, 标题, 修补)
-]
-
-
-DEV_SECTION = re.compile(r"实现位置|使用方式|^实现$|代码位置|本仓库实现|Rust 实现")
-GENERIC_CAL = [
-    (r"（wasm `[^`]*`）", ""),
-    (r"\bwasm\b ?", ""),
-    (r"Rust 错误", "程序错误"),
-    (r"（Rust，有理数）", "（有理数运算）"),
-    (r"，见 INVENTORY 待办", ""),
-    (r"（古历复原的定朔，）", ""),
-]
-
-
-def drop_dev_sections(t: str) -> str:
-    """删掉讲实现位置、调用方式的小节（标题到下一个同级或更高级标题）。"""
-    out, skip_level = [], 0
-    for ln in t.split("\n"):
-        m = re.match(r"^(#{2,6}) (.*)", ln)
-        if m:
-            level = len(m.group(1))
-            if skip_level and level <= skip_level:
-                skip_level = 0
-            if not skip_level and DEV_SECTION.search(m.group(2).strip()):
-                skip_level = level
-        if not skip_level:
-            out.append(ln)
-    return "\n".join(out)
-
-
-def build_calendar() -> None:
-    for src, dst, title, fixes in CAL_PAGES:
-        t = drop_dev_sections(conv(1, 10**6, src, keep_names=True))
-        t = re.sub(r"^# .*", f"# {title}", t, count=1)
-        for a, b in GENERIC_CAL:  # 通用替换：各页不一定都有，不报未匹配
-            t = re.sub(a, b, t, flags=re.M)
-        open(dst, "w").write(generic(fix(t, globals()[fixes], dst)) + "\n")
 
 
 def split_checks() -> None:
@@ -223,5 +163,4 @@ def split_checks() -> None:
 
 if __name__ == "__main__":
     build()
-    build_calendar()
     split_checks()
