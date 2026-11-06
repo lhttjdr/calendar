@@ -39,6 +39,8 @@ declare module 'lunar-wasm' {
     day_boundary: number
   ): string
   export function ganzhi_preset_name(preset_index: number): string
+  export function pingqi_tt_wasm(dingqi_tt: number, qi_from_winter_solstice: number): number
+  export function pingqi_li_name_wasm(year: number): string
   export function local_solar_hours_wasm(jd_ut: number, longitude_deg: number, mode: number, vsop87_ear: string): number
   export function ganzhi_from_jd_solar_wasm(
     jd: number,

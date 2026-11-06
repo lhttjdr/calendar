@@ -473,10 +473,10 @@ fn day_boundary_from_u8(n: u8) -> lunar_core::calendar::gan_zhi_options::DayBoun
     }
 }
 
-/// 节气模式：0=定气，1=授时、大统平气
+/// 节气模式：0=定气，1=平气（按行用历）
 fn solar_term_mode_from_u8(v: u8) -> lunar_core::calendar::gan_zhi_options::SolarTermMode {
     if v == 1 {
-        lunar_core::calendar::gan_zhi_options::SolarTermMode::PingqiShoushiDatong
+        lunar_core::calendar::gan_zhi_options::SolarTermMode::Pingqi
     } else {
         lunar_core::calendar::gan_zhi_options::SolarTermMode::Dingqi
     }
@@ -616,6 +616,22 @@ pub fn local_solar_hours_wasm(jd_ut: f64, longitude_deg: f64, mode: u8, vsop87_e
         local_mean_solar_hours(real(jd_ut), lon)
     };
     Ok(h.as_f64())
+}
+
+/// 与定气同名的平气 JD(TT)，按当时行用历推算；qi_from_winter_solstice：冬至 0、小寒 1 …；表外返回 NaN。
+#[wasm_bindgen]
+pub fn pingqi_tt_wasm(dingqi_tt: f64, qi_from_winter_solstice: i32) -> f64 {
+    lunar_core::calendar::pingqi::pingqi_tt(real(dingqi_tt), qi_from_winter_solstice)
+        .map(|(_, jd)| jd.as_f64())
+        .unwrap_or(f64::NAN)
+}
+
+/// 公元 year 年行用的平气历名；表外返回空串。
+#[wasm_bindgen]
+pub fn pingqi_li_name_wasm(year: i32) -> String {
+    lunar_core::calendar::pingqi::pingqi_li_for_year(year)
+        .map(|li| li.name.clone())
+        .unwrap_or_default()
 }
 
 /// 预设名称，供 UI 显示：0=子平（子正） 1=子平（子初） 2=紫微斗数 3=农历月干支

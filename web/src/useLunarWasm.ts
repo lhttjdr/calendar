@@ -603,10 +603,10 @@ export const GANZHI_DAY_BOUNDARY_OPTIONS: { value: number; label: string }[] = [
   { value: 1, label: '0时(子正)' },
 ]
 
-/** 节气 0=定气 1=授时、大统平气（只影响立春换年、按节换月） */
+/** 节气 0=定气 1=平气（按当时行用历，只影响立春换年、按节换月） */
 export const GANZHI_SOLAR_TERM_MODE_OPTIONS: { value: number; label: string }[] = [
   { value: 0, label: '定气' },
-  { value: 1, label: '平气（授时、大统，1281—1644）' },
+  { value: 1, label: '平气（按当时行用历；未核定的年代仍用定气）' },
 ]
 
 /** [年界, 月界, 闰月, 日界, 节气] */

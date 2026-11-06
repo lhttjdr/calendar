@@ -173,10 +173,6 @@ function jdTtToUtc(wasm: LunarBackend, jdTt: number): number {
   const dt = wasm.delta_t_seconds?.(jdTt) ?? 0
   return jdTt - dt / 86400
 }
-/** 平气：从岁首冬至起等分 365.25/24 日（TT），返回第 k 个中气的平气 JD(TT)。 */
-function pingQiJdTt(zhongQi0JdTt: number, k: number): number {
-  return zhongQi0JdTt + k * (365.25 / 24)
-}
 const PING_QI_DIFF_THRESHOLD_DAYS = 0.01
 
 /** 常用时区；若环境支持则用 Intl.supportedValuesOf('timeZone') 提供完整列表 */
@@ -602,24 +598,26 @@ function App() {
           return null
         })()
       : null
-  const zhongQiOnDay: { name: string; jdUtc: number; pingQiJdUtc: number | null }[] =
+  // 平气按当时行用历推算（data/calendar/pingqi_lifa.csv，只收已据律历志核定的历）；表外不显示
+  const zhongQiOnDay: { name: string; jdUtc: number; pingQiJdUtc: number | null; pingQiLi: string }[] =
     wasm && selectedYearData && typeof wasm.delta_t_seconds === 'function'
       ? (() => {
           const target = { y: displayY, m: displayM, d: displayD }
-          const zq0 = selectedYearData.zhongQiJds[0]!
-          const out: { name: string; jdUtc: number; pingQiJdUtc: number | null }[] = []
+          const out: { name: string; jdUtc: number; pingQiJdUtc: number | null; pingQiLi: string }[] = []
           for (let k = 0; k < 12; k++) {
             const jdTt = selectedYearData.zhongQiJds[k]!
             const jdUtc = jdTtToUtc(wasm, jdTt)
             const day = beijingDayFromJdUtc(jdUtc)
             if (day.y !== target.y || day.m !== target.m || day.d !== target.d) continue
-            const pingTt = pingQiJdTt(zq0, k)
-            const pingUtc = jdTtToUtc(wasm, pingTt)
-            const diffDays = Math.abs(pingUtc - jdUtc)
+            // zhongQiJds 第 k 个中气 = 冬至起第 2k 气
+            const pingTt = typeof wasm.pingqi_tt_wasm === 'function' ? wasm.pingqi_tt_wasm(jdTt, 2 * k) : NaN
+            const pingUtc = Number.isFinite(pingTt) ? jdTtToUtc(wasm, pingTt) : NaN
+            const show = Number.isFinite(pingUtc) && Math.abs(pingUtc - jdUtc) > PING_QI_DIFF_THRESHOLD_DAYS
             out.push({
               name: ZHONG_QI_NAMES[k]!,
               jdUtc,
-              pingQiJdUtc: diffDays > PING_QI_DIFF_THRESHOLD_DAYS ? pingUtc : null,
+              pingQiJdUtc: show ? pingUtc : null,
+              pingQiLi: show ? wasm.pingqi_li_name_wasm?.(day.y) ?? '' : '',
             })
           }
           return out
@@ -879,9 +877,9 @@ function App() {
                   <div style={{ fontSize: 11, marginTop: 6, color: 'rgba(0,0,0,0.6)' }}>
                     {zhongQiOnDay.map((q) => (
                       <div key={q.name}>
-                        {q.name} 交节 {formatJdUtcInZone(q.jdUtc, timeZone)}（天文，古代或有用平气）
+                        {q.name} 交节 {formatJdUtcInZone(q.jdUtc, timeZone)}（定气）
                         {q.pingQiJdUtc != null && (
-                          <span>；平气 {formatJdUtcInZone(q.pingQiJdUtc, timeZone)}</span>
+                          <span>；当时{q.pingQiLi}平气 {formatJdUtcInZone(q.pingQiJdUtc, timeZone)}</span>
                         )}
                       </div>
                     ))}
