@@ -208,23 +208,9 @@ FIX_SKY = [
 ]
 
 CAL_PAGES = [  # (知识库源, 站点页, 标题, 修补)
-    ("doc/calendar/historical-calendar.md", "site/calendar/historical.md", "实历与主表", "FIX_HISTORICAL"),
     ("doc/calendar/calendar-compendium.md", "site/calendar/compendium.md", "历代历法总录", "FIX_COMPENDIUM"),
     ("doc/calendar/push-algorithms.md", "site/calendar/push-algorithms.md", "各朝推步", "FIX_PUSH"),
     ("doc/calendar/qin-han-calendar-evaluation.md", "site/calendar/qin-han.md", "秦与汉初历法", "FIX_QINHAN"),
-]
-FIX_HISTORICAL = [
-    (r"ChineseCalendar 的 里是", "ChineseCalendar 的程序里是"),
-    (r"原库 \[ChineseCalendar\]\([^)]*\) 即按此思路：主表用实历，其它政权用 `cmonthDate_Shu` / `cmonthDate_Wu` / `cmonthDate_WeiZhouSui` 等，",
-     "廖育栋的 ChineseCalendar 即按此思路：主表用实历，蜀、吴、北朝等政权各按其历术推步，"),
-    (r"我们已提取为 。", "本项目已提取为主表。"),
-    (r"(\| 明 \| 178 \| 177 \|[^\n]*)", r'\1\n\n<Chart src="main-table-benji" :height="260" />'),
-    (r"\n\s*此前曾把这一改正也用于 1182 年后[^\n]*", ""),
-    (r"以前 `year_data` 误把表中日期当前推格里高利历，\n\s*1582 年以前的朔日 JD 因此偏了上述日数，已修正。", ""),
-    (r"此前 ?把该日当作庚辰（庚辰是 2000 年的\*\*年\*\*干支），\n\s*所有日干支偏 38 日，已修正，并以", "以"),
-    # 日期约定、年号两节移至历法篇《历日与纪日》《年号纪年》（手写章）
-    (r"^## 日期约定[\s\S]*?(?=^## )", ""),
-    (r"^## 年号模块[\s\S]*?(?=^## )", ""),
 ]
 FIX_COMPENDIUM = [
     (r"与书的统计全同。转录在 。", "与书的统计全同。"),
