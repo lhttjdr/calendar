@@ -116,9 +116,6 @@ def build() -> None:
         body = generic(fix("\n\n".join(parts), fixes, name))
         tail = "" if name == "records" else "\n\n" + generic(refs)
         open(f"site/astronomy/{name}.md", "w").write(f"# {title}\n\n{intro}\n\n{body}{tail}\n")
-    sky = conv(1, 10**6, SKY).replace("# 3D 星空：当地所见的天空", "# 当地星空", 1)
-    sky = fix(sky + "\n\n" + demote(conv(p_refr, p_rec - 1)), FIX_SKY, "sky-view")
-    open("site/astronomy/sky-view.md", "w").write(generic(sky) + "\n")
     # 附录：逐条校验结果（知识库中由脚本生成，原样转入）
     import os
     os.makedirs("site/appendix", exist_ok=True)
@@ -143,10 +140,6 @@ FIX_RECORDS = [
     (r"^- 月、五星凌犯与相合：。", "- 月、五星凌犯与相合："),
     (r"^- 日期偏移：。", "- 日期偏移："),
     (r"(\n\| 清 \|[^\n]*)", r'\1\n\n<Chart src="records-conjunction" />'),
-]
-FIX_SKY = [
-    (r"原先按官方预览图的观感直接叠加、没有定标，暗夜里像长曝光照片，又亮又彩。现在按面亮度与天光相加：", "按面亮度与天光相加："),
-    (r"此前 Bennett 的结果与之相比", "Bennett 公式的结果与之相比"),
 ]
 
 CAL_PAGES: list[tuple[str, str, str, str]] = [  # 历法篇各章已全部改为手写；保留机制备用 (知识库源, 站点页, 标题, 修补)
