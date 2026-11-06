@@ -130,8 +130,8 @@ $\dot R$ 是转动矩阵对时间的导数。速度用于求根时的解析导�
 
 1. O. Rømer, "Démonstration touchant le mouvement de la lumière", *Journal des Sçavans* (1676), 233–236。未核原文。
 2. J. Bradley, "A letter … to Dr. Edmond Halley … giving an account of a new discovered motion of the fix'd stars", *Philosophical Transactions of the Royal Society* 35（卷期标 1727—1728 年，1729 年刊出）, 636–660。据 archive.org 所存 JSTOR 早期期刊本核题目卷页。
-3. F. W. Bessel, "Bestimmung der Entfernung des 61sten Sterns des Schwans", *Astronomische Nachrichten* 16 (1839), 65–96。未核原文。
-4. I. I. Shapiro, "Fourth test of general relativity", *Physical Review Letters* 13 (1964), 789–791。未核原文。
+3. F. W. Bessel, "Bestimmung der Entfernung des 61sten Sterns des Schwans", *Astronomische Nachrichten* 16 (1838), Nr. 365–366, 65–96。据 ADS 扫描本核。
+4. I. I. Shapiro, "Fourth test of general relativity", *Physical Review Letters* 13 (1964), 789–791。据 Crossref 核书目，doi:10.1103/PhysRevLett.13.789。
 5. G. H. Kaplan, *The IAU Resolutions on Astronomical Reference Systems, Time Scales, and Earth Rotation Models*, USNO Circular 179, 2005。
 6. G. Petit, B. Luzum (eds.), *IERS Conventions (2010)*, IERS Technical Note 36；IAU SOFA。
 7. 中华人民共和国国家标准 GB/T 33661—2017《农历的编算和颁行》。

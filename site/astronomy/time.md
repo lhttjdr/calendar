@@ -222,7 +222,7 @@ $\Delta T$ 是用某一套月球理论反推的，反推时假定了月球的潮
 2. H. Spencer Jones, "The rotation of the earth, and the secular accelerations of the sun, moon and planets", *Monthly Notices of the Royal Astronomical Society* 99 (1939), 541–558。据 ADS 扫描本核首页。
 3. E. Halley, "Some account of the ancient state of the city of Palmyra…", *Philosophical Transactions* 19 (1695), 160–175。据 archive.org 所存 JSTOR 早期期刊本核：文末"I could then pronounce in what Proportion the Moons Motion does Accelerate; which that it does, I think I can demonstrate"。
 4. J. J. Scaliger, *Opus novum de emendatione temporum*, Paris, 1583。未核原书。
-5. L. Essen, J. V. L. Parry, "An atomic standard of frequency and time interval: a caesium resonator", *Nature* 176 (1955), 280–282。未核原文。
+5. L. Essen, J. V. L. Parry, "An atomic standard of frequency and time interval: a caesium resonator", *Nature* 176 (1955), 280–282。据 Crossref 核书目，doi:10.1038/176280a0。
 6. IAU 2006 Resolution B3, "Re-definition of Barycentric Dynamical Time, TDB"；G. Petit, B. Luzum (eds.), *IERS Conventions (2010)*, IERS Technical Note 36, ch. 10。
 7. F. R. Stephenson, *Historical Eclipses and Earth's Rotation*, Cambridge University Press, 1997。未核原书。
 8. L. V. Morrison, F. R. Stephenson, C. Y. Hohenkerk, M. Zawilski, "Addendum 2020 to 'Measurement of the Earth's rotation: 720 BC to AD 2015'", *Proceedings of the Royal Society A* 477 (2021), 20200776。

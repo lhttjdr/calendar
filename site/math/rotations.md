@@ -246,7 +246,7 @@ $$\hat q = q + \varepsilon\,\tfrac12\,\mathbf{t}\,q$$
 ## 参考文献
 
 1. L. Euler, "Formulae generales pro translatione quacunque corporum rigidorum", *Novi Commentarii academiae scientiarum Petropolitanae* 20 (1776), 189–207；Opera Omnia, ser. 2, vol. 9, 84–98（Eneström 编号 E478）。书目据欧拉档案（Euler Archive），未核原文。
-2. O. Rodrigues, "Des lois géométriques qui régissent les déplacements d'un système solide dans l'espace", *Journal de Mathématiques Pures et Appliquées* 5 (1840), 380–440。未核原文。
+2. O. Rodrigues, "Des lois géométriques qui régissent les déplacements d'un système solide dans l'espace, et de la variation des coordonnées provenant de ces déplacements considérés indépendamment des causes qui peuvent les produire", *Journal de Mathématiques Pures et Appliquées*, 1re série, 5 (1840), 380–440。据 Numdam 数字化本核题目卷页。
 3. W. R. Hamilton, "On quaternions; or on a new system of imaginaries in algebra", *Philosophical Magazine*, 3rd ser., 1844—1850 年分期连载（首期在第 25 卷）。据 D. R. Wilkins 所编录文核其刊载情况；卷页未逐期核对。
 4. A. Cayley, "On certain results relating to quaternions", *Philosophical Magazine*, 3rd ser., 26 (1845), 141–145。未核原文。
 5. C. F. Gauss, "Mutationen des Raumes"（约 1819 年手稿），收入 *Werke* 第 8 卷（1900）。未核原书。
@@ -259,9 +259,9 @@ $$\hat q = q + \varepsilon\,\tfrac12\,\mathbf{t}\,q$$
 12. J. H. Lieske, T. Lederle, W. Fricke, B. Morando, "Expressions for the precession quantities based upon the IAU (1976) system of astronomical constants", *Astronomy and Astrophysics* 58 (1977), 1–16。
 13. N. Capitaine, P. T. Wallace, J. Chapront, "Expressions for IAU 2000 precession quantities", *Astronomy and Astrophysics* 412 (2003), 567–586。
 14. J. G. Williams, "Contributions to the Earth's obliquity rate, precession, and nutation", *Astronomical Journal* 108 (1994), 711–724。据 ADS 扫描本核首页。
-15. T. Fukushima, "A new precession formula", *Astronomical Journal* 126 (2003), 494–534。未核原文。
-16. K. Shoemake, "Animating rotation with quaternion curves", *Computer Graphics* (SIGGRAPH '85) 19(3) (1985), 245–254。未核原文。
+15. T. Fukushima, "A new precession formula", *Astronomical Journal* 126 (2003), 494–534。据 Crossref 核书目，doi:10.1086/375641。
+16. K. Shoemake, "Animating rotation with quaternion curves", *Computer Graphics* (SIGGRAPH '85) 19(3) (1985), 245–254。据 Crossref 核书目，doi:10.1145/325165.325242。
 17. M. D. Shuster, "A survey of attitude representations", *Journal of the Astronautical Sciences* 41(4) (1993), 439–517。未核原文。
-18. H. Sommer, I. Gilitschenski, M. Bloesch, S. Weiss, R. Siegwart, J. Nieto, "Why and how to avoid the flipped quaternion multiplication", *Aerospace* 5(3) (2018), 72。未核原文。
+18. H. Sommer, I. Gilitschenski, M. Bloesch, S. Weiss, R. Siegwart, J. Nieto, "Why and how to avoid the flipped quaternion multiplication", *Aerospace* 5(3) (2018), 72。据 Crossref 核书目，doi:10.3390/aerospace5030072。
 19. IAU SOFA Board, *SOFA Tools for Earth Attitude*；G. Petit, B. Luzum (eds.), *IERS Conventions (2010)*, IERS Technical Note 36, §5。
 20. W. R. Hamilton, 致 A. H. Hamilton 书，1865 年 8 月 5 日。据都柏林三一学院数学系 D. R. Wilkins 所编哈密顿文献录文。

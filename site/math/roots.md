@@ -146,8 +146,8 @@ $$\Delta t = -\frac{\Delta\lambda_\text{月}}{v_\text{月} - v_\text{日}}$$
 4. I. Newton, *De analysi per aequationes numero terminorum infinitas*（1669 年手稿），London, 1711。未核原书。
 5. J. Raphson, *Analysis aequationum universalis*, London, 1690。未核原书。
 6. T. Simpson, *Essays on Several Curious and Useful Subjects in Speculative and Mix'd Mathematicks*, London, 1740。未核原书。
-7. T. J. Ypma, "Historical development of the Newton–Raphson method", *SIAM Review* 37(4) (1995), 531–551。牛顿、拉弗森、辛普森一节据此，未核原文。
+7. T. J. Ypma, "Historical development of the Newton–Raphson method", *SIAM Review* 37(4) (1995), 531–551。牛顿、拉弗森、辛普森一节据此，据 Crossref 核书目，doi:10.1137/1037125。
 8. J. Kepler, *Epitome Astronomiae Copernicanae*, 1617—1621。未核原书。
-9. J. Kiefer, "Sequential minimax search for a maximum", *Proceedings of the American Mathematical Society* 4 (1953), 502–506。未核原文。
+9. J. Kiefer, "Sequential minimax search for a maximum", *Proceedings of the American Mathematical Society* 4 (1953), 502–506。据 Crossref 核书目，doi:10.1090/S0002-9939-1953-0055639-3。
 10. R. P. Brent, *Algorithms for Minimization without Derivatives*, Englewood Cliffs: Prentice-Hall, 1973。未核原书。
 11. 李约瑟（J. Needham），《中国科学技术史》第三卷《数学、天学和地学》。盈不足西传一说据此，未核原书。

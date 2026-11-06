@@ -151,7 +151,7 @@ $$\mathbf r_{\text{地心}}(\text{天体}) = \mathbf r_{\text{日心}}(\text{天
 4. J. Kovalevsky, I. I. Mueller, "Comments on conventional terrestrial and quasi-inertial reference systems", in E. M. Gaposchkin, B. Kołaczek (eds.), *Reference Coordinate Systems for Earth Dynamics*, IAU Colloquium 56, Dordrecht: Reidel, 1981。未核原文。
 5. F. W. Bessel, *Fundamenta Astronomiae pro anno MDCCLV deducta ex observationibus viri incomparabilis James Bradley*, Königsberg, 1818。未核原书。
 6. W. Fricke et al., *Fifth Fundamental Catalogue (FK5)*, Veröffentlichungen Astronomisches Rechen-Institut Heidelberg 32, 1988。未核原书。
-7. C. Ma et al., "The International Celestial Reference Frame as realized by Very Long Baseline Interferometry", *Astronomical Journal* 116 (1998), 516–546。未核原文。
+7. C. Ma et al., "The International Celestial Reference Frame as realized by Very Long Baseline Interferometry", *Astronomical Journal* 116 (1998), 516–546。据 Crossref 核书目，doi:10.1086/300408。
 8. G. Petit, B. Luzum (eds.), *IERS Conventions (2010)*, IERS Technical Note 36, ch. 5（参考架偏差 ξ₀、η₀、dα₀）。
 9. J. L. Hilton, C. Y. Hohenkerk, "Rotation matrix from the mean dynamical equator and equinox at J2000.0 to the ICRS", *Astronomy and Astrophysics* 413 (2004), 765–770。
 

@@ -140,10 +140,10 @@ Dekker 在 1971 年据此提出：用两个双精度数之和 $x = x_\text{hi} +
 1. 《元史》卷五十三《曆志二·授時曆議下·不用積年日法》，卷五十四《曆志三·授時曆經上·步氣朔第一》，明宋濂等撰。据维基文库录文。
 2. IEEE, *IEEE Standard for Binary Floating-Point Arithmetic*, ANSI/IEEE Std 754-1985；*IEEE Standard for Floating-Point Arithmetic*, IEEE Std 754-2008。未核原文。
 3. J. H. Wilkinson, *Rounding Errors in Algebraic Processes*, London: HMSO, 1963。未核原书。
-4. O. Møller, "Quasi double-precision in floating point addition", *BIT* 5 (1965), 37–50。未核原文。
+4. O. Møller, "Quasi double-precision in floating point addition", *BIT* 5 (1965), 37–50。据 Crossref 核书目，doi:10.1007/BF01975722。
 5. D. E. Knuth, *The Art of Computer Programming*, vol. 2: *Seminumerical Algorithms*, Reading: Addison-Wesley, 1969, §4.2.2。未核原书。
-6. T. J. Dekker, "A floating-point technique for extending the available precision", *Numerische Mathematik* 18 (1971), 224–242。未核原文。
-7. Y. Hida, X. S. Li, D. H. Bailey, "Algorithms for quad-double precision floating point arithmetic", *Proceedings of the 15th IEEE Symposium on Computer Arithmetic* (2001), 155–162。未核原文。
-8. L. Fousse, G. Hanrot, V. Lefèvre, P. Pélissier, P. Zimmermann, "MPFR: A multiple-precision binary floating-point library with correct rounding", *ACM Transactions on Mathematical Software* 33(2) (2007), 13。未核原文。
+6. T. J. Dekker, "A floating-point technique for extending the available precision", *Numerische Mathematik* 18 (1971), 224–242。据 Crossref 核书目，doi:10.1007/BF01397083。
+7. Y. Hida, X. S. Li, D. H. Bailey, "Algorithms for quad-double precision floating point arithmetic", *Proceedings of the 15th IEEE Symposium on Computer Arithmetic* (2001), 155–162。据 Crossref 核书目，doi:10.1109/ARITH.2001.930115。
+8. L. Fousse, G. Hanrot, V. Lefèvre, P. Pélissier, P. Zimmermann, "MPFR: A multiple-precision binary floating-point library with correct rounding", *ACM Transactions on Mathematical Software* 33(2) (2007), 13。据 Crossref 核书目，doi:10.1145/1236463.1236468。
 9. N. J. Higham, *Accuracy and Stability of Numerical Algorithms*, 2nd ed., Philadelphia: SIAM, 2002。未核原书。
 10. IAU SOFA Board, *SOFA Time Scale and Calendar Tools*（两段儒略日的用法）。

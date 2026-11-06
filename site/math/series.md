@@ -184,10 +184,10 @@ $\sqrt{n}$ 来自截去的众多小项相位杂乱、正负相消，与上一节
 7. E. W. Woolard, "Theory of the rotation of the Earth around its center of mass", *Astronomical Papers of the American Ephemeris* 15, part 1 (1953)。未核原书。
 8. J. M. Wahr, "The forced nutations of an elliptical, rotating, elastic and oceanless Earth", *Geophysical Journal of the Royal Astronomical Society* 64 (1981), 705–727。
 9. P. M. Mathews, T. A. Herring, B. A. Buffett, "Modeling of nutation and precession: New nutation series for nonrigid Earth and insights into the Earth's interior", *Journal of Geophysical Research* 107(B4) (2002), 2068。
-10. D. D. McCarthy, B. J. Luzum, "An abridged model of the precession-nutation of the celestial pole", *Celestial Mechanics and Dynamical Astronomy* 85 (2003), 37–49。未核原文。
+10. D. D. McCarthy, B. J. Luzum, "An abridged model of the precession-nutation of the celestial pole", *Celestial Mechanics and Dynamical Astronomy* 85 (2003), 37–49。据 Crossref 核书目，doi:10.1023/A:1021762727016。
 11. X X Newhall, "Numerical representation of planetary ephemerides", *Celestial Mechanics* 45 (1989), 305–310。据 ADS 扫描本核。
 12. W. G. Horner, "A new method of solving numerical equations of all orders, by continuous approximation", *Philosophical Transactions of the Royal Society* 109 (1819), 308–335。据 archive.org 所存 JSTOR 早期期刊本核题目卷页。
-13. W. Kahan, "Further remarks on reducing truncation errors", *Communications of the ACM* 8(1) (1965), 40。未核原文。
-14. A. Neumaier, "Rundungsfehleranalyse einiger Verfahren zur Summation endlicher Summen", *Zeitschrift für Angewandte Mathematik und Mechanik* 54 (1974), 39–51。未核原文。
+13. W. Kahan, "Further remarks on reducing truncation errors", *Communications of the ACM* 8(1) (1965), 40。据 Crossref 核书目，doi:10.1145/363707.363723。
+14. A. Neumaier, "Rundungsfehleranalyse einiger Verfahren zur Summation endlicher Summen", *Zeitschrift für Angewandte Mathematik und Mechanik* 54 (1974), 39–51。据 Crossref 核书目，doi:10.1002/zamm.19740540106。
 15. J. Meeus, *Astronomical Algorithms*, 2nd ed., Willmann-Bell, 1998，第 31 章《行星位置》、第 45 章《月球位置》。论断据 Meeus 原书；查阅所用为许剑伟的业余中译本（2008），未与英文原书逐字核对。
 16. 李约瑟（J. Needham），《中国科学技术史》第三卷《数学、天学和地学》。秦九韶、贾宪一节据数学史通说，未核原书。

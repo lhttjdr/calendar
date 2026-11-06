@@ -186,13 +186,13 @@ $\Delta T$ 的配套要知道两部月历表的月亮平黄经之差 $\Delta\lam
 4. C. F. Gauss, *Theoria motus corporum coelestium in sectionibus conicis solem ambientium*, Hamburg, 1809, §§175–186。据 archive.org 所存 1809 年本核第 186 条。
 5. C. F. Gauss, *Theoria combinationis observationum erroribus minimis obnoxiae*, Göttingen, 1823。未核原书。
 6. R. J. Boscovich, "De litteraria expeditione per pontificiam ditionem", *Bononiensi Scientiarum et Artium Instituto atque Academia Commentarii* 4 (1757), 353–396。未核原文。
-7. S. M. Stigler, "Gauss and the invention of least squares", *Annals of Statistics* 9(3) (1981), 465–474。未核原文。
-8. R. L. Plackett, "The discovery of the method of least squares", *Biometrika* 59(2) (1972), 239–251。未核原文。
-9. A. S. Householder, "Unitary triangularization of a nonsymmetric matrix", *Journal of the ACM* 5(4) (1958), 339–342。未核原文。
-10. G. H. Golub, "Numerical methods for solving linear least squares problems", *Numerische Mathematik* 7 (1965), 206–216。未核原文。
-11. K. Levenberg, "A method for the solution of certain non-linear problems in least squares", *Quarterly of Applied Mathematics* 2 (1944), 164–168。未核原文。
-12. D. W. Marquardt, "An algorithm for least-squares estimation of nonlinear parameters", *Journal of the Society for Industrial and Applied Mathematics* 11(2) (1963), 431–441。未核原文。
-13. M. Stone, "Cross-validatory choice and assessment of statistical predictions", *Journal of the Royal Statistical Society B* 36(2) (1974), 111–147。未核原文。
-14. H. Akaike, "A new look at the statistical model identification", *IEEE Transactions on Automatic Control* 19(6) (1974), 716–723。未核原文。
+7. S. M. Stigler, "Gauss and the invention of least squares", *Annals of Statistics* 9(3) (1981), 465–474。据 Crossref 核书目，doi:10.1214/aos/1176345451。
+8. R. L. Plackett, "The discovery of the method of least squares", *Biometrika* 59(2) (1972), 239–251。据 Crossref 核书目，doi:10.2307/2334569。
+9. A. S. Householder, "Unitary triangularization of a nonsymmetric matrix", *Journal of the ACM* 5(4) (1958), 339–342。据 Crossref 核书目，doi:10.1145/320941.320947。
+10. G. H. Golub, "Numerical methods for solving linear least squares problems", *Numerische Mathematik* 7 (1965), 206–216。据 Crossref 核书目，doi:10.1007/BF01436075。
+11. K. Levenberg, "A method for the solution of certain non-linear problems in least squares", *Quarterly of Applied Mathematics* 2 (1944), 164–168。据 Crossref 核书目，doi:10.1090/qam/10666。
+12. D. W. Marquardt, "An algorithm for least-squares estimation of nonlinear parameters", *Journal of the Society for Industrial and Applied Mathematics* 11(2) (1963), 431–441。据 Crossref 核书目，doi:10.1137/0111030。
+13. M. Stone, "Cross-validatory choice and assessment of statistical predictions", *Journal of the Royal Statistical Society B* 36(2) (1974), 111–133。据 Crossref 核书目，doi:10.1111/j.2517-6161.1974.tb00994.x。
+14. H. Akaike, "A new look at the statistical model identification", *IEEE Transactions on Automatic Control* 19(6) (1974), 716–723。据 Crossref 核书目，doi:10.1109/TAC.1974.1100705。
 15. J. Chapront, "Improvements of planetary theories over 6000 years", *Celestial Mechanics and Dynamical Astronomy* 78 (2000), 75–82。
 16. J. Chapront, G. Francou, "The lunar theory ELP revisited. Introduction of new planetary perturbations", *Astronomy and Astrophysics* 404 (2003), 735–742。
