@@ -7,6 +7,33 @@
 | 数值历表 | 运动方程数值积分，再以雷达测距、激光测月、飞船跟踪等观测做最小二乘拟合 | 精度最高；以分段切比雪夫系数存储，体积大；时间跨度受积分与观测覆盖限制 | JPL DE、INPOP、EPM |
 | 解析/半解析历表 | 摄动理论把轨道展开成时间的级数（多项式 + 周期项） | 公式显式、体积小、长时段可用；精度取决于项数与拟合对象 | VSOP87、ELP/MPP02 |
 
+## 源流
+
+"历表"一词在中西都由来已久，指按时刻列出天体位置的表，或据以推算位置的表与算法。
+
+**巴比伦与希腊。** 塞琉古时代（前 3 世纪起）的巴比伦泥板上已有逐月推算日月位置、朔望时刻的"星历"，用的是分段线性的"之字形函数"，今人称为系统 A、系统 B（Neugebauer 1955）。托勒密的《实用天文表》（Handy Tables，2 世纪）把《至大论》的几何模型化为查表计算，是后来伊斯兰与欧洲天文表的范本。
+
+**中世纪到开普勒。** 卡斯蒂利亚的《阿方索星表》（13 世纪编成，1483 年印行）在欧洲通用二百余年；开普勒据第谷观测与椭圆轨道编成《鲁道夫星表》（1627），精度提高一个数量级以上。
+
+**国家历书。** 法国《时间知识》（Connaissance des Temps）始于 1679 年，英国《航海天文历》（Nautical Almanac）自 1767 年起由马斯基林主编，为航海求经度提供月距表。19 世纪末纽康的太阳与行星表、20 世纪初布朗的月球表（1919）成为各国历书的共同基础，一直用到 1980 年代初。
+
+**数值积分。** 1960 年代起，美国喷气推进实验室为行星探测的导航直接数值积分太阳系的运动方程，并用雷达测距、激光测月、飞船跟踪数据拟合初值与常数，这就是 DE 系列。1984 年起各国天文年历改以 DE200 为基准，解析理论转而以拟合数值历表为目标，VSOP、ELP 都是这样。
+
+**中国。** 中国历法的"历表"是日躔表、月离表、五星表等，表中列出日月五星在各段的超前落后之数，段内内插（见数学篇《最小二乘拟合》）。元代《授时曆》以后还编有可以直接查用的"立成"。据此每年推算、颁行的历书，即官历；宋宝祐四年（1256）的《會天曆》是存世的一部宋代官历。明末徐光启等编《崇禎曆書》（1634），按第谷体系编制日躔、月离、五纬诸表，清代据以颁行《时宪历》。
+
+| 年代 | 历表 | 性质 |
+|---|---|---|
+| 前 3 世纪起 | 巴比伦星历（系统 A、B） | 算术周期函数 |
+| 2 世纪 | 托勒密《实用天文表》 | 几何模型，查表 |
+| 1483 | 《阿方索星表》印行 | 托勒密体系 |
+| 1627 | 开普勒《鲁道夫星表》 | 椭圆轨道 |
+| 1634 | 《崇禎曆書》诸表 | 第谷体系 |
+| 1679、1767 | 《时间知识》《航海天文历》 | 国家历书 |
+| 1895、1919 | 纽康太阳与行星表；布朗月球表 | 解析摄动理论 |
+| 1960 年代起 | JPL DE 系列 | 数值积分加观测拟合 |
+| 1982—1988 | VSOP82、VSOP87；ELP 2000-82 | 半解析理论，拟合数值历表 |
+| 2002、2013 | ELP/MPP02；VSOP2013 | 同上 |
+
 ## 常用历表
 
 **JPL DE 系列（数值）**
@@ -222,8 +249,12 @@ $\tau$ 为距 2000 年的千年数；$\varphi_j$ 取该变量主问题级数中�
 
 ## 参考文献
 
-- Bretagnon P., Francou G. 1988, *A&A* 202, 309（VSOP87）.
-- Chapront J. 2000, *Celest. Mech. Dyn. Astron.* 78, 75（Improvements of planetary theories over 6000 years）.
-- Chapront J., Francou G. 2003, *A&A* 404, 735；ELP/MPP02 说明文档（2002）.
-- Standish E.M. 1998, JPL IOM 312.F-98-048（DE405/DE406）.
-- Park R.S. et al. 2021, *AJ* 161, 105（DE440/DE441）.
+1. O. Neugebauer, *Astronomical Cuneiform Texts*, London: Lund Humphries, 1955。未核原书。
+2. 《崇禎曆書》，明徐光启等编，崇祯七年（1634）。本地有故宫珍本丛刊影印本之五纬表、五纬历指部分。
+3. 《大宋寶祐四年會天曆》，阮元辑《宛委别藏》本。本地有影印本。
+4. P. Bretagnon, G. Francou, "Planetary theories in rectangular and spherical variables. VSOP 87 solutions", *Astronomy and Astrophysics* 202 (1988), 309–315。
+5. J. Chapront, "Improvements of planetary theories over 6000 years", *Celestial Mechanics and Dynamical Astronomy* 78 (2000), 75–82。
+6. M. Chapront-Touzé, J. Chapront, "The lunar ephemeris ELP 2000", *Astronomy and Astrophysics* 124 (1983), 50–62。
+7. J. Chapront, G. Francou, "The lunar theory ELP revisited. Introduction of new planetary perturbations", *Astronomy and Astrophysics* 404 (2003), 735–742；ELP/MPP02 说明文档（2002）。
+8. E. M. Standish, "JPL Planetary and Lunar Ephemerides, DE405/LE405", JPL IOM 312.F-98-048, 1998。
+9. R. S. Park, W. M. Folkner, J. G. Williams, D. H. Boggs, "The JPL Planetary and Lunar Ephemerides DE440 and DE441", *Astronomical Journal* 161 (2021), 105。
