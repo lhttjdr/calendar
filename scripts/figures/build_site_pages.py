@@ -209,7 +209,6 @@ FIX_SKY = [
 
 CAL_PAGES = [  # (知识库源, 站点页, 标题, 修补)
     ("doc/calendar/calendar-compendium.md", "site/calendar/compendium.md", "历代历法总录", "FIX_COMPENDIUM"),
-    ("doc/calendar/qin-han-calendar-evaluation.md", "site/calendar/qin-han.md", "秦与汉初历法", "FIX_QINHAN"),
 ]
 FIX_COMPENDIUM = [
     (r"与书的统计全同。转录在 。", "与书的统计全同。"),
@@ -219,7 +218,6 @@ FIX_COMPENDIUM = [
     (r"本项目文档和代码注释原先标反，已改。", ""),
     (r"\n\*\*改正的 ?程序错误\*\*[^\n]*\n", "\n"),
 ]
-FIX_QINHAN: list[tuple[str, str]] = []
 
 
 DEV_SECTION = re.compile(r"实现位置|使用方式|^实现$|代码位置|本仓库实现|Rust 实现")
