@@ -6,7 +6,7 @@ export const DATA_BASE = `${BASE}/data`
 export const ELP_BASE = `${DATA_BASE}/elpmpp02`
 
 /** 二进制 URL 带缓存破坏，避免浏览器沿用旧 404 缓存导致一直走全文本 */
-const BIN_V = '?v=2'
+const BIN_V = '?v=3'
 const FIT_BASE = `${DATA_BASE}/fit`
 
 export const EPHEMERIS_BINARY_URLS = {
@@ -21,6 +21,8 @@ export const EPHEMERIS_BINARY_URLS = {
   earth_patch_de406_bin: `${FIT_BASE}/vsop87-de406-earth.bin${BIN_V}`,
   /** 同上，拟合到 DE441 */
   earth_patch_de441_bin: `${FIT_BASE}/vsop87-de441-earth.bin${BIN_V}`,
+  /** ELPMPP02 常数集：按论文两步法拟合 DE441（文本，数十行）；DE406 用 wasm 内置的论文常数集，无需取 */
+  elp_fit_de441_txt: `${FIT_BASE}/elpmpp02-de441.txt${BIN_V}`,
   /** 章动完整表 IAU2000A（tab5.3a.bin），与历表二进制同一链路；有则状态栏显示「完整 IAU2000A」，否则回落 77 项 */
   nutation_tab53a_bin: `${DATA_BASE}/IAU2000/tab5.3a.bin${BIN_V}`,
 } as const
@@ -35,5 +37,6 @@ export const EPHEMERIS_BINARY_URL_LIST = [
   EPHEMERIS_BINARY_URLS.elp_pert_s3_bin,
 ] as const
 
-/** VSOP87 地球改正所拟合的目标历表（与 Rust 侧缺省 `PatchTarget::De406` 一致）；改为 'de441' 即用 DE441 版。 */
+/** 日月历表对齐的目标历表（与 Rust 侧缺省 `PatchTarget::De406`、`Elpmpp02Correction::DE406` 一致）；改为 'de441' 即
+ * VSOP87 地球用 DE441 版改正、ELPMPP02 用拟合 DE441 的常数集，ΔT 配套也随之换用 ELPMPP02(DE441) − DE431 的黄经差。 */
 export const EARTH_PATCH_TARGET: 'de406' | 'de441' = 'de406'

@@ -2,7 +2,8 @@
 //!
 //! 平黄经的潮汐部分为 ṅ/2·T²（T 儒略世纪），故 Δλ ≈ a + bT + (Δṅ/2)T² + 周期项；在前 2900 年至 2900 年取 3000 个随机时刻
 //! 最小二乘拟合多项式，Δṅ = 2c（二次项系数 c）。用于检验 ΔT 潮汐修正所用的 ṅ（`delta_t::lunar_tidal_acceleration`）；
-//! 有 DE431（MS2021 ΔT 所配历表，`vendor/jpl/de431/`）时另拟合 ELPMPP02 − DE431 的 Δλ(T)，据 δΔT = −Δλ/n_月 给出 ΔT 配套修正。
+//! 有 DE431（MS2021 ΔT 所配历表，`vendor/jpl/de431/`）时另拟合 ELPMPP02 − DE431 的 Δλ(T)，据 δΔT = −Δλ/n_月 给出 ΔT 配套修正，
+//! 并检查 `delta_t::lunar_longitude_offset` 中的常数与重测一致；有 DE441 常数集（`data/fit/elpmpp02-de441.txt`）时对它同样检验。
 
 use super::*;
 use crate::astronomy::ephemeris::elpmpp02::{load_all, Elpmpp02Correction};
@@ -43,6 +44,32 @@ fn fit_poly(xs: &[f64], ys: &[f64], deg: usize) -> (Vec<f64>, f64) {
     (s, rms)
 }
 
+/// `delta_t` 中写死的黄经差常数须与本次重测的三次式一致（前 2900—2900 年每 100 年比一次，差 < 0.05″），历表改动后须同步更新。
+fn assert_offset_matches(off: &crate::astronomy::time::delta_t::LunarLongitudeOffset, c: &[f64]) {
+    for y in (-29..=29).map(|k| k as f64 * 100.0) {
+        let tc = (y - 2000.0) / 100.0;
+        let fit = c.iter().enumerate().map(|(k, v)| v * tc.powi(k as i32)).sum::<f64>();
+        let jd = 2451545.0 + (y - 2000.0) * 365.25;
+        let d = off.arcsec_at(real(jd)).as_f64() - fit;
+        assert!(d.abs() < 0.05, "{}：{y} 年常数 − 重测 = {d:+.3}″", off.name);
+    }
+}
+
+/// 每 400 年的分段均值（周期项在段内大体平均掉），看 Δλ(T) 的低频形状。
+fn print_bins(ts: &[f64], ys: &[f64]) {
+    for b0 in (-29..29).step_by(4) {
+        let sel: Vec<f64> = ts
+            .iter()
+            .zip(ys)
+            .filter(|(t, _)| **t >= (b0 - 20) as f64 && **t < (b0 - 16) as f64)
+            .map(|(_, y)| *y)
+            .collect();
+        if !sel.is_empty() {
+            println!("  {} 年起 400 年：均值 {:+.2}″（{} 个）", b0 * 100, sel.iter().sum::<f64>() / sel.len() as f64, sel.len());
+        }
+    }
+}
+
 #[test]
 fn elpmpp02_effective_ndot_vs_de406_de441() {
     let Some(bsp) = crate::test_util::de406_bsp_path_if_exists() else {
@@ -54,6 +81,8 @@ fn elpmpp02_effective_ndot_vs_de406_de441() {
     let k431 = De406Kernel::open(crate::repo::repo_root().join(crate::repo::paths::DE431_BSP)).ok();
     assert!(try_init_full_nutation_from_repo(), "未能加载 IAU 2000A 章动表");
     let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE406).unwrap();
+    // 拟合 DE441 的常数集（data/fit/elpmpp02-de441.txt），有则一并检验
+    let elp441 = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE441).ok();
     let opts = ApparentPipelineOptions::pipeline_default();
     let wrap = |d: f64| ((d + std::f64::consts::PI).rem_euclid(std::f64::consts::TAU) - std::f64::consts::PI).to_degrees() * 3600.0;
     // 确定性伪随机（线性同余），避开整日
@@ -64,6 +93,8 @@ fn elpmpp02_effective_ndot_vs_de406_de441() {
     };
     let (jd0, jd1) = (2451545.0 - 4900.0 * 365.25, 2451545.0 + 900.0 * 365.25);
     let (mut ts, mut d406, mut d441, mut d441_406, mut d431) = (vec![], vec![], vec![], vec![], vec![]);
+    // ELPMPP02(DE441 常数集) 相对 DE441、DE431
+    let (mut e441_441, mut e441_431) = (vec![], vec![]);
     for _ in 0..3000 {
         let jd = jd0 + (jd1 - jd0) * rnd();
         let t = TimePoint::new(TimeScale::TT, real(jd));
@@ -80,13 +111,22 @@ fn elpmpp02_effective_ndot_vs_de406_de441() {
             // 本仓库月历表相对 MS2021 所配历表：ELPMPP02 − DE431
             let b = moon_apparent_ecliptic_longitude_de406_with_options(k, t, &opts).rad().as_f64();
             d431.push(wrap(e - b));
+            if let Some(el) = &elp441 {
+                let e2 = moon_apparent_ecliptic_longitude_with_options(el, t, &opts).rad().as_f64();
+                e441_431.push(wrap(e2 - b));
+            }
+        }
+        if let (Some(el), Some(k)) = (&elp441, &k441) {
+            let e2 = moon_apparent_ecliptic_longitude_with_options(el, t, &opts).rad().as_f64();
+            let b = moon_apparent_ecliptic_longitude_de406_with_options(k, t, &opts).rad().as_f64();
+            e441_441.push(wrap(b - e2));
         }
     }
     let report = |name: &str, ys: &[f64]| {
         let (c2, rms2) = fit_poly(&ts, ys, 2);
         let (c3, rms3) = fit_poly(&ts, ys, 3);
         println!(
-            "{name}：二次 [{:+.3}, {:+.4}, {:+.5}]（RMS {rms2:.2}″，Δṅ = {:+.4}″/cy²）；三次 [{:+.3}, {:+.4}, {:+.5}, {:+.6}]（RMS {rms3:.2}″）",
+            "{name}：二次 [{:+.3}, {:+.4}, {:+.5}]（RMS {rms2:.2}″，Δṅ = {:+.4}″/cy²）；三次 [{:+.4}, {:+.5}, {:+.6}, {:+.7}]（RMS {rms3:.2}″）",
             c2[0], c2[1], c2[2], 2.0 * c2[2], c3[0], c3[1], c3[2], c3[3]
         );
         2.0 * c2[2]
@@ -98,13 +138,30 @@ fn elpmpp02_effective_ndot_vs_de406_de441() {
     }
     if k431.is_some() {
         report("ELPMPP02 − DE431", &d431);
-        let (c, _) = fit_poly(&ts, &d431, 2);
+        print_bins(&ts, &d431);
+        let (c, _) = fit_poly(&ts, &d431, 3);
+        assert_offset_matches(&crate::astronomy::time::delta_t::lunar_longitude_offset::ELPMPP02_DE406_MINUS_DE431, &c);
         for year in [-700.0, -200.0, 0.0, 500.0, 1000.0, 1500.0, 1900.0] {
             let tc = (year - 2000.0) / 100.0;
-            let dl = c[0] + c[1] * tc + c[2] * tc * tc;
+            let dl = c[0] + c[1] * tc + c[2] * tc * tc + c[3] * tc * tc * tc;
             // δΔT = −Δλ / n_月（n_月 = 1732559343.736″/cy = 0.549016″/s）
             println!("  {year} 年：Δλ = {dl:+.2}″ → δΔT = {:+.1} s（现行 ṅ 二次修正 {:+.1} s）", -dl / 0.549016,
                 crate::astronomy::time::delta_t::tidal_correction(real(year), real(-25.857), real(-25.82)).seconds().as_f64());
+        }
+    }
+    if !e441_441.is_empty() {
+        let n = report("DE441 − ELPMPP02(DE441)", &e441_441);
+        assert!(n.abs() < 0.05, "ELPMPP02(DE441) 与 DE441 的 ṅ 差 {n}″/cy²");
+    }
+    if !e441_431.is_empty() {
+        report("ELPMPP02(DE441) − DE431", &e441_431);
+        print_bins(&ts, &e441_431);
+        let (c, _) = fit_poly(&ts, &e441_431, 3);
+        assert_offset_matches(&crate::astronomy::time::delta_t::lunar_longitude_offset::ELPMPP02_DE441_MINUS_DE431, &c);
+        for year in [-700.0, -200.0, 0.0, 500.0, 1000.0, 1500.0, 1900.0] {
+            let tc = (year - 2000.0) / 100.0;
+            let dl = c[0] + c[1] * tc + c[2] * tc * tc + c[3] * tc * tc * tc;
+            println!("  {year} 年：Δλ = {dl:+.2}″ → δΔT = {:+.1} s", -dl / 0.549016);
         }
     }
     // ELPMPP02 的 DE406 改正应使二者 ṅ 基本一致

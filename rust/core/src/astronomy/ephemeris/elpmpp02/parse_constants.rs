@@ -1,9 +1,11 @@
 //! ELP-MPP02 解析常数：Delaunay、行星幅角、经度系数等。
-//! 从 Elpmpp02Common.DE405 移植（Fortran INITIAL icor=1，拟合区间 1950–2060）。
+//! 照 Fortran `INITIAL` 由常数改正集（[Elpmpp02Fit]）导出；任一改正集（LLR、DE405、本项目拟合的 DE441 等）共用同一推导。
 
 use crate::math::angle::dms2rad;
 use crate::math::real::RealOps;
 use crate::math::series::arcsec_to_rad;
+
+use super::fit::Elpmpp02Fit;
 
 /// 解析用常数：ra0、平均运动比、Delaunay（前 4 行）、Planetary（前 8 行）等。
 #[derive(Clone, Debug)]
@@ -26,8 +28,16 @@ pub struct ParseConstants {
     pub laskars_q: [f64; 6],
 }
 
-/// DE405 拟合常数。
+/// DE405 拟合常数 + Table 6（Fortran icor=1）。
 pub fn de405() -> ParseConstants {
+    ParseConstants::from_fit(&Elpmpp02Fit::de405())
+}
+
+impl ParseConstants {
+    /// 由一组常数改正导出解析与求值所需常数，逐步照 Fortran `INITIAL`：
+    /// 名义值 + Table 3 式改正 → 加长期项改正（Table 6 式）→ 由 Δν、ΔΓ、ΔE、Δe′、Δn′ 推 δW2⁽¹⁾、δW3⁽¹⁾（论文 §4.3.2）
+    /// → Delaunay 幅角、ζ（均含长期项改正）→ 振幅改正用的 δν、δΓ、δE、δn′、δe′（论文 Table 4）。
+    pub fn from_fit(fit: &Elpmpp02Fit) -> ParseConstants {
     let a0_elp = 384747.980674318_f64;
     let a0_de405 = 384747.9613701725_f64;
     let ra0 = a0_de405 / a0_elp;
@@ -38,19 +48,19 @@ pub fn de405() -> ParseConstants {
     let iau_precession = 5029.0966_f64;
     let delta_iau_precession = -0.29965_f64;
 
-    let dlongitude_lunar1_0 = -0.07008_f64;
-    let dlongitude_lunar2_0 = 0.20794_f64;
-    let dlongitude_lunar3_0 = -0.07215_f64;
-    let dlongitude_lunar1_1 = -0.35106_f64;
-    let dlongitude_lunar2_1 = 0.08017_f64;
-    let dlongitude_lunar3_1 = -0.04317_f64;
-    let dlongitude_lunar1_2 = -0.03743_f64;
-    let d_gamma = 0.00085_f64;
-    let d_e = -0.00006_f64;
-    let dlongitude_emb_0 = -0.00033_f64;
-    let dlongitude_emb_1 = 0.00732_f64;
-    let dperihelion_emb = -0.00749_f64;
-    let d_ep = 0.00224_f64;
+    let dlongitude_lunar1_0 = fit.dw1_0;
+    let dlongitude_lunar2_0 = fit.dw2_0;
+    let dlongitude_lunar3_0 = fit.dw3_0;
+    let dlongitude_lunar1_1 = fit.dw1_1;
+    let dlongitude_lunar2_1 = fit.dw2_1;
+    let dlongitude_lunar3_1 = fit.dw3_1;
+    let dlongitude_lunar1_2 = fit.dw1_2;
+    let d_gamma = fit.dgam;
+    let d_e = fit.de;
+    let dlongitude_emb_0 = fit.deart_0;
+    let dlongitude_emb_1 = fit.deart_1;
+    let dperihelion_emb = fit.dperi;
+    let d_ep = fit.dep;
 
     let sec = |x: f64| arcsec_to_rad(x).as_f64();
 
@@ -78,6 +88,12 @@ pub fn de405() -> ParseConstants {
         ],
         [0.0; 5],
     ];
+    // 长期项加性改正（Table 6 式），在推 δW2⁽¹⁾、δW3⁽¹⁾ 与 Delaunay 幅角之前加入，同 Fortran
+    for i in 0..3 {
+        for k in 2..5 {
+            longitude_lunar[i][k] += sec(fit.secular[i][k]);
+        }
+    }
 
     let longitude_emb: [f64; 5] = [
         dms2rad(100.0, 27.0, 59.13885).as_f64() + sec(dlongitude_emb_0),
@@ -241,4 +257,5 @@ pub fn de405() -> ParseConstants {
         laskars_p,
         laskars_q,
     }
+}
 }

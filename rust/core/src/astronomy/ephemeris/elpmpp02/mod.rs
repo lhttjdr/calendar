@@ -1,10 +1,13 @@
 //! ELP-MPP02 月球历表。
 //!
-//! **当前实现**：仅平均根数（无周期/泊松项）求位置与速度，用于定朔等；常数为 DE405。
-//!
 //! **完整 ELPMPP02**：解析 ELP_MAIN.S1/S2/S3、ELP_PERT.S1/S2/S3，求值 6 组周期/泊松项；
-//! `load()` 加载后可用 `position_velocity()` 得完整位置与速度。
+//! `load()` 加载后可用 `position_velocity()` 得完整位置与速度。另有仅平均根数的轻量版。
+//!
+//! **常数集**（[Elpmpp02Correction]）：论文的 LLR、DE405（+Table 6，即贴近 DE406 的用法），以及本项目按论文方法
+//! 拟合 DE441 所得的一组（`data/fit/elpmpp02-de441.txt`）。常数集只影响加载时生成的振幅与相位多项式
+//! （[parse::Elpmpp02Raw::build]），求值过程相同。
 
+pub mod fit;
 pub mod parse;
 pub mod parse_constants;
 pub mod table7;
@@ -15,13 +18,13 @@ mod tests_jpl_python;
 use crate::astronomy::constant::J2000;
 use crate::astronomy::time::TimePoint;
 use crate::math::algebra::mat::Mat;
-use crate::math::angle::dms2rad;
 use crate::quantity::rotation_matrix::RotationMatrix;
 use crate::quantity::{angular_rate::AngularRate, angle::PlaneAngle, epoch::Epoch, julian_centuries::JulianCenturies, length::Length, position::Position, reference_frame::ReferenceFrame, speed::Speed, unit::{AngularRateUnit, LengthUnit, SpeedUnit}, vector3::Vector3, velocity::Velocity};
 use crate::math::real::{real_const, real, zero, Real, ToReal};
 use crate::math::series::{arcsec_to_rad, power_series_at_real, power_series_derivative_at_real};
 
-pub use parse::{load_all, load_all_from_binary, split_fortran_main, terms_from_binary, terms_to_binary};
+pub use fit::Elpmpp02Fit;
+pub use parse::{load_all, load_all_from_binary, load_all_from_binary_with_fit, split_fortran_main, Elpmpp02Raw};
 
 /// 从数据目录加载 ELPMPP02；base_path 下需有 ELP_MAIN.S1/S2/S3、ELP_PERT.S1/S2/S3。
 pub fn load(
@@ -53,43 +56,64 @@ pub struct Elpmpp02Constants {
 }
 
 impl Elpmpp02Constants {
-    /// DE405 拟合常数（论文 Table 3 Col.2 + Table 6 长期项），DE405 拟合常数。全程 Real。
-    pub fn de405() -> Self {
-        let lon1_0 = dms2rad(218.0, 18.0, 59.95571) + arcsec_to_rad(-0.07008);
-        let lon1_1 = arcsec_to_rad(1732559343.73604 - 0.35106);
-        let lon1_2 = arcsec_to_rad(-6.8084 - 0.03743);
-        let lon1_3 = arcsec_to_rad(0.66040e-2) + arcsec_to_rad(-0.00018865);
-        let lon1_4 = arcsec_to_rad(-0.31690e-4) + arcsec_to_rad(-0.00001024);
+    /// 由解析常数取求值用的部分（W1 多项式已含长期项改正）。
+    pub fn from_parse_constants(c: &ParseConstants) -> Self {
         Elpmpp02Constants {
-            longitude_lunar1: [lon1_0, lon1_1, lon1_2, lon1_3, lon1_4],
-            laskar_p: [
-                real_const(0.0),
-                real_const(0.10180391e-04),
-                real_const(0.47020439e-06),
-                real_const(-0.5417367e-09),
-                real_const(-0.2507948e-11),
-                real_const(0.463486e-14),
-            ],
-            laskar_q: [
-                real_const(0.0),
-                real_const(-0.113469002e-03),
-                real_const(0.12372674e-06),
-                real_const(0.1265417e-08),
-                real_const(-0.1371808e-11),
-                real_const(-0.320334e-14),
-            ],
+            longitude_lunar1: c.longitude_lunar1.map(real),
+            laskar_p: c.laskars_p.map(real),
+            laskar_q: c.laskars_q.map(real),
             a0: Length::from_value(real_const(384747.9613701725), LengthUnit::Kilometer),
-            ra0: real_const(384747.9613701725 / 384747.980674318),
+            ra0: real(c.ra0),
         }
+    }
+
+    /// DE405 拟合常数（论文 Table 3 第 2 列 + Table 6 长期项）。
+    pub fn de405() -> Self {
+        Self::from_parse_constants(&ParseConstants::from_fit(&Elpmpp02Fit::de405()))
     }
 }
 
-/// 历表拟合类型：与哪套行星历表/观测一致（用于缓存键；DE406 与 DE405 使用相同常数，见论文 §4.3.3）。
+/// 常数集：与哪套观测或 JPL 历表拟合。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Elpmpp02Correction {
+    /// 论文 Table 3 第 3 列（拟合 1970—2001 LLR）
     LLR,
+    /// 论文 Table 3 第 2 列（拟合 DE405，1950—2060）+ Table 6
     DE405,
+    /// 同 DE405：论文 §4.3.3 说 DE405 拟合 + Table 6 即贴近 DE406 的用法，无另一套常数
     DE406,
+    /// 本项目按论文两步法拟合 DE441 的常数集（`data/fit/elpmpp02-de441.txt`，`examples/elpmpp02_de_fit.rs` 生成）
+    DE441,
+}
+
+impl Elpmpp02Correction {
+    /// 内置常数集；须从数据文件读入的（DE441）返回 None。
+    pub fn builtin_fit(self) -> Option<Elpmpp02Fit> {
+        match self {
+            Self::LLR => Some(Elpmpp02Fit::llr()),
+            Self::DE405 | Self::DE406 => Some(Elpmpp02Fit::de405()),
+            Self::DE441 => None,
+        }
+    }
+
+    /// 该常数集的月亮黄经相对 DE431（Morrison–Stephenson 2016/2021 ΔT 所配历表）的实测差，供 ΔT 配套修正
+    /// （[crate::astronomy::time::delta_t::delta_t_for_lunar_offset]）；LLR 常数集未测，返回 None。
+    pub fn lunar_offset_vs_de431(self) -> Option<crate::astronomy::time::delta_t::LunarLongitudeOffset> {
+        use crate::astronomy::time::delta_t::lunar_longitude_offset as o;
+        match self {
+            Self::DE405 | Self::DE406 => Some(o::ELPMPP02_DE406_MINUS_DE431),
+            Self::DE441 => Some(o::ELPMPP02_DE441_MINUS_DE431),
+            Self::LLR => None,
+        }
+    }
+
+    /// 常数集：内置的直接给出，DE441 经 loader 读 [crate::repo::paths::FIT_ELPMPP02_DE441]。
+    pub fn fit(self, loader: &dyn crate::platform::DataLoader) -> Result<Elpmpp02Fit, crate::platform::LoadError> {
+        match self.builtin_fit() {
+            Some(f) => Ok(f),
+            None => Elpmpp02Fit::parse(&loader.read_lines(crate::repo::paths::FIT_ELPMPP02_DE441)?.join("\n")),
+        }
+    }
 }
 
 /// 仅常数、无周期/泊松项的数据，用于“仅平均根数”求位置
@@ -103,6 +127,8 @@ pub struct Elpmpp02Data {
     pub poisson_r: Vec<Elpmpp02Term>,
     pub constants: Elpmpp02Constants,
     pub correction: Elpmpp02Correction,
+    /// 生成本数据所用的常数改正集
+    pub fit: Elpmpp02Fit,
 }
 
 impl Elpmpp02Data {
@@ -116,6 +142,7 @@ impl Elpmpp02Data {
             poisson_r: Vec::new(),
             constants: Elpmpp02Constants::de405(),
             correction: Elpmpp02Correction::DE405,
+            fit: Elpmpp02Fit::de405(),
         }
     }
 
@@ -130,6 +157,7 @@ impl Elpmpp02Data {
             poisson_r: Vec::new(),
             constants: Elpmpp02Constants::de405(),
             correction: Elpmpp02Correction::DE406,
+            fit: Elpmpp02Fit::de405(),
         }
     }
 
@@ -238,96 +266,10 @@ fn position_velocity_mean_only_impl(data: &Elpmpp02Data, t: TimePoint) -> (Posit
     )
 }
 
-/// Table 6 相位修正系数（角秒），与论文下标一致：d_ω₂,₂、d_ω₂,₃、d_ω₃,₂、d_ω₃,₃。DE405/406 用。
-struct Table6Dw {
-    d_w2_2: PlaneAngle,
-    d_w2_3: PlaneAngle,
-    d_w3_2: PlaneAngle,
-    d_w3_3: PlaneAngle,
-}
-
-fn table6_d_w() -> Table6Dw {
-    Table6Dw {
-        d_w2_2: PlaneAngle::from_arcsec(real(0.00470602)),
-        d_w2_3: PlaneAngle::from_arcsec(real(-0.00025213)),
-        d_w3_2: PlaneAngle::from_arcsec(real(-0.00261070)),
-        d_w3_3: PlaneAngle::from_arcsec(real(-0.00010712)),
-    }
-}
-
-/// Table 6 相位修正，DE405/DE406 时应用。系数与 T²、T³ 的乘法用 [PlaneAngle](PlaneAngle) 带量纲计算。
-///
-/// **参数物理意义**：
-/// - `ilu`：该历表项的 [Delaunay 系数](Elpmpp02Term) 四元组 [i_D, i_l, i_l′, i_F]，即相位中 Delaunay 角组合（D·τ + i_l·l + i_l′·l′ + i_F·F）的整数系数；本公式只用 `ilu[1]`(i_F)、`ilu[2]`(i_l) 参与 Table 6 的系数。
-/// - `t_cy`：[儒略世纪数](JulianCenturies)，相对 J2000 的无量纲时间 T，历表幂级数自变量。
-fn table6_phase_correction_rad(
-    correction: Elpmpp02Correction,
-    ilu: &[i32; 4],
-    t_cy: JulianCenturies,
-) -> PlaneAngle {
-    if correction != Elpmpp02Correction::DE405 && correction != Elpmpp02Correction::DE406 {
-        return PlaneAngle::from_rad(zero());
-    }
-    let d = table6_d_w();
-    let i_f = real(ilu[1]);
-    let i_l = real(ilu[2]);
-    let coeff1 = i_f * (-d.d_w3_2) + i_l * (-d.d_w2_2);
-    let coeff2 = i_f * (-d.d_w3_3) + i_l * (-d.d_w2_3);
-    let t_cy_r = t_cy.value();
-    let t2 = t_cy_r * t_cy_r;
-    coeff1 * t2 + coeff2 * (t2 * t_cy_r)
-}
-
-/// Table 6 相位修正对时间的导数（角速度），单位 rad/世纪。系数与 T 的乘法用 [PlaneAngle](PlaneAngle) 带量纲计算，最后转为 [AngularRate](AngularRate)。
-/// 参数物理意义同 [table6_phase_correction_rad]。
-fn table6_phase_correction_derivative_rad(
-    correction: Elpmpp02Correction,
-    ilu: &[i32; 4],
-    t_cy: JulianCenturies,
-) -> AngularRate {
-    if correction != Elpmpp02Correction::DE405 && correction != Elpmpp02Correction::DE406 {
-        return AngularRate::from_value(zero(), AngularRateUnit::RadPerJulianCentury);
-    }
-    let d = table6_d_w();
-    let i_f = real(ilu[1]);
-    let i_l = real(ilu[2]);
-    let coeff1 = i_f * (-d.d_w3_2) + i_l * (-d.d_w2_2);
-    let coeff2 = i_f * (-d.d_w3_3) + i_l * (-d.d_w2_3);
-    let total_angle = coeff1 * (real(2.0) * t_cy) + coeff2 * (real(3.0) * t_cy * t_cy);
-    AngularRate::from_value(total_angle.rad(), AngularRateUnit::RadPerJulianCentury)
-}
-
 /// 相位多项式 fi·alpha_t 在 Real 下求值。
 fn phase_at_real(fi: &[Real], alpha_t: &[Real]) -> Real {
     let n = fi.len().min(alpha_t.len());
     (0..n).fold(zero(), |s, i| s + fi[i] * alpha_t[i])
-}
-
-/// Table 6 相位修正在时刻 T 的系数：修正 = i_F·a + i_l·b（弧度），其时间导数 = i_F·a′ + i_l·b′（弧度/世纪）。
-/// 修正对 (i_F, i_l) 线性，故每次求值只算一次，逐项只做两次乘加（见 [table6_phase_correction_rad]）。
-#[derive(Clone, Copy)]
-struct Table6Coeffs {
-    a: Real,
-    b: Real,
-    a_dot: Real,
-    b_dot: Real,
-}
-
-impl Table6Coeffs {
-    fn at(correction: Elpmpp02Correction, t_cy: JulianCenturies) -> Self {
-        // 修正对 (i_F, i_l) 线性：取 (i_F, i_l) = (1, 0)、(0, 1) 两组即得 a、b 及其导数
-        let a = table6_phase_correction_rad(correction, &[0, 1, 0, 0], t_cy).rad();
-        let b = table6_phase_correction_rad(correction, &[0, 0, 1, 0], t_cy).rad();
-        let a_dot = table6_phase_correction_derivative_rad(correction, &[0, 1, 0, 0], t_cy).in_unit(AngularRateUnit::RadPerJulianCentury);
-        let b_dot = table6_phase_correction_derivative_rad(correction, &[0, 0, 1, 0], t_cy).in_unit(AngularRateUnit::RadPerJulianCentury);
-        Self { a, b, a_dot, b_dot }
-    }
-
-    #[inline]
-    fn phase(&self, ilu: &[i32; 4]) -> (Real, Real) {
-        let (i_f, i_l) = (real(ilu[1]), real(ilu[2]));
-        (i_f * self.a + i_l * self.b, i_f * self.a_dot + i_l * self.b_dot)
-    }
 }
 
 /// 单组周期+泊松求值：(p, v) 角秒与角秒/世纪。t_cy 为 [JulianCenturies](JulianCenturies)，无量纲直接参与计算（[ToReal] 转 Real）。
@@ -336,7 +278,6 @@ fn calculate_component(
     alpha_t: &[Real; 5],
     period: &[Elpmpp02Term],
     poisson: &[Elpmpp02Term],
-    t6: &Table6Coeffs,
     max_terms: Option<usize>,
 ) -> (Real, Real) {
     let mut sum_p = zero();
@@ -345,17 +286,15 @@ fn calculate_component(
     let take_po = max_terms.unwrap_or(poisson.len());
     let alpha_slice: &[Real] = alpha_t.as_slice();
     for t in period.iter().take(take_p) {
-        let (c6, c6_dot) = t6.phase(&t.ilu);
-        let y = phase_at_real(&t.fi, alpha_slice) + c6;
+        let y = phase_at_real(&t.fi, alpha_slice);
         let (sy, cy) = y.sin_cos();
         let ci = t.ci.arcsec();
         sum_p = sum_p + ci * sy;
-        let yp = power_series_derivative_at_real(&t.fi, t_cy) + c6_dot;
+        let yp = power_series_derivative_at_real(&t.fi, t_cy);
         sum_v = sum_v + ci * cy * yp;
     }
     for t in poisson.iter().take(take_po) {
-        let (c6, c6_dot) = t6.phase(&t.ilu);
-        let y = phase_at_real(&t.fi, alpha_slice) + c6;
+        let y = phase_at_real(&t.fi, alpha_slice);
         let alpha_val = if t.alpha >= 0 && (t.alpha as usize) < alpha_t.len() {
             alpha_t[t.alpha as usize]
         } else {
@@ -365,7 +304,7 @@ fn calculate_component(
         let x = ci * alpha_val;
         let (sy, cy) = y.sin_cos();
         sum_p = sum_p + x * sy;
-        let yp = power_series_derivative_at_real(&t.fi, t_cy) + c6_dot;
+        let yp = power_series_derivative_at_real(&t.fi, t_cy);
         let alpha_prev = if t.alpha > 0 && ((t.alpha - 1) as usize) < alpha_t.len() {
             alpha_t[(t.alpha - 1) as usize]
         } else {
@@ -391,13 +330,11 @@ fn position_velocity_full(
     let t_cy: JulianCenturies = epoch_tt.offset_in_julian_centuries(J2000, real(DAYS_PER_JULIAN_CENTURY));
     let alpha_t: [Real; 5] = [real(1), real(t_cy), t_cy * t_cy, t_cy * t_cy * t_cy, t_cy * t_cy * t_cy * t_cy];
     let mt = max_terms.map(|u| u as usize);
-    let t6 = Table6Coeffs::at(data.correction, t_cy);
     let (pv1p, pv1v) = calculate_component(
         t_cy,
         &alpha_t,
         &data.period_v,
         &data.poisson_v,
-        &t6,
         mt,
     );
     let (pv2p, pv2v) = calculate_component(
@@ -405,7 +342,6 @@ fn position_velocity_full(
         &alpha_t,
         &data.period_u,
         &data.poisson_u,
-        &t6,
         mt,
     );
     let (pv3p, pv3v) = calculate_component(
@@ -413,7 +349,6 @@ fn position_velocity_full(
         &alpha_t,
         &data.period_r,
         &data.poisson_r,
-        &t6,
         mt,
     );
     let c = &data.constants;
@@ -530,35 +465,80 @@ mod tests {
     use crate::astronomy::time::j2000_tt;
     use crate::math::real::RealOps;
 
-    /// 求值实现改动（Table 6 修正按 (i_F, i_l) 线性提到项循环外、sin/cos 合并为 sin_cos）前后结果一致：
-    /// 参考值为 2026-10-27 改动前的输出（f64 打印）。只允许舍入级差异（位置 1e-6 m、速度 1e-12 m/s）。
+    /// 官方 Fortran 校验值（`vendor/elpmpp02/ELPMPP02.TXT`）：前 21 个时刻为 icor=0（LLR），后 15 个为 icor=1（DE405 + Table 6），
+    /// 每个时刻给 J2000 平黄道位置（km）与速度（km/日）。
+    fn fortran_check_values() -> Vec<(f64, [f64; 3], [f64; 3])> {
+        let text = std::fs::read_to_string(crate::repo::repo_root().join(crate::repo::paths::ELPMPP02).join("ELPMPP02.TXT")).unwrap();
+        let nums = |s: &str| -> Vec<f64> {
+            s.split('=').skip(1).map(|t| t.trim().split_whitespace().next().unwrap().parse().unwrap()).collect()
+        };
+        let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
+        lines
+            .chunks(3)
+            .map(|c| {
+                let jd: f64 = c[0].trim().trim_start_matches("JD").trim().parse().unwrap();
+                let (p, v) = (nums(c[1]), nums(c[2]));
+                (jd, [p[0], p[1], p[2]], [v[0], v[1], v[2]])
+            })
+            .collect()
+    }
+
+    /// 与官方 Fortran 输出逐时刻对照（LLR 1980—2007 年 21 个时刻；DE405 2132 年至前 5534 年 15 个时刻）。
+    /// 实测最大差：位置约 5e-5 km、速度约 1e-6 km/日（f64 舍入级）。
     #[test]
-    fn evaluation_refactor_matches_reference() {
-        const REF: [(f64, [f64; 3], [f64; 3]); 6] = [
-            (625000.5, [-30071266.28884214, 370421386.330352, 12830876.72533786], [-1049.4062693488086, -28.52921748012978, 93.17453800310732]),
-            (1200000.25, [123980528.25447671, -356413249.33844334, 29715892.30682388], [969.3752906718186, 385.003219363859, 15.256313768806093]),
-            (1850000.0, [-384582554.120894, 65872487.4588778, -16881143.701455172], [-219.44932097808584, -980.3583217895643, -87.61933144855267]),
-            (2451545.0, [-291608323.0137932, -274979807.29978675, 36271176.21224059], [643.5315348350508, -730.9838524644059, -11.50666731429378]),
-            (2460000.75, [286725829.4160839, 254649693.18840897, 3600891.436102207], [-621.3362699260315, 806.9371817581213, 90.6824803662571]),
-            (2900000.5, [-399714581.42837083, -46283288.500821374, 32225970.291812975], [135.46465167041828, -967.8713692033186, 37.09742508951317]),
-        ];
-        let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE406).unwrap();
-        // 参考值由 double-double 求得；f64 构建受儒略日舍入（约 40 µs）与级数求和舍入限制，容差另定
-        const TOL_P_F64: f64 = 0.05;
-        const TOL_V_F64: f64 = 2e-7;
-        let (tol_p, tol_v) = if cfg!(feature = "real-f64") { (TOL_P_F64, TOL_V_F64) } else { (1e-6, 1e-12) };
+    #[cfg(not(target_arch = "wasm32"))]
+    fn matches_fortran_check_values() {
+        let vals = fortran_check_values();
+        assert_eq!(vals.len(), 36);
+        let loader = crate::repo::default_loader();
+        let raw = Elpmpp02Raw::load(&loader, crate::repo::paths::ELPMPP02).unwrap();
+        let llr = raw.build(&Elpmpp02Fit::llr(), Elpmpp02Correction::LLR);
+        let de405 = raw.build(&Elpmpp02Fit::de405(), Elpmpp02Correction::DE405);
         let (mut wp, mut wv) = (0.0_f64, 0.0_f64);
-        for (jd, p_ref, v_ref) in REF {
-            let (p, v) = position_velocity(&elp, TimePoint::new(crate::astronomy::time::TimeScale::TT, real(jd)));
+        for (i, (jd, p_ref, v_ref)) in vals.into_iter().enumerate() {
+            let data = if i < 21 { &llr } else { &de405 };
+            let (p, v) = position_velocity(data, TimePoint::new(crate::astronomy::time::TimeScale::TT, real(jd)));
             let (m, vm) = (p.to_meters(), v.to_m_per_s());
             for k in 0..3 {
-                wp = wp.max((m[k].as_f64() - p_ref[k]).abs());
-                wv = wv.max((vm[k].as_f64() - v_ref[k]).abs());
-                assert!((m[k].as_f64() - p_ref[k]).abs() < tol_p, "JD {jd} 位置[{k}] {} vs {}", m[k].as_f64(), p_ref[k]);
-                assert!((vm[k].as_f64() - v_ref[k]).abs() < tol_v, "JD {jd} 速度[{k}] {} vs {}", vm[k].as_f64(), v_ref[k]);
+                let dp = (m[k].as_f64() / 1000.0 - p_ref[k]).abs();
+                let dv = (vm[k].as_f64() * 86.4 - v_ref[k]).abs();
+                wp = wp.max(dp);
+                wv = wv.max(dv);
+                assert!(dp < 2e-4, "JD {jd} 位置[{k}] 差 {dp} km");
+                assert!(dv < 2e-5, "JD {jd} 速度[{k}] 差 {dv} km/日");
             }
         }
-        println!("对参考值最大差：位置 {wp:.3e} m，速度 {wv:.3e} m/s");
+        println!("对 Fortran 校验值最大差：位置 {wp:.2e} km，速度 {wv:.2e} km/日");
+    }
+
+    /// 拟合 DE441 的常数集（data/fit/elpmpp02-de441.txt）可加载；有 DE441 BSP 时，前 2999—2999 年 200 个随机时刻
+    /// 对 DE441 的几何黄经差 < 3.5″（拟合时 3000 个时刻最大 3.04″，见 doc/astronomy/ephemerides-and-de-align.md §5.4.4）。
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn de441_constant_set_matches_de441() {
+        use crate::astronomy::ephemeris::elpmpp02::table7::icrs_to_ecliptic_j2000;
+        let loader = crate::repo::default_loader();
+        let elp = load_all(&loader, crate::repo::paths::ELPMPP02, Elpmpp02Correction::DE441).expect("data/fit/elpmpp02-de441.txt");
+        assert_ne!(elp.fit, Elpmpp02Fit::de405());
+        let Ok(k) = crate::astronomy::ephemeris::De406Kernel::open(crate::repo::repo_root().join(crate::repo::paths::DE441_BSP)) else {
+            println!("skipped: 无 DE441 BSP");
+            return;
+        };
+        let mut seed: u64 = 441;
+        let mut worst = 0.0_f64;
+        for _ in 0..200 {
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let jd = 2451545.0 + (-4999.0 + 5998.0 * ((seed >> 11) as f64 / (1u64 << 53) as f64)) * 365.25;
+            let (p, _) = position_velocity(&elp, TimePoint::new(crate::astronomy::time::TimeScale::TT, real(jd)));
+            let m = p.to_meters();
+            let (q, _) = k.geocentric_moon(jd).unwrap();
+            let (x, y, _) = icrs_to_ecliptic_j2000(q[0], q[1], q[2]);
+            let d = (m[1].as_f64().atan2(m[0].as_f64()) - y.atan2(x) + std::f64::consts::PI).rem_euclid(std::f64::consts::TAU)
+                - std::f64::consts::PI;
+            worst = worst.max(d.abs() * 206264.806);
+        }
+        println!("ELPMPP02(DE441) − DE441 最大黄经差 {worst:.3}″");
+        assert!(worst < 3.5, "{worst}″");
     }
 
     #[test]

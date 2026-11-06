@@ -27,6 +27,8 @@ pub mod paths {
     pub const FIT_VSOP87_DE406_PLANETS: &str = "data/fit/vsop87-de406-planets.txt";
     /// VSOP87–DE441 各行星（含地球）日心 L、B、R 改正（同上方法，目标历表 DE441）
     pub const FIT_VSOP87_DE441_PLANETS: &str = "data/fit/vsop87-de441-planets.txt";
+    /// ELPMPP02 常数改正集：按论文两步法拟合 DE441（`examples/elpmpp02_de_fit.rs` 生成）
+    pub const FIT_ELPMPP02_DE441: &str = "data/fit/elpmpp02-de441.txt";
     /// wasm 用：地球改正二进制（`examples/patch_to_bin.rs` 由上两表生成，只含 `ear`）
     pub const FIT_VSOP87_DE406_EARTH_BIN: &str = "data/fit/vsop87-de406-earth.bin";
     pub const FIT_VSOP87_DE441_EARTH_BIN: &str = "data/fit/vsop87-de441-earth.bin";

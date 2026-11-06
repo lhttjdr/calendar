@@ -310,7 +310,7 @@ function App() {
   const [realBackendVariant, setRealBackendVariant] = useState<RealBackendVariant>(getStoredRealBackend)
   const [ephemerisSource, setEphemerisSource] = useState<EphemerisDataSource | null>(null)
   /** 章动表/地球改正加载状态（由 WASM get_repo_aux_* 提供，仅文本/混合路径有值；全二进制为 77 项+未加载） */
-  const [repoAux, setRepoAux] = useState<{ nutationFull: boolean; earthPatch: boolean } | null>(null)
+  const [repoAux, setRepoAux] = useState<{ nutationFull: boolean; earthPatch: boolean; elpCorrection: string } | null>(null)
   /** 单日信息卡片按域分组的可选显示项（天文事件层/历法派生层/工程仲裁层状态），见 DAY_INFO_LAYER_GROUPS */
   const [dayInfoLayers, setDayInfoLayers] = useState<Record<DayInfoLayerKey, boolean>>(getStoredDayInfoLayers)
   const toggleDayInfoLayer = (key: DayInfoLayerKey) => {
@@ -352,7 +352,8 @@ function App() {
     }
     const nutationFull = typeof wasm.get_repo_aux_nutation_full === 'function' ? wasm.get_repo_aux_nutation_full() : false
     const earthPatch = typeof wasm.get_repo_aux_earth_patch === 'function' ? wasm.get_repo_aux_earth_patch() : false
-    setRepoAux({ nutationFull, earthPatch })
+    const elpCorrection = typeof wasm.get_elpmpp02_correction === 'function' ? wasm.get_elpmpp02_correction() : 'DE406'
+    setRepoAux({ nutationFull, earthPatch, elpCorrection })
   }, [wasm, ephemerisSource])
 
   const presetSelectValue = getPresetIndexFromOptions(ganzhiOptions)
@@ -1256,6 +1257,9 @@ function App() {
                   </Text>
                   <Text type="secondary" style={{ fontSize: 11 }}>
                     VSOP87 地球改正（拟合 {EARTH_PATCH_TARGET.toUpperCase()}）：{repoAux.earthPatch ? '已加载（二进制）' : '未加载'}
+                  </Text>
+                  <Text type="secondary" style={{ fontSize: 11 }}>
+                    ELPMPP02 常数集：{repoAux.elpCorrection === 'DE441' ? '拟合 DE441' : '论文 DE405 + Table 6（贴近 DE406）'}
                   </Text>
                 </>
               )}

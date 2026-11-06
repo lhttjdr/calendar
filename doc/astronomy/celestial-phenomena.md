@@ -442,6 +442,19 @@ MS2021 的 ΔT 不宜直接配 DE441 的月亮。
 实现：`time::delta_t::{LunarLongitudeOffset, lunar_longitude_offset::ELPMPP02_DE406_MINUS_DE431, delta_t_for_lunar_offset}`；
 原 `delta_t_for_ephemeris`（ṅ 二次修正）保留为选项。`examples/historical_eclipses.rs` 第 6 个参数选 `offset`（缺省）或 `ndot`。
 
+**ELPMPP02 幅角修正与 DE441 常数集（2026-11-06）**：对照官方 Fortran 校验值发现，Table 6 中 W1 的 T³、T⁴ 改正此前没进 D、F、l、ζ
+等幅角，前 1000 年月亮位置约差 0.5″、前 3000 年约 5″；改为照 Fortran `INITIAL` 由常数改正集导出，36 个校验时刻一致到 5 cm。
+修正后 DE406 − ELPMPP02 的视黄经残差 RMS 由 1.0″ 降为 0.45″（Δṅ = −0.0015″/cy²）；ELPMPP02 − DE431 重测，改用三次式
+Δλ = −0.2382″ + 0.03751″T + 0.003724″T² + 0.0001151″T³（RMS 0.49″），配套量前 700 年 +1.5 s、前 200 年 +0.9 s、公元 0 年 +0.8 s。
+另按论文两步法拟合了 DE441 的常数集（`data/fit/elpmpp02-de441.txt`，6000 年内对 DE441 最大差 3.0″），作为选项；它与 DE431 的
+平黄经在前 200 年差约 33″，配 MS2021 须修正 ΔT 约 +60 s，故缺省仍用论文常数集。详见
+[ephemerides-and-de-align.md](ephemerides-and-de-align.md) §5.4.2—5.4.5。`examples/historical_eclipses.rs` 第 7 个参数选
+`de406`（缺省）或 `de441`。
+复核（`scripts/dev/phenomena_checks.sh` 全量重跑）：所有校验表的结论、类型、日差列一处未变；NASA 日月食典前 199—前 100 年
+对照，极大时刻差逐条变化 ≤ 0.2 s（约 −18 s 的一致偏差仍在，来自 NASA 所用 ELP-2000/82 与 ELPMPP02 之差，见上），γ、食分 ≤ 0.0001；
+史书日月食检验 ΔT 变化 ≤ 1 s、都城食分 ≤ 0.009（《宋史》月食一条）、时刻 ≤ 0.01 h，《清史稿》交食一条推算初亏 06:21→06:20；
+凌犯、星位对照角距变化 ≤ 0.01°。
+
 **新缺省下复核（2026-10-26）**：Vondrák 2011 + DE406 版地球改正下，全部库测试通过（含 2026 年节气、定朔对照参考表，NASA 日月食
 对照，行星与 Skyfield 对照）；《汉书》《后汉书》日月食检验重跑，结论、日差全部不变，极大食时刻最大变化 0.9 s，都城食分最大变化 0.001。
 

@@ -56,13 +56,24 @@
 
 ---
 
-## ELP-MPP02 二进制（已实现）
+## ELP-MPP02 二进制（已实现，格式 v2）
 
-- 每个文件（ELP_MAIN.S1/S2/S3、ELP_PERT.S1/S2/S3）对应一项列表，二进制格式：
-  - 魔数 `ELP1`（4 字节）+ 版本 `u32` + 项数 `u32`；
-  - 每项：`ci_arcsec` f64、`fi[5]` f64（弧度）、`alpha` i32、`ilu[4]` i32，共 68 字节。
-- `terms_to_binary` / `terms_from_binary` 在 `elpmpp02::parse`；`load_all_from_binary(s1..s3, p1..p3, correction)` 从 6 个 buffer 构建 `Elpmpp02Data`。
-- 生成 .bin：`cargo run -p lunar-core --example elpmpp02_to_bin --no-default-features --features twofloat -- ../vendor/elpmpp02`，在 `vendor/elpmpp02/` 下生成 6 个 `.bin`。
+二进制存**原始系数**，与常数集无关：振幅改正与相位多项式依赖所选常数集（LLR、DE405/406、DE441 拟合，见
+[../astronomy/ephemerides-and-de-align.md](../astronomy/ephemerides-and-de-align.md) §5.4），在加载时按常数集生成
+（`Elpmpp02Raw::build`，同 Fortran `READFILE`），故一套 .bin 适用于全部常数集。
+
+- 文件头：魔数（4 字节）+ 版本 `u32`（= 2）+ 项数 `u32`，小端；其后为定长项，无尾部。
+- **主问题** `ELP_MAIN.S1/S2/S3.bin`，魔数 `ELPM`，每项 52 字节：`ilu[4]` i8（D、F、l、l′ 的整数系数）、`A` f64、`B1…B5` f64
+  （A 对 ν、Γ、E、e′、n′ 的偏导）。
+- **摄动** `ELP_PERT.S1/S2/S3.bin`，魔数 `ELPP`，每项 30 字节：`S`、`C` f64（sin、cos 系数）、`ifi[13]` i8（D、F、l、l′，
+  水星至海王星 8 个行星平黄经，ζ 的整数系数）、T 的幂次 u8（0—3）。
+- 六个文件合计 1.13 MB（Brotli 后 0.64 MB）。旧格式 v1（魔数 `ELP1`，存按 DE405 常数算好的 Ci、Fi，68 字节/项，2.4 MB）
+  已废弃：它把常数集固化在文件里，且 Table 6 长期项改正只能在求值时另加，W1 的 T³、T⁴ 改正漏进幅角（见上引 §5.4.2）。
+- API（`elpmpp02::parse`）：`main_to_binary`/`main_from_binary`、`pert_to_binary`/`pert_from_binary`、`Elpmpp02Raw::from_binary`；
+  `load_all_from_binary(s1..s3, p1..p3, correction)` 用内置常数集（LLR、DE405、DE406），
+  `load_all_from_binary_with_fit(bufs, fit, correction)` 用调用方给出的常数集（如 DE441 拟合）。
+- 生成 .bin：`cargo run -p lunar-core --example elpmpp02_to_bin -- ../vendor/elpmpp02`，在 `vendor/elpmpp02/` 下生成 6 个 `.bin`
+  （生成物，不入库；入库的是 `web/public/data/elpmpp02/` 下的副本）。前端按魔数 `ELPM`/`ELPP` 判断，URL 缓存参数 `?v=3`。
 
 ---
 
@@ -86,7 +97,7 @@
   默认使用 `./vendor`（可传参指定 vendor 目录），拟合表部分固定读写 `./data/fit`。会生成 `vendor/vsop87/VSOP87B.ear.bin`、`vendor/elpmpp02/` 下 6 个 `.bin`、`vendor/IAU2000/tab5.3a.bin`。
 - **分别生成**：在 `rust` 目录下  
   VSOP87：`cargo run -p lunar-core --example vsop87_to_bin --no-default-features --features twofloat -- ../vendor/vsop87/VSOP87B.ear ../vendor/vsop87/VSOP87B.ear.bin`  
-  ELP：`cargo run -p lunar-core --example elpmpp02_to_bin --no-default-features --features twofloat -- ../vendor/elpmpp02`  
+  ELP：`cargo run -p lunar-core --example elpmpp02_to_bin -- ../vendor/elpmpp02`  
   章动：`cargo run -p lunar-core --example tab53a_to_bin --no-default-features --features twofloat -- ..`（项目根）
 - **Brotli 压缩**（可选）：在项目根目录执行 `node scripts/ephemeris/compress_ephemeris_brotli.mjs [vendor 目录] [数据目录]`，会在 `vendor/`（含 `IAU2000/tab5.3a.bin`）与 `data/fit/` 下为每个 .bin 生成同名的 .br；前端会优先请求 .bin.br 并解压。
 - **前端数据**：在 `web` 目录执行 `npm run copy-data` 会把 `vendor/vsop87/`、`vendor/elpmpp02/`、`vendor/IAU2000/`（以及 `data/fit/`）拷贝到 `web/public/data/`（含 .txt/.ear、.bin、.br 若存在），供 fetch 使用。

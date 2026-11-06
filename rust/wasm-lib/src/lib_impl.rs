@@ -6,7 +6,7 @@ use lunar_core::calendar::era_gaiyuan::GaiyuanDays;
 use lunar_core::calendar::era_names::EraEntry;
 use lunar_core::math::real::{real, RealOps};
 use lunar_core::platform::{DataLoader, LoadError};
-use lunar_core::astronomy::ephemeris::{load_all, load_all_from_binary, load_earth_vsop87_from_repo, Elpmpp02Correction, Vsop87};
+use lunar_core::astronomy::ephemeris::{load_all_from_binary_with_fit, load_earth_vsop87_from_repo, Elpmpp02Correction, Elpmpp02Data, Elpmpp02Fit, Elpmpp02Raw, Vsop87};
 use lunar_core::astronomy::frame::nutation;
 
 /// Wasm 侧 DataLoader 实现（与 core 的 DataLoaderNative 对称）。path → 文件内容，文本用 files，二进制用 binary（如 fetch 的 .bin）。
@@ -62,6 +62,47 @@ fn with_earth_patch(vsop: Vsop87) -> Vsop87 {
 
 fn earth_patch_loaded() -> bool {
     EARTH_PATCH.lock().unwrap().is_some()
+}
+
+/// ELPMPP02 常数集：缺省论文 DE405 + Table 6（贴近 DE406）；前端选 DE441 时经 [`init_elpmpp02_fit_from_text`] 换成
+/// `data/fit/elpmpp02-de441.txt`，与地球改正的目标历表一致。
+static ELP_FIT: Lazy<Mutex<(Elpmpp02Fit, Elpmpp02Correction)>> =
+    Lazy::new(|| Mutex::new((Elpmpp02Fit::de405(), Elpmpp02Correction::DE406)));
+
+fn elp_fit() -> (Elpmpp02Fit, Elpmpp02Correction) {
+    ELP_FIT.lock().unwrap().clone()
+}
+
+/// 按当前常数集从文本加载 ELPMPP02（经宿主注入的 loader）。
+fn load_elp_text() -> Result<Elpmpp02Data, JsValue> {
+    let (fit, corr) = elp_fit();
+    let raw = Elpmpp02Raw::load(lunar_core::repo::get_loader().unwrap(), ELP_BASE).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    Ok(raw.build(&fit, corr))
+}
+
+/// 按当前常数集从 6 个二进制 buffer 加载 ELPMPP02。
+fn load_elp_binary(bufs: [&[u8]; 6]) -> Result<Elpmpp02Data, lunar_core::platform::LoadError> {
+    let (fit, corr) = elp_fit();
+    load_all_from_binary_with_fit(bufs, &fit, corr)
+}
+
+/// 设置 ELPMPP02 常数集为拟合 DE441 的一组（`data/fit/elpmpp02-de441.txt` 的文本）。前端选 DE441 时在计算前调用；
+/// 解析失败返回 false，常数集不变。
+#[wasm_bindgen]
+pub fn init_elpmpp02_fit_from_text(text: &str) -> bool {
+    match Elpmpp02Fit::parse(text) {
+        Ok(f) => {
+            *ELP_FIT.lock().unwrap() = (f, Elpmpp02Correction::DE441);
+            true
+        }
+        Err(_) => false,
+    }
+}
+
+/// 当前 ELPMPP02 常数集名（DE406 或 DE441），供状态栏展示。
+#[wasm_bindgen]
+pub fn get_elpmpp02_correction() -> String {
+    format!("{:?}", elp_fit().1)
 }
 
 #[wasm_bindgen]
@@ -794,8 +835,7 @@ pub fn compute_year_data_wasm(
     };
     *REPO_AUX_STATUS.lock().unwrap() = (nutation_ok, earth_patch_loaded());
     let vsop = with_earth_patch(load_earth_vsop87_from_repo().map_err(|e| JsValue::from_str(&e.to_string()))?);
-    let elp = load_all(lunar_core::repo::get_loader().unwrap(), ELP_BASE, Elpmpp02Correction::DE406)
-        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let elp = load_elp_text()?;
     let year_data = lunar_core::calendar::chinese_lunar::compute_year_data(
         &vsop,
         &elp,
@@ -841,8 +881,7 @@ pub fn compute_year_data_from_binary(
         nutation::try_init_full_nutation_from_repo()
     };
     *REPO_AUX_STATUS.lock().unwrap() = (nutation_ok, earth_patch_loaded());
-    let elp = load_all(lunar_core::repo::get_loader().unwrap(), ELP_BASE, Elpmpp02Correction::DE406)
-        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let elp = load_elp_text()?;
     let year_data = lunar_core::calendar::chinese_lunar::compute_year_data(
         &vsop,
         &elp,
@@ -873,16 +912,8 @@ pub fn compute_year_data_full_binary(
     nutation_tab53a_bin: &[u8],
 ) -> Result<YearDataResult, JsValue> {
     let vsop = with_earth_patch(Vsop87::from_binary(vsop87_ear_bin).map_err(|e| JsValue::from_str(&e.to_string()))?);
-    let elp = load_all_from_binary(
-        elp_main_s1_bin,
-        elp_main_s2_bin,
-        elp_main_s3_bin,
-        elp_pert_s1_bin,
-        elp_pert_s2_bin,
-        elp_pert_s3_bin,
-        Elpmpp02Correction::DE406,
-    )
-    .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let elp = load_elp_binary([elp_main_s1_bin, elp_main_s2_bin, elp_main_s3_bin, elp_pert_s1_bin, elp_pert_s2_bin, elp_pert_s3_bin])
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
     let nutation_ok = if !nutation_tab53a_bin.is_empty() {
         nutation::try_init_full_nutation_from_binary(nutation_tab53a_bin)
     } else {
@@ -1056,7 +1087,6 @@ pub fn transform_graph_visualization_data() -> TransformGraphViz {
 // 日食地图（食带图）
 // ---------------------------------------------------------------------------
 
-use lunar_core::astronomy::ephemeris::Elpmpp02Data;
 use lunar_core::astronomy::phenomena::{
     eclipse_window, solar_eclipse_global_in, solar_eclipse_local_in, solar_eclipse_map as core_solar_eclipse_map, EclipseEphemeris,
     InterpolatedSunMoon, MapPoint, SolarEclipseGlobal, SolarEclipseKind, SolarEclipseMapOptions,
@@ -1129,10 +1159,11 @@ fn json_global(g: &SolarEclipseGlobal) -> String {
     )
 }
 
-/// ΔT 估计（Morrison–Stephenson 2021，按 ELPMPP02 − DE431 实测月亮黄经差配套修正，与 examples/historical_eclipses 同）。
+/// ΔT 估计（Morrison–Stephenson 2021，按当前 ELPMPP02 常数集 − DE431 的实测月亮黄经差配套修正，与 examples/historical_eclipses 同）。
 fn ms2021_delta_t(jd_tt: f64) -> (f64, f64) {
-    use lunar_core::astronomy::time::delta_t::{delta_t_for_lunar_offset, lunar_longitude_offset, MorrisonStephenson2021};
-    let e = delta_t_for_lunar_offset(&MorrisonStephenson2021, real(jd_tt), &lunar_longitude_offset::ELPMPP02_DE406_MINUS_DE431);
+    use lunar_core::astronomy::time::delta_t::{delta_t_for_lunar_offset, MorrisonStephenson2021};
+    let offset = elp_fit().1.lunar_offset_vs_de431().expect("DE406/DE441 常数集均有实测黄经差");
+    let e = delta_t_for_lunar_offset(&MorrisonStephenson2021, real(jd_tt), &offset);
     (e.value.seconds().as_f64(), e.sigma.map(|s| s.seconds().as_f64()).unwrap_or(0.0))
 }
 
@@ -1230,16 +1261,8 @@ impl EclipseEngine {
         nutation_tab53a_bin: &[u8],
     ) -> Result<EclipseEngine, JsValue> {
         let vsop = with_earth_patch(Vsop87::from_binary(vsop87_ear_bin).map_err(|e| JsValue::from_str(&e.to_string()))?);
-        let elp = load_all_from_binary(
-            elp_main_s1_bin,
-            elp_main_s2_bin,
-            elp_main_s3_bin,
-            elp_pert_s1_bin,
-            elp_pert_s2_bin,
-            elp_pert_s3_bin,
-            Elpmpp02Correction::DE406,
-        )
-        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let elp = load_elp_binary([elp_main_s1_bin, elp_main_s2_bin, elp_main_s3_bin, elp_pert_s1_bin, elp_pert_s2_bin, elp_pert_s3_bin])
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
         if !nutation_tab53a_bin.is_empty() {
             nutation::try_init_full_nutation_from_binary(nutation_tab53a_bin);
         }
@@ -1566,16 +1589,8 @@ impl SkyEngine {
     ) -> Result<SkyEngine, JsValue> {
         let err = |e: String| JsValue::from_str(&e);
         let earth = with_earth_patch(Vsop87::from_binary(vsop87_ear_bin).map_err(|e| err(e.to_string()))?);
-        let elp = load_all_from_binary(
-            elp_main_s1_bin,
-            elp_main_s2_bin,
-            elp_main_s3_bin,
-            elp_pert_s1_bin,
-            elp_pert_s2_bin,
-            elp_pert_s3_bin,
-            Elpmpp02Correction::DE406,
-        )
-        .map_err(|e| err(e.to_string()))?;
+        let elp = load_elp_binary([elp_main_s1_bin, elp_main_s2_bin, elp_main_s3_bin, elp_pert_s1_bin, elp_pert_s2_bin, elp_pert_s3_bin])
+            .map_err(|e| err(e.to_string()))?;
         if !nutation_tab53a_bin.is_empty() {
             nutation::try_init_full_nutation_from_binary(nutation_tab53a_bin);
         }

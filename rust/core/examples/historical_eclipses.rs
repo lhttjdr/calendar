@@ -3,12 +3,14 @@
 //! 输入由 scripts/calendar_data/qinhan_eval/ 下的脚本生成（记录日的儒略日数只由历法换算得出），格式与输出列见
 //! data/phenomena/README.md。ΔT 取 Morrison–Stephenson 2021；与月历表 ELPMPP02 的配套修正可选（第 6 个参数）：
 //! `offset`（缺省，按 ELPMPP02 − DE431 实测月亮黄经差，`delta_t::lunar_longitude_offset`）或 `ndot`（按 ṅ = −25.857 的二次修正，
-//! 2026-10-26 前的做法）。都城所见在 ΔT 及 ±σ、±2σ 下各算一次。
+//! 2026-10-26 前的做法）。都城所见在 ΔT 及 ±σ、±2σ 下各算一次。第 7 个参数选日月历表对齐的目标：`de406`（缺省，VSOP87 地球
+//! DE406 改正 + ELPMPP02 论文常数集）或 `de441`（DE441 改正 + 拟合 DE441 的常数集），`offset` 配套随常数集取
+//! （`Elpmpp02Correction::lunar_offset_vs_de431`，见 doc/astronomy/ephemerides-and-de-align.md §5.4.5）。
 //!
 //! 运行（仓库根下）：缺省用 f64 构建（2026-10-28 对《汉书》《后汉书》《清史稿》四表，f64 与 TwoFloat 在输出精度下逐列全同，
 //! f64 约快十倍，见 doc/engineering/project-and-implementation.md §11.2.2）；需对照时把 real-f64 换成 twofloat。
 //!   cargo run --release -p lunar-core --example historical_eclipses --no-default-features --features real-f64 -- \
-//!     <solar|lunar> <输入 csv> <输出 csv> <东经°> <北纬°> [offset|ndot]
+//!     <solar|lunar> <输入 csv> <输出 csv> <东经°> <北纬°> [offset|ndot] [de406|de441]
 //! 输入有 site_lon、site_lat 列者逐行取观测地（命令行经纬度为缺省）。
 //! 例：《汉书》日食在长安：solar data/phenomena/hanshu_solar_eclipses.csv data/phenomena/hanshu_solar_eclipses_check.csv 108.88 34.30
 //!     《后汉书》在洛阳：solar|lunar data/phenomena/houhanshu_{solar,lunar}_eclipses.csv … 112.62 34.73
@@ -23,7 +25,7 @@ use lunar_core::astronomy::phenomena::{
     EclipseEphemeris, InterpolatedSunMoon, LunarEclipseKind, SolarEclipseKind,
 };
 use lunar_core::astronomy::time::delta_t::{
-    delta_t_for_ephemeris, delta_t_for_lunar_offset, lunar_longitude_offset, lunar_tidal_acceleration, MorrisonStephenson2021,
+    delta_t_for_ephemeris, delta_t_for_lunar_offset, lunar_tidal_acceleration, MorrisonStephenson2021,
 };
 use lunar_core::math::real::{real, Real, RealOps};
 use lunar_core::quantity::angle::PlaneAngle;
@@ -52,13 +54,16 @@ impl Row {
 
 /// ΔT 与月历表的配套方式：true 为按 ṅ 二次修正（旧），false 为按实测黄经差（缺省）。
 static PAIRING_NDOT: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+/// 月历表常数集（第 7 个参数），ΔT 的黄经差配套随之取。
+static ELP_CORRECTION: std::sync::OnceLock<Elpmpp02Correction> = std::sync::OnceLock::new();
 
 /// ΔT 中值与 σ（秒）。
 fn delta_t(jd_tt: Real) -> (f64, f64) {
     let dt = if *PAIRING_NDOT.get().unwrap_or(&false) {
         delta_t_for_ephemeris(&MorrisonStephenson2021, jd_tt, real(lunar_tidal_acceleration::ELPMPP02_DE405))
     } else {
-        delta_t_for_lunar_offset(&MorrisonStephenson2021, jd_tt, &lunar_longitude_offset::ELPMPP02_DE406_MINUS_DE431)
+        let corr = *ELP_CORRECTION.get().unwrap_or(&Elpmpp02Correction::DE406);
+        delta_t_for_lunar_offset(&MorrisonStephenson2021, jd_tt, &corr.lunar_offset_vs_de431().expect("常数集有实测黄经差"))
     };
     (dt.value.seconds().as_f64(), dt.sigma.map(|s| s.seconds().as_f64()).unwrap_or(0.0))
 }
@@ -189,8 +194,14 @@ fn lunar(w: &InterpolatedSunMoon, row: &Row, header: &[String], observer: &Obser
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let usage = "参数：<solar|lunar> <输入 csv> <输出 csv> <东经°> <北纬°> [offset|ndot]";
-    assert!(args.len() == 6 || args.len() == 7, "{usage}");
+    let usage = "参数：<solar|lunar> <输入 csv> <输出 csv> <东经°> <北纬°> [offset|ndot] [de406|de441]";
+    assert!((6..=8).contains(&args.len()), "{usage}");
+    let (patch_target, elp_corr) = match args.get(7).map(String::as_str).unwrap_or("de406") {
+        "de406" => (PatchTarget::De406, Elpmpp02Correction::DE406),
+        "de441" => (PatchTarget::De441, Elpmpp02Correction::DE441),
+        _ => panic!("{usage}"),
+    };
+    ELP_CORRECTION.set(elp_corr).unwrap();
     let pairing = args.get(6).map(String::as_str).unwrap_or("offset");
     assert!(pairing == "offset" || pairing == "ndot", "{usage}");
     PAIRING_NDOT.set(pairing == "ndot").unwrap();
@@ -198,9 +209,8 @@ fn main() {
     let (lon, lat): (f64, f64) = (args[4].parse().expect(usage), args[5].parse().expect(usage));
     assert!(mode == "solar" || mode == "lunar", "{usage}");
 
-    let vsop = load_earth_vsop87_corrected_from_repo(PatchTarget::De406).expect("VSOP87 地球数据及 DE406 改正");
-    let elp = load_all(&lunar_core::repo::default_loader(), lunar_core::repo::paths::ELPMPP02, Elpmpp02Correction::DE406)
-        .expect("ELPMPP02 数据");
+    let vsop = load_earth_vsop87_corrected_from_repo(patch_target).expect("VSOP87 地球数据及改正");
+    let elp = load_all(&lunar_core::repo::default_loader(), lunar_core::repo::paths::ELPMPP02, elp_corr).expect("ELPMPP02 数据");
     assert!(try_init_full_nutation_from_repo(), "未能加载 IAU 2000A 章动表");
     let eph = EclipseEphemeris::new(&vsop, &elp);
     let observer = Observer::new(deg(lon), deg(lat), Length::from_value(real(150.0), LengthUnit::Meter));

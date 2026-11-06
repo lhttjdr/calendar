@@ -36,7 +36,9 @@ export async function fetchBinaryMaybeBrotli(url: string): Promise<Uint8Array> {
 }
 
 export const VSOP87_MAGIC = new Uint8Array([0x56, 0x53, 0x42, 0x31]) // "VSB1"
-export const ELP_MAGIC = new Uint8Array([0x45, 0x4c, 0x50, 0x31]) // "ELP1"
+/** ELP 二进制 v2 存原始系数（与常数集无关）：主问题 "ELPM"、摄动 "ELPP"，见 doc/engineering/ephemeris-binary-format.md */
+export const ELP_MAIN_MAGIC = new Uint8Array([0x45, 0x4c, 0x50, 0x4d]) // "ELPM"
+export const ELP_PERT_MAGIC = new Uint8Array([0x45, 0x4c, 0x50, 0x50]) // "ELPP"
 export const NUTATION_TAB53A_MAGIC = new Uint8Array([0x4e, 0x35, 0x33, 0x41]) // "N53A"
 
 export function isVsop87Binary(buf: Uint8Array): boolean {
@@ -46,7 +48,8 @@ export function isVsop87Binary(buf: Uint8Array): boolean {
 
 export function isElpBinary(buf: Uint8Array): boolean {
   if (buf.length < 4) return false
-  return buf[0] === ELP_MAGIC[0] && buf[1] === ELP_MAGIC[1] && buf[2] === ELP_MAGIC[2] && buf[3] === ELP_MAGIC[3]
+  const is = (m: Uint8Array) => buf[0] === m[0] && buf[1] === m[1] && buf[2] === m[2] && buf[3] === m[3]
+  return is(ELP_MAIN_MAGIC) || is(ELP_PERT_MAGIC)
 }
 
 export function isNutationTab53aBinary(buf: Uint8Array): boolean {

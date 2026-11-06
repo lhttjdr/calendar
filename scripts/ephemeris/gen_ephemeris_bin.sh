@@ -18,7 +18,7 @@ cargo run -p lunar-core --example vsop87_to_bin $CARGO_FEATURES -- \
 
 echo ""
 echo "=== ELP-MPP02 ==="
-cargo run -p lunar-core --example elpmpp02_to_bin $CARGO_FEATURES -- \
+cargo run -p lunar-core --example elpmpp02_to_bin -- \
   "$VENDOR_DIR/elpmpp02"
 
 echo ""

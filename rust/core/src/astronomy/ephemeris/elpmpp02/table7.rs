@@ -25,3 +25,27 @@ pub fn ecliptic_j2000_to_icrs(x_ecl: f64, y_ecl: f64, z_ecl: f64) -> (f64, f64, 
     let y2 = x1 * sphi + y1 * cphi;
     (x2, y2, z1)
 }
+
+/// ICRS(GCRF) 直角坐标 → J2000 平黄道直角坐标：[ecliptic_j2000_to_icrs] 之逆，v_ecl = Rx(ε) Rz(−φ) v_icrs。
+#[inline]
+pub fn icrs_to_ecliptic_j2000(x: f64, y: f64, z: f64) -> (f64, f64, f64) {
+    let eps = EPSILON_ARCSEC * ARCSEC_TO_RAD;
+    let phi = PHI_ARCSEC * ARCSEC_TO_RAD;
+    let (cphi, sphi) = (phi.cos(), phi.sin());
+    // Rz(−φ)
+    let x1 = x * cphi + y * sphi;
+    let y1 = -x * sphi + y * cphi;
+    // Rx(ε)
+    let (ce, se) = (eps.cos(), eps.sin());
+    (x1, y1 * ce + z * se, -y1 * se + z * ce)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn inverse_round_trip() {
+        let (x, y, z) = super::ecliptic_j2000_to_icrs(1.0e5, -2.0e5, 3.0e4);
+        let (a, b, c) = super::icrs_to_ecliptic_j2000(x, y, z);
+        assert!((a - 1.0e5).abs() < 1e-9 && (b + 2.0e5).abs() < 1e-9 && (c - 3.0e4).abs() < 1e-9);
+    }
+}

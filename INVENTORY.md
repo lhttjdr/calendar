@@ -96,7 +96,7 @@
 | `vendor/elpmpp02/` | ELPMPP02 月球（定朔等），原样保留的上游数据 |
 | `vendor/IAU2000/` | 章动表，原样保留的上游数据 |
 | `vendor/jpl/de406/de406.bsp` | JPL DE406 星历（测试/比对用），原样保留的上游数据 |
-| `data/fit/` | VSOP87–DE406 拟合，本项目自己生成 |
+| `data/fit/` | 本项目自己生成的历表拟合：VSOP87 日心改正（DE406/DE441，`vsop87-*`）；ELPMPP02 拟合 DE441 的常数集与逐世纪残差（`elpmpp02-de441*`，`examples/elpmpp02_de_fit.rs`） |
 | `vendor/月相和二十四节气的计算/` | TDB 时刻参考，原样保留的上游数据 |
 
 详见 [data-paths-summary.md](doc/engineering/data-paths-summary.md)。
