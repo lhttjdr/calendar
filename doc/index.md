@@ -76,3 +76,4 @@
 | [ganzhi-calendar.md](folk/ganzhi-calendar.md) | 干支历四柱：换年、换月、闰月、换日各选项与预设的原典出处、核对状态、代码位置 |
 | [nayin-zhiri.md](folk/nayin-zhiri.md) | 纳音（三种推法）、二十八宿值日与七曜、年月紫白九星：原典依据、时宪书实物核对、代码位置 |
 | [zajie.md](folk/zajie.md) | 杂节气：三伏、社日、寒食、腊日、入梅出梅、土王用事、数九、七十二候的规则、出处、节气当日计入与否、检验 |
+| [gengdian.md](folk/gengdian.md) | 更点时刻：元授时法与清台官法、日出入与朦影的球面三角、协纪京师更点表核对 |

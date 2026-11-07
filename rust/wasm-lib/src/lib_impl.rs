@@ -739,6 +739,33 @@ pub fn zajie_for_day_wasm(jd: f64, vsop87_ear: &str) -> Result<String, JsValue> 
     Ok(out.join("；"))
 }
 
+/// 更点：某民用日、某纬度的昏、各更、攒点、旦（当地视太阳时，清制时刻名）。
+/// method：0 = 清台官法，1 = 元授时法。太阳赤纬取当地正午（以 jd 所在日 + 经度换算）时的视赤纬。
+#[wasm_bindgen]
+pub fn gengdian_wasm(jd: f64, latitude_deg: f64, longitude_deg: f64, method: u8, vsop87_ear: &str) -> Result<String, JsValue> {
+    use lunar_core::astronomy::apparent::{right_ascension_declination, sun_apparent_equatorial, ApparentPipelineOptions};
+    use lunar_core::astronomy::time::{ut1_to_tt_jd, TimePoint, TimeScale};
+    use lunar_core::folk::gengdian::{qing, qing_shike, shou_shi};
+    let vsop = vsop87_cached(vsop87_ear)?;
+    // 当地正午的 UT：民用日中午（东八区 JD 取整）减经度换算
+    let jdn = (jd + 0.5).floor();
+    let noon_ut = jdn - longitude_deg / 360.0;
+    let tt = ut1_to_tt_jd(real(noon_ut));
+    let sun = sun_apparent_equatorial(vsop.as_ref(), TimePoint::new(TimeScale::TT, tt), &ApparentPipelineOptions::pipeline_default());
+    let (_, dec) = right_ascension_declination(&sun);
+    let dec_deg = dec.arcsec() / real(3600.0);
+    let g = if method == 1 { shou_shi(real(latitude_deg), dec_deg) } else { qing(real(latitude_deg), dec_deg) };
+    const N: [&str; 5] = ["一", "二", "三", "四", "五"];
+    let mut parts = vec![format!("日入{}", qing_shike(g.ri_ru)), format!("昏{}", qing_shike(g.hun))];
+    for (k, t) in g.geng.iter().enumerate() {
+        parts.push(format!("{}更{}", N[k], qing_shike(*t)));
+    }
+    parts.push(format!("攢點{}", qing_shike(g.zan_dian)));
+    parts.push(format!("旦{}", qing_shike(g.dan)));
+    parts.push(format!("日出{}", qing_shike(g.ri_chu)));
+    Ok(parts.join(" "))
+}
+
 /// 值日宿、七曜、年月九星
 #[wasm_bindgen]
 pub struct FolkDayResult {

@@ -100,7 +100,7 @@ const DAY_INFO_LAYER_GROUPS: { title: string; items: { key: DayInfoLayerKey; lab
   },
   {
     title: '民俗',
-    items: [{ key: 'folk_jishi', label: '纳音·值日宿·九星·杂节气' }],
+    items: [{ key: 'folk_jishi', label: '纳音·值日宿·九星·杂节气·更点' }],
   },
   {
     title: '工程（仲裁层状态）',
@@ -306,6 +306,9 @@ function App() {
   /** 时柱所用钟点：0=时区钟点 1=当地平太阳时 2=当地真太阳时；经度为东经度数 */
   const [hourClockMode, setHourClockMode] = useState(0)
   const [observerLongitude, setObserverLongitude] = useState(116.4)
+  /** 更点：观测地纬度（北纬为正）与方法 0=清台官法 1=元授时法 */
+  const [observerLatitude, setObserverLatitude] = useState(39.92)
+  const [gengdianMethod, setGengdianMethod] = useState(0)
   const [displayLayersPanelOpen, setDisplayLayersPanelOpen] = useState(false)
   /** 仅小时变化时更新，用于年月日时与农历/八字；不每秒更新避免整页重算 */
   const [nowForLunar, setNowForLunar] = useState(() => new Date())
@@ -676,7 +679,10 @@ function App() {
         return typeof v === 'function' ? String((v as (this: unknown) => string).call(r)) : String(v ?? '')
       }
       const zajie = typeof wasm.zajie_for_day_wasm === 'function' ? wasm.zajie_for_day_wasm(jd, ear) : ''
-      return { xiu: get('xiu'), qiYao: get('qi_yao'), yearStar: get('year_star'), monthStar: get('month_star'), zajie }
+      const geng = typeof wasm.gengdian_wasm === 'function'
+        ? wasm.gengdian_wasm(wasm.gregorian_to_jd(displayY, displayM, displayD), observerLatitude, observerLongitude, gengdianMethod, ear)
+        : ''
+      return { xiu: get('xiu'), qiYao: get('qi_yao'), yearStar: get('year_star'), monthStar: get('month_star'), zajie, geng }
     } catch {
       return null
     }
@@ -943,6 +949,11 @@ function App() {
                   )}
                   {folkDay?.zajie && (
                     <div style={{ fontSize: 12, lineHeight: 1.5 }}>{folkDay.zajie}</div>
+                  )}
+                  {folkDay?.geng && (
+                    <div style={{ fontSize: 11, lineHeight: 1.5, color: 'rgba(0,0,0,0.6)' }}>
+                      {`更点（${gengdianMethod === 1 ? '元授时法' : '清台官法'}，当地真太阳时）：${folkDay.geng}`}
+                    </div>
                   )}
                 </div>
                 )}
@@ -1266,20 +1277,24 @@ function App() {
                         options={HOUR_CLOCK_OPTIONS.map(({ value, label }) => ({ value, label }))}
                         style={{ marginTop: 4, display: 'block' }}
                       />
-                      {hourClockMode !== 0 && (
-                        <div style={{ marginTop: 6 }}>
-                          <Text type="secondary" style={{ fontSize: 11, marginRight: 6 }}>东经</Text>
-                          <InputNumber
-                            size="small"
-                            min={-180}
-                            max={180}
-                            step={0.1}
-                            value={observerLongitude}
-                            onChange={(v) => v != null && setObserverLongitude(v)}
-                            addonAfter="°"
-                          />
-                        </div>
-                      )}
+                    </div>
+                    <div style={{ marginTop: 12 }}>
+                      <Text type="secondary" style={{ fontSize: 11 }}>观测地（时柱当地时、更点用）</Text>
+                      <div style={{ marginTop: 6, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <InputNumber size="small" min={-180} max={180} step={0.1} value={observerLongitude}
+                          onChange={(v) => v != null && setObserverLongitude(v)} addonBefore="东经" addonAfter="°" />
+                        <InputNumber size="small" min={-66} max={66} step={0.1} value={observerLatitude}
+                          onChange={(v) => v != null && setObserverLatitude(v)} addonBefore="北纬" addonAfter="°" />
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 12 }}>
+                      <Text type="secondary" style={{ fontSize: 11 }}>更点</Text>
+                      <Radio.Group
+                        value={gengdianMethod}
+                        onChange={(e) => setGengdianMethod(e.target.value)}
+                        options={[{ value: 0, label: '清台官法（日入后八刻起更）' }, { value: 1, label: '元授时法（昏明各二刻半）' }]}
+                        style={{ marginTop: 4, display: 'block' }}
+                      />
                     </div>
                   </div>
                 </div>

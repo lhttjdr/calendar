@@ -40,6 +40,7 @@ declare module 'lunar-wasm' {
   ): string
   export function ganzhi_preset_name(preset_index: number): string
   export function nayin_of_ganzhi_name(name: string): string
+  export function gengdian_wasm(jd: number, latitude_deg: number, longitude_deg: number, method: number, vsop87_ear: string): string
   export function zajie_for_day_wasm(jd: number, vsop87_ear: string): string
   export function folk_day_wasm(jd: number, vsop87_ear: string): { xiu: string; qi_yao: string; year_star: string; month_star: string }
   export function pingqi_tt_wasm(dingqi_tt: number, qi_from_winter_solstice: number): number
