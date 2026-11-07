@@ -15,6 +15,7 @@ import {
   loadWasm,
   ensureVsop87Cached,
   isVsop87Cached,
+  getCachedVsop87Ear,
   GANZHI_PRESET_OPTIONS,
   GANZHI_PRESET_NAMES,
   getPresetIndexFromOptions,
@@ -76,6 +77,7 @@ type DayInfoLayerKey =
   | 'calendar_eraNames' // 历法·派生层：政权·帝王·年号（含并存政权）
   | 'calendar_regimeCalendars' // 历法·独立基础层：其它政权推步历（蜀汉四分、东吴乾象等）
   | 'calendar_ganzhi' // 历法：干支历四柱
+  | 'folk_jishi' // 民俗·独立基础层：纳音、值日宿与七曜、年月紫白九星
   | 'repoStatus' // 工程：天文仲裁层状态（历表/章动表/地球改正加载情况）
 
 const DAY_INFO_LAYERS_STORAGE_KEY = 'lunar-day-info-layers'
@@ -97,6 +99,10 @@ const DAY_INFO_LAYER_GROUPS: { title: string; items: { key: DayInfoLayerKey; lab
     ],
   },
   {
+    title: '民俗',
+    items: [{ key: 'folk_jishi', label: '纳音·值日宿·九星' }],
+  },
+  {
     title: '工程（仲裁层状态）',
     items: [{ key: 'repoStatus', label: 'Repo/历表加载状态' }],
   },
@@ -108,6 +114,7 @@ const DEFAULT_DAY_INFO_LAYERS: Record<DayInfoLayerKey, boolean> = {
   calendar_eraNames: true,
   calendar_regimeCalendars: true,
   calendar_ganzhi: true,
+  folk_jishi: true,
   repoStatus: true,
 }
 
@@ -656,6 +663,26 @@ function App() {
     ? getHourGanzhi(baseDayName, pillarHour)
     : ''
 
+  // 民俗：四柱纳音、值日宿与七曜、年月九星（规则见 rust/core/src/folk，出处见 doc/folk/nayin-zhiri.md）
+  const folkDay = (() => {
+    if (!wasm || !dayInfoLayers.folk_jishi || typeof wasm.folk_day_wasm !== 'function') return null
+    const ear = getCachedVsop87Ear()
+    if (!ear) return null
+    try {
+      const jd = wasm.gregorian_to_jd(displayY, displayM, displayD) + (displayHour + displayMinute / 60) / 24
+      const r = wasm.folk_day_wasm(jd, ear)
+      const get = (k: 'xiu' | 'qi_yao' | 'year_star' | 'month_star'): string => {
+        const v = (r as unknown as Record<string, unknown>)[k]
+        return typeof v === 'function' ? String((v as (this: unknown) => string).call(r)) : String(v ?? '')
+      }
+      return { xiu: get('xiu'), qiYao: get('qi_yao'), yearStar: get('year_star'), monthStar: get('month_star') }
+    } catch {
+      return null
+    }
+  })()
+  const nayinOf = (name: string | null | undefined) =>
+    wasm && name && typeof wasm.nayin_of_ganzhi_name === 'function' ? wasm.nayin_of_ganzhi_name(name) : ''
+
   const yearOptions = useMemo(() => {
     const start = -2000
     const end = Math.max(2100, today.year + 50)
@@ -900,6 +927,19 @@ function App() {
                       hourGanzhi ? `${hourGanzhi}时` : '—',
                     ].join(' ')}
                   </div>
+                </div>
+                )}
+                {dayInfoLayers.folk_jishi && (
+                <div>
+                  <Text type="secondary" style={{ fontSize: 10, display: 'block', marginBottom: 2 }}>纳音 · 值日 · 九星</Text>
+                  <div style={{ fontSize: 12, lineHeight: 1.5 }}>
+                    {[selectedGanzhi?.yearName, selectedGanzhi?.monthName, dayPillar, hourGanzhi].map(nayinOf).map((n) => n || '—').join(' ')}
+                  </div>
+                  {folkDay && (
+                    <div style={{ fontSize: 12, lineHeight: 1.5 }}>
+                      {`${folkDay.xiu}宿 · ${folkDay.qiYao}曜 · 年${folkDay.yearStar} · 月${folkDay.monthStar}`}
+                    </div>
+                  )}
                 </div>
                 )}
               </div>

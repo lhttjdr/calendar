@@ -107,6 +107,7 @@ export default defineConfig({
         text: '民俗篇',
         items: [
           { text: '干支历四柱', link: '/folk/ganzhi' },
+          { text: '纳音与值日', link: '/folk/nayin' },
           { text: '民俗规划', link: '/folk/plan' },
         ],
       },

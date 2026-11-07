@@ -74,3 +74,4 @@
 | 文档 | 说明 |
 |------|------|
 | [ganzhi-calendar.md](folk/ganzhi-calendar.md) | 干支历四柱：换年、换月、闰月、换日各选项与预设的原典出处、核对状态、代码位置 |
+| [nayin-zhiri.md](folk/nayin-zhiri.md) | 纳音（三种推法）、二十八宿值日与七曜、年月紫白九星：原典依据、时宪书实物核对、代码位置 |

@@ -121,6 +121,10 @@ export interface LunarBackend {
   get_repo_aux_earth_patch?(): boolean
   /** ΔT 秒数（TT − UT），用于将岁数据中的 JD(TT) 转为 JD(UT) 以显示合朔/交节时刻。可选。 */
   delta_t_seconds?(jd_tt: number): number
+  /** 干支名的纳音名目 */
+  nayin_of_ganzhi_name?(name: string): string
+  /** 值日宿、七曜、年月九星 */
+  folk_day_wasm?(jd: number, vsop87_ear: string): { xiu: string; qi_yao: string; year_star: string; month_star: string }
   /** 与定气同名的平气 JD(TT)，按行用历；表外 NaN */
   pingqi_tt_wasm?(dingqi_tt: number, qi_from_winter_solstice: number): number
   /** 公元某年行用的平气历名；表外空串 */

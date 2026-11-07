@@ -198,6 +198,11 @@ export const HOUR_CLOCK_OPTIONS: { value: number; label: string }[] = [
   { value: 2, label: '当地真太阳时' },
 ]
 
+/** 已缓存的 VSOP87 地球文本（民俗九星按立春、节月计算要用）；未缓存为 null */
+export function getCachedVsop87Ear(): string | null {
+  return cachedVsop87Ear
+}
+
 /** 是否已缓存 VSOP87（节气历年/月干支兜底用）。用于避免重复触发加载。 */
 export function isVsop87Cached(): boolean {
   return cachedVsop87Ear != null

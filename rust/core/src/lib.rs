@@ -7,6 +7,7 @@
 pub mod astronomy;
 pub mod basic;
 pub mod calendar;
+pub mod folk;
 pub mod math;
 pub mod platform;
 pub mod quantity;

@@ -634,6 +634,67 @@ pub fn pingqi_li_name_wasm(year: i32) -> String {
         .unwrap_or_default()
 }
 
+/// 干支名（如「甲子」）的纳音名目；不是合法干支返回空串。
+#[wasm_bindgen]
+pub fn nayin_of_ganzhi_name(name: &str) -> String {
+    lunar_core::calendar::gan_zhi::GAN_ZHI_60
+        .iter()
+        .position(|g| *g == name)
+        .map(|i| lunar_core::folk::nayin::nayin_name(i as u8).to_string())
+        .unwrap_or_default()
+}
+
+/// 某民用日（JD 取该日任一时刻）的值日宿与七曜，以及该时刻的年、月紫白九星。
+/// 九星按立春换年、按节换月（《協紀辨方書》卷八、卷三十四），不随四柱预设变化。
+#[wasm_bindgen]
+pub fn folk_day_wasm(jd: f64, vsop87_ear: &str) -> Result<FolkDayResult, JsValue> {
+    use lunar_core::calendar::gan_zhi_options::{ganzhi_from_jd_solar, preset_zi_ping_ba_zi};
+    use lunar_core::folk::{jiuxing, zhiri};
+    let jdn = (jd + 0.5).floor() as i64;
+    let xiu = zhiri::xiu_index(jdn);
+    let vsop = vsop87_cached(vsop87_ear)?;
+    let (yi, mi, _) = ganzhi_from_jd_solar(vsop.as_ref(), jd, &preset_zi_ping_ba_zi());
+    // 干支年：公元 Y 年对应干支序 (Y − 4) mod 60；JD 所在公历年或其前一年
+    let (gy, _, _) = lunar_core::calendar::gregorian::Gregorian::from_julian_day(real(jd));
+    let ganzhi_year = if (gy - 4).rem_euclid(60) as u8 == yi { gy } else { gy - 1 };
+    let month_ord = ((mi % 12) as i32 - 2).rem_euclid(12) as u8;
+    Ok(FolkDayResult {
+        xiu: zhiri::XIU_28[xiu as usize].to_string(),
+        qi_yao: zhiri::QI_YAO[zhiri::xiu_qi_yao(xiu) as usize].to_string(),
+        year_star: jiuxing::JIU_XING[jiuxing::year_star(ganzhi_year) as usize - 1].to_string(),
+        month_star: jiuxing::JIU_XING[jiuxing::month_star(yi % 12, month_ord) as usize - 1].to_string(),
+    })
+}
+
+/// 值日宿、七曜、年月九星
+#[wasm_bindgen]
+pub struct FolkDayResult {
+    xiu: String,
+    qi_yao: String,
+    year_star: String,
+    month_star: String,
+}
+
+#[wasm_bindgen]
+impl FolkDayResult {
+    #[wasm_bindgen(getter_with_clone)]
+    pub fn xiu(&self) -> String {
+        self.xiu.clone()
+    }
+    #[wasm_bindgen(getter_with_clone)]
+    pub fn qi_yao(&self) -> String {
+        self.qi_yao.clone()
+    }
+    #[wasm_bindgen(getter_with_clone)]
+    pub fn year_star(&self) -> String {
+        self.year_star.clone()
+    }
+    #[wasm_bindgen(getter_with_clone)]
+    pub fn month_star(&self) -> String {
+        self.month_star.clone()
+    }
+}
+
 /// 预设名称，供 UI 显示：0=子平（子正） 1=子平（子初） 2=紫微斗数 3=农历月干支
 #[wasm_bindgen]
 pub fn ganzhi_preset_name(preset_index: u8) -> String {
