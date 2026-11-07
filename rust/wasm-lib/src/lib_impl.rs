@@ -788,6 +788,21 @@ pub fn jianchu_day_wasm(jd: f64, vsop87_ear: &str) -> Result<String, JsValue> {
     ))
 }
 
+/// 某民用日所值的月家日神煞（《協紀》卷五、卷六），返回「吉：…；凶：…」。月建按节，交节日全日属新月。
+#[wasm_bindgen]
+pub fn shensha_day_wasm(jd: f64, vsop87_ear: &str) -> Result<String, JsValue> {
+    use lunar_core::calendar::gan_zhi_options::{ganzhi_from_jd_solar, preset_zi_ping_ba_zi};
+    let vsop = vsop87_cached(vsop87_ear)?;
+    let jdn = (jd + 0.5).floor();
+    let (_, mi, _) = ganzhi_from_jd_solar(vsop.as_ref(), jdn + 0.5 - 8.0 / 24.0 - 1e-6, &preset_zi_ping_ba_zi());
+    let month_ord = ((mi % 12) as i32 - 2).rem_euclid(12) as u8;
+    let gz = (jdn as i64 + 49).rem_euclid(60) as u8;
+    let v = lunar_core::folk::shensha::shen_for_day(month_ord, gz);
+    let ji: Vec<_> = v.iter().filter(|(_, j)| *j).map(|(n, _)| n.as_str()).collect();
+    let xiong: Vec<_> = v.iter().filter(|(_, j)| !*j).map(|(n, _)| n.as_str()).collect();
+    Ok(format!("吉神：{}；凶神：{}", if ji.is_empty() { "—".to_string() } else { ji.join(" ") }, if xiong.is_empty() { "—".to_string() } else { xiong.join(" ") }))
+}
+
 /// 时黄黑道：按日支起时。day_name、hour_name 为干支名（如「乙未」「丙子」）；不合法返回空串。
 #[wasm_bindgen]
 pub fn huanghei_hour_wasm(day_name: &str, hour_name: &str) -> String {

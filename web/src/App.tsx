@@ -100,7 +100,7 @@ const DAY_INFO_LAYER_GROUPS: { title: string; items: { key: DayInfoLayerKey; lab
   },
   {
     title: '民俗',
-    items: [{ key: 'folk_jishi', label: '纳音·值日宿·九星·建除黄道·杂节气·更点' }],
+    items: [{ key: 'folk_jishi', label: '纳音·值日宿·九星·建除黄道·神煞·杂节气·更点' }],
   },
   {
     title: '工程（仲裁层状态）',
@@ -683,7 +683,8 @@ function App() {
         ? wasm.gengdian_wasm(wasm.gregorian_to_jd(displayY, displayM, displayD), observerLatitude, observerLongitude, gengdianMethod, ear)
         : ''
       const jianchu = typeof wasm.jianchu_day_wasm === 'function' ? wasm.jianchu_day_wasm(wasm.gregorian_to_jd(displayY, displayM, displayD), ear) : ''
-      return { xiu: get('xiu'), qiYao: get('qi_yao'), yearStar: get('year_star'), monthStar: get('month_star'), zajie, geng, jianchu }
+      const shensha = typeof wasm.shensha_day_wasm === 'function' ? wasm.shensha_day_wasm(wasm.gregorian_to_jd(displayY, displayM, displayD), ear) : ''
+      return { xiu: get('xiu'), qiYao: get('qi_yao'), yearStar: get('year_star'), monthStar: get('month_star'), zajie, geng, jianchu, shensha }
     } catch {
       return null
     }
@@ -955,6 +956,9 @@ function App() {
                         ? ` · ${hourGanzhi}时${wasm.huanghei_hour_wasm(dayPillar, hourGanzhi)}`
                         : ''}
                     </div>
+                  )}
+                  {folkDay?.shensha && (
+                    <div style={{ fontSize: 11, lineHeight: 1.5, color: 'rgba(0,0,0,0.65)' }}>{folkDay.shensha}</div>
                   )}
                   {folkDay?.zajie && (
                     <div style={{ fontSize: 12, lineHeight: 1.5 }}>{folkDay.zajie}</div>
