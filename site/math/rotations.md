@@ -199,7 +199,7 @@ $$\operatorname{slerp}(q_a, q_b; s) = q_a\,(q_a^* q_b)^s$$
 
 > …l'on peut toujours transporter un corps solide libre d'une position dans une autre position quelconque déterminée, par le mouvement continu d'une vis à laquelle ce corps serait fixé invariablement.（《费吕萨克通报》数学部分第 14 卷，1830 年 11 月号，第 324 页）
 
-即"自由刚体从一个位置到任一指定位置，总可以由固定在它上面的一根螺杆的连续运动来完成"。同文又指出无穷小运动"n'est autre que celui d'une vis dans son écrou"（就是螺杆在螺母中的运动）。不过意大利人莫齐（Giulio Mozzi）在 1763 年已经对无穷小运动给出了瞬时螺旋轴。
+即"自由刚体从一个位置到任一指定位置，总可以由固定在它上面的一根螺杆的连续运动来完成"。同文又指出无穷小运动"n'est autre que celui d'une vis dans son écrou"（就是螺杆在螺母中的运动）。不过意大利人莫齐（Giulio Mozzi）在 1763 年已经对无穷小运动给出了瞬时螺旋轴。他批评前人只求转轴与角速度，遗漏了"il moto rettilineo, e parallelo all'asse medesimo, che ciascheduna parte del corpo concepisce, mentre incomincia a rotare"（物体开始转动时，各部分所获得的、平行于该轴本身的直线运动）（《关于物体瞬时转动的数学论说》前言，据 archive.org 所存 1763 年本，原书为旧式拼写）。
 
 ### 对偶数与对偶四元数
 
@@ -275,11 +275,11 @@ $$\hat q = q + \varepsilon\,\tfrac12\,\mathbf{t}\,q$$
 5. A. Cayley, "On certain results relating to quaternions", *Philosophical Magazine* 26 (1845), 141–145；重印于 *The Collected Mathematical Papers of Arthur Cayley*, vol. 1, Cambridge, 1889, no. 20, 123–126。据 archive.org 所存重印本核。
 6. C. F. Gauss, "Mutationen des Raumes"（约 1819 年手稿），收入 *Werke* 第 8 卷（1900）。未核原书。
 7. M. Chasles, "Note sur les propriétés générales du système de deux corps semblables entr'eux, et placés d'une manière quelconque dans l'espace; et sur le déplacement fini, ou infiniment petit, d'un corps solide libre", *Bulletin des Sciences Mathématiques, Astronomiques, Physiques et Chimiques*（费吕萨克编）14（1830 年 11 月号，题下注 1831 年 2 月 5 日宣读）, no. 198, 321–326。据 archive.org 所存本核。
-8. G. Mozzi, *Discorso matematico sopra il rotamento momentaneo dei corpi*, Napoli, 1763。未核原书。
+8. G. Mozzi, *Discorso matematico sopra il rotamento momentaneo dei corpi*, Napoli, 1763。据 archive.org 所存本核所引一句。
 9. W. K. Clifford, "Preliminary sketch of biquaternions", *Proceedings of the London Mathematical Society* 4 (1873), nos. 64–65, 381–395；重印于 R. Tucker (ed.), *Mathematical Papers by William Kingdon Clifford*, London: Macmillan, 1882, 181–200。据 archive.org 所存重印本核。
-10. E. Study, *Geometrie der Dynamen*, Leipzig, 1903。未核原书。
+10. E. Study, *Geometrie der Dynamen. Die Zusammensetzung von Kräften und verwandte Gegenstände der Geometrie*, Leipzig, 1903。据 archive.org 所存本核书名，内容未逐页核。
 11. Yan-Bin Jia, *Dual Quaternion*，爱荷华州立大学 ComS 477/577 讲义。对偶四元数的定义与运算据此。
-12. S. Newcomb, *A Compendium of Spherical Astronomy*, New York: Macmillan, 1906。未核原书。
+12. S. Newcomb, *A Compendium of Spherical Astronomy*, New York: Macmillan, 1906，附录四《General Expressions for the Constants of Reduction》（第 413—414 页，岁差角 ζ₀、z、θ）。据 archive.org 所存本核。
 13. J. H. Lieske, T. Lederle, W. Fricke, B. Morando, "Expressions for the precession quantities based upon the IAU (1976) system of astronomical constants", *Astronomy and Astrophysics* 58 (1977), 1–16。
 14. N. Capitaine, P. T. Wallace, J. Chapront, "Expressions for IAU 2000 precession quantities", *Astronomy and Astrophysics* 412 (2003), 567–586。
 15. J. G. Williams, "Contributions to the Earth's obliquity rate, precession, and nutation", *Astronomical Journal* 108 (1994), 711–724。据 ADS 扫描本核首页。

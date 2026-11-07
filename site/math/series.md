@@ -179,7 +179,7 @@ $\sqrt{n}$ 来自截去的众多小项相位杂乱、正负相消，与上一节
 2. M. Chapront-Touzé, J. Chapront, "The lunar ephemeris ELP 2000", *Astronomy and Astrophysics* 124 (1983), 50–62。
 3. J. Chapront, G. Francou, "The lunar theory ELP revisited. Introduction of new planetary perturbations", *Astronomy and Astrophysics* 404 (2003), 735–742。
 4. C. Delaunay, *La théorie du mouvement de la lune*, *Mémoires de l'Académie des Sciences* 28 (1860), 29 (1867)。未核原书。
-5. E. W. Brown, *Tables of the Motion of the Moon*, New Haven: Yale University Press, 1919。未核原书。
+5. E. W. Brown, *Tables of the Motion of the Moon*, New Haven: Yale University Press, 1919。据 archive.org 所存本核书名。
 6. S. Newcomb, "Tables of the motion of the Earth on its axis and around the Sun", *Astronomical Papers of the American Ephemeris* 6, part 1 (1895)。未核原书。
 7. E. W. Woolard, "Theory of the rotation of the Earth around its center of mass", *Astronomical Papers of the American Ephemeris* 15, part 1 (1953)。未核原书。
 8. J. M. Wahr, "The forced nutations of an elliptical, rotating, elastic and oceanless Earth", *Geophysical Journal of the Royal Astronomical Society* 64 (1981), 705–727。

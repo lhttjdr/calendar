@@ -110,7 +110,7 @@ $$
 ## 参考文献
 
 1. J. Bradley, "A letter … concerning an apparent motion observed in some of the fixed stars", *Philosophical Transactions of the Royal Society* 45 (1748), 1–43。据 archive.org 所存 JSTOR 早期期刊本核。
-2. J. le R. d'Alembert, *Recherches sur la précession des equinoxes et sur la nutation de l'axe de la terre*, Paris, 1749。未核原书。
+2. J. le R. d'Alembert, *Recherches sur la précession des equinoxes, et sur la nutation de l'axe de la terre, dans le systême newtonien*, Paris, 1749。据 archive.org 所存本核书名，内容未逐页核。
 3. S. C. Chandler, "On the variation of latitude", *Astronomical Journal* 11 (1891), 59 起连载。据 ADS 扫描本核首页。
 4. E. W. Woolard, "Theory of the rotation of the Earth around its center of mass", *Astronomical Papers of the American Ephemeris* 15, part 1 (1953)。未核原书。
 5. J. M. Wahr, "The forced nutations of an elliptical, rotating, elastic and oceanless Earth", *Geophysical Journal of the Royal Astronomical Society* 64 (1981), 705–727。
