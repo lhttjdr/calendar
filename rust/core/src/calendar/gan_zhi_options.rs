@@ -4,7 +4,7 @@
 
 use crate::calendar::gan_zhi::{jd_to_gan_zhi_index, GAN_ZHI_60};
 use crate::calendar::gregorian::Gregorian;
-use crate::math::real::{real, real_const, Real, RealOps, ToReal};
+use crate::math::real::{real, Real, ToReal};
 
 /// 换年干支
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -311,7 +311,7 @@ pub fn gan_zhi_index_to_name(index: u8) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::math::real::real;
+    use crate::math::real::{real, RealOps};
 
     #[test]
     fn ganzhi_options_default_and_presets() {
