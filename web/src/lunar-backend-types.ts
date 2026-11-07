@@ -123,6 +123,10 @@ export interface LunarBackend {
   delta_t_seconds?(jd_tt: number): number
   /** 干支名的纳音名目 */
   nayin_of_ganzhi_name?(name: string): string
+  /** 建除、日黄黑道、百忌 */
+  jianchu_day_wasm?(jd: number, vsop87_ear: string): string
+  /** 时黄黑道 */
+  huanghei_hour_wasm?(day_name: string, hour_name: string): string
   /** 更点（method 0 清台官法 1 元授时法） */
   gengdian_wasm?(jd: number, latitude_deg: number, longitude_deg: number, method: number, vsop87_ear: string): string
   /** 杂节气标签（「；」分隔） */

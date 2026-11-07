@@ -766,6 +766,43 @@ pub fn gengdian_wasm(jd: f64, latitude_deg: f64, longitude_deg: f64, method: u8,
     Ok(parts.join(" "))
 }
 
+/// 某民用日的建除、日黄黑道、百忌（月建按节；交节日即属新月）。返回如「定日 · 天德（黄道） · 乙不栽植 未不服藥」。
+#[wasm_bindgen]
+pub fn jianchu_day_wasm(jd: f64, vsop87_ear: &str) -> Result<String, JsValue> {
+    use lunar_core::calendar::gan_zhi_options::{ganzhi_from_jd_solar, preset_zi_ping_ba_zi};
+    use lunar_core::folk::jianchu as j;
+    let vsop = vsop87_cached(vsop87_ear)?;
+    let jdn = (jd + 0.5).floor();
+    // 取该日（东八区）将尽之时判断月建，使交节当日全日属新月：北京该日 24 时 = JDN + 0.5 − 8/24（UT，TT 差一分余可略）
+    let (_, mi, _) = ganzhi_from_jd_solar(vsop.as_ref(), jdn + 0.5 - 8.0 / 24.0 - 1e-6, &preset_zi_ping_ba_zi());
+    let gz = (jdn as i64 + 49).rem_euclid(60) as u8;
+    let (dg, dz, mz) = (gz % 10, gz % 12, mi % 12);
+    let shen = j::huang_hei(dz, mz);
+    Ok(format!(
+        "{}日 · {}（{}） · {} {}",
+        j::JIAN_CHU[j::jian_chu(dz, mz) as usize],
+        j::HUANG_HEI_SHEN[shen as usize],
+        if j::is_huang_dao(shen) { "黄道" } else { "黑道" },
+        j::BAI_JI_GAN[dg as usize],
+        j::BAI_JI_ZHI[dz as usize]
+    ))
+}
+
+/// 时黄黑道：按日支起时。day_name、hour_name 为干支名（如「乙未」「丙子」）；不合法返回空串。
+#[wasm_bindgen]
+pub fn huanghei_hour_wasm(day_name: &str, hour_name: &str) -> String {
+    use lunar_core::folk::jianchu as j;
+    const ZHI: &str = "子丑寅卯辰巳午未申酉戌亥";
+    let zhi_of = |n: &str| n.chars().nth(1).and_then(|c| ZHI.chars().position(|z| z == c)).map(|i| i as u8);
+    match (zhi_of(day_name), zhi_of(hour_name)) {
+        (Some(d), Some(h)) => {
+            let shen = j::huang_hei(h, d);
+            format!("{}（{}）", j::HUANG_HEI_SHEN[shen as usize], if j::is_huang_dao(shen) { "黄道" } else { "黑道" })
+        }
+        _ => String::new(),
+    }
+}
+
 /// 值日宿、七曜、年月九星
 #[wasm_bindgen]
 pub struct FolkDayResult {
