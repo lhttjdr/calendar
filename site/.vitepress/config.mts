@@ -108,6 +108,7 @@ export default defineConfig({
         items: [
           { text: '干支历四柱', link: '/folk/ganzhi' },
           { text: '纳音与值日', link: '/folk/nayin' },
+          { text: '杂节气', link: '/folk/zajie' },
           { text: '民俗规划', link: '/folk/plan' },
         ],
       },

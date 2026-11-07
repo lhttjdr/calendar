@@ -666,6 +666,79 @@ pub fn folk_day_wasm(jd: f64, vsop87_ear: &str) -> Result<FolkDayResult, JsValue
     })
 }
 
+/// 某民用日（东八区）的杂节气标签：三伏、社日（两家）、寒食、腊日、入梅出梅（两家）、土王用事、数九、七十二候。
+/// 节气取定气、东八区日。返回以「；」分隔的标签串（无则空串）。
+#[wasm_bindgen]
+pub fn zajie_for_day_wasm(jd: f64, vsop87_ear: &str) -> Result<String, JsValue> {
+    use lunar_core::astronomy::aspects::solar_term_jds_for_year_cached;
+    use lunar_core::calendar::chinese_lunar::tt_to_day_number_utc8;
+    use lunar_core::folk::zajie as z;
+    let vsop = vsop87_cached(vsop87_ear)?;
+    let jdn = (jd + 0.5).floor() as i64;
+    let (y, _, _) = lunar_core::calendar::gregorian::Gregorian::from_julian_day(real(jd));
+    let tt = |yy: i32| solar_term_jds_for_year_cached(vsop.as_ref(), yy);
+    let (tp, tc, tn) = (tt(y - 1), tt(y), tt(y + 1));
+    let d = |v: &Vec<lunar_core::math::real::Real>, k: usize| tt_to_day_number_utc8(v[k]);
+    // 索引：0 春分 3 立夏 5 芒种 6 夏至 7 小暑 9 立秋 12 秋分 15 立冬 18 冬至 21 立春
+    let mut out: Vec<String> = Vec::new();
+    let mut hit = |day: i64, s: &str| {
+        if day == jdn {
+            out.push(s.to_string());
+        }
+    };
+    let (f1, f2, f3) = z::san_fu(d(&tc, 6), d(&tc, 9));
+    hit(f1, "初伏");
+    hit(f2, "中伏");
+    hit(f3, "末伏");
+    hit(f3 + 10, "出伏");
+    hit(z::she_wu_wu(d(&tc, 21)), "春社（立春后五戊）");
+    hit(z::she_wu_wu(d(&tc, 9)), "秋社（立秋后五戊）");
+    hit(z::she_jin_wu(d(&tc, 0)), "春社（春分近戊）");
+    hit(z::she_jin_wu(d(&tc, 12)), "秋社（秋分近戊）");
+    hit(z::han_shi(d(&tp, 18), 105), "寒食（冬至后一百五日）");
+    hit(d(&tc, 1) - 2, "寒食（清明前二日，《協紀》按平气所言）");
+    for dz in [d(&tp, 18), d(&tc, 18)] {
+        hit(z::la_ri(dz, 10), "腊日（冬至后三戌）");
+    }
+    let (r1, c1) = z::mei_shen_shu(d(&tc, 5), d(&tc, 7));
+    hit(r1, "入梅（神樞經）");
+    hit(c1, "出梅（神樞經）");
+    let (r2, c2) = z::mei_sui_jin(d(&tc, 5), d(&tc, 6));
+    hit(r2, "入梅（碎金）");
+    hit(c2, "出梅（碎金）");
+    for (k, name) in [(21usize, "立春"), (3, "立夏"), (9, "立秋"), (15, "立冬")] {
+        // 立春土王用事在上年冬，取本年立春之前十八日
+        hit(z::tu_wang(d(&tc, k)), &format!("土王用事（{name}前十八日）"));
+    }
+    for dz in [d(&tp, 18), d(&tc, 18)] {
+        if let Some((n, k)) = z::shu_jiu(dz, jdn) {
+            const NUM: [&str; 9] = ["一", "二", "三", "四", "五", "六", "七", "八", "九"];
+            out.push(format!("{}九第{}日", NUM[n as usize - 1], NUM[k as usize - 1]));
+        }
+    }
+    // 七十二候：本气至下气三等分；QI_HOU 从立春起，立春 = 索引 21
+    let all: Vec<lunar_core::math::real::Real> = tp.iter().chain(tc.iter()).chain(tn.iter()).cloned().collect();
+    let mut seq: Vec<(lunar_core::math::real::Real, usize)> = Vec::new();
+    for (i, t) in all.iter().enumerate() {
+        seq.push((*t, i % 24));
+    }
+    seq.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+    for w in seq.windows(2) {
+        let (t0, k) = w[0];
+        let t1 = w[1].0;
+        let qi = (k + 3) % 24; // solar_term 索引 21（立春）→ QI_HOU 0
+        for h in 0..3 {
+            let start = tt_to_day_number_utc8(t0 + (t1 - t0) * real(h as f64 / 3.0));
+            let end = tt_to_day_number_utc8(t0 + (t1 - t0) * real((h + 1) as f64 / 3.0));
+            if jdn >= start && jdn < end {
+                let (qn, hs) = z::QI_HOU[qi];
+                out.push(format!("{qn}{}候 {}", ["初", "次", "末"][h], hs[h]));
+            }
+        }
+    }
+    Ok(out.join("；"))
+}
+
 /// 值日宿、七曜、年月九星
 #[wasm_bindgen]
 pub struct FolkDayResult {

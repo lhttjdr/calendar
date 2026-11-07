@@ -100,7 +100,7 @@ const DAY_INFO_LAYER_GROUPS: { title: string; items: { key: DayInfoLayerKey; lab
   },
   {
     title: '民俗',
-    items: [{ key: 'folk_jishi', label: '纳音·值日宿·九星' }],
+    items: [{ key: 'folk_jishi', label: '纳音·值日宿·九星·杂节气' }],
   },
   {
     title: '工程（仲裁层状态）',
@@ -675,7 +675,8 @@ function App() {
         const v = (r as unknown as Record<string, unknown>)[k]
         return typeof v === 'function' ? String((v as (this: unknown) => string).call(r)) : String(v ?? '')
       }
-      return { xiu: get('xiu'), qiYao: get('qi_yao'), yearStar: get('year_star'), monthStar: get('month_star') }
+      const zajie = typeof wasm.zajie_for_day_wasm === 'function' ? wasm.zajie_for_day_wasm(jd, ear) : ''
+      return { xiu: get('xiu'), qiYao: get('qi_yao'), yearStar: get('year_star'), monthStar: get('month_star'), zajie }
     } catch {
       return null
     }
@@ -939,6 +940,9 @@ function App() {
                     <div style={{ fontSize: 12, lineHeight: 1.5 }}>
                       {`${folkDay.xiu}宿 · ${folkDay.qiYao}曜 · 年${folkDay.yearStar} · 月${folkDay.monthStar}`}
                     </div>
+                  )}
+                  {folkDay?.zajie && (
+                    <div style={{ fontSize: 12, lineHeight: 1.5 }}>{folkDay.zajie}</div>
                   )}
                 </div>
                 )}

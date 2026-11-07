@@ -87,6 +87,11 @@ fn new_moon_tt_to_day_number_utc8(jd_tt: Real) -> i64 {
 }
 
 /// 朔日 JD(TT) 转为日号，标量 Real。
+/// TT 时刻所在的东八区民用日（儒略日数）。节气、朔都按此取日。
+pub fn tt_to_day_number_utc8(jd_tt: Real) -> i64 {
+    new_moon_tt_to_day_number_utc8(jd_tt)
+}
+
 fn new_moon_tt_to_day_number_utc8_r(jd_tt: Real) -> i64 {
     new_moon_tt_to_day_number_utc8(jd_tt)
 }

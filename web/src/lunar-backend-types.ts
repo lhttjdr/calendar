@@ -123,6 +123,8 @@ export interface LunarBackend {
   delta_t_seconds?(jd_tt: number): number
   /** 干支名的纳音名目 */
   nayin_of_ganzhi_name?(name: string): string
+  /** 杂节气标签（「；」分隔） */
+  zajie_for_day_wasm?(jd: number, vsop87_ear: string): string
   /** 值日宿、七曜、年月九星 */
   folk_day_wasm?(jd: number, vsop87_ear: string): { xiu: string; qi_yao: string; year_star: string; month_star: string }
   /** 与定气同名的平气 JD(TT)，按行用历；表外 NaN */
