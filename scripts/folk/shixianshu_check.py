@@ -7,6 +7,7 @@
 data/folk/shixianshu_qianlong30_checks.csv：结果「合」「異」，异者列推算多注、少注之事。
 时宪书只印宜与少数「不宜」，故只比宜；「—」表示该日无宜（推算的諸事不宜同此）；
 「?」表示书影漫漶未能辨认，记「未辨」，不计合异。
+朱字另比：书印之神应在推算「朱字」（应值全集）之内；推算有而书未印者多因宜事长、栏底无空，只记不判。
 """
 import csv
 import sys
@@ -39,8 +40,12 @@ def main():
                 "月": r["月"], "日": r["日"], "干支": r["干支"], "書頁": r["書頁"],
                 "時憲書宜": "?", "推算宜": c["宜"], "月表宜": c["月表宜"], "鋪註": c["铺注"],
                 "結果": "未辨", "推算多注": "", "推算少注": "", "說明": old.get((r["月"], r["日"]), {}).get("說明", ""),
+                "時憲書朱字": r["朱字"], "推算朱字": c.get("朱字", ""), "朱字書有推算無": " ".join(z_extra), "朱字推算有書未印": " ".join(z_miss),
             })
             continue
+        zb, zc = r["朱字"].split(), c.get("朱字", "").split()
+        z_extra = [x for x in zb if x not in zc]
+        z_miss = [x for x in zc if x not in zb]
         book, got = items(r["宜"]), items(c["宜"])
         more = [x for x in got if x not in book]
         less = [x for x in book if x not in got]
@@ -51,6 +56,7 @@ def main():
             "月": r["月"], "日": r["日"], "干支": r["干支"], "書頁": r["書頁"],
             "時憲書宜": r["宜"], "推算宜": c["宜"], "月表宜": c["月表宜"], "鋪註": c["铺注"],
             "結果": "合" if ok else "異", "推算多注": " ".join(more), "推算少注": " ".join(less), "說明": note,
+            "時憲書朱字": r["朱字"], "推算朱字": c.get("朱字", ""), "朱字書有推算無": " ".join(z_extra), "朱字推算有書未印": " ".join(z_miss),
         })
     with open(OUT, "w", encoding="utf-8", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys()), lineterminator="\n")
@@ -58,6 +64,12 @@ def main():
         w.writerows(rows)
     n_un = sum(r["結果"] == "未辨" for r in rows)
     print(f"{len(rows)} 日，合 {n_ok}，異 {len(rows) - n_ok - n_un}，未辨 {n_un}")
+    zh = sum(len(r["時憲書朱字"].split()) for r in rows)
+    zx = [(r["月"], r["日"], r["朱字書有推算無"]) for r in rows if r["朱字書有推算無"]]
+    zm = sum(len(r["朱字推算有書未印"].split()) for r in rows)
+    print(f"朱字：书印 {zh} 位，在推算之内 {zh - sum(len(x[2].split()) for x in zx)}，书有推算无 {sum(len(x[2].split()) for x in zx)}，推算有书未印 {zm}")
+    for m, d, x in zx:
+        print(f"  朱字 {m}月{d} 书有推算无 [{x}]")
     for r in rows:
         if r["結果"] == "異":
             print(f"  {r['月']}月{r['日']} {r['干支']} 多注[{r['推算多注']}] 少注[{r['推算少注']}] 鋪註[{r['鋪註']}]")

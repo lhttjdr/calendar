@@ -325,6 +325,48 @@ pub fn yiji_for_day(d: &PuzhuDay) -> YueBiaoDay {
     }
 }
 
+/// 时宪书底栏朱字所用之神（以乾隆三十年时宪书归纳，见 doc/folk/shensha.md「时宪书朱字」）：
+/// 月表诸神中的往亡、月厭、劫煞、天吏、月刑、大耗、小耗，铺注的反支、四離、四絕、氣往亡（印作往亡），
+/// 以及协纪不载、钦天监沿用通书之神：荒蕪（即五虛，《選擇宗鏡》）、枯焦（与九焦同位）、
+/// 四不祥（农历初四、初七、十六、十九、二十八；协纪卷三十六辨訛主删而书仍印）、
+/// 天獄（通书旧法：正月起子顺行四仲；协纪卷六已改从災煞而书仍用旧法）。
+/// 交节之日新旧两月之神并列（书于立夏、立秋、寒露、立冬、小寒诸日印旧月之神）。
+/// 书上每日实际印出几位还受版面所限（宜事长者栏底无空，常不印），此处给出应值之全集。
+pub const ZHU_ZI: [&str; 14] = [
+    "往亡", "月厭", "劫煞", "天吏", "月刑", "大耗", "小耗", "反支", "四離", "四絕", "荒蕪", "枯焦", "四不祥", "天獄",
+];
+
+pub fn zhu_zi(d: &PuzhuDay) -> Vec<&'static str> {
+    use super::yiji::yuebiao_day;
+    let mut months = vec![d.month_ord];
+    if d.jiao_jie {
+        months.push((d.month_ord + 11) % 12);
+    }
+    let names = puzhu_names(&d.input, d.shuo_gz);
+    let zhi = d.input.day_gz % 12;
+    let mut out: Vec<&'static str> = Vec::new();
+    for &m in &months {
+        let xs = &yuebiao_day(m, d.input.day_gz).xiong_shen;
+        let has = |n: &str| xs.iter().any(|x| x == n);
+        for n in ZHU_ZI {
+            let on = match n {
+                "往亡" => has("往亡") || names.iter().any(|x| x == "氣往亡"),
+                "反支" | "四離" | "四絕" => names.iter().any(|x| x == n),
+                "荒蕪" => has("五虛"),
+                "枯焦" => has("九焦"),
+                "四不祥" => matches!(d.input.lunar_day, 4 | 7 | 16 | 19 | 28),
+                // 月序 m（寅月 0）：正月子、二月卯、三月午、四月酉……
+                "天獄" => zhi == (3 * m) % 12,
+                _ => has(n),
+            };
+            if on && !out.contains(&n) {
+                out.push(n);
+            }
+        }
+    }
+    out
+}
+
 /// 一日的月表宜忌加铺注。`shuo_gz` 为本农历月朔日干支（反支用）。返回加注后的一日，凶神栏后附所值诸日名
 pub fn apply(day: &YueBiaoDay, p: &PuzhuInput, shuo_gz: u8) -> YueBiaoDay {
     let mut d = day.clone();

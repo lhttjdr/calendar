@@ -689,6 +689,15 @@ pub fn folk_day_wasm(jd: f64, vsop87_ear: &str) -> Result<FolkDayResult, JsValue
         year_star: jiuxing::JIU_XING[jiuxing::year_star(ganzhi_year) as usize - 1].to_string(),
         month_star: jiuxing::JIU_XING[jiuxing::month_star(yi % 12, month_ord) as usize - 1].to_string(),
         nian_shen: nian_shen_text(yi),
+        ri_shen: {
+            use lunar_core::folk::nianshen::{he_shen, ri_you_shen, tai_sui_chu_you};
+            let dgz = (jdn + 49).rem_euclid(60) as u8;
+            let mut t = format!("日遊神{} · 鶴神{}", ri_you_shen(dgz), he_shen(dgz));
+            if let Some(f) = tai_sui_chu_you(dgz) {
+                t.push_str(&format!(" · 太歲{}遊", if f == "中宮" { "中宮" } else { f }));
+            }
+            t
+        },
     })
 }
 
@@ -817,7 +826,7 @@ pub fn jianchu_day_wasm(jd: f64, vsop87_ear: &str) -> Result<String, JsValue> {
 /// 某民用日的神煞宜忌：《協紀》月表（卷二十至三十一）加卷十铺注（年份、节气、朔望诸日）与时宪书体例（嫁娶周堂、交节日）。
 /// 农历日期由前端传入（与所显示者一致）：lunar_month 1—12（闰月取所闰之月）、lunar_day、days_in_month（29/30）；
 /// phase：该日所值 0 朔、1 上弦、2 望、3 下弦，无则 -1。节气用地球历表现算。
-/// 返回四行：「吉神：…；凶神：…」「宜：…」「忌：…」「時憲書宜：…」（后者为民用三十七事）。
+/// 返回五行：「吉神：…；凶神：…」「宜：…」「忌：…」「時憲書宜：…」（民用三十七事）「時憲書朱字：…」（底栏朱字应值之神）。
 #[wasm_bindgen]
 pub fn shensha_day_wasm(
     jd: f64,
@@ -829,7 +838,7 @@ pub fn shensha_day_wasm(
     phase: i32,
 ) -> Result<String, JsValue> {
     use lunar_core::calendar::chinese_lunar::ChineseLunarDate;
-    use lunar_core::folk::puzhu::{minyong, yiji_for_day, QiWangWangCount, TermTable};
+    use lunar_core::folk::puzhu::{minyong, yiji_for_day, zhu_zi, QiWangWangCount, TermTable};
     let vsop = vsop87_cached(vsop87_ear)?;
     let jdn = (jd + 0.5).floor() as i64;
     let (gy, _, _) = lunar_core::calendar::gregorian::Gregorian::from_julian_day(real(jd));
@@ -848,7 +857,16 @@ pub fn shensha_day_wasm(
     let yi = match &d.yi { Some(v) => join(v), None => "諸事不宜".to_string() };
     let (my, _) = minyong(&d);
     let my = match my { Some(v) if v.is_empty() => "—".to_string(), Some(v) => v.join(" "), None => "諸事不宜".to_string() };
-    Ok(format!("吉神：{}；凶神：{}\n宜：{}\n忌：{}\n時憲書宜：{}", join(&d.ji_shen), join(&d.xiong_shen), yi, join(&d.ji), my))
+    let zz = zhu_zi(&day);
+    Ok(format!(
+        "吉神：{}；凶神：{}\n宜：{}\n忌：{}\n時憲書宜：{}\n時憲書朱字：{}",
+        join(&d.ji_shen),
+        join(&d.xiong_shen),
+        yi,
+        join(&d.ji),
+        my,
+        if zz.is_empty() { "—".to_string() } else { zz.join(" ") }
+    ))
 }
 
 /// 时黄黑道：按日支起时。day_name、hour_name 为干支名（如「乙未」「丙子」）；不合法返回空串。
@@ -875,6 +893,8 @@ pub struct FolkDayResult {
     month_star: String,
     /// 年神方位（协纪卷三；年以立春分）：「歲德在某合在某；酉：太歲 歲刑 大煞；……」，按二十四山自子起，空位不列
     nian_shen: String,
+    /// 当日日游神、鹤神方位与太岁出游（协纪卷三）
+    ri_shen: String,
 }
 
 #[wasm_bindgen]
@@ -894,6 +914,10 @@ impl FolkDayResult {
     #[wasm_bindgen(getter_with_clone)]
     pub fn nian_shen(&self) -> String {
         self.nian_shen.clone()
+    }
+    #[wasm_bindgen(getter_with_clone)]
+    pub fn ri_shen(&self) -> String {
+        self.ri_shen.clone()
     }
     #[wasm_bindgen(getter_with_clone)]
     pub fn month_star(&self) -> String {

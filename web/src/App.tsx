@@ -674,7 +674,7 @@ function App() {
     try {
       const jd = wasm.gregorian_to_jd(displayY, displayM, displayD) + (displayHour + displayMinute / 60) / 24
       const r = wasm.folk_day_wasm(jd, ear)
-      const get = (k: 'xiu' | 'qi_yao' | 'year_star' | 'month_star' | 'nian_shen'): string => {
+      const get = (k: 'xiu' | 'qi_yao' | 'year_star' | 'month_star' | 'nian_shen' | 'ri_shen'): string => {
         const v = (r as unknown as Record<string, unknown>)[k]
         return typeof v === 'function' ? String((v as (this: unknown) => string).call(r)) : String(v ?? '')
       }
@@ -707,7 +707,7 @@ function App() {
           phase,
         )
       })()
-      return { xiu: get('xiu'), qiYao: get('qi_yao'), yearStar: get('year_star'), monthStar: get('month_star'), nianShen: get('nian_shen'), zajie, geng, jianchu, shensha }
+      return { xiu: get('xiu'), qiYao: get('qi_yao'), yearStar: get('year_star'), monthStar: get('month_star'), nianShen: get('nian_shen'), riShen: get('ri_shen'), zajie, geng, jianchu, shensha }
     } catch {
       return null
     }
@@ -975,6 +975,7 @@ function App() {
                   {folkDay?.nianShen && (
                     <div style={{ fontSize: 11, lineHeight: 1.5, color: 'rgba(0,0,0,0.65)' }}>
                       {`年神方位（《协纪辨方书》卷三）：${folkDay.nianShen}`}
+                      {folkDay.riShen ? <div>{folkDay.riShen}</div> : null}
                     </div>
                   )}
                   {folkDay?.jianchu && (
@@ -988,7 +989,7 @@ function App() {
                   {folkDay?.shensha && (
                     <div style={{ fontSize: 11, lineHeight: 1.5, color: 'rgba(0,0,0,0.65)', whiteSpace: 'pre-line' }}>
                       {folkDay.shensha}
-                      <div style={{ color: 'rgba(0,0,0,0.45)' }}>据《协纪辨方书》月表加卷十铺注（反支、上朔、四離四絕、晦日、二至二分、土王用事、伏社、朔弦望、月忌、人神、長短星、氣往亡、無祿），并依时宪书体例计嫁娶周堂、交节日；「時憲書宜」为民用三十七事</div>
+                      <div style={{ color: 'rgba(0,0,0,0.45)' }}>据《协纪辨方书》月表加卷十铺注（反支、上朔、四離四絕、晦日、二至二分、土王用事、伏社、朔弦望、月忌、人神、長短星、氣往亡、無祿），并依时宪书体例计嫁娶周堂、交节日；「時憲書宜」为民用三十七事；「時憲書朱字」为底栏朱字应值之神（含钦天监沿用的通书之神荒蕪、枯焦、四不祥、天獄）</div>
                     </div>
                   )}
                   {folkDay?.zajie && (

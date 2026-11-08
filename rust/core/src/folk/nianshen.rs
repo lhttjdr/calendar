@@ -147,6 +147,48 @@ pub fn by_position(year_gz: u8) -> Vec<(&'static str, Vec<&'static str>)> {
         .collect()
 }
 
+/// 太岁出游日（卷三引《厯例》）：甲子日东游、丙子日南游、戊子日游中宫、庚子日西游、壬子日北游，各五日，
+/// 至己巳、辛巳、癸巳、乙巳、丁巳日还位；共二十五日。日干支序 0 甲子 … 59 癸亥。
+pub fn tai_sui_chu_you(day_gz: u8) -> Option<&'static str> {
+    // 五子日：甲子 0、丙子 12、戊子 24、庚子 36、壬子 48
+    let k = day_gz % 60;
+    let (i, off) = ((k / 12) as usize, k % 12);
+    (off < 5).then(|| ["東", "南", "中宮", "西", "北"][i])
+}
+
+/// 日游神（卷三引《厯例》）：癸巳至丁酉在房内北，戊戌己亥房内中，庚子辛丑壬寅房内南，癸卯房内西，
+/// 甲辰至丁未房内东，戊申又在中，己酉出游，四十四日（至壬辰）。时宪书逐日载之。
+pub fn ri_you_shen(day_gz: u8) -> &'static str {
+    match day_gz % 60 {
+        29..=33 => "房內北",
+        34 | 35 => "房內中",
+        36..=38 => "房內南",
+        39 => "房內西",
+        40..=43 => "房內東",
+        44 => "房內中",
+        _ => "出遊",
+    }
+}
+
+/// 鹤神方位（卷三按语引婁元禮《田家五行》，协纪谓与日游神「暗相應」）：己酉日下地东北，乙卯转正东，
+/// 庚申东南，丙寅正南，辛未西南，丁丑正西，壬午西北，戊子正北，癸巳上天（至戊申，十六日）。
+/// 四维各六日、四正各五日。
+pub fn he_shen(day_gz: u8) -> &'static str {
+    // 自己酉（45）起算的日序
+    let d = (day_gz as i32 - 45).rem_euclid(60);
+    const SEG: [(i32, &str); 9] = [
+        (6, "東北"), (5, "正東"), (6, "東南"), (5, "正南"), (6, "西南"), (5, "正西"), (6, "西北"), (5, "正北"), (16, "上天"),
+    ];
+    let mut acc = 0;
+    for (n, name) in SEG {
+        acc += n;
+        if d < acc {
+            return name;
+        }
+    }
+    unreachable!()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -176,6 +218,32 @@ mod tests {
         for p in ["庚", "辛", "戌", "壬"] {
             assert!(bp.iter().find(|(q, _)| *q == p).unwrap().1.is_empty(), "{p} 应空");
         }
+    }
+
+    #[test]
+    fn daily_spirits() {
+        // 太岁出游共二十五日；甲子东游、己巳还位
+        assert_eq!((0..60).filter(|&d| tai_sui_chu_you(d).is_some()).count(), 25);
+        assert_eq!(tai_sui_chu_you(0), Some("東"));
+        assert_eq!(tai_sui_chu_you(4), Some("東")); // 戊辰
+        assert_eq!(tai_sui_chu_you(5), None); // 己巳还位
+        assert_eq!(tai_sui_chu_you(24), Some("中宮")); // 戊子
+        assert_eq!(tai_sui_chu_you(52), Some("北")); // 丙辰
+        // 日游神在房内十六日、出游四十四日
+        assert_eq!((0..60).filter(|&d| ri_you_shen(d) != "出遊").count(), 16);
+        assert_eq!(ri_you_shen(29), "房內北"); // 癸巳
+        assert_eq!(ri_you_shen(45), "出遊"); // 己酉
+        assert_eq!(ri_you_shen(28), "出遊"); // 壬辰
+        // 鹤神：上天十六日与日游神在房内同；甲子乙丑在东南（巳方）；壬戌癸亥东南；戊子起正北五日
+        for d in 0..60u8 {
+            assert_eq!(he_shen(d) == "上天", ri_you_shen(d) != "出遊", "日 {d}");
+        }
+        assert_eq!(he_shen(0), "東南");
+        assert_eq!(he_shen(1), "東南");
+        assert_eq!(he_shen(2), "正南"); // 丙寅转正南
+        assert_eq!(he_shen(59), "東南");
+        assert_eq!(he_shen(24), "正北"); // 戊子
+        assert_eq!(he_shen(29), "上天"); // 癸巳
     }
 
     #[test]

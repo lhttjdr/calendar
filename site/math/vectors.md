@@ -143,15 +143,15 @@ $\mathbf{r}_0$、$\mathbf{v}_0$ 是新原点在旧架中的位置与速度。平
 
 ### 向量
 
-"向量"作为独立的数学对象，出现在 19 世纪 40 年代。哈密顿 1843 年发现四元数，把它分成"标量部"与"向量部"，"scalar""vector"二词即由他引入。同一时期，格拉斯曼在《线性扩张论》（*Die lineale Ausdehnungslehre*，1844）中建立了一般维数的向量代数，包括今天所说的外积，但当时少有人读懂。
+"向量"作为独立的数学对象，出现在 19 世纪 40 年代。哈密顿 1843 年发现四元数，1846 年在《哲学杂志》连载的《论四元数》第 18 条中，把四元数的实部称为"scalar"（因其取值都在从负到正的一条"scale"上），虚部称为"vector"（几何上是一条有长度、有方向的"radius vector"），并说"一个四元数一般是其标量部与向量部之和"。同一时期，格拉斯曼在《线性扩张论》（*Die lineale Ausdehnungslehre*，1844）中建立了一般维数的向量代数，包括今天所说的外积，但当时少有人读懂。
 
-今天物理与工程通用的点积、叉积记法，来自 19 世纪 80 年代的吉布斯与亥维赛。他们从四元数中只取出向量部分，把四元数乘积拆成点积与叉积两种运算，以适应麦克斯韦电磁理论的需要。吉布斯的讲义《向量分析初步》（*Elements of Vector Analysis*）1881、1884 年在纽黑文私印，后由其学生威尔逊整理成书（1901）；亥维赛的写法见《电磁理论》第一卷（1893）。四元数派与向量派曾在 19 世纪 90 年代有过一场论战，向量派最终在物理学中占了上风；四元数则在 20 世纪后期因转动计算重新流行（见下一章）。
+今天物理与工程通用的点积、叉积记法，来自 19 世纪 80 年代的吉布斯与亥维赛。他们从四元数中只取出向量部分，把四元数乘积拆成点积与叉积两种运算，以适应麦克斯韦电磁理论的需要。吉布斯的讲义《向量分析初步》（*Elements of Vector Analysis*）1881、1884 年分两部分在纽黑文印行，封面注明"Not published"（不出版），只送同行与学生；后由其学生威尔逊整理成书（1901）。亥维赛的写法见《电磁理论》第一卷（1893）第三章《向量代数与分析初步》。四元数派与向量派曾在 19 世纪 90 年代有过一场论战，向量派最终在物理学中占了上风；四元数则在 20 世纪后期因转动计算重新流行（见下一章）。
 
-线性空间的公理化定义，首见于皮亚诺《几何演算》（*Calcolo geometrico*，1888）。把点与向量分开、以"两点之差为向量"为公理来定义仿射空间，外尔在《空间、时间、物质》（*Raum, Zeit, Materie*，1918）开篇即如此处理。
+线性空间的公理化定义，一般认为首见于皮亚诺《几何演算》（*Calcolo geometrico*，1888）第九章，他称之为"线性系统"。把点与向量分开、以公理来定义仿射空间，外尔在《空间、时间、物质》（*Raum, Zeit, Materie*，1918）第一章第 2 节《仿射几何基础》中这样处理：先列向量的加法与数乘公理，再列"点与向量"公理——"任意两点 A、B 决定一个向量 a，记作 AB = a；任给一点 A 与一个向量 a，有且只有一点 B 使 AB = a"。
 
 ### 量纲
 
-量纲分析的思想可以追溯到傅里叶《热的解析理论》（1822）：他指出方程中每一项必须具有相同的量纲（"dimension"），并以此检验公式。麦克斯韦《电磁通论》（1873）开篇论物理量的度量，用 [L]、[M]、[T] 表示长度、质量、时间三种基本量纲，这一记法沿用至今。
+量纲分析的思想可以追溯到傅里叶《热的解析理论》（1822）第二章第九节第 160 条：每个量都有自己的量纲（"dimension"），同一方程各项若"量纲指数"不同就不能相比；他用这一点"使定义更确定，并用来验算"。麦克斯韦《电磁通论》（1873）卷首《预备》论物理量的度量，第 2 条讲量纲并在脚注中指明"量纲理论最早由傅里叶提出"，第 3 至 5 条用 [L]、[T]、[M] 表示长度、时间、质量三种基本单位，这一记法沿用至今。
 
 ## 七、各家并列
 
@@ -162,7 +162,7 @@ $\mathbf{r}_0$、$\mathbf{v}_0$ 是新原点在旧架中的位置与速度。平
 | 计算机图形学 | 用齐次坐标区分：点写成 $(x, y, z, 1)$，向量写成 $(x, y, z, 0)$ | 4×4 矩阵一次完成转动加平移 | 平移只作用于点（第四分量为 1），对向量自动无效 |
 | 航天轨道力学 | 不区分 | 状态向量 $(\mathbf{r}, \mathbf{v})$；各量下标注明参考架 | 参考架标在符号上，如 $\mathbf{r}_\text{ECI}$ |
 
-齐次坐标的做法最值得一提：用第四个分量是 1 还是 0 来区分点与向量，平移矩阵作用于点时生效、作用于向量时自动失效，"点加点无意义"在运算中自然体现。齐次坐标本身由莫比乌斯（《重心演算》，1827）与普吕克（1830 年前后）在射影几何中提出。天文计算中平移与转动交替出现，但很少用齐次坐标，原因是平移量（原点的位置）本身随时间变化，且常需要连同速度一起变换，4×4 矩阵并不省事。
+齐次坐标的做法最值得一提：用第四个分量是 1 还是 0 来区分点与向量，平移矩阵作用于点时生效、作用于向量时自动失效，"点加点无意义"在运算中自然体现。齐次坐标本身由莫比乌斯（《重心演算》，1827）与普吕克（《解析几何发展》，1828—1831）在射影几何中提出。天文计算中平移与转动交替出现，但很少用齐次坐标，原因是平移量（原点的位置）本身随时间变化，且常需要连同速度一起变换，4×4 矩阵并不省事。
 
 ## 八、本项目的取法
 
@@ -176,17 +176,18 @@ $\mathbf{r}_0$、$\mathbf{v}_0$ 是新原点在旧架中的位置与速度。平
 
 ## 参考文献
 
-1. R. Descartes, *La Géométrie*, Leiden, 1637（《方法论》附录）。未核原书。
+1. R. Descartes, *La Géométrie*, Leiden, 1637（《方法论》附录）。未核原书；"未使用两根垂直坐标轴"据通行史论（如 C. B. Boyer, *History of Analytic Geometry*, 1956），未核。
 2. P. de Fermat, *Ad locos planos et solidos isagoge*，约 1636 年写成，收入 *Varia opera mathematica*, Toulouse, 1679。未核原书。
-3. W. R. Hamilton, "On quaternions; or on a new system of imaginaries in algebra", *Philosophical Magazine*, 3rd series, 1844—1850 连载；"scalar""vector"二词见 1846 年诸篇。未核原刊，据 Crowe（下 9）。
-4. H. Grassmann, *Die lineale Ausdehnungslehre*, Leipzig: Wigand, 1844。未核原书。
-5. J. W. Gibbs, *Elements of Vector Analysis*, New Haven, 1881、1884 年私印。未核原书。
-6. O. Heaviside, *Electromagnetic Theory*, vol. 1, London: The Electrician, 1893, ch. III。未核原书。
-7. E. B. Wilson, *Vector Analysis: A Text-book for the Use of Students of Mathematics and Physics, Founded upon the Lectures of J. Willard Gibbs*, New York: Scribner, 1901。未核原书。
-8. G. Peano, *Calcolo geometrico secondo l'Ausdehnungslehre di H. Grassmann*, Torino: Bocca, 1888。未核原书。
+3. W. R. Hamilton, "On quaternions; or on a new system of imaginaries in algebra", *The London, Edinburgh and Dublin Philosophical Magazine*, 3rd series, 1844—1850 连载十八次；"scalar""vector"二词见第 18 条，vol. 29 (July 1846), pp. 26—27（该次连载 pp. 26—31）。据 archive.org 所藏该卷影像（londonedinburghp29lond）核；连载各次卷页据 D. R. Wilkins 整理本（Trinity College Dublin）。
+4. H. Grassmann, *Die lineale Ausdehnungslehre, ein neuer Zweig der Mathematik*, Leipzig: Otto Wigand, 1844。据 archive.org 影像（dielinealeausde00grasgoog）核书目；正文未核。
+5. J. W. Gibbs, *Elements of Vector Analysis, Arranged for the Use of Students in Physics*, New Haven: Printed by Tuttle, Morehouse & Taylor, 1881—1884，封面题"Not published"。据 archive.org 影像（elementsvectora00gibb）核。
+6. O. Heaviside, *Electromagnetic Theory*, vol. 1, London: "The Electrician" Printing and Publishing Co., 1893, ch. III "The Elements of Vectorial Algebra and Analysis"（据序，pp. 132—305）。据 archive.org 影像（bub_gb_9ukEAAAAYAAJ）核。
+7. E. B. Wilson, *Vector Analysis: A Text-book for the Use of Students of Mathematics and Physics, Founded upon the Lectures of J. Willard Gibbs*, New York: Scribner, 1901。据 archive.org 影像（cu31924001246341）核书目。
+8. G. Peano, *Calcolo geometrico secondo l'Ausdehnungslehre di H. Grassmann, preceduto dalle operazioni della logica deduttiva*, Torino: Bocca, 1888, cap. IX（§72）。未核原书；章节据 G. H. Greco, E. M. Pagani, "Reworking on affine exterior algebra of Grassmann, Peano and his school"（arXiv:1002.4105, 2010）及 L. C. Kennedy 英译本 *Geometric Calculus*（Birkhäuser, 2000）目录。
 9. M. J. Crowe, *A History of Vector Analysis: The Evolution of the Idea of a Vectorial System*, Notre Dame: University of Notre Dame Press, 1967。未核原书。
-10. H. Weyl, *Raum, Zeit, Materie*, Berlin: Springer, 1918, §§1—2。未核原书。
-11. J. Fourier, *Théorie analytique de la chaleur*, Paris: Didot, 1822。论量纲处节次未核。
-12. J. C. Maxwell, *A Treatise on Electricity and Magnetism*, Oxford: Clarendon, 1873, Preliminary, "On the measurement of quantities"。未核原书。
-13. A. F. Möbius, *Der barycentrische Calcul*, Leipzig: Barth, 1827。未核原书。
-14. IAU SOFA Board, *SOFA Vector/Matrix Library*（p-向量、pv-向量与角距例程的说明）。未核版本。
+10. H. Weyl, *Raum · Zeit · Materie: Vorlesungen über allgemeine Relativitätstheorie*, Berlin: Springer, 1918, Kap. I, §2 "Grundlagen der affinen Geometrie"（初版 pp. 14—20；公理 I、II 在 pp. 15—16）。据 archive.org 初版影像（RaumZeitMaterieVolIMeinerFrauGewidmet）核。
+11. J. Fourier, *Théorie analytique de la chaleur*, Paris: Firmin Didot, 1822, chap. II, sect. IX "Remarques générales", art. 160（初版 pp. 151—152）。据 Gallica 影像（bpt6k1045508v，archive.org 转存本）核。
+12. J. C. Maxwell, *A Treatise on Electricity and Magnetism*, vol. 1, Oxford: Clarendon Press, 1873, Preliminary "On the Measurement of Quantities", arts. 2—5（初版 pp. 1—4）。据 archive.org 影像（electricandmagne01maxwrich）核。
+13. A. F. Möbius, *Der barycentrische Calcul*, Leipzig: Barth, 1827。据 archive.org 影像（11267597bsb，奥格斯堡州立市立图书馆藏本）核书目；正文未核。
+14. J. Plücker, *Analytisch-geometrische Entwicklungen*, 2 Bde., Essen: Baedeker, 1828—1831。未核原书。
+15. IAU SOFA Board, *SOFA Vector/Matrix Library*（p-向量、pv-向量与角距例程的说明）。未核版本。
