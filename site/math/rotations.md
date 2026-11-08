@@ -145,7 +145,7 @@ G = \dfrac{2qs+2pr}{u}, & H = \dfrac{2rs-2pq}{u}, & I = \dfrac{pp-qq-rr+ss}{u}.
 \end{array}
 $$
 
-取 $p$ 为标量部分、$(q, r, s)$ 为向量部分，这正是今天由单位四元数写出的转动矩阵（差一个转置，即坐标转动与物体转动之别）。紧接着的第 102 页，欧拉又对四维的情形用八个数 $a, b, c, d, p, q, r, s$ 排出十六个数，每行、每列的平方和都等于 $(aa+bb+cc+dd)(pp+qq+rr+ss)$。这就是四平方和恒等式，也就是后来四元数乘法保持模长的性质。第二次是罗德里格斯。他在 1840 年从几何上重新得到这四个参数，与转轴、转角的关系正是 $\cos\frac{\varphi}{2}$ 与 $\mathbf n\sin\frac{\varphi}{2}$，并写出了两次转动相继进行时参数的组合规则。这条规则就是后来的四元数乘法，只是他没有把它看成一种新的数。凯莱所说"与罗德里格斯给出的完全相同"，指的就是这一点。所以这四个参数今天称为"欧拉–罗德里格斯参数"。此外，高斯在 1819 年前后的手稿《Mutationen des Raumes》中也有类似公式，生前未发表。
+取 $p$ 为标量部分、$(q, r, s)$ 为向量部分，这正是今天由单位四元数写出的转动矩阵（差一个转置，即坐标转动与物体转动之别）。紧接着的第 102 页，欧拉又对四维的情形用八个数 $a, b, c, d, p, q, r, s$ 排出十六个数，每行、每列的平方和都等于 $(aa+bb+cc+dd)(pp+qq+rr+ss)$。这就是四平方和恒等式，也就是后来四元数乘法保持模长的性质。第二次是罗德里格斯。他在 1840 年从几何上重新得到这四个参数，与转轴、转角的关系正是 $\cos\frac{\varphi}{2}$ 与 $\mathbf n\sin\frac{\varphi}{2}$，并写出了两次转动相继进行时参数的组合规则。这条规则就是后来的四元数乘法，只是他没有把它看成一种新的数。凯莱所说"与罗德里格斯给出的完全相同"，指的就是这一点。所以这四个参数今天称为"欧拉–罗德里格斯参数"。此外，高斯的手稿《Mutationen des Raumes》（空间的变换）也用四个数 $a, b, c, d$ 写出全部转动（连同缩放）的系数，他称之为"Mutationsscale"，并写出两次变换相继时四个数的组合规则，其首项为 $a\alpha - b\beta - c\gamma - d\delta$，正是四元数乘法。这份手稿生前未发表；《全集》编者施特克尔（P. Stäckel）指出，其中各条与前几页 1819 年的天文记录"in Schrift und Tinte genau"（字迹与墨水完全一致），故定为 1819 年所写（《高斯全集》第 8 卷，遗稿《Mutationen des Raumes》及编者说明）。
 
 ### 定义与乘法
 
@@ -249,7 +249,7 @@ $$\hat q = q + \varepsilon\,\tfrac12\,\mathbf{t}\,q$$
 | 18 世纪 50—60 年代 | 欧拉 | 用三个角描述刚体方位（欧拉角） |
 | 1770—1771 | 欧拉 | 三维正交矩阵的四参数有理表示，即后来的四元数转动矩阵（E407） |
 | 1775—1776 | 欧拉 | 转动定理：任何转动都是绕一根轴的转动 |
-| 约 1819 | 高斯 | 手稿中的转动组合公式（身后发表） |
+| 1819 | 高斯 | 手稿中的四参数转动与组合公式（1900 年刊入《全集》） |
 | 1830—1831 | 沙勒 | 刚体运动都是螺旋运动 |
 | 1840 | 罗德里格斯 | 四个参数的几何意义与转动的组合公式 |
 | 1843—1844 | 哈密顿 | 四元数 |
@@ -275,7 +275,7 @@ $$\hat q = q + \varepsilon\,\tfrac12\,\mathbf{t}\,q$$
 3. O. Rodrigues, "Des lois géométriques qui régissent les déplacements d'un système solide dans l'espace, et de la variation des coordonnées provenant de ces déplacements considérés indépendamment des causes qui peuvent les produire", *Journal de Mathématiques Pures et Appliquées*, 1re série, 5 (1840), 380–440。据 Numdam 数字化本核题目卷页。
 4. W. R. Hamilton, "On quaternions; or on a new system of imaginaries in algebra", *Philosophical Magazine*, 3rd ser., 1844—1850 年分期连载（首期在第 25 卷）。据 D. R. Wilkins 所编录文核其刊载情况；卷页未逐期核对。
 5. A. Cayley, "On certain results relating to quaternions", *Philosophical Magazine* 26 (1845), 141–145；重印于 *The Collected Mathematical Papers of Arthur Cayley*, vol. 1, Cambridge, 1889, no. 20, 123–126。据 archive.org 所存重印本核。
-6. C. F. Gauss, "Mutationen des Raumes"（约 1819 年手稿），收入 *Werke* 第 8 卷（1900）。未核原书。
+6. C. F. Gauss, "Mutationen des Raumes"（1819 年手稿），收入 *Werke*, Bd. VIII: *Arithmetik und Algebra. Nachträge zu Band 1–3*, Göttingen, 1900，遗稿部分（第 357—362 页）及施特克尔的编者说明。
 7. M. Chasles, "Note sur les propriétés générales du système de deux corps semblables entr'eux, et placés d'une manière quelconque dans l'espace; et sur le déplacement fini, ou infiniment petit, d'un corps solide libre", *Bulletin des Sciences Mathématiques, Astronomiques, Physiques et Chimiques*（费吕萨克编）14（1830 年 11 月号，题下注 1831 年 2 月 5 日宣读）, no. 198, 321–326。据 archive.org 所存本核。
 8. G. Mozzi, *Discorso matematico sopra il rotamento momentaneo dei corpi*, Napoli, 1763。据 archive.org 所存本核所引一句。
 9. W. K. Clifford, "Preliminary sketch of biquaternions", *Proceedings of the London Mathematical Society* 4 (1873), nos. 64–65, 381–395；重印于 R. Tucker (ed.), *Mathematical Papers by William Kingdon Clifford*, London: Macmillan, 1882, 181–200。据 archive.org 所存重印本核。
