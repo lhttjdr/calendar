@@ -98,7 +98,7 @@ $n$ 次多项式只要 $n$ 次乘法、$n$ 次加法，逐项求幂则要约 $2n
 
 ### 源流
 
-这一方法以英国人霍纳（W. G. Horner）命名，他在 1819 年的论文中用它逐位求多项式方程的根；意大利人鲁菲尼（Paolo Ruffini）在 1804 年已提出同样的做法。在中国，南宋秦九韶《數書九章》（1247）的"正負開方術"用同样的逐步变换求高次方程的数值根，北宋贾宪的"增乘開方法"（见于杨辉《詳解九章算法》，1261）是其先声。这一渊源是数学史界的通说，如李约瑟《中国科学技术史》第三卷所述（本章未核原书）。
+这一方法以英国人霍纳（W. G. Horner）命名，他在 1819 年的论文中用它逐位求多项式方程的根；意大利人鲁菲尼（Paolo Ruffini）在 1804 年已提出同样的做法。在中国，南宋秦九韶《數書九章》（1247）的"正負開方術"用同样的逐步变换求高次方程的数值根，北宋贾宪的"增乘開方法"（见于杨辉《詳解九章算法》，1261）是其先声。李约瑟说，秦九韶发展的数值高次方程解法与霍纳 1819 年"rediscovered"（重新发现）的方法实质相同（《中国科学技术史》第三卷第 19 节《数学》(c)(3)「宋元明时期」）；又说鲁菲尼、霍纳各自独立得出这一方法，两人都不知道中国人在 13 世纪已经熟知，就特殊情形而言还要早得多（同节 (i)(7)「数值高次方程」）。
 
 ## 四、三角函数
 
@@ -190,4 +190,4 @@ $\sqrt{n}$ 来自截去的众多小项相位杂乱、正负相消，与上一节
 13. W. Kahan, "Further remarks on reducing truncation errors", *Communications of the ACM* 8(1) (1965), 40。据 Crossref 核书目，doi:10.1145/363707.363723。
 14. A. Neumaier, "Rundungsfehleranalyse einiger Verfahren zur Summation endlicher Summen", *Zeitschrift für Angewandte Mathematik und Mechanik* 54 (1974), 39–51。据 Crossref 核书目，doi:10.1002/zamm.19740540106。
 15. J. Meeus, *Astronomical Algorithms*, 2nd ed., Willmann-Bell, 1998，第 31 章《行星位置》、第 45 章《月球位置》。论断据 Meeus 原书；查阅所用为许剑伟的业余中译本（2008），未与英文原书逐字核对。
-16. 李约瑟（J. Needham），《中国科学技术史》第三卷《数学、天学和地学》。秦九韶、贾宪一节据数学史通说，未核原书。
+16. J. Needham, *Science and Civilisation in China*, vol. 3: *Mathematics and the Sciences of the Heavens and the Earth*, Cambridge University Press, 1959，§19 (c)(3) "The Sung, Yuan and Ming periods"、§19 (i)(7) "Numerical higher equations"（1959 年剑桥版第 43、126 页）。

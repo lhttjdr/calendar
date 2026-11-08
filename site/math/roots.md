@@ -98,7 +98,7 @@ $$f'(t) \approx \frac{f(t-2h) - 8f(t-h) + 8f(t+h) - f(t+2h)}{12h}$$
 
 蒲每日长度减半，莞每日加倍，两者之差不是时间的线性函数。按盈不足术以 2 日、3 日两次假令一算，得 $2 + \frac{1.5}{1.5 + 1.75} = 2\frac{6}{13}$ 日，即书中答数。实际上，蒲 $n$ 日共长 $6(1 - 2^{-n})$ 尺，莞共长 $2^n - 1$ 尺，令两者相等得 $2^n = 6$，$n = \log_2 6 \approx 2.585$ 日。书中的答数差约 0.12 日：这正是对非线性函数只做一次割线的结果。《九章》并不讳言，题与术照录。
 
-同类方法在中世纪阿拉伯数学中称"双假设法"（ḥisāb al-khaṭāʾayn），经斐波那契《算盘书》（1202）传入欧洲，即后来的 regula falsi。李约瑟认为它可能源出中国，学界尚无定论（本章未核原书）。
+同类方法在中世纪阿拉伯数学中称"双假设法"（ḥisāb al-khaṭāʾayn），经斐波那契《算盘书》（1202）传入欧洲，即后来的 regula falsi。李约瑟依钱宝琮、张荫麟之说，认为此法"may have had a Chinese origin"（可能源出中国），因为它正是《九章算術》第七章的盈不足术；他同时指出，花剌子米在 9 世纪已用此法，若有传播，不会晚到西辽时代。他还注意到，刘徽称之为"朓朒"之法，两字都取自月相（《中国科学技术史》第三卷第 19 节《数学》(i)(3)「试位法」）。这一传播说至今尚无定论。
 
 ### 历家求定朔：朓朒改正
 
@@ -150,4 +150,4 @@ $$\Delta t = -\frac{\Delta\lambda_\text{月}}{v_\text{月} - v_\text{日}}$$
 8. J. Kepler, *Epitome Astronomiae Copernicanae*, 1618—1621（第五卷 1621）。查阅 archive.org 所存 1635 年本，OCR 质量差，未能定位反问题一节。另见 P. Colwell, *Solving Kepler's Equation over Three Centuries*, Richmond: Willmann-Bell, 1993，未核原书。
 9. J. Kiefer, "Sequential minimax search for a maximum", *Proceedings of the American Mathematical Society* 4 (1953), 502–506。据 Crossref 核书目，doi:10.1090/S0002-9939-1953-0055639-3。
 10. R. P. Brent, *Algorithms for Minimization without Derivatives*, Englewood Cliffs: Prentice-Hall, 1973。未核原书。
-11. 李约瑟（J. Needham），《中国科学技术史》第三卷《数学、天学和地学》。盈不足西传一说据此，未核原书。
+11. J. Needham, *Science and Civilisation in China*, vol. 3: *Mathematics and the Sciences of the Heavens and the Earth*, Cambridge University Press, 1959，§19 (i)(3) "The rule of false position"（1959 年剑桥版第 118 页）。

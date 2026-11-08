@@ -95,5 +95,5 @@ $$
 1. 《宋書》卷十三《律曆志下》（元嘉曆、大明曆），梁沈约撰。据维基文库录文。
 2. 《元史》卷五十三《曆志二·授時曆議下·定朔》，卷五十四《曆志三·授時曆經上·步氣朔第一》，明宋濂等撰。据维基文库录文。
 3. J. Chapront, M. Chapront-Touzé, G. Francou, "A new determination of lunar orbital parameters, precession constant and tidal acceleration from LLR measurements", *Astronomy and Astrophysics* 387 (2002), 700–709。平朔公式所据。
-4. O. Neugebauer, *A History of Ancient Mathematical Astronomy*, Berlin: Springer, 1975，第 69 页（托勒密从希帕恰斯承袭平均朔望月 29;31,50,8,20 日）、第 297 页（称此为希帕恰斯所采用的巴比伦值）。
+4. O. Neugebauer, *A History of Ancient Mathematical Astronomy*, Berlin: Springer, 1975，I B 3, 1 "Lunar Theory"（托勒密从希帕恰斯承袭平均朔望月 29;31,50,8,20 日；初版第 69 页）、I E 2, 2 C "Precession and Trepidation"（称此为希帕恰斯所采用的巴比伦值；第 297 页）。
 5. 廖育栋：《月相和二十四节气的计算》（网络文稿）。业余整理的参考表，只作对照。

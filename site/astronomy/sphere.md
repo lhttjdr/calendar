@@ -126,7 +126,7 @@ $$
 
 古希腊的天球观念来自欧多克索斯（Eudoxus，前 4 世纪）的同心球模型，亚里士多德加以哲学化。希帕恰斯（Hipparchus，前 2 世纪）系统地测量恒星位置，并由此发现了岁差。托勒密（Ptolemy，2 世纪）的《至大论》（Almagest）卷七、卷八载一千余颗恒星的星表，用的是黄经、黄纬。
 
-希腊人以黄道为主，因为他们关心的是日月五星的运动，而它们都在黄道附近；中国以赤道为主，因为浑仪的转轴对准天极，赤道坐标是浑仪直接读出的量，而且恒星随天球周日转动时赤纬不变。今天的天体测量以赤道坐标为基础，这一做法在欧洲由第谷（Tycho Brahe，16 世纪后期）的赤道浑仪确立。李约瑟认为这是中国传统的影响，或至少是殊途同归（本章未核原书）。
+希腊人以黄道为主，因为他们关心的是日月五星的运动，而它们都在黄道附近；中国以赤道为主，因为浑仪的转轴对准天极，赤道坐标是浑仪直接读出的量，而且恒星随天球周日转动时赤纬不变。今天的天体测量以赤道坐标为基础，这一做法在欧洲由第谷（Tycho Brahe，16 世纪后期）的赤道浑仪确立。李约瑟指出，自第谷以来近代天文学普遍使用赤道坐标，而中国古代的去极度、入宿度正与之相当（《中国科学技术史》第三卷第 20 节《天文学》(f)(1)「星表与恒星坐标」）；他并推测第谷约 1595 年放弃古典的黄道坐标，"perhaps as the result of some oriental stimulus"（或许是受到东方的刺激，同书第 20 节 (g)(6)(iii)「转仪钟的发明」）。这只是推测，并无直接证据。
 
 ### 黄赤交角的古代测定
 
@@ -168,6 +168,6 @@ $$
 3. 《新唐書》卷二十八上《曆志四上》（大衍历黄道度）；《元史》卷五十四《曆志三》（授时历黄道宿度）。
 4. 吴守贤、全和钧主编：《中国古代天体测量学及天文仪器》，中国科学技术出版社，2013 年，第三章第五节《借助北天极的准黄道天文坐标系》，第 60—65 页。
 5. C. Ptolemy, *Almagest*, trans. G. J. Toomer, *Ptolemy's Almagest*, London: Duckworth, 1984。卷一第 12 章（第 61—63 页，黄赤交角，据 archive.org 所存本核）；卷七—八（星表，未核）。
-6. 李约瑟（J. Needham），《中国科学技术史》第三卷《数学、天学和地学》。赤道坐标一说据此，未核原书。
+6. J. Needham, *Science and Civilisation in China*, vol. 3: *Mathematics and the Sciences of the Heavens and the Earth*, Cambridge University Press, 1959，§20 (f)(1) "Star catalogues and star co-ordinates"、§20 (g)(6)(iii) "The invention of the clock-drive"（1959 年剑桥版第 266、366 页）。
 7. W. M. Smart, *Textbook on Spherical Astronomy*, 6th ed., revised by R. M. Green, Cambridge University Press, 1977。坐标换算。
 8. N. Capitaine, P. T. Wallace, J. Chapront, "Expressions for IAU 2000 precession quantities", *Astronomy and Astrophysics* 412 (2003), 567–586。平黄赤交角公式。
