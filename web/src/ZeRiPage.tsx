@@ -18,6 +18,13 @@ type NianShenData = {
   riYou: string
   heShen: string
   taiSuiYou: string
+  /** 当月月厌、厌对所在之山；厌前（阳）、厌后（阴）诸山；当日干支与阴阳将 */
+  yueYan?: string
+  yanDui?: string
+  yanQian?: string[]
+  yanHou?: string[]
+  dayJiang?: string
+  dayGz?: string
 }
 
 /** 太岁、岁破等最重之神 */
@@ -102,6 +109,21 @@ export function ShanWheel({ data, size = 560, rotate = 0 }: { data: NianShenData
           </g>
         )
       })}
+      {data.yueYan && data.shan.map((s, i) => {
+        // 外缘色带：厌前（阳）浅红、厌后（阴）浅蓝；月厌、厌对标字（类编以月厌为界分二十四山）
+        const a0 = ang(i) - (7.5 * Math.PI) / 180, a1 = ang(i) + (7.5 * Math.PI) / 180
+        const rb0 = r2 - size * 0.028, rb1 = r2
+        const [x0, y0] = pt(rb1, a0), [x1, y1] = pt(rb1, a1), [x2, y2] = pt(rb0, a1), [x3, y3] = pt(rb0, a0)
+        const isYan = s.p === data.yueYan, isDui = s.p === data.yanDui
+        const fill = isYan || isDui ? '#ffd666' : data.yanQian?.includes(s.p) ? '#ffccc7' : data.yanHou?.includes(s.p) ? '#bae0ff' : 'none'
+        const [lx, ly] = pt((rb0 + rb1) / 2, ang(i))
+        return (
+          <g key={'yan' + s.p}>
+            <path d={`M ${x0} ${y0} A ${rb1} ${rb1} 0 0 1 ${x1} ${y1} L ${x2} ${y2} A ${rb0} ${rb0} 0 0 0 ${x3} ${y3} Z`} fill={fill} opacity={0.8} />
+            {(isYan || isDui) && <text x={lx} y={ly} fontSize={size * 0.017} textAnchor="middle" dominantBaseline="central" fill="#ad4e00" transform={`rotate(${(ang(i) * 180) / Math.PI} ${lx} ${ly})`}>{isYan ? '月厭' : '厭對'}</text>}
+          </g>
+        )
+      })}
       {[['南', 0], ['西', 90], ['北', 180], ['東', 270]].map(([t, d]) => {
         const [x, y] = pt(r2 + size * 0.015, ((d as number) * Math.PI) / 180)
         return <text key={t as string} x={x} y={y} fontSize={size * 0.022} fill={t === '北' ? '#a8071a' : '#888'} textAnchor="middle" dominantBaseline="central" transform={`rotate(${d} ${x} ${y})`}>{t}</text>
@@ -131,7 +153,7 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
   const [useYue, setUseYue] = useState(false)
   const [ztLeibian, setZtLeibian] = useState(false)
   const [useXiong, setUseXiong] = useState(false)
-  const [onlyOk, setOnlyOk] = useState(true)
+  const [onlyOk, setOnlyOk] = useState(false)
   const nvGz = (((nvYear - 4) % 60) + 60) % 60
   const m = props.monthLunar
   const list = useMemo((): JiaquDay[] | null => {
@@ -161,7 +183,7 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
               <Text strong type={d.ok ? 'success' : 'secondary'}>{`${i + 1}日 ${d.ok ? '可用' : '不用'}`}</Text>
               {` · 农历${m.leaps[i] ? '閏' : ''}${m.months[i]}月${m.days[i]}日`}
               {d.yi ? ' · 宜嫁娶' : d.ji ? ' · 忌嫁娶' : ''}
-              {d.buJiang ? ' · 不將' : d.jiang ? ` · ${d.jiang}` : ''}
+              {d.buJiang ? ' · 不將（协纪歷例表）' : ''}{d.jiang ? ` · 类编法${d.jiang}` : ''}
               {d.zhouTang ? ` · 周堂值${d.zhouTang}` : ''}
               {` · 女命${d.nvMingYue}`}
               {d.reasons.length > 0 && <Text type="danger">{` · ${d.reasons.join('；')}`}</Text>}
@@ -227,6 +249,14 @@ export function ZeRiPage(props: {
           </Card>
           <Card size="small" title="当日" style={{ flex: '1 1 320px' }}>
             {props.jianchu && <div style={{ marginBottom: 8 }}>{props.jianchu}</div>}
+            {data.yueYan && (
+              <div style={{ marginBottom: 8 }}>
+                {`月厭在${data.yueYan}、厭對在${data.yanDui}；${data.dayGz}日${data.dayJiang}`}
+                <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>
+                  图外缘色带：浅红为厌前（阳）、浅蓝为厌后（阴）；厌前之干配厌后之支为阴阳不将（《类编历法通书大全》卷七「論隂陽不將日」，戊己寄厌前；协纪戊寄艮己寄坤之说见婚嫁择吉）
+                </Text>
+              </div>
+            )}
             <div style={{ marginBottom: 8 }}>
               {`日遊神${data.riYou} · 鶴神${data.heShen}`}
               {data.taiSuiYou ? ` · 太歲${data.taiSuiYou}遊` : ''}

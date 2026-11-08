@@ -767,15 +767,36 @@ pub fn nian_shen_json(jd: f64, vsop87_ear: &str) -> Result<String, JsValue> {
         )
     });
     let dgz = ((jd + 0.5).floor() as i64 + 49).rem_euclid(60) as u8;
+    // 月厌、厌对与厌前厌后（类编「論隂陽不將日」以月厌为界分二十四山；月以节换，正月厌戌逆行）
+    let (_, mi, _) = lunar_core::calendar::gan_zhi_options::ganzhi_from_jd_solar(vsop.as_ref(), jd, &lunar_core::calendar::gan_zhi_options::preset_zi_ping_ba_zi());
+    let month_ord = ((mi % 12) as i32 - 2).rem_euclid(12) as u8;
+    let yan = (10 - month_ord as i32).rem_euclid(12) as usize;
+    const SHAN: [&str; 24] = ["子", "癸", "丑", "艮", "寅", "甲", "卯", "乙", "辰", "巽", "巳", "丙", "午", "丁", "未", "坤", "申", "庚", "酉", "辛", "戌", "乾", "亥", "壬"];
+    let yp = (yan * 2) as i32;
+    let qian: Vec<String> = (1..12).map(|k| json_str(SHAN[(yp - k).rem_euclid(24) as usize])).collect();
+    let hou: Vec<String> = (1..12).map(|k| json_str(SHAN[(yp + k).rem_euclid(24) as usize])).collect();
+    let day_jiang = match lunar_core::folk::jiaqu::jiang(month_ord, dgz, lunar_core::folk::jiaqu::WuJiJi::LeiBian) {
+        lunar_core::folk::jiaqu::Jiang::BuJiang => "陰陽不將",
+        lunar_core::folk::jiaqu::Jiang::YangJiang => "陽將",
+        lunar_core::folk::jiaqu::Jiang::YinJiang => "陰將",
+        lunar_core::folk::jiaqu::Jiang::JuJiang => "陰陽俱將",
+        lunar_core::folk::jiaqu::Jiang::Neither => "（日支值厭或厭對）",
+    };
     Ok(format!(
-        "{{\"year\":{},\"suiDe\":{},\"suiDeHe\":{},\"shan\":{},\"riYou\":{},\"heShen\":{},\"taiSuiYou\":{}}}",
+        "{{\"year\":{},\"suiDe\":{},\"suiDeHe\":{},\"shan\":{},\"riYou\":{},\"heShen\":{},\"taiSuiYou\":{},\"yueYan\":{},\"yanDui\":{},\"yanQian\":{},\"yanHou\":{},\"dayJiang\":{},\"dayGz\":{}}}",
         json_str(lunar_core::calendar::gan_zhi_options::gan_zhi_index_to_name(y)),
         json_str(&p("歲德")),
         json_str(&p("歲德合")),
         json_arr(shan),
         json_str(ri_you_shen(dgz)),
         json_str(he_shen(dgz)),
-        json_str(tai_sui_chu_you(dgz).unwrap_or(""))
+        json_str(tai_sui_chu_you(dgz).unwrap_or("")),
+        json_str(SHAN[yp as usize]),
+        json_str(SHAN[((yp + 12) % 24) as usize]),
+        json_arr(qian),
+        json_arr(hou),
+        json_str(day_jiang),
+        json_str(lunar_core::calendar::gan_zhi_options::gan_zhi_index_to_name(dgz))
     ))
 }
 
