@@ -114,7 +114,11 @@ $$\Delta t = -\frac{\Delta\lambda_\text{月}}{v_\text{月} - v_\text{日}}$$
 
 牛顿在 1669 年的手稿《De analysi》中以 $y^3 - 2y - 5 = 0$ 为例，逐步求根："Sit $y^3 - 2y - 5 = 0$ resolvenda"。他先取 2（与根相差不到十分之一），令 $y = 2 + p$，代入得 $p^3 + 6p^2 + 10p - 1 = 0$；略去 $p^3 + 6p^2$ 得 $10p - 1 = 0$，即 $p = 0.1$；再令 $p = 0.1 + q$，代入、略去高次项，得 $q \approx -0.0054$；如此继续，得 $y = 2.09455147$（1711 年刊本第 8—9 页）。今天的值是 $2.0945514815\ldots$，八位小数全对。每一步都是把方程按偏差展开、略去高次项、解出修正量。这本质上是二次收敛的迭代，但写成逐次变换多项式的形式，与霍纳、秦九韶的做法相近。手稿迟至 1711 年才出版。拉弗森（Joseph Raphson）在 1690 年的《Analysis aequationum universalis》中给出更接近今天形式的迭代公式。辛普森（Thomas Simpson）在 1740 年把它推广到一般函数，用的是流数（导数）。今天的形式 $t - f/f'$ 是 19 世纪以后才通行的（Ypma 1995）。
 
-天文学中最早需要迭代求根的，是开普勒方程 $M = E - e\sin E$：已知平近点角 $M$ 求偏近点角 $E$。开普勒本人在《哥白尼天文学概要》第五卷（1621）中承认这一反问题没有几何解法，只能试算逼近；后人把他的办法概括为逐次代入 $E_{k+1} = M + e\sin E_k$，这是线性收敛的不动点迭代（据 Colwell 1993 转述；原书第五卷本章未能定位到该段）。后世对开普勒方程提出了数百种解法，几乎是一部数值求根的历史。
+天文学中最早需要迭代求根的，是开普勒方程 $M = E - e\sin E$：已知平近点角 $M$ 求偏近点角 $E$。开普勒本人在《哥白尼天文学概要》第五卷第二部讨论过这个反问题，答曰：
+
+> Hic via directa nulla est, sed adhibenda est ei, qui sine tabulis hoc vult computare, regula Positionum: ponendo scilicet Anomaliam Eccentri tantam vel tantam, eique sic computando suam Anomaliam mediam. … At si non tanta prodit, ex eo quod prodit, emendanda erit positio, laborque repetendus.
+
+即"这里没有直接的方法；不用表而要计算的人，只能用假设法：先假定偏近点角为某值，由它算出平近点角；若与给定的不等，就按所得结果修正假定，重复计算"。他随后举例：给定平近点角约 50°9′，先假设一个偏近点角，算出平近点角后把差额加回假设值，第二次假设约 47°，再修正一次即得。"把差额加回"写成式子是 $E_{k+1} = E_k + \big(M - (E_k - e\sin E_k)\big) = M + e\sin E_k$，正是线性收敛的不动点迭代。开普勒称之为"regula Positionum"，与上文的盈不足术、regula falsi 同属假设法一系。后世对开普勒方程提出了数百种解法，几乎是一部数值求根的历史。
 
 ### 现代
 
@@ -147,7 +151,7 @@ $$\Delta t = -\frac{\Delta\lambda_\text{月}}{v_\text{月} - v_\text{日}}$$
 5. J. Raphson, *Analysis aequationum universalis*, London, 1690。archive.org 存有 1697 年第二版；迭代公式据 Ypma 1995 转述，原书未逐页核。
 6. T. Simpson, *Essays on Several Curious and Useful Subjects in Speculative and Mix'd Mathematicks*, London, 1740。未核原书。
 7. T. J. Ypma, "Historical development of the Newton–Raphson method", *SIAM Review* 37(4) (1995), 531–551。牛顿、拉弗森、辛普森一节据此，据 Crossref 核书目，doi:10.1137/1037125。
-8. J. Kepler, *Epitome Astronomiae Copernicanae*, 1618—1621（第五卷 1621）。查阅 archive.org 所存 1635 年本，OCR 质量差，未能定位反问题一节。另见 P. Colwell, *Solving Kepler's Equation over Three Centuries*, Richmond: Willmann-Bell, 1993，未核原书。
+8. J. Kepler, *Epitome Astronomiae Copernicanae*, 1618—1621，第五卷（1621）第二部"De terminis astronomicis et calculo, in orbita eccentrica orientibus"，由平近点角求其余近点角一问。据七卷合印本核。
 9. J. Kiefer, "Sequential minimax search for a maximum", *Proceedings of the American Mathematical Society* 4 (1953), 502–506。据 Crossref 核书目，doi:10.1090/S0002-9939-1953-0055639-3。
 10. R. P. Brent, *Algorithms for Minimization without Derivatives*, Englewood Cliffs: Prentice-Hall, 1973。未核原书。
 11. J. Needham, *Science and Civilisation in China*, vol. 3: *Mathematics and the Sciences of the Heavens and the Earth*, Cambridge University Press, 1959，§19 (i)(3) "The rule of false position"（1959 年剑桥版第 118 页）。
