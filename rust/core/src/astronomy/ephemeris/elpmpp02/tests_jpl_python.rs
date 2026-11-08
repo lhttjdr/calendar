@@ -508,25 +508,11 @@ fn de406_rust_vs_python_de406() {
         return;
     }
     set_python_home_if_requested();
-    let base = crate::repo::repo_root();
-    let bsp_path: String = std::env::var("DE406_BSP")
-        .ok()
-        .filter(|p| std::path::Path::new(p).is_file())
-        .or_else(|| {
-            let p = base.join(crate::repo::paths::DE406_BSP_CANDIDATES[0]);
-            if p.is_file() {
-                Some(p.to_string_lossy().into_owned())
-            } else {
-                base.join(crate::repo::paths::DE406_BSP_CANDIDATES[1])
-                    .is_file()
-                    .then(|| base.join(crate::repo::paths::DE406_BSP_CANDIDATES[1]).to_string_lossy().into_owned())
-            }
-        })
-        .unwrap_or_else(|| base.join(crate::repo::paths::JPL_DATA_DIR).to_string_lossy().into_owned());
-    if !std::path::Path::new(&bsp_path).is_file() {
+    // 与其它测试共用查找：LFS 指针不算存在（未 git lfs pull 时跳过，不崩溃）
+    let Some(bsp_path) = crate::test_util::de406_bsp_path_if_exists() else {
         println!("de406_rust_vs_python_de406: skipped (no DE406 BSP file at DE406_BSP or {})", crate::repo::paths::DE406_BSP_CANDIDATES[1]);
         return;
-    }
+    };
     let jds: Vec<f64> = vec![2444239.5, 2451545.0, 2451545.5, 2455000.0, 2457397.5];
 
     let (py_rows, _err): (Vec<Vec<f64>>, String) = match pyo3::Python::with_gil(|py| -> pyo3::PyResult<(Vec<Vec<f64>>, String)> {

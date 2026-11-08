@@ -21,6 +21,27 @@ jobs:
       - name: Pull LFS tables
         run: git lfs pull --include="data/**/*.csv,data/**/*.txt,vendor/calendar/**/*.csv"
 
+      # DE406 BSP（301 MB，LFS）：VSOP87/ELPMPP02/行星/近距等对 DE406 的精度测试要用；缺则这些测试只是跳过。
+      # 以 LFS oid 为键缓存，只在缓存未中时消耗一次 LFS 流量；拉到后立即存缓存（不等作业成功）
+      - name: DE406 BSP cache key
+        id: de406key
+        run: echo "oid=$(git lfs ls-files -l --include=vendor/jpl/de406/de406.bsp | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - name: Restore DE406 BSP
+        id: de406
+        uses: actions/cache/restore@v4
+        with:
+          path: vendor/jpl/de406/de406.bsp
+          key: de406-bsp-${{ steps.de406key.outputs.oid }}
+      - name: Pull DE406 BSP (cache miss)
+        if: steps.de406.outputs.cache-hit != 'true'
+        run: git lfs pull --include="vendor/jpl/de406/de406.bsp"
+      - name: Save DE406 BSP
+        if: steps.de406.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: vendor/jpl/de406/de406.bsp
+          key: de406-bsp-${{ steps.de406key.outputs.oid }}
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -63,8 +84,9 @@ jobs:
           echo "PYO3_PYTHON=$(which python3)" >> $GITHUB_ENV
           echo "PYTHONHOME=$(python3 -c 'import sys; print(sys.base_prefix)')" >> $GITHUB_ENV
           echo "PYTHONPATH=$(python3 -c 'import site; print(site.getsitepackages()[0])')" >> $GITHUB_ENV
-          # Ubuntu 上 libpython 多在系统路径，若链接失败可取消下一行注释并改用对应 LIBDIR
-          # echo "LD_LIBRARY_PATH=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR') or '')")" >> $GITHUB_ENV
+          # setup-python 的 libpython 不在系统路径，测试可执行文件运行时要找得到
+          echo "LD_LIBRARY_PATH=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR') or '')")" >> $GITHUB_ENV
+          echo "DE406_BSP=$GITHUB_WORKSPACE/vendor/jpl/de406/de406.bsp" >> $GITHUB_ENV
 
       # 仅对 lunar-core 跑覆盖率；wasm-lib / wasm-lib-f64 依赖 cfg(target_arch = "wasm32") 的 repo::set_loader/get_loader，在 host 上不编译
       - name: Generate coverage (lcov + HTML)

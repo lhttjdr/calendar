@@ -8,6 +8,19 @@
 
 use std::path::Path;
 
+/// 是否为可读的数据文件：存在、且不是 Git LFS 指针（未 `git lfs pull` 时检出的是约 130 字节的文本
+/// 「version https://git-lfs…」，打开当二进制读会失败；须当作缺文件跳过，而不是让测试崩溃）。
+#[cfg(not(target_arch = "wasm32"))]
+pub fn is_data_file(p: &Path) -> bool {
+    use std::io::Read;
+    if !p.is_file() {
+        return false;
+    }
+    let mut head = [0u8; 24];
+    let n = std::fs::File::open(p).and_then(|mut f| f.read(&mut head)).unwrap_or(0);
+    !head[..n].starts_with(b"version https://git-lfs")
+}
+
 /// 测试用仓库根目录（与 [crate::repo::repo_root] 一致，仅限 test 下使用）。
 #[cfg(not(target_arch = "wasm32"))]
 pub fn base() -> std::path::PathBuf {
@@ -15,20 +28,19 @@ pub fn base() -> std::path::PathBuf {
 }
 
 /// 解析 DE406 BSP 路径：环境变量 `DE406_BSP`（若为文件）→ 候选路径 [0] → [1] → 否则 `vendor/jpl` 目录路径（用于 skip 提示）。
-/// 返回的路径不保证存在，调用方需自行 `Path::is_file()` 判断。
+/// 返回的路径不保证存在，调用方需自行 [`is_data_file`] 判断（LFS 指针不算存在）。
 #[cfg(not(target_arch = "wasm32"))]
 pub fn de406_bsp_path() -> String {
     let base = base();
     std::env::var("DE406_BSP")
         .ok()
-        .filter(|p| Path::new(p).is_file())
+        .filter(|p| is_data_file(Path::new(p)))
         .or_else(|| {
             let p = base.join(crate::repo::paths::DE406_BSP_CANDIDATES[0]);
-            if p.is_file() {
+            if is_data_file(&p) {
                 Some(p.to_string_lossy().into_owned())
             } else {
-                base.join(crate::repo::paths::DE406_BSP_CANDIDATES[1])
-                    .is_file()
+                is_data_file(&base.join(crate::repo::paths::DE406_BSP_CANDIDATES[1]))
                     .then(|| base.join(crate::repo::paths::DE406_BSP_CANDIDATES[1]).to_string_lossy().into_owned())
             }
         })
@@ -58,7 +70,7 @@ pub fn jpl_elp_vs_jpl_samples_csv_path() -> std::path::PathBuf {
 #[cfg(not(target_arch = "wasm32"))]
 pub fn de406_bsp_path_if_exists() -> Option<String> {
     let p = de406_bsp_path();
-    Path::new(&p).is_file().then_some(p)
+    is_data_file(Path::new(&p)).then_some(p)
 }
 
 /// 本次构建的 `Real` 后端，写入校验表说明行。
