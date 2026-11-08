@@ -5,7 +5,8 @@
   python3 scripts/folk/shixianshu_check.py /tmp/x.csv
 读 data/folk/shixianshu_qianlong30.csv（时宪书逐日转录），按（月, 日, 干支）对上推算，写
 data/folk/shixianshu_qianlong30_checks.csv：结果「合」「異」，异者列推算多注、少注之事。
-时宪书只印宜与少数「不宜」，故只比宜；「—」表示该日无宜（推算的諸事不宜同此）。
+时宪书只印宜与少数「不宜」，故只比宜；「—」表示该日无宜（推算的諸事不宜同此）；
+「?」表示书影漫漶未能辨认，记「未辨」，不计合异。
 """
 import csv
 import sys
@@ -33,6 +34,13 @@ def main():
         if c is None:
             print("推算无此日：", r["月"], r["日"], r["干支"])
             continue
+        if r["宜"].strip() == "?":
+            rows.append({
+                "月": r["月"], "日": r["日"], "干支": r["干支"], "書頁": r["書頁"],
+                "時憲書宜": "?", "推算宜": c["宜"], "月表宜": c["月表宜"], "鋪註": c["铺注"],
+                "結果": "未辨", "推算多注": "", "推算少注": "", "說明": old.get((r["月"], r["日"]), {}).get("說明", ""),
+            })
+            continue
         book, got = items(r["宜"]), items(c["宜"])
         more = [x for x in got if x not in book]
         less = [x for x in book if x not in got]
@@ -48,7 +56,8 @@ def main():
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys()), lineterminator="\n")
         w.writeheader()
         w.writerows(rows)
-    print(f"{len(rows)} 日，合 {n_ok}，異 {len(rows) - n_ok}")
+    n_un = sum(r["結果"] == "未辨" for r in rows)
+    print(f"{len(rows)} 日，合 {n_ok}，異 {len(rows) - n_ok - n_un}，未辨 {n_un}")
     for r in rows:
         if r["結果"] == "異":
             print(f"  {r['月']}月{r['日']} {r['干支']} 多注[{r['推算多注']}] 少注[{r['推算少注']}] 鋪註[{r['鋪註']}]")
