@@ -659,6 +659,69 @@ pub fn nayin_of_ganzhi_name(name: &str) -> String {
         .unwrap_or_default()
 }
 
+/// 排盘摘要：奇门时家局、大六壬起课、太乙时计、三元九运。`jd_ut` 为所选时刻（UT）；`day_gz`、`hour_zhi` 取页面所示日柱、时支，
+/// 与四柱一致（日界、时辰口径由四柱预设定）。各法取缺省：奇门置闰法（演义之界）、节气按当时行用历；六壬按中气换将；
+/// 太乙时计冬至后阳遁、夏至后阴遁（以交至时刻为界）；九运每运二十年。出处见 doc/folk/qimen.md、liuren.md、taiyi.md。
+#[wasm_bindgen]
+pub fn paipan_wasm(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8) -> Result<String, JsValue> {
+    use lunar_core::astronomy::aspects::solar_term_jds_for_year_cached;
+    use lunar_core::calendar::gan_zhi_options::{ganzhi_from_jd_solar, preset_zi_ping_ba_zi};
+    use lunar_core::folk::{liuren, qimen, taiyi};
+    const ZHI: [&str; 12] = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"];
+    let vsop = vsop87_cached(vsop87_ear)?;
+    let jd_tt = jd_ut + lunar_core::astronomy::time::delta_t(real(jd_ut)).seconds().as_f64() / 86400.0;
+    let (day_gz, hour_zhi) = (day_gz % 60, hour_zhi % 12);
+    let mut out = Vec::new();
+    // 奇门
+    let sj = qimen::shi_jia_ju(vsop.as_ref(), real(jd_ut), qimen::DEFAULT_DING_JU, qimen::JieQiSource::XingYong);
+    out.push(format!("奇門：{}（置閏法，節氣從行用曆）", sj.describe()));
+    // 六壬
+    let k = liuren::qi_ke_at(vsop.as_ref(), real(jd_tt), day_gz, hour_zhi, liuren::JiangRule::ZhongQi);
+    let ke: Vec<String> = k.si_ke.iter().map(|x| ZHI[x.shang as usize].to_string()).collect();
+    out.push(format!(
+        "六壬：{}將加{}時；四課上神 {}；三傳 {}{}{}（{}）",
+        ZHI[k.pan.jiang as usize],
+        ZHI[hour_zhi as usize],
+        ke.join(" "),
+        ZHI[k.san_chuan[0] as usize],
+        ZHI[k.san_chuan[1] as usize],
+        ZHI[k.san_chuan[2] as usize],
+        k.fa.name()
+    ));
+    // 太乙时计：冬至后阳遁、夏至后阴遁（取最近已交之至）
+    let (gy, _, _) = lunar_core::calendar::gregorian::Gregorian::from_julian_day(real(jd_ut));
+    let mut zhi_list: Vec<(f64, bool)> = Vec::new();
+    for y in [gy - 1, gy] {
+        let t = solar_term_jds_for_year_cached(vsop.as_ref(), y);
+        zhi_list.push((t[18].as_f64(), true)); // 冬至
+        zhi_list.push((t[6].as_f64(), false)); // 夏至
+    }
+    let yang = zhi_list.iter().filter(|(t, _)| *t <= jd_tt).max_by(|a, b| a.0.partial_cmp(&b.0).unwrap()).map(|x| x.1).unwrap_or(true);
+    let dun = if yang { taiyi::Dun::Yang } else { taiyi::Dun::Yin };
+    let r = taiyi::shi_ji(day_gz, hour_zhi);
+    let j = taiyi::ju(r, dun);
+    out.push(format!(
+        "太乙：時計第{}局 {}遁，太乙在{}宮，文昌{}，計神{}，始擊{}",
+        j.r,
+        if yang { "陽" } else { "陰" },
+        j.gong,
+        taiyi::SHEN16[j.tian_mu],
+        taiyi::ji_shen_zhi(&j),
+        taiyi::SHEN16[j.shi_ji]
+    ));
+    // 三元九运：干支年（立春分）
+    let (yi, _, _) = ganzhi_from_jd_solar(vsop.as_ref(), jd_ut, &preset_zi_ping_ba_zi());
+    let year = if (gy - 4).rem_euclid(60) as u8 == yi { gy } else { gy - 1 };
+    let (yuan, yun) = taiyi::san_yuan_jiu_yun(year, taiyi::JiuYun::Even20);
+    let yuan = match yuan {
+        taiyi::SanYuan::Shang => "上元",
+        taiyi::SanYuan::Zhong => "中元",
+        taiyi::SanYuan::Xia => "下元",
+    };
+    out.push(format!("三元九運：{yuan}{}運", ["一", "二", "三", "四", "五", "六", "七", "八", "九"][yun as usize - 1]));
+    Ok(out.join("\n"))
+}
+
 /// 年神方位文字：岁德、岁德合一句，其后按二十四山列有神之位
 fn nian_shen_text(year_gz: u8) -> String {
     use lunar_core::folk::nianshen::{by_position, nian_shen};

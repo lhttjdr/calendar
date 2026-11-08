@@ -124,6 +124,8 @@ export interface LunarBackend {
   /** 干支名的纳音名目 */
   nayin_of_ganzhi_name?(name: string): string
   /** 月家日神煞 */
+  /** 排盘摘要：奇门时家局、六壬起课、太乙时计、三元九运 */
+  paipan_wasm?(jd_ut: number, vsop87_ear: string, day_gz: number, hour_zhi: number): string
   /** 灌入 Worker 解出的节气（每年 24 项），返回灌入年数 */
   seed_solar_terms_wasm?(years: Int32Array, jds: Float64Array): number
   shensha_day_wasm?(jd: number, vsop87_ear: string, lunar_month: number, lunar_day: number, is_leap: boolean, days_in_month: number, phase: number): string

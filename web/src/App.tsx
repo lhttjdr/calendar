@@ -707,7 +707,19 @@ function App() {
           phase,
         )
       })()
-      return { xiu: get('xiu'), qiYao: get('qi_yao'), yearStar: get('year_star'), monthStar: get('month_star'), nianShen: get('nian_shen'), riShen: get('ri_shen'), zajie, geng, jianchu, shensha }
+      // 排盘（奇门、六壬、太乙、三元九运）：日柱、时支取页面所示四柱
+      const paipan = (() => {
+        if (typeof wasm.paipan_wasm !== 'function' || !dayPillar || !hourGanzhi) return ''
+        const G = '甲乙丙丁戊己庚辛壬癸', Z = '子丑寅卯辰巳午未申酉戌亥'
+        const g = G.indexOf(dayPillar[0]!), z = Z.indexOf(dayPillar[1]!), hz = Z.indexOf(hourGanzhi[1]!)
+        if (g < 0 || z < 0 || hz < 0) return ''
+        const dayGz = [...Array(60).keys()].find((k) => k % 10 === g && k % 12 === z)
+        if (dayGz === undefined) return ''
+        const utc = utcFromLocalInZone({ year: displayY, month: displayM, day: displayD, hour: displayHour, minute: displayMinute, second: displaySecond }, timeZone)
+        const jdUt = utc.getTime() / 86400000 + 2440587.5
+        return wasm.paipan_wasm(jdUt, ear, dayGz, hz)
+      })()
+      return { paipan, xiu: get('xiu'), qiYao: get('qi_yao'), yearStar: get('year_star'), monthStar: get('month_star'), nianShen: get('nian_shen'), riShen: get('ri_shen'), zajie, geng, jianchu, shensha }
     } catch {
       return null
     }
@@ -990,6 +1002,12 @@ function App() {
                     <div style={{ fontSize: 11, lineHeight: 1.5, color: 'rgba(0,0,0,0.65)', whiteSpace: 'pre-line' }}>
                       {folkDay.shensha}
                       <div style={{ color: 'rgba(0,0,0,0.45)' }}>据《协纪辨方书》月表加卷十铺注（反支、上朔、四離四絕、晦日、二至二分、土王用事、伏社、朔弦望、月忌、人神、長短星、氣往亡、無祿），并依时宪书体例计嫁娶周堂、交节日；「時憲書宜」为民用三十七事；「時憲書朱字」为底栏朱字应值之神（含钦天监沿用的通书之神荒蕪、枯焦、四不祥、天獄）</div>
+                    </div>
+                  )}
+                  {folkDay?.paipan && (
+                    <div style={{ fontSize: 11, lineHeight: 1.5, color: 'rgba(0,0,0,0.65)', whiteSpace: 'pre-line' }}>
+                      {folkDay.paipan}
+                      <div style={{ color: 'rgba(0,0,0,0.45)' }}>奇门据《遁甲演義》（置閏法），六壬据《六壬大全》，太乙据《太乙金鏡式經》；各家异说见知识库</div>
                     </div>
                   )}
                   {folkDay?.zajie && (
