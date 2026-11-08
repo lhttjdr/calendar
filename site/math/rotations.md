@@ -187,7 +187,9 @@ $$\operatorname{slerp}(q_a, q_b; s) = q_a\,(q_a^* q_b)^s$$
 
 ### 两种乘法约定
 
-四元数在航天界有一段混乱的历史。哈密顿的原始约定是 $ij = k$；美国喷气推进实验室（JPL）等航天机构在 20 世纪后期为了让四元数乘法与坐标转动矩阵乘法次序一致，改用了 $ij = -k$ 的约定，并把标量放在最后。Shuster 1993 年的综述《A survey of attitude representations》对此有系统的整理。两种约定下，同一个公式符号不同，混用就会出错。Sommer 等 2018 年专文主张统一回到哈密顿约定。本章与本项目都用哈密顿约定，标量在前。
+四元数在航天界有一段混乱的历史。哈密顿的原始约定是 $ij = k$。航天界的姿态确定文献中则流行另一种约定：让四元数相乘的次序与转动矩阵相乘的次序一致，即先转 $q_1$ 再转 $q_2$ 记作 $q_1 \otimes q_2$，标量放在最后。Shuster 在 1993 年的综述中采用的就是这种约定，他称之为"natural" order（自然次序）。由此推出的单位关系是 $ji = -ij = k$，与哈密顿代数只差一个整体符号；他明言，他的转动矩阵公式"cannot be made consistent with $ij = k$"（《A Survey of Attitude Representations》"The Cayley-Klein Parameters"一节）。
+
+他还解释了这种分歧的来历：从前矩阵的复合也按与今天相反的次序书写，后来随着算子代数的兴起改了过来，而四元数那时已少有人用，没有跟着改，这一"historical oddity"（历史怪事）便一直保留下来（同文"The Euler-Rodrigues Symmetric Parameters and the Quaternion"一节）。Sommer 等 2018 年把这种约定称为"JPL 约定"（以美国喷气推进实验室命名）。两种约定下，同一个公式符号不同，混用就会出错。Sommer 等 2018 年专文主张统一回到哈密顿约定。本章与本项目都用哈密顿约定，标量在前。
 
 ## 五、对偶四元数：转动加平移
 
@@ -285,7 +287,7 @@ $$\hat q = q + \varepsilon\,\tfrac12\,\mathbf{t}\,q$$
 15. J. G. Williams, "Contributions to the Earth's obliquity rate, precession, and nutation", *Astronomical Journal* 108 (1994), 711–724。据 ADS 扫描本核首页。
 16. T. Fukushima, "A new precession formula", *Astronomical Journal* 126 (2003), 494–534。据 Crossref 核书目，doi:10.1086/375641。
 17. K. Shoemake, "Animating rotation with quaternion curves", *Computer Graphics* (SIGGRAPH '85) 19(3) (1985), 245–254。据 Crossref 核书目，doi:10.1145/325165.325242。
-18. M. D. Shuster, "A survey of attitude representations", *Journal of the Astronautical Sciences* 41(4) (1993), 439–517。未核原文。
+18. M. D. Shuster, "A Survey of Attitude Representations", *The Journal of the Astronautical Sciences* 41(4) (1993), 439–517，"The Euler-Rodrigues Symmetric Parameters and the Quaternion"与"The Cayley-Klein Parameters"两节（第 467、473 页）。据作者网站所存扫描本核。
 19. H. Sommer, I. Gilitschenski, M. Bloesch, S. Weiss, R. Siegwart, J. Nieto, "Why and how to avoid the flipped quaternion multiplication", *Aerospace* 5(3) (2018), 72。据 Crossref 核书目，doi:10.3390/aerospace5030072。
 20. IAU SOFA Board, *SOFA Tools for Earth Attitude*；G. Petit, B. Luzum (eds.), *IERS Conventions (2010)*, IERS Technical Note 36, §5。
 21. W. R. Hamilton, 致 A. H. Hamilton 书，1865 年 8 月 5 日。据都柏林三一学院数学系 D. R. Wilkins 所编哈密顿文献录文。
