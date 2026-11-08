@@ -231,6 +231,32 @@ NOT_IN_YUEBIAO = {"每月十五日", "每月十二日十五日", "每月一日�
                   "土王用事後", "伏社日", "立冬後立春前", "霜降後立春前", "雨水後立夏前"}
 
 
+def grade_mode(names, mz, de):
+    """卷十宜忌等第表：取所值主凶神中最重之等第，按遇德与否定從宜、相抵、從忌、皆忌"""
+    present = [n for n in MAJOR if n in names]
+    # 鋪註條例：凡天吏大時不以死敗論者，遇四廢歲薄逐陣仍以死敗論（不用等第，從常例）
+    if names & {"四廢", "歲薄", "逐陣"}:
+        present_g = [n for n in present if n not in ("天吏", "大時")]
+    else:
+        present_g = present
+    grades = [x for x in (DENGDI.get((n, mz)) for n in present_g) if x]
+    grade = max(grades, key=GRADE_ORDER.index) if grades else None
+    has_de = bool(de)
+    if "月厭" in present and mz in "子午":
+        has_de = "天赦" in names
+    if not grade:
+        mode = "從忌"
+    elif grade == "上" or (grade in ("上次", "中") and has_de):
+        mode = "從宜"
+    elif (grade == "上次" and not has_de) or (grade == "中次" and has_de):
+        mode = "相抵"
+    elif (grade in ("中", "中次") and not has_de) or (grade == "下" and has_de):
+        mode = "從忌"
+    else:
+        mode = "皆忌"
+    return present, grade, mode, has_de
+
+
 def yiji(m, k):
     shen, jc = shen_of(m, k)
     gz = gz_name(k)
@@ -296,6 +322,7 @@ def yiji(m, k):
     for n in names & {"土府", "土符", "地囊"}:
         src.setdefault("補垣塞穴", set()).add(n)
 
+    present, grade, g_mode, has_de = grade_mode(names, mz, de)
     # 次要凶神的解：與德等併則不忌（德作建論之日，德不算）
     jnames = names - (DE - de)
     # 卷十小耗條：子午卯酉月值劫煞，雖與德合併猶忌
@@ -359,15 +386,6 @@ def yiji(m, k):
                 del src[d]
 
     major_set = set(MAJOR) | MAJOR_ALIAS
-    present = [n for n in MAJOR if n in names]
-    # 鋪註條例：凡天吏大時不以死敗論者，遇四廢歲薄逐陣仍以死敗論（不用等第，從常例）
-    if names & {"四廢", "歲薄", "逐陣"}:
-        present_g = [n for n in present if n not in ("天吏", "大時")]
-    else:
-        present_g = present
-    grades = [DENGDI.get((n, mz)) for n in present_g]
-    grades = [x for x in grades if x]
-    grade = max(grades, key=GRADE_ORDER.index) if grades else None
     # 有主凶神时，月建、月破、滿日并入主凶神一组（「從刑厭論」「從災煞論」等）
     if grade:
         major_set |= {"月建", "小時", "土府", "月破", "大耗", "滿日"}
@@ -385,17 +403,7 @@ def yiji(m, k):
     if "四廢" in names and "月破" in names:
         return shen, jc, None, None, "四廢併月破→皆忌"
     if grade:
-        has_de = bool(de)
-        if "月厭" in present and mz in "子午":
-            has_de = "天赦" in names
-        if grade == "上" or (grade in ("上次", "中") and has_de):
-            mode = "從宜"
-        elif (grade == "上次" and not has_de) or (grade == "中次" and has_de):
-            mode = "相抵"
-        elif (grade in ("中", "中次") and not has_de) or (grade == "下" and has_de):
-            mode = "從忌"
-        else:
-            mode = "皆忌"
+        mode = g_mode
         note = f"{grade}{'遇德' if has_de else ''}→{mode}"
         if mode == "皆忌":
             return shen, jc, None, None, note
