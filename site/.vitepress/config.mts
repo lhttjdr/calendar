@@ -30,7 +30,7 @@ export default defineConfig({
       { text: '数学篇', link: '/math/vectors' },
       { text: '天文篇', link: '/astronomy/sphere' },
       { text: '历法篇', link: '/calendar/dates' },
-      { text: '民俗篇', link: '/folk/ganzhi' },
+      { text: '民俗篇', link: '/folk/yuanliu' },
       { text: '附录', link: '/appendix/phenomena-checks' },
       { text: '在线日历', link: appUrl, target: '_self' },
       { text: 'GitHub', link: 'https://github.com/lhttjdr/calendar' },
@@ -117,20 +117,16 @@ export default defineConfig({
       {
         text: '民俗篇',
         items: [
+          { text: '总论', items: [{ text: '民俗源流', link: '/folk/yuanliu' }] },
           {
             text: '纪时',
             items: [
               { text: '干支历四柱', link: '/folk/ganzhi' },
               { text: '纳音与值日', link: '/folk/nayin' },
-            ],
-          },
-          {
-            text: '节令',
-            items: [
-              { text: '杂节气', link: '/folk/zajie' },
               { text: '更点时刻', link: '/folk/gengdian' },
             ],
           },
+          { text: '节令', items: [{ text: '杂节气', link: '/folk/zajie' }] },
           {
             text: '择日',
             items: [
@@ -138,7 +134,6 @@ export default defineConfig({
               { text: '神煞宜忌', link: '/folk/shensha' },
             ],
           },
-          { text: '规划', items: [{ text: '民俗规划', link: '/folk/plan' }] },
         ],
       },
       {
