@@ -11,5 +11,6 @@ pub mod jianchu;
 pub mod jiuxing;
 pub mod nayin;
 pub mod shensha;
+pub mod yiji;
 pub mod zajie;
 pub mod zhiri;

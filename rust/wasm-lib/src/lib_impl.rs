@@ -797,10 +797,11 @@ pub fn shensha_day_wasm(jd: f64, vsop87_ear: &str) -> Result<String, JsValue> {
     let (_, mi, _) = ganzhi_from_jd_solar(vsop.as_ref(), jdn + 0.5 - 8.0 / 24.0 - 1e-6, &preset_zi_ping_ba_zi());
     let month_ord = ((mi % 12) as i32 - 2).rem_euclid(12) as u8;
     let gz = (jdn as i64 + 49).rem_euclid(60) as u8;
-    let v = lunar_core::folk::shensha::shen_for_day(month_ord, gz);
-    let ji: Vec<_> = v.iter().filter(|(_, j)| *j).map(|(n, _)| n.as_str()).collect();
-    let xiong: Vec<_> = v.iter().filter(|(_, j)| !*j).map(|(n, _)| n.as_str()).collect();
-    Ok(format!("吉神：{}；凶神：{}", if ji.is_empty() { "—".to_string() } else { ji.join(" ") }, if xiong.is_empty() { "—".to_string() } else { xiong.join(" ") }))
+    // 協紀月表：吉神、凶神、宜、忌
+    let d = lunar_core::folk::yiji::yuebiao_day(month_ord, gz);
+    let join = |v: &[String]| if v.is_empty() { "—".to_string() } else { v.join(" ") };
+    let yi = match &d.yi { Some(v) => join(v), None => "諸事不宜".to_string() };
+    Ok(format!("吉神：{}；凶神：{}\n宜：{}\n忌：{}", join(&d.ji_shen), join(&d.xiong_shen), yi, join(&d.ji)))
 }
 
 /// 时黄黑道：按日支起时。day_name、hour_name 为干支名（如「乙未」「丙子」）；不合法返回空串。

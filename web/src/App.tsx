@@ -958,7 +958,7 @@ function App() {
                     </div>
                   )}
                   {folkDay?.shensha && (
-                    <div style={{ fontSize: 11, lineHeight: 1.5, color: 'rgba(0,0,0,0.65)' }}>{folkDay.shensha}</div>
+                    <div style={{ fontSize: 11, lineHeight: 1.5, color: 'rgba(0,0,0,0.65)', whiteSpace: 'pre-line' }}>{folkDay.shensha}</div>
                   )}
                   {folkDay?.zajie && (
                     <div style={{ fontSize: 12, lineHeight: 1.5 }}>{folkDay.zajie}</div>

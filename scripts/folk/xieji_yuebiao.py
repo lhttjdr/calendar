@@ -220,6 +220,8 @@ BAIJI = {"甲": {"開倉庫出貨財"}, "乙": {"栽種"}, "丁": {"剃頭"}, "�
 JIE = {"厭對": DE4 | {"天赦"}, "招搖": DE4 | {"天赦"}, "小耗": DE4 | {"天願"}, "五虛": DE4 | {"六合"},
        "八風": DE4 | {"六合"}, "復日": DE4 | {"天赦", "六合"}, "重日": DE4 | {"天赦", "六合"},
        "五離": DE4 | {"天赦", "三合", "六合"}}
+# 與某併「止忌軍事」（六十事中即全不忌）者：八專與天願併（卷十八專條）
+JIE["八專"] = {"天願"}
 # 與德併「止忌軍事療病」者
 ZHIJI = {"死氣": DE4}
 # 卷十一：「每月某日」等非干支所定者，月表不載
@@ -237,6 +239,11 @@ def yiji(m, k):
     # 陽錯陰錯、陰陽俱錯、大會：德作建論不作德論（卷十月厭條）
     if names & {"陽錯", "陰錯", "陰陽俱錯"} or ("大會" in names and m in (4, 10)):
         de = de & {"天赦"}
+    # 歲薄、逐陣：德作建論；「四月丙午六月戊午亦不從德願所宜」（卷十月厭條）
+    if names & {"歲薄", "逐陣"}:
+        de = set()
+    # 鋪註條例：二月甲戌四月丙申六月甲子七月戊申八月庚辰九月辛卯十月甲子十二月甲子，德合與赦願所會之辰，諸事不忌
+    ZHUSHI_BUJI = {1: "甲戌", 3: "丙申", 5: "甲子", 6: "戊申", 7: "庚辰", 8: "辛卯", 9: "甲子", 11: "甲子"}
     src = {}  # 事 -> 忌之来源神集合
 
     def yi_of(n):
@@ -278,11 +285,12 @@ def yiji(m, k):
     for n in names & {"土府", "土符", "地囊"}:
         src.setdefault("補垣塞穴", set()).add(n)
 
-    # 次要凶神的解：與德等併則不忌
+    # 次要凶神的解：與德等併則不忌（德作建論之日，德不算）
+    jnames = names - (DE - de)
     for d in list(src):
         for n in list(src[d]):
             jie = JIE.get(n, set())
-            if jie and names & jie:
+            if jie and jnames & jie:
                 src[d].discard(n)
                 if n in ("復日", "重日"):
                     yi.discard(d)
@@ -295,6 +303,12 @@ def yiji(m, k):
                            or (mz == "巳" and "月德合" in names) or (mz in "辰戌丑未" and "三合" in names)):
         for d in list(src):
             src[d].discard("四耗")
+            if not src[d]:
+                del src[d]
+    # 四忌四窮：惟正月乙亥與天願併，止忌軍事，餘皆不忌（卷十四忌四窮條）
+    if m == 0 and gz == "乙亥" and "天願" in names:
+        for d in list(src):
+            src[d] -= {"四窮", "四忌", "八龍"}
             if not src[d]:
                 del src[d]
     # 五墓：五月十一月與月德併則不忌
@@ -326,7 +340,12 @@ def yiji(m, k):
 
     major_set = set(MAJOR) | MAJOR_ALIAS
     present = [n for n in MAJOR if n in names]
-    grades = [DENGDI.get((n, mz)) for n in present]
+    # 鋪註條例：凡天吏大時不以死敗論者，遇四廢歲薄逐陣仍以死敗論（不用等第，從常例）
+    if names & {"四廢", "歲薄", "逐陣"}:
+        present_g = [n for n in present if n not in ("天吏", "大時")]
+    else:
+        present_g = present
+    grades = [DENGDI.get((n, mz)) for n in present_g]
     grades = [x for x in grades if x]
     grade = max(grades, key=GRADE_ORDER.index) if grades else None
     # 有主凶神时，月建、月破、滿日并入主凶神一组（「從刑厭論」「從災煞論」等）
@@ -382,7 +401,12 @@ def yiji(m, k):
         yi -= ji_major
     yi -= ji_minor
     ji = ji_major | ji_minor
+    if ZHUSHI_BUJI.get(m) == gz:
+        ji = set()
     yi -= ji
+    # 鋪註條例：凡歲薄逐陣日所宜事照月厭所忌刪，所忌仍從本日
+    if names & {"歲薄", "逐陣"}:
+        yi -= {d for d, _ in SHI60 if "月厭" in JI.get(SHI_ROW[d], set())}
     # 鋪註條例：天狗寅日忌祭祀不註宜祈福求嗣
     if "祭祀" in ji:
         yi -= {"祈福", "求嗣"}
@@ -420,7 +444,7 @@ LINK = [({"祈福"}, {"求嗣"}),
 
 # 月表不印的神：建除本名（已見標題）、军事神（六十事无军事）、天獄（卷六：與災煞同位，不另列）、亥子日
 NO_PRINT = {"無祿", "除日", "滿日", "平日", "定日", "執日", "危日", "成日", "收日", "開日", "閉日", "兵吉", "兵福", "兵寶",
-            "兵禁", "大煞", "天獄", "亥子日"}
+            "兵禁", "天獄", "亥子日"}
 
 
 def order(evs):
