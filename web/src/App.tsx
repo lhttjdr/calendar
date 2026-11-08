@@ -958,7 +958,10 @@ function App() {
                     </div>
                   )}
                   {folkDay?.shensha && (
-                    <div style={{ fontSize: 11, lineHeight: 1.5, color: 'rgba(0,0,0,0.65)', whiteSpace: 'pre-line' }}>{folkDay.shensha}</div>
+                    <div style={{ fontSize: 11, lineHeight: 1.5, color: 'rgba(0,0,0,0.65)', whiteSpace: 'pre-line' }}>
+                      {folkDay.shensha}
+                      <div style={{ color: 'rgba(0,0,0,0.45)' }}>据《协纪辨方书》月表，未计年份、节气相关铺注（無祿、四離四絕、氣往亡等）</div>
+                    </div>
                   )}
                   {folkDay?.zajie && (
                     <div style={{ fontSize: 12, lineHeight: 1.5 }}>{folkDay.zajie}</div>
