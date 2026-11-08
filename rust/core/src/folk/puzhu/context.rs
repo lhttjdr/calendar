@@ -41,6 +41,8 @@ pub struct PuzhuDay {
     pub year_gz: u8,
     /// 本农历月朔日干支（反支用）
     pub shuo_gz: u8,
+    /// 当日交节（月建换月之日）
+    pub jiao_jie: bool,
     /// 太阳所在宫的支序（以中气交宫：雨水後亥……大寒後子），無祿「太陽填實」用
     pub sun_palace_zhi: u8,
     pub input: PuzhuInput,
@@ -93,9 +95,12 @@ pub fn puzhu_days(
         fu_she.push((zajie::she_jin_wu(term_day(y, 0)), false));
         fu_she.push((zajie::she_jin_wu(term_day(y, 12)), false));
     }
-    // 农历岁数据
+    // 农历岁数据。一岁数据载 12 个中气（冬至至小雪），岁末含下一冬至的十一月在本岁数据中会被
+    // `month_number_and_leap` 误标为闰月；同一个月在下一岁数据里是岁首（含冬至），标注无误。
+    // 故自后往前取：日子落在下一岁岁首者先用下一岁数据。
     let tol_nm = PlaneAngle::from_rad(real(1e-9));
-    let years: Vec<_> = ((y0 - 1)..=(y1 + 1)).filter_map(|ly| lifa::resolve_year_data(historical, ly, vsop, elp, tol_nm, 30)).collect();
+    let years: Vec<_> =
+        ((y0 - 1)..=(y1 + 1)).rev().filter_map(|ly| lifa::resolve_year_data(historical, ly, vsop, elp, tol_nm, 30)).collect();
 
     let mut out = Vec::new();
     for jdn in j0..=j1 {
@@ -146,7 +151,8 @@ pub fn puzhu_days(
             qi_wang_wang,
             wulu,
         };
-        out.push(PuzhuDay { jdn, lunar, month_ord, month_gz, year_gz, shuo_gz, sun_palace_zhi, input });
+        let jiao_jie = terms.iter().any(|(t, k)| *t == jdn && k % 2 == 1);
+        out.push(PuzhuDay { jdn, lunar, month_ord, month_gz, year_gz, shuo_gz, jiao_jie, sun_palace_zhi, input });
     }
     out
 }

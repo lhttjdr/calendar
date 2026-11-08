@@ -5,7 +5,7 @@
 use lunar_core::astronomy::ephemeris::{load_all, load_earth_vsop87_from_repo, Elpmpp02Correction};
 use lunar_core::calendar::gregorian::Gregorian;
 use lunar_core::calendar::historical::HistoricalCalendar;
-use lunar_core::folk::puzhu::{apply, minyong, puzhu_days, wulu, QiWangWangCount, WuLu};
+use lunar_core::folk::puzhu::{apply, jiao_jie_base, minyong, puzhu_days, wulu, QiWangWangCount, WuLu};
 use lunar_core::folk::yiji::yuebiao_day;
 use lunar_core::math::real::RealOps;
 
@@ -36,8 +36,18 @@ fn main() {
         println!("月,日,干支,月建,建除,吉神,凶神,月表宜,宜,忌,铺注");
     }
     let join = |v: &[&str]| if v.is_empty() { "—".to_string() } else { v.join(" ") };
-    for d in days.iter().filter(|d| d.lunar.year == y) {
-        let base = yuebiao_day(d.month_ord, d.input.day_gz);
+    // 正月初一至次年正月初一前一日
+    let firsts: Vec<i64> = days.iter().filter(|d| d.lunar.month == 1 && d.lunar.day == 1 && !d.lunar.is_leap_month).map(|d| d.jdn).collect();
+    let (s0, s1) = (firsts[0], firsts.get(1).copied().unwrap_or(i64::MAX));
+    for d in days.iter().filter(|d| d.jdn >= s0 && d.jdn < s1) {
+        let base0 = yuebiao_day(d.month_ord, d.input.day_gz);
+        let jj;
+        let base = if d.jiao_jie {
+            jj = jiao_jie_base(base0, yuebiao_day((d.month_ord + 11) % 12, d.input.day_gz));
+            &jj
+        } else {
+            base0
+        };
         let after = apply(base, &d.input, d.shuo_gz);
         let (yi0, _) = minyong(base);
         let (yi1, ji1) = minyong(&after);

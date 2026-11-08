@@ -18,6 +18,8 @@
 //! | 人神所在 | 十二日在髮際、十五日在遍身忌剃頭；一日、六日、十五日、十九日、二十一日、二十三日忌整手足甲 | |
 //! | 長星、短星 | 卷九：按月取日數 | 忌進人口裁製經絡開市立券交易納財納畜 |
 //! | 氣往亡 | 卷九：立春後七日……小寒後三十日 | 同往亡（卷十「徃亡 氣徃亡」同條），與德合赦願併猶忌 |
+//! | 嫁娶周堂 | 卷三十五：大月從夫順數，小月從婦逆數（夫姑堂翁第竈婦廚） | 「遇第堂厨竈日用之，如遇翁姑而無翁姑者亦可用」：值夫、婦之日不註宜嫁娶 |
+//! | 交節之日 | 当日交节 | 时宪书以新旧两月之宜相交（见 [`jiao_jie_base`]） |
 //!
 //! 卷十：上朔以下「與德合赦願併猶忌，以下並同」，所以本层诸条一律不因德神而解。
 //!
@@ -225,7 +227,44 @@ pub fn puzhu_names(p: &PuzhuInput, shuo_gz: u8) -> Vec<String> {
     if p.wulu {
         v.push("無祿".into());
     }
+    if let Some(z) = zhou_tang(p.days_in_month, p.lunar_day) {
+        if z == "夫" || z == "婦" {
+            v.push(format!("周堂值{z}"));
+        }
+    }
     v
+}
+
+/// 嫁娶周堂（卷三十五）：大月從夫順數，小月從婦逆數。周堂圖乾翁、坎第、艮竈、震婦、巽厨、離夫、坤姑、兌堂，
+/// 后天八卦自離顺行为夫姑堂翁第竈婦厨
+pub fn zhou_tang(days_in_month: u8, lunar_day: u8) -> Option<&'static str> {
+    const DA: [&str; 8] = ["夫", "姑", "堂", "翁", "第", "竈", "婦", "廚"];
+    const XIAO: [&str; 8] = ["婦", "竈", "第", "翁", "堂", "姑", "夫", "廚"];
+    if lunar_day == 0 {
+        return None;
+    }
+    let k = (lunar_day as usize - 1) % 8;
+    Some(if days_in_month >= 30 { DA[k] } else { XIAO[k] })
+}
+
+/// 交节之日的月表：时宪书于交节当日只注新旧两月皆宜之事（乾隆三十年閏二月十五日清明，旧月宜沐浴掃舍宇捕捉、
+/// 新月宜祭祀沐浴掃舍宇，书注「沐浴掃舍宇」；三月十六日立夏，旧月无民用之宜，书不注宜）。忌取两月之并。
+/// 协纪无明文，据时宪书归纳；建除、诸神仍从新月（卷四「每月交節則疊兩值日」）。
+pub fn jiao_jie_base(new: &YueBiaoDay, old: &YueBiaoDay) -> YueBiaoDay {
+    let mut d = new.clone();
+    d.yi = match (&new.yi, &old.yi) {
+        (Some(a), Some(b)) => Some(a.iter().filter(|x| b.iter().any(|y| shi_index(y) == shi_index(x))).cloned().collect()),
+        _ => None,
+    };
+    if d.yi.is_some() {
+        for x in &old.ji {
+            if !d.ji.iter().any(|y| shi_index(y) == shi_index(x)) {
+                d.ji.push(x.clone());
+            }
+        }
+        sort_shi(&mut d.ji);
+    }
+    d
 }
 
 fn sort_shi(v: &mut Vec<String>) {
@@ -320,6 +359,10 @@ pub fn apply(day: &YueBiaoDay, p: &PuzhuInput, shuo_gz: u8) -> YueBiaoDay {
         ji(&mut d, &WANG_WANG_JI);
         // 鋪註條例：凡忌詔命公卿招賢不註宜施恩封拜舉正直襲爵受封
         bu_zhu_yi(&mut d, &["襲爵受封"]);
+    }
+    if has("周堂值夫") || has("周堂值婦") {
+        // 不註宜嫁娶（不添忌）
+        bu_zhu_yi(&mut d, &["嫁娶"]);
     }
     for n in names {
         if !d.xiong_shen.contains(&n) {
