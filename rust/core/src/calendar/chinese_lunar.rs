@@ -324,6 +324,25 @@ const MEAN_SYNODIC_MONTH_DAYS: f64 = 29.530_588_861;
 const MARGIN_SYNODIC_COUNT: f64 = 2.5;
 const MARGIN_END_BUFFER_DAYS: f64 = 2.0;
 
+/// 岁内朔、上弦、望、下弦（按时间排序）：朔即岁数据之朔（与初一同源），只另求首朔至末朔之间的弦、望。
+/// 网页岁数据（wasm）与预算表（`examples/gen_year_table.rs`）共用。
+pub fn year_phases(
+    year_data: &ChineseLunarYearData,
+    vsop: &Vsop87,
+    elp: &Elpmpp02Data,
+) -> Vec<(Real, crate::astronomy::aspects::LunarPhase)> {
+    use crate::astronomy::aspects::{lunar_phase_jds_in_range_of, LunarPhase};
+    let nm = &year_data.new_moon_jds;
+    let mut phases: Vec<_> = nm.iter().map(|&t| (t, LunarPhase::Shuo)).collect();
+    if let (Some(a), Some(b)) = (nm.first(), nm.last()) {
+        let tol = PlaneAngle::from_rad(real(1e-8));
+        let kinds = [LunarPhase::ShangXian, LunarPhase::Wang, LunarPhase::XiaXian];
+        phases.extend(lunar_phase_jds_in_range_of(vsop, elp, *a, *b, &kinds, tol, 30));
+    }
+    phases.sort_by(|x, y| x.0.partial_cmp(&y.0).unwrap_or(core::cmp::Ordering::Equal));
+    phases
+}
+
 /// 用定气与定朔计算指定农历年的岁数据。中气从按年缓存的 24 节气中取，与节气派干支历共用缓存，避免重复算定气。
 /// 精度由调用处通过 `tolerance: PlaneAngle` 与 `compute_year_data` 传入。
 /// 岁范围：去年冬至前 1.5 朔望月 ～ 今年冬至后 1.5 朔望月，保证 14 朔在范围内。

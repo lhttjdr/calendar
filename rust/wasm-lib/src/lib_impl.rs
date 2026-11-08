@@ -602,6 +602,23 @@ pub fn seed_solar_terms_wasm(years: Vec<i32>, jds: Vec<f64>) -> u32 {
         .count() as u32
 }
 
+/// 以二进制（`VSOP87B.ear.bin`，经地球改正）初始化本实例的地球 VSOP87 缓存。其后各函数的 `vsop87_ear` 参数可传空串
+/// （主线程不再下载 343 KB 的文本版）。已缓存则不覆盖。返回是否已就绪。
+#[wasm_bindgen]
+pub fn init_vsop87_earth_from_binary(bytes: &[u8]) -> bool {
+    let mut guard = VSOP87_CACHE.lock().unwrap();
+    if guard.is_some() {
+        return true;
+    }
+    match Vsop87::from_binary(bytes) {
+        Ok(v) => {
+            *guard = Some(Arc::new(with_earth_patch(v)));
+            true
+        }
+        Err(_) => false,
+    }
+}
+
 /// 取缓存的地球 VSOP87；未缓存时用传入文本解析一次。
 fn vsop87_cached(vsop87_ear: &str) -> Result<Arc<Vsop87>, JsValue> {
     let mut guard = VSOP87_CACHE.lock().unwrap();
@@ -1394,16 +1411,9 @@ fn year_data_result(
     vsop: &Vsop87,
     elp: &Elpmpp02Data,
 ) -> YearDataResult {
-    use lunar_core::astronomy::aspects::{lunar_phase_jds_in_range_of, LunarPhase};
+    use lunar_core::astronomy::aspects::LunarPhase;
     let nm = &year_data.new_moon_jds;
-    // 朔即岁数据之朔（与初一同源），只另求首朔至末朔间的弦、望
-    let mut phases: Vec<_> = nm.iter().map(|&t| (t, LunarPhase::Shuo)).collect();
-    if let (Some(a), Some(b)) = (nm.first(), nm.last()) {
-        let tol = lunar_core::quantity::angle::PlaneAngle::from_rad(real(1e-8));
-        let kinds = [LunarPhase::ShangXian, LunarPhase::Wang, LunarPhase::XiaXian];
-        phases.extend(lunar_phase_jds_in_range_of(vsop, elp, *a, *b, &kinds, tol, 30));
-    }
-    phases.sort_by(|x, y| x.0.partial_cmp(&y.0).unwrap_or(core::cmp::Ordering::Equal));
+    let phases = lunar_core::calendar::chinese_lunar::year_phases(year_data, vsop, elp);
     let solar_term_years: Vec<i32> = ((year_data.lunar_year - 1)..=(year_data.lunar_year + 1)).collect();
     let solar_term_jds = solar_term_years
         .iter()

@@ -1,12 +1,14 @@
-import { useState, useEffect, useMemo, useRef, createContext, useContext } from 'react'
+import { useState, useEffect, useMemo, useRef, createContext, useContext, lazy, Suspense } from 'react'
 import { Button, Card, Select, Radio, Checkbox, Space, Flex, Typography, Tag, Spin, Alert, Modal, Tabs, InputNumber } from 'antd'
 import { LeftOutlined, RightOutlined, CalendarOutlined, SettingOutlined, ApartmentOutlined, EyeOutlined, GlobalOutlined, StarOutlined, ReadOutlined, CompassOutlined, AppstoreOutlined } from '@ant-design/icons'
-import { TransformGraphPage } from './TransformGraphPage'
-import { EclipseMapPage } from './EclipseMapPage'
-import { StarChartPage } from './StarChartPage'
-import { ZeRiPage } from './ZeRiPage'
 import { getCurrentPosition } from './sensors'
-import { PaiPanPage } from './PaiPanPage'
+// 日历以外的页面按需加载：首屏只下载日历所需代码
+const TransformGraphPage = lazy(() => import('./TransformGraphPage').then((m) => ({ default: m.TransformGraphPage })))
+const EclipseMapPage = lazy(() => import('./EclipseMapPage').then((m) => ({ default: m.EclipseMapPage })))
+const StarChartPage = lazy(() => import('./StarChartPage').then((m) => ({ default: m.StarChartPage })))
+const ZeRiPage = lazy(() => import('./ZeRiPage').then((m) => ({ default: m.ZeRiPage })))
+const PaiPanPage = lazy(() => import('./PaiPanPage').then((m) => ({ default: m.PaiPanPage })))
+const pageFallback = <div style={{ padding: 24, color: '#888' }}>加载页面…</div>
 import type { LunarBackend } from './lunar-backend-types'
 import {
   getYearDataForDisplay,
@@ -366,8 +368,8 @@ function App() {
     const p = civilToProleptic(selectedDate.year, selectedDate.month, selectedDate.day)
     const g = getGanzhiForDay(wasm, p.year, p.month, p.day, yearDataList, ganzhiOptions)
     if (g.yearName && g.monthName) return
-    if (isVsop87Cached()) return
-    ensureVsop87Cached().then(() => setVsop87Tick((n) => n + 1)).catch(() => {})
+    if (isVsop87Cached(wasm)) return
+    ensureVsop87Cached(wasm).then(() => setVsop87Tick((n) => n + 1)).catch(() => {})
   }, [wasm, yearDataList.length, selectedDate.year, selectedDate.month, selectedDate.day, ganzhiOptions, vsop87Tick, calendarMode])
 
   useEffect(() => {
@@ -462,7 +464,7 @@ function App() {
         setLoading('数据')
         return Promise.all([
           getYearDataForCivilMonth(year, month, w, setEphemerisSource),
-          ensureVsop87Cached().catch(() => {}),
+          ensureVsop87Cached(w).catch(() => {}),
         ]).then((res): YearData[] => res[0] ?? [])
       })
       .then((list) => {
@@ -722,10 +724,11 @@ function App() {
     setIsLiveMode(false)
   }
 
-  const folkDay = (() => {
+  // 民俗栏：只随所选日、分钟、观测地与农历变化，按这些缓存（实时模式下时钟每秒刷新，不必每秒重算）
+  const folkDay = useMemo(() => {
     if (!wasm || !dayInfoLayers.folk_jishi || typeof wasm.folk_day_wasm !== 'function') return null
     const ear = getCachedVsop87Ear()
-    if (!ear) return null
+    if (ear == null) return null
     try {
       const jd = wasm.gregorian_to_jd(displayY, displayM, displayD) + (displayHour + displayMinute / 60) / 24
       const r = wasm.folk_day_wasm(jd, ear)
@@ -762,12 +765,11 @@ function App() {
           phase,
         )
       })()
-      const paipan = typeof wasm.paipan_wasm === 'function' && pillarDayGz != null && pillarHourZhi != null ? wasm.paipan_wasm(selectedJdUt, ear, pillarDayGz, pillarHourZhi) : ''
-      return { paipan, xiu: get('xiu'), qiYao: get('qi_yao'), yearStar: get('year_star'), monthStar: get('month_star'), nianShen: get('nian_shen'), riShen: get('ri_shen'), zajie, geng, jianchu, shensha }
+      return { xiu: get('xiu'), qiYao: get('qi_yao'), yearStar: get('year_star'), monthStar: get('month_star'), nianShen: get('nian_shen'), riShen: get('ri_shen'), zajie, geng, jianchu, shensha }
     } catch {
       return null
     }
-  })()
+  }, [wasm, vsop87Tick, dayInfoLayers.folk_jishi, displayY, displayM, displayD, displayHour, displayMinute, observerLatitude, observerLongitude, gengdianMethod, selectedLunarSlot?.lunarYear, selectedLunarSlot?.lunarMonth, selectedLunarSlot?.dayOfMonth, selectedLunarSlot?.isLeapMonth, selectedLunarSlot?.daysInMonth, selectedYearData])
   const nayinOf = (name: string | null | undefined) =>
     wasm && name && typeof wasm.nayin_of_ganzhi_name === 'function' ? wasm.nayin_of_ganzhi_name(name) : ''
 
@@ -819,7 +821,7 @@ function App() {
     return (
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24, overflow: 'visible' }}>
         {viewNav}
-        <TransformGraphPage wasm={wasm} />
+        <Suspense fallback={pageFallback}><TransformGraphPage wasm={wasm} /></Suspense>
       </div>
     )
   }
@@ -828,7 +830,7 @@ function App() {
     return (
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24, overflow: 'visible' }}>
         {viewNav}
-        <StarChartPage />
+        <Suspense fallback={pageFallback}><StarChartPage /></Suspense>
       </div>
     )
   }
@@ -838,7 +840,7 @@ function App() {
     return (
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24, overflow: 'visible' }}>
         {viewNav}
-        <ZeRiPage
+        <Suspense fallback={pageFallback}><ZeRiPage
           wasm={wasm}
           ear={getCachedVsop87Ear()}
           jd={wasm ? wasm.gregorian_to_jd(displayY, displayM, displayD) + 0.5 : 0}
@@ -850,7 +852,7 @@ function App() {
           longitude={observerLongitude}
           onLocate={locate}
           declination={magneticDeclination}
-        />
+        /></Suspense>
       </div>
     )
   }
@@ -858,7 +860,7 @@ function App() {
     return (
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24, overflow: 'visible' }}>
         {viewNav}
-        <PaiPanPage
+        <Suspense fallback={pageFallback}><PaiPanPage
           wasm={wasm}
           ear={getCachedVsop87Ear()}
           jdUt={selectedJdUt}
@@ -870,10 +872,9 @@ function App() {
             return g < 0 || z < 0 ? null : ([...Array(60).keys()].find((k) => k % 10 === g && k % 12 === z) ?? null)
           })()}
           dateLabel={pageDateLabel}
-          summary={folkDay?.paipan ?? ''}
           onShiftHour={(n) => shiftSelected(0, n)}
           onShiftDay={(n) => shiftSelected(n, 0)}
-        />
+        /></Suspense>
       </div>
     )
   }
@@ -882,7 +883,7 @@ function App() {
     return (
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24, overflow: 'visible' }}>
         {viewNav}
-        <EclipseMapPage />
+        <Suspense fallback={pageFallback}><EclipseMapPage /></Suspense>
       </div>
     )
   }
@@ -1517,7 +1518,7 @@ function App() {
                 VSOP87（日月地心历）：{ephemerisSource === 'full_text' ? '文本' : '二进制 (.bin/.br)'}
               </Text>
               <Text type="secondary" style={{ fontSize: 11 }}>
-                ELPMPP02（月球运动）：{ephemerisSource === 'full_binary' ? '二进制 (.bin/.br)' : '文本'}
+                ELPMPP02（月球运动）：{ephemerisSource === 'precomputed' ? '未下载（岁数据取预算表）' : ephemerisSource === 'full_binary' ? '二进制 (.bin/.br)' : '文本'}
               </Text>
               {repoAux != null && (
                 <>

@@ -124,6 +124,8 @@ export interface LunarBackend {
   /** 干支名的纳音名目 */
   nayin_of_ganzhi_name?(name: string): string
   /** 月家日神煞 */
+  /** 以二进制初始化本实例的地球 VSOP87 缓存 */
+  init_vsop87_earth_from_binary?(bytes: Uint8Array): boolean
   /** WMM 磁偏角（度，东偏为正；有效期外 NaN） */
   magnetic_declination_wasm?(lat_deg: number, lon_deg: number, alt_km: number, decimal_year: number): number
   /** 择日页年神二十四山（JSON） */

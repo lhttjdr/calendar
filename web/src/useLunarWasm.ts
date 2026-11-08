@@ -17,7 +17,7 @@
  *   避免重复计算；需要扩展岁数据或增加「公历年的 24 节气」缓存并在两处共用。
  */
 
-import { DATA_BASE, ELP_BASE, EPHEMERIS_BINARY_URLS } from './ephemerisUrls'
+import { DATA_BASE, EARTH_PATCH_TARGET, ELP_BASE, EPHEMERIS_BINARY_URLS } from './ephemerisUrls'
 import {
   fetchFullBinaryEphemerisSet,
   fetchNutationTab53aBin,
@@ -188,17 +188,36 @@ async function fetchAll(): Promise<Record<keyof typeof FILES, string>> {
   return out
 }
 
-/** 仅拉取 VSOP87，用于节气历年/月干支兜底。若已缓存则直接 resolve。 */
-export async function ensureVsop87Cached(): Promise<void> {
-  if (cachedVsop87Ear != null) {
-    if (GANZHI_DEBUG) console.log('[干支历] ensureVsop87Cached 已缓存，跳过')
-    return
+/** 已以 VSOP87 初始化过的后端实例（各实例各有一份解析缓存） */
+const vsopReady = new WeakSet<LunarBackend>()
+let vsopBinBytes: Uint8Array | null = null
+
+/**
+ * 让主线程的后端备好地球 VSOP87（节气历年/月干支、杂节、铺注、年神等用）。
+ * 首选二进制 `VSOP87B.ear.bin`（brotli 后约 37 KB）以 `init_vsop87_earth_from_binary` 初始化本实例，其后调用传空串即可；
+ * 旧版 WASM 无此入口时退回下载文本版（343 KB，服务器不压缩）。`cachedVsop87Ear` 非 null 即表示就绪（二进制路径下为空串）。
+ */
+export async function ensureVsop87Cached(backend?: LunarBackend): Promise<void> {
+  const b = backend ?? backendCache.f64 ?? (await loadWasm())
+  if (vsopReady.has(b)) return
+  if (typeof b.init_vsop87_earth_from_binary === 'function') {
+    try {
+      vsopBinBytes ??= await fetchBinaryMaybeBrotli(FILES.vsop87_ear_bin)
+      if (isVsop87Binary(vsopBinBytes) && b.init_vsop87_earth_from_binary(vsopBinBytes)) {
+        vsopReady.add(b)
+        cachedVsop87Ear ??= ''
+        return
+      }
+    } catch {
+      // 退回文本
+    }
   }
-  if (GANZHI_DEBUG) console.log('[干支历] ensureVsop87Cached 开始拉取', FILES.vsop87_ear)
-  const r = await fetch(FILES.vsop87_ear)
-  if (!r.ok) throw new Error(`fetch ${FILES.vsop87_ear}: ${r.status}`)
-  cachedVsop87Ear = await r.text()
-  if (GANZHI_DEBUG) console.log('[干支历] ensureVsop87Cached 已设置 长度', cachedVsop87Ear.length)
+  if (cachedVsop87Ear == null || cachedVsop87Ear === '') {
+    const r = await fetch(FILES.vsop87_ear)
+    if (!r.ok) throw new Error(`fetch ${FILES.vsop87_ear}: ${r.status}`)
+    cachedVsop87Ear = await r.text()
+  }
+  vsopReady.add(b)
 }
 
 /**
@@ -229,7 +248,8 @@ export function getCachedVsop87Ear(): string | null {
 }
 
 /** 是否已缓存 VSOP87（节气历年/月干支兜底用）。用于避免重复触发加载。 */
-export function isVsop87Cached(): boolean {
+export function isVsop87Cached(backend?: LunarBackend): boolean {
+  if (backend) return vsopReady.has(backend)
   return cachedVsop87Ear != null
 }
 
@@ -267,6 +287,50 @@ export async function getYearData(
   return p
 }
 
+/**
+ * 预算岁数据表（`rust/core/examples/gen_year_table.rs` 于部署时生成，与 Worker 现算同一组历表与配置，f64 原值）。
+ * 只在缺省配置（Real=f64、地球改正与 ELP 常数集 DE431）下使用；表外年份、TwoFloat 或换历表配置时照旧现算。
+ * 命中时首屏不必下载约 0.9 MB 的历表、也不必解方程。见 doc/engineering/wasm-react-performance.md §12.6.2。
+ */
+type Precomputed = { years: Map<number, YearData>; termYears: Int32Array; termJds: Float64Array }
+const PRECOMPUTED_URL = `${DATA_BASE}/precomputed/yeardata-de431-f64.bin`
+let precomputedPromise: Promise<Precomputed | null> | null = null
+const precomputedSeeded = new WeakSet<LunarBackend>()
+
+function parsePrecomputed(buf: ArrayBuffer): Precomputed | null {
+  const v = new DataView(buf)
+  let o = 0
+  const u8 = () => v.getUint8(o++)
+  const u16 = () => { const x = v.getUint16(o, true); o += 2; return x }
+  const u32 = () => { const x = v.getUint32(o, true); o += 4; return x }
+  const i32 = () => { const x = v.getInt32(o, true); o += 4; return x }
+  const f64s = (n: number) => { const a = new Float64Array(n); for (let i = 0; i < n; i++) { a[i] = v.getFloat64(o, true); o += 8 } return a }
+  if (String.fromCharCode(u8(), u8(), u8(), u8()) !== 'LYD1' || u32() !== 1) return null
+  const cfgLen = u32()
+  const cfg = new TextDecoder().decode(new Uint8Array(buf, o, cfgLen)); o += cfgLen
+  if (cfg !== 'de431-f64') return null
+  const y0 = i32(), n = u32()
+  const years = new Map<number, YearData>()
+  for (let k = 0; k < n; k++) {
+    const nNm = u8(), nZq = u8(), nPh = u16()
+    const newMoonJds = f64s(nNm), zhongQiJds = f64s(nZq), phaseJds = f64s(nPh)
+    const phaseKinds = new Uint8Array(buf.slice(o, o + nPh)); o += nPh
+    years.set(y0 + k, { lunarYear: y0 + k, newMoonJds, zhongQiJds, phaseJds, phaseKinds })
+  }
+  const g0 = i32(), ng = u32()
+  const termYears = Int32Array.from({ length: ng }, (_, i) => g0 + i)
+  const termJds = f64s(ng * 24)
+  return { years, termYears, termJds }
+}
+
+function loadPrecomputed(): Promise<Precomputed | null> {
+  precomputedPromise ??= fetch(PRECOMPUTED_URL)
+    .then((r) => (r.ok ? r.arrayBuffer() : null))
+    .then((b) => (b ? parsePrecomputed(b) : null))
+    .catch(() => null)
+  return precomputedPromise
+}
+
 async function computeYearData(
   lunarYear: number,
   variant: RealBackendVariant,
@@ -277,6 +341,21 @@ async function computeYearData(
 
   // 一年的节气、朔弦望要解几十个方程，TwoFloat 下数十秒：一律放 Worker，不在主线程算（否则整页卡死）。
   // Worker 不设超时回退主线程——慢的正是这一步，回退只会把卡顿搬回主线程；Worker 不可用或明确失败时才回退。
+  if (!unknownBackend && variant === 'f64' && EARTH_PATCH_TARGET === 'de431') {
+    const t = await loadPrecomputed()
+    const yd = t?.years.get(lunarYear)
+    if (t && yd) {
+      // 预算表的节气一次灌入主线程后端，逐日干支、杂节、铺注只查缓存
+      const bk = await loadWasm(variant)
+      if (!precomputedSeeded.has(bk)) {
+        bk.seed_solar_terms_wasm?.(t.termYears, t.termJds)
+        precomputedSeeded.add(bk)
+      }
+      yearDataCache.set(yearDataKey(variant, lunarYear), yd)
+      onSourceUsed?.('precomputed')
+      return yd
+    }
+  }
   const worker = unknownBackend ? null : getYearDataWorker()
   if (worker) {
     const id = ++yearDataWorkerId

@@ -22,10 +22,11 @@ import { EARTH_PATCH_TARGET, EPHEMERIS_BINARY_URL_LIST, EPHEMERIS_BINARY_URLS } 
 import { fetchBinaryMaybeBrotli, isVsop87Binary, isElpBinary, isNutationTab53aBinary } from './fetchEphemerisBinary'
 
 /** 岁数据实际用上的历表数据源，用于状态栏展示；三个取值即三级优先级，从高到低。 */
-export type EphemerisDataSource = 'full_binary' | 'vsop_binary_elp_text' | 'full_text'
+export type EphemerisDataSource = 'precomputed' | 'full_binary' | 'vsop_binary_elp_text' | 'full_text'
 
 /** 数据源对应的状态栏文案 */
 export const EPHEMERIS_SOURCE_LABELS: Record<EphemerisDataSource, string> = {
+  precomputed: '岁数据：预算表（同一历表，部署时算出）',
   full_binary: '历表：全二进制 (.bin/.br)',
   vsop_binary_elp_text: '历表：VSOP87 二进制 + ELP 文本',
   full_text: '历表：全文本 (.ear / ELP)',
@@ -33,6 +34,7 @@ export const EPHEMERIS_SOURCE_LABELS: Record<EphemerisDataSource, string> = {
 
 /** 数据源对应的格式简述（是否二进制），用于状态栏 */
 export const EPHEMERIS_FORMAT_LABELS: Record<EphemerisDataSource, string> = {
+  precomputed: '预算表',
   full_binary: '二进制',
   vsop_binary_elp_text: '混合',
   full_text: '文本',

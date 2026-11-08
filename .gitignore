@@ -80,3 +80,6 @@ scripts/sky_culture/_cache/
 # 成套参考书（《中国天文学史大系》等，1.2 GB，无文字层）只在本地查阅
 /中国古代天文学史大系/
 /天文合集/
+
+# 部署时生成的预算岁数据表（rust/core/examples/gen_year_table.rs）
+web/public/data/precomputed/

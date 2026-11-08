@@ -138,7 +138,7 @@ export function ZeRiPage(props: {
   const trueHeading = compass.heading == null ? null : compass.heading + (props.declination ?? 0)
   const rotate = trueHeading == null ? 0 : -trueHeading - 180
   const data = useMemo((): NianShenData | null => {
-    if (!wasm || !ear || typeof wasm.nian_shen_json !== 'function') return null
+    if (!wasm || ear == null || typeof wasm.nian_shen_json !== 'function') return null
     try {
       return JSON.parse(wasm.nian_shen_json(jd, ear)) as NianShenData
     } catch {

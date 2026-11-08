@@ -98,6 +98,11 @@ jobs:
       - name: Generate ephemeris and patch .bin
         run: ./scripts/ephemeris/gen_ephemeris_bin.sh
 
+      # 预算岁数据表（1900—2100）：与网页 Worker 同一组二进制历表与配置（DE431），首屏命中即不必下载历表、解方程。
+      # 历表或算法有变，部署时自动随之重算，不入库
+      - name: Precompute year data table
+        run: cargo run --release --manifest-path rust/Cargo.toml -p lunar-core --no-default-features --features real-f64 --example gen_year_table -- 1900 2100 web/public/data/precomputed/yeardata-de431-f64.bin
+
       - name: Compress .bin to .br (ephemeris + patch)
         run: node scripts/ephemeris/compress_ephemeris_brotli.mjs
 

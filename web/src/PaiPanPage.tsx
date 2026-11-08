@@ -251,15 +251,18 @@ export function PaiPanPage(props: {
   /** 时柱干支序 */
   hourGz: number | null
   dateLabel: string
-  /** 奇门定局等摘要（paipan_wasm 输出） */
-  summary: string
   onShiftHour: (n: number) => void
   onShiftDay: (n: number) => void
 }) {
   const { wasm, ear, dayGz, hourZhi } = props
-  const ready = wasm && ear && dayGz != null && hourZhi != null
-  const qimenLine = props.summary.split('\n').find((l) => l.startsWith('奇門')) ?? ''
-  const sanyuan = props.summary.split('\n').find((l) => l.startsWith('三元')) ?? ''
+  const ready = wasm && ear != null && dayGz != null && hourZhi != null
+  // 摘要（奇门定局、三元九运）只在本页按需计算
+  const summary = useMemo(() => {
+    if (!wasm || ear == null || dayGz == null || hourZhi == null || typeof wasm.paipan_wasm !== 'function') return ''
+    try { return wasm.paipan_wasm(props.jdUt, ear, dayGz, hourZhi) } catch { return '' }
+  }, [wasm, ear, props.jdUt, dayGz, hourZhi])
+  const qimenLine = summary.split('\n').find((l) => l.startsWith('奇門')) ?? ''
+  const sanyuan = summary.split('\n').find((l) => l.startsWith('三元')) ?? ''
   return (
     <div>
       <Flex align="center" gap={8} wrap style={{ marginBottom: 12 }}>

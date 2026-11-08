@@ -83,6 +83,19 @@ panic = "abort"
 
 **限制**：TwoFloat 只用于检验 f64 的误差，Worker 里一岁仍要数十秒；切到 TwoFloat 时状态栏会停在「加载历表…」直到算完。
 
+### 12.6.2 首屏按需加载与预算岁数据（2026-11-08）
+
+**症状**：线上首屏加载很久。实测（此处到 GitHub Pages 约 15 KB/s）主程序包 620 KB（gzip）传 40 秒才开始加载 WASM；其后为显示当月农历还要下载约 0.9 MB 历表（ELPMPP02 六表、章动表、地球改正）再在 Worker 里解方程；主线程另下载 343 KB 的 VSOP87 文本（扩展名 `.ear` 被当作 Java 包类型，服务器不压缩）。
+
+**修法**：
+
+1. **页面按需加载**：日月食图、星图、视位置变换图、择日、排盘改为 `React.lazy` 动态导入，主包 1.9 MB → 0.8 MB（未压缩）。
+2. **主线程 VSOP87 用二进制**：新增 `init_vsop87_earth_from_binary`，主线程下载 `VSOP87B.ear.bin`（62 KB，brotli 37 KB）初始化本实例缓存，各函数的 `vsop87_ear` 传空串；按实例记录（f64、TwoFloat 两实例各一份），旧版 WASM 无此入口时退回文本。
+3. **预算岁数据表**：`rust/core/examples/gen_year_table.rs` 于部署时（`pages.yml`「Precompute year data table」，不入库）以与 Worker `compute_year_data_full_binary` 相同的二进制历表与配置（VSOP87 + DE431 地球改正、ELPMPP02 缺省常数集 DE431、IAU2000 全章动表、f64）算 1900—2100 年每岁朔、中气（含下一冬至）、朔弦望（`chinese_lunar::year_phases`，与 wasm 共用）及 1899—2101 年每年二十四节气，f64 原值写入 `data/precomputed/yeardata-de431-f64.bin`（179 KB，gzip 109 KB）。前端 `getYearData` 在缺省配置（f64、`EARTH_PATCH_TARGET = 'de431'`）下先查此表，命中即用，并把表中节气一次灌入主线程节气缓存；表外年份、TwoFloat 或换历表配置照旧经 Worker 现算。状态栏数据源显示「预算表」。生成 4 核约 2 分钟。
+4. **民俗栏缓存**：日历民俗栏（宿曜、杂节、更点、建除、神煞铺注）改为按日、分钟、观测地、农历缓存（`useMemo`），不随实时时钟每秒重算；排盘摘要移入排盘页按需计算。
+
+**结果**：首屏请求只剩主包、WASM、预算表、VSOP87 二进制四样（线上约 0.25 + 0.51 + 0.11 + 0.04 ≈ 0.9 MB，原约 2.4 MB），不再下载月球历表、章动表，不起 Worker。本地限速 150 KB/s（预览服务器不压缩）农历显示由 30.5 s 降到 19.2 s。
+
 ## 12.7 总结表
 
 | 优化维度 | 手段 | 预期收益 |
