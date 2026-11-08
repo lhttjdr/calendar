@@ -386,7 +386,8 @@ def yiji(m, k):
         note = f"{grade}{'遇德' if has_de else ''}→{mode}"
         if mode == "皆忌":
             return shen, jc, None, None, note
-        residual = RESIDUAL_YAN if ("月厭" in present and grade == "中") else (set() if present == ["大時"] else RESIDUAL)
+        # 月厭遇德「止忌行幸……結婚姻……栽種」，凡從宜、相抵皆留；大時只忌軍事
+        residual = RESIDUAL_YAN if "月厭" in present else (set() if present == ["大時"] else RESIDUAL)
         if mode == "從宜":
             ji_major = ji_major & residual
         elif mode == "相抵":
@@ -414,6 +415,11 @@ def yiji(m, k):
         yi -= ji_major
     yi -= ji_minor
     ji = ji_major | ji_minor
+    # 鋪註條例：凡吉凶相抵不註忌開市立券交易，亦不註忌開倉庫出貨財，如遇專忌之日則仍註忌
+    #（月表實例：甲日百忌「甲不開倉」作專忌論，五虛等不在其列；二月甲寅例外，存疑）
+    if mode == "相抵" and "開倉庫出貨財" in ji and not {"開市", "立券交易"} & ji:
+        if "甲日" not in src.get("開倉庫出貨財", set()):
+            ji.discard("開倉庫出貨財")
     if ZHUSHI_BUJI.get(m) == gz:  # 只是不注忌；本应忌者亦不注宜
         yi -= ji
         ji = set()
