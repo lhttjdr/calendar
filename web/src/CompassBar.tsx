@@ -19,7 +19,7 @@ export type LocationProps = {
 }
 
 /** 返回整盘旋转角（度；南上北下之图转 −真北方位 − 180°，罗盘关时为 0）与控件条 */
-export function useCompassBar(p: LocationProps): { rotate: number; bar: ReactNode } {
+export function useCompassBar(p: LocationProps): { rotate: number; bar: ReactNode; trueHeading: number | null } {
   const compass = useCompassHeading()
   const [locMsg, setLocMsg] = useState('')
   const trueHeading = compass.heading == null ? null : compass.heading + (p.declination ?? 0)
@@ -50,5 +50,5 @@ export function useCompassBar(p: LocationProps): { rotate: number; bar: ReactNod
       {compass.error && <Text type="danger" style={{ fontSize: 12 }}>{compass.error}</Text>}
     </Flex>
   )
-  return { rotate, bar }
+  return { rotate, bar, trueHeading: trueHeading == null ? null : ((trueHeading % 360) + 360) % 360 }
 }

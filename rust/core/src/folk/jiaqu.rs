@@ -233,6 +233,8 @@ pub fn na_xu_zhou_tang(days_in_month: u8, lunar_day: u8) -> Option<&'static str>
 /// 嫁娶周堂值位之用
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ZhouTangRule {
+    /// 不用嫁娶周堂
+    BuYong,
     /// 协纪卷三十五附录：「遇第堂厨竈日用之，如遇翁姑而無翁姑者亦可用」；时宪书于值夫、婦之日不注嫁娶（乾隆三十年核）。
     /// 故值夫婦不用，值翁姑则有翁姑在者不用
     XieJi,
@@ -291,6 +293,8 @@ pub struct JiaquInput {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct JiaquOptions {
+    /// 协纪月表（加铺注）之嫁娶宜忌如何用：须宜嫁娶（缺省）、只避忌嫁娶、不用
+    pub xieji_yiji: XieJiYiJi,
     /// 用女命行嫁月（类编；协纪奏准删除）——缺省 false：只列出不据以否决
     pub nv_ming_yue: bool,
     pub zhou_tang: ZhouTangRule,
@@ -309,6 +313,7 @@ pub struct JiaquOptions {
 impl Default for JiaquOptions {
     fn default() -> Self {
         Self {
+            xieji_yiji: XieJiYiJi::XuYi,
             nv_ming_yue: false,
             zhou_tang: ZhouTangRule::XieJi,
             leibian_xiong: false,
@@ -317,6 +322,17 @@ impl Default for JiaquOptions {
             wuji: WuJiJi::LeiBian,
         }
     }
+}
+
+/// 协纪月表嫁娶宜忌之用法
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum XieJiYiJi {
+    /// 须月表（加铺注）宜嫁娶方用（时宪书注宜之日；缺省）
+    XuYi,
+    /// 只避忌嫁娶：宜忌两不注之日亦可
+    BiJi,
+    /// 不用协纪月表
+    BuYong,
 }
 
 /// 一日之判
@@ -375,7 +391,7 @@ pub fn judge_day(d: &PuzhuDay, inp: &JiaquInput, o: &JiaquOptions) -> JiaquDay {
 
     // 协纪：须宜嫁娶（月表 + 铺注；铺注已于周堂值夫婦去宜）。
     // 月表本宜嫁娶而只因周堂值夫去宜者，类编以为可避（值婦则不可）
-    if !xieji_yi {
+    if o.xieji_yiji != XieJiYiJi::BuYong && !xieji_yi && (o.xieji_yiji == XieJiYiJi::XuYi || xieji_ji) {
         let base_yi = yuebiao_day(d.month_ord, gz).yi.as_ref().is_some_and(|v| v.iter().any(|x| x == "嫁娶"));
         let by_zhou_tang_fu = zt == Some("夫") && base_yi && !xieji_ji;
         if xieji_ji {

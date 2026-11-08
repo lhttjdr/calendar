@@ -905,6 +905,8 @@ function App() {
           onLocate={locate}
           declination={magneticDeclination}
           lunar={selectedLunarSlot ? { yearGz: (((selectedLunarSlot.lunarYear - 4) % 60) + 60) % 60, month: selectedLunarSlot.lunarMonth, leap: selectedLunarSlot.isLeapMonth === 1, day: selectedLunarSlot.dayOfMonth } : null}
+          monthZhi={selectedGanzhi?.monthName && selectedGanzhi.monthName.length === 2 ? '子丑寅卯辰巳午未申酉戌亥'.indexOf(selectedGanzhi.monthName[1]!) : null}
+          ganzhiYear={(() => { const yn = selectedGanzhi?.yearName; if (!yn || yn.length !== 2) return displayY; const g = '甲乙丙丁戊己庚辛壬癸'.indexOf(yn[0]!), z = '子丑寅卯辰巳午未申酉戌亥'.indexOf(yn[1]!); const idx = [...Array(60).keys()].find((k) => k % 10 === g && k % 12 === z); return idx != null && ((displayY - 4) % 60 + 60) % 60 === idx ? displayY : displayY - 1 })()}
           isLive={isLiveMode}
           onSetLive={(on) => (on ? goToday() : setIsLiveMode(false))}
         /></Suspense>

@@ -132,8 +132,32 @@ export default defineConfig({
             items: [
               { text: '建除与黄道', link: '/folk/jianchu' },
               { text: '神煞宜忌', link: '/folk/shensha' },
+              { text: '婚嫁择吉', link: '/folk/jiaqu' },
             ],
           },
+          {
+            text: '式占',
+            items: [
+              { text: '奇门遁甲', link: '/folk/qimen' },
+              { text: '大六壬', link: '/folk/liuren' },
+              { text: '太乙', link: '/folk/taiyi' },
+            ],
+          },
+          {
+            text: '筮法',
+            items: [
+              { text: '周易筮法', link: '/folk/zhouyi' },
+              { text: '六爻纳甲', link: '/folk/liuyao' },
+            ],
+          },
+          {
+            text: '命理',
+            items: [
+              { text: '七政四余', link: '/folk/qizheng' },
+              { text: '紫微斗数', link: '/folk/ziwei' },
+            ],
+          },
+          { text: '风水', items: [{ text: '三元玄空', link: '/folk/xuankong' }] },
         ],
       },
       {

@@ -2,7 +2,7 @@
  * 择日页：年神方位二十四山图（《协纪辨方书》卷三）、当日神煞宜忌（月表 + 卷十铺注 + 时宪书体例）、日游神鹤神。
  * 与日历共用所选日期；图依古图南上北下、东左西右。
  */
-import { Button, Card, Checkbox, Flex, InputNumber, Typography } from 'antd'
+import { Button, Card, Checkbox, Flex, InputNumber, Radio, Typography } from 'antd'
 import { LeftOutlined, RightOutlined } from '@ant-design/icons'
 import { useMemo, useState } from 'react'
 import type { LunarBackend } from './lunar-backend-types'
@@ -151,7 +151,8 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
   const [fuMu, setFuMu] = useState(true)
   const [naXu, setNaXu] = useState(false)
   const [useYue, setUseYue] = useState(false)
-  const [ztLeibian, setZtLeibian] = useState(false)
+  const [xieji, setXieji] = useState(0)
+  const [zt, setZt] = useState(0)
   const [useXiong, setUseXiong] = useState(false)
   const [onlyOk, setOnlyOk] = useState(false)
   const [zhiHua, setZhiHua] = useState(false)
@@ -161,9 +162,9 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
   const list = useMemo((): JiaquDay[] | null => {
     if (typeof props.wasm.jiaqu_days_json !== 'function') return null
     try {
-      return JSON.parse(props.wasm.jiaqu_days_json(m.jd0, props.ear, Uint8Array.from(m.months), Uint8Array.from(m.days), Uint8Array.from(m.leaps), Uint8Array.from(m.dims), Int8Array.from(m.phases), nvGz, wengGu, fuMu, naXu, (useYue ? 1 : 0) | (ztLeibian ? 2 : 0) | (useXiong ? 4 : 0) | (zhiHua ? 8 : 0) | (aoTou ? 16 : 0))) as JiaquDay[]
+      return JSON.parse(props.wasm.jiaqu_days_json(m.jd0, props.ear, Uint8Array.from(m.months), Uint8Array.from(m.days), Uint8Array.from(m.leaps), Uint8Array.from(m.dims), Int8Array.from(m.phases), nvGz, wengGu, fuMu, naXu, (useYue ? 1 : 0) | (zt === 1 ? 2 : zt === 2 ? 128 : 0) | (xieji === 1 ? 32 : xieji === 2 ? 64 : 0) | (useXiong ? 4 : 0) | (zhiHua ? 8 : 0) | (aoTou ? 16 : 0))) as JiaquDay[]
     } catch { return null }
-  }, [props.wasm, props.ear, m, nvGz, wengGu, fuMu, naXu, useYue, ztLeibian, useXiong, zhiHua, aoTou])
+  }, [props.wasm, props.ear, m, nvGz, wengGu, fuMu, naXu, useYue, zt, xieji, useXiong, zhiHua, aoTou])
   return (
     <Card size="small" title={`婚嫁择吉（${props.monthLabel}）`} style={{ marginTop: 16 }}>
       <Flex gap={12} wrap align="center" style={{ marginBottom: 8 }}>
@@ -173,8 +174,11 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
         <Checkbox checked={naXu} onChange={(e) => setNaXu(e.target.checked)}>纳婿</Checkbox>
       </Flex>
       <Flex gap={12} wrap align="center" style={{ marginBottom: 8 }}>
+        <span>协纪月表 <Radio.Group size="small" value={xieji} onChange={(e) => setXieji(e.target.value)} optionType="button"
+          options={[{ label: '须宜嫁娶', value: 0 }, { label: '只避忌嫁娶', value: 1 }, { label: '不用', value: 2 }]} /></span>
+        <span>嫁娶周堂 <Radio.Group size="small" value={zt} onChange={(e) => setZt(e.target.value)} optionType="button"
+          options={[{ label: '协纪', value: 0 }, { label: '类编', value: 1 }, { label: '不用', value: 2 }]} /></span>
         <Checkbox checked={useYue} onChange={(e) => setUseYue(e.target.checked)}>女命行嫁月否决（类编；协纪奏准删除）</Checkbox>
-        <Checkbox checked={ztLeibian} onChange={(e) => setZtLeibian(e.target.checked)}>周堂从类编</Checkbox>
         <Checkbox checked={useXiong} onChange={(e) => setUseXiong(e.target.checked)}>类编嫁娶凶神否决</Checkbox>
         <Checkbox checked={aoTou} onChange={(e) => setAoTou(e.target.checked)}>白虎从鳌头（值门床堂路）</Checkbox>
         <Checkbox checked={zhiHua} onChange={(e) => setZhiHua(e.target.checked)}>用制化（周堂回避、白虎禳法；协纪不录）</Checkbox>
@@ -198,7 +202,7 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
         </div>
       )}
       <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 8 }}>
-        以协纪为纲（月表加铺注之宜忌嫁娶、嫁娶周堂、阴阳不将；协纪于大利月诸说「奏准刪除」，缺省只列不否决），并列《类编历法通书大全》卷七之女命行嫁月、周堂、嫁娶凶神表为选项。只算到规则给出的结果，不论吉凶应验。
+        可用与否全依上面所选的规则：每条规则可单独取舍，每日列出否决它的规则与出处。缺省选协纪诸项（月表加铺注须宜嫁娶、协纪嫁娶周堂），因协纪为清代官定；协纪于女命大利月诸说「奏准刪除」，故缺省只列不否决。《类编历法通书大全》卷七之女命行嫁月、周堂、嫁娶凶神表，鳌头之白虎，以及周堂回避、白虎禳法等制化，皆为可选。阴阳不将只作标注（协纪歷例表与类编法两家）。只算到规则给出的结果，不论吉凶应验。
       </Text>
     </Card>
   )

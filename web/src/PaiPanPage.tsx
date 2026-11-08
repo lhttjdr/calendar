@@ -186,6 +186,147 @@ function ZiweiPanel(props: { wasm: LunarBackend; lunar: { yearGz: number; month:
   )
 }
 
+type LiuyaoData = {
+  ben: string; zhi: string; gong: string; gongWx: string; shi: number; ying: number; xunKong: string | null; guaShen: string | null
+  yao: { yang: boolean; dong: boolean; gz: string; wx: string; qin: string; shen: string | null; fu: string | null; bian: string | null }[]
+  rule: string; readings: { gua: string; ci: string; role: string; text: string }[]
+}
+
+/** 六爻纳甲与周易筮法：掷钱、揲蓍、梅花时间起卦，或逐爻手选；只排卦与给出应读之辞，不断吉凶 */
+function LiuyaoPanel(props: { wasm: LunarBackend; lunar: { yearGz: number; month: number; leap: boolean; day: number } | null; hourZhi: number; dayGz: number; monthZhi: number | null }) {
+  const timeValues = (): number[] => {
+    if (!props.lunar || typeof props.wasm.meihua_time_values !== 'function') return [7, 7, 7, 7, 7, 7]
+    return Array.from(props.wasm.meihua_time_values(props.lunar.yearGz % 12, props.lunar.month, props.lunar.day, props.hourZhi))
+  }
+  const [values, setValues] = useState<number[]>(timeValues)
+  const [method, setMethod] = useState('梅花时间起卦')
+  const [guaShen, setGuaShen] = useState(0)
+  const [sanBian, setSanBian] = useState(0)
+  const rnd = () => Math.floor(Math.random() * 1e9)
+  const coin = () => { const yang = [0, 0, 0].reduce((t) => t + (Math.random() < 0.5 ? 1 : 0), 0); return [6, 8, 7, 9][yang]! }
+  const d = useMemo((): LiuyaoData | null => {
+    if (typeof props.wasm.liuyao_json !== 'function') return null
+    try { return JSON.parse(props.wasm.liuyao_json(Uint8Array.from(values), props.monthZhi ?? 0, props.dayGz, guaShen, sanBian)) as LiuyaoData } catch { return null }
+  }, [props.wasm, values, props.monthZhi, props.dayGz, guaShen, sanBian])
+  return (
+    <Flex gap={16} wrap align="flex-start">
+      <div style={{ flex: '1 1 380px', maxWidth: 560 }}>
+        <Flex gap={6} wrap style={{ marginBottom: 8 }}>
+          <Button size="small" onClick={() => { setValues(timeValues()); setMethod('梅花时间起卦') }}>梅花时间起卦</Button>
+          <Button size="small" onClick={() => { setValues(Array.from({ length: 6 }, coin)); setMethod('掷钱') }}>掷钱（三钱六掷）</Button>
+          <Button size="small" onClick={() => { setValues(Array.from({ length: 6 }, () => props.wasm.dayan_yao_wasm ? props.wasm.dayan_yao_wasm(rnd(), rnd(), rnd()) : 7)); setMethod('大衍揲蓍') }}>大衍揲蓍</Button>
+        </Flex>
+        <Text type="secondary" style={{ fontSize: 12 }}>{`起卦：${method}；可逐爻改（6 老阴、7 少阳、8 少阴、9 老阳）`}</Text>
+        {d && (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginTop: 6 }}>
+            <tbody>
+              {[5, 4, 3, 2, 1, 0].map((k) => {
+                const y = d.yao[k]!
+                return (
+                  <tr key={k} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                    <td style={{ color: '#531dab', width: 40 }}>{y.shen ?? ''}</td>
+                    <td style={{ color: '#888', fontSize: 11, width: 80 }}>{y.fu ? `伏${y.fu}` : ''}</td>
+                    <td style={{ width: 90 }}>{`${y.qin} ${y.gz}${y.wx}`}</td>
+                    <td style={{ fontFamily: 'monospace', fontSize: 16, width: 70 }}>{y.yang ? '━━━' : '━ ━'}{y.dong ? (y.yang ? ' ○' : ' ×') : ''}</td>
+                    <td style={{ width: 24, color: '#a8071a' }}>{d.shi === k + 1 ? '世' : d.ying === k + 1 ? '應' : ''}</td>
+                    <td style={{ color: '#0958d9', fontSize: 12 }}>{y.bian ? `→ ${y.bian}` : ''}</td>
+                    <td>
+                      <select value={values[k]} onChange={(e) => { const v = [...values]; v[k] = Number(e.target.value); setValues(v); setMethod('手选') }}>
+                        {[6, 7, 8, 9].map((n) => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+      <div style={{ flex: '1 1 300px' }}>
+        {d && (
+          <div style={{ lineHeight: 1.8 }}>
+            <div style={{ fontSize: 16 }}>{d.ben === d.zhi ? d.ben : `${d.ben} 之 ${d.zhi}`}</div>
+            <div>{`${d.gong}宫（${d.gongWx}）· 旬空${d.xunKong ?? '—'}${d.guaShen ? ` · 卦身${d.guaShen}` : ''}`}</div>
+            <div style={{ marginTop: 8 }}><Text strong>考变占应读之辞</Text>（{d.rule}）</div>
+            {d.readings.map((r, i) => <div key={i} style={{ fontSize: 13 }}>{`【${r.role}】${r.gua}${r.ci}：${r.text}`}</div>)}
+          </div>
+        )}
+        <Flex vertical gap={6} style={{ marginTop: 8 }}>
+          <Radio.Group size="small" value={guaShen} onChange={(e) => setGuaShen(e.target.value)} optionType="button" options={[{ label: '卦身（火珠林）', value: 0 }, { label: '不用卦身（增删卜易）', value: 1 }]} />
+          <Radio.Group size="small" value={sanBian} onChange={(e) => setSanBian(e.target.value)} optionType="button" options={[{ label: '三爻变：初爻在变主贞（推定）', value: 0 }, { label: '贞悔并列', value: 1 }]} />
+        </Flex>
+        <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 8 }}>
+          装卦据京房八宫纳甲、《火珠林》《增删卜易》（六神以日干起、月建日辰从日历四柱）；取辞据朱熹《易学启蒙·考变占》，经文据《周易》。大衍揲蓍各爻概率 6、7、8、9 为 1/16、5/16、7/16、3/16，掷钱为 1/8、3/8、3/8、1/8。只排卦与应读之辞，不断吉凶。
+        </Text>
+      </div>
+    </Flex>
+  )
+}
+
+type XkData = {
+  yun: number; zuo: string; xiang: string; ti: boolean; kongWang: string | null
+  yunPan: number[]; shanPan: number[]; xiangPan: number[]; geju: { n: string; note: string }[]; chengMen: [number, boolean, boolean][]; yearPan: number[]
+}
+const XK_SHAN = ['子', '癸', '丑', '艮', '寅', '甲', '卯', '乙', '辰', '巽', '巳', '丙', '午', '丁', '未', '坤', '申', '庚', '酉', '辛', '戌', '乾', '亥', '壬']
+const XK_GRID: [number, string][][] = [[[4, '巽'], [9, '離'], [2, '坤']], [[3, '震'], [5, '中'], [7, '兌']], [[8, '艮'], [1, '坎'], [6, '乾']]]
+const CN_NUM = '〇一二三四五六七八九'
+
+/** 玄空飞星：运盘、山盘、向盘（洛书九宫，南上）；坐向可选，或以罗盘测（手机顶端朝向首，坐即其背） */
+function XuankongPanel(props: { wasm: LunarBackend; ganzhiYear: number; heading: number | null }) {
+  const [zuo, setZuo] = useState(0)
+  const [ti, setTi] = useState(false)
+  const [useCompass, setUseCompass] = useState(false)
+  const az = useCompass && props.heading != null ? (props.heading + 180) % 360 : -1
+  const d = useMemo((): XkData | null => {
+    if (typeof props.wasm.xuankong_json !== 'function') return null
+    try { return JSON.parse(props.wasm.xuankong_json(props.ganzhiYear, zuo, ti, az)) as XkData } catch { return null }
+  }, [props.wasm, props.ganzhiYear, zuo, ti, az])
+  const s = 116
+  return (
+    <Flex gap={16} wrap align="flex-start">
+      <div style={{ flex: '1 1 320px', maxWidth: 380 }}>
+        {d && (
+          <svg viewBox={`0 0 ${s * 3} ${s * 3}`} style={{ width: '100%' }} role="img" aria-label="玄空飞星宅盘">
+            {XK_GRID.flatMap((row, ry) => row.map(([g, gua], rx) => (
+              <g key={g}>
+                <rect x={rx * s + 1} y={ry * s + 1} width={s - 2} height={s - 2} fill="#fffdf7" stroke="#999" />
+                <text x={rx * s + 8} y={ry * s + 16} fontSize={11} fill="#888">{gua}</text>
+                <text x={rx * s + s * 0.3} y={ry * s + s * 0.45} fontSize={24} textAnchor="middle" fill="#0958d9">{CN_NUM[d.shanPan[g - 1]!]}</text>
+                <text x={rx * s + s * 0.7} y={ry * s + s * 0.45} fontSize={24} textAnchor="middle" fill="#a8071a">{CN_NUM[d.xiangPan[g - 1]!]}</text>
+                <text x={rx * s + s * 0.5} y={ry * s + s * 0.82} fontSize={18} textAnchor="middle">{CN_NUM[d.yunPan[g - 1]!]}</text>
+                <text x={rx * s + s - 6} y={ry * s + s - 6} fontSize={10} textAnchor="end" fill="#999">{`年${CN_NUM[d.yearPan[g - 1]!]}`}</text>
+              </g>
+            )))}
+          </svg>
+        )}
+        <Text type="secondary" style={{ fontSize: 11 }}>每宫左上蓝字山星、右上红字向星、下为运星、角注流年紫白；南上北下</Text>
+      </div>
+      <div style={{ flex: '1 1 280px' }}>
+        <Flex vertical gap={6}>
+          <span>坐山{' '}
+            <select value={zuo} disabled={useCompass} onChange={(e) => setZuo(Number(e.target.value))}>
+              {XK_SHAN.map((n, i) => <option key={n} value={i}>{`${n}山${XK_SHAN[(i + 12) % 24]}向`}</option>)}
+            </select>{' '}
+            <label><input type="checkbox" checked={ti} disabled={useCompass} onChange={(e) => setTi(e.target.checked)} /> 替卦（兼向）</label>
+          </span>
+          <label><input type="checkbox" checked={useCompass} onChange={(e) => setUseCompass(e.target.checked)} /> 用罗盘测向（先开上方罗盘；手机顶端朝向首）</label>
+        </Flex>
+        {d && (
+          <div style={{ marginTop: 8, lineHeight: 1.8 }}>
+            <div style={{ fontSize: 16 }}>{`${CN_NUM[d.yun]}运 ${d.zuo}山${d.xiang}向${d.ti ? '（替卦）' : '（下卦）'}${d.kongWang ? ` · ${d.kongWang}` : ''}`}</div>
+            {useCompass && props.heading != null && <div style={{ fontSize: 12 }}>{`实测：向首真北 ${props.heading | 0}°，坐 ${(props.heading + 180) % 360 | 0}°`}</div>}
+            <div style={{ fontSize: 13 }}>{d.geju.map((g) => g.n).join('、') || '—'}</div>
+            <div style={{ fontSize: 13 }}>{`城门：${d.chengMen.map(([g, z, k]) => `${['', '坎', '坤', '震', '巽', '中', '乾', '兌', '艮', '離'][g]}${z ? '（正）' : '（副）'}${k ? '可用' : '不可用'}`).join('；')}`}</div>
+          </div>
+        )}
+        <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 8 }}>
+          三元九运以康熙二十三年甲子为上元（协纪卷八），每运二十年。山向飞星依二十四山阴阳顺逆，替卦依《青囊奥语》挨星诀；排法成文规则出自沈氏，原刊未见，出处未核。兼向替卦限 3°、空亡限 1.5°（未核）。
+        </Text>
+      </div>
+    </Flex>
+  )
+}
+
 /** 十二支方框（地盘）：巳午未申在上，亥子丑寅在下（南上北下） */
 const LIUREN_CELLS: [string, number, number][] = [
   ['巳', 0, 0], ['午', 1, 0], ['未', 2, 0], ['申', 3, 0],
@@ -297,12 +438,15 @@ export function PaiPanPage(props: LocationProps & {
   hourZhi: number | null
   /** 时柱干支序 */
   hourGz: number | null
+  /** 月柱之支（月建，以节换月）；干支年（立春分，玄空定运用） */
+  monthZhi?: number | null
+  ganzhiYear?: number
   dateLabel: string
   onShiftHour: (n: number) => void
   onShiftDay: (n: number) => void
 }) {
   const { wasm, ear, dayGz, hourZhi } = props
-  const { rotate, bar: compassBar } = useCompassBar(props)
+  const { rotate, bar: compassBar, trueHeading } = useCompassBar(props)
   // 按分钟取时刻：实时模式下时钟每秒走，盘只在分钟变时重算（局在时辰、节气交界才变）
   const jdUt = Math.floor(props.jdUt * 1440) / 1440
   const ready = wasm && ear != null && dayGz != null && hourZhi != null
@@ -341,6 +485,14 @@ export function PaiPanPage(props: LocationProps & {
             },
             { key: 'liuren', label: '大六壬', children: <LiurenPanel wasm={wasm!} ear={ear!} jdUt={jdUt} dayGz={dayGz!} hourZhi={hourZhi!} rotate={rotate} /> },
             { key: 'taiyi', label: '太乙', children: <TaiyiPanel wasm={wasm!} ear={ear!} jdUt={jdUt} dayGz={dayGz!} hourZhi={hourZhi!} rotate={rotate} /> },
+            {
+              key: 'liuyao', label: '六爻·周易',
+              children: <LiuyaoPanel wasm={wasm!} lunar={props.lunar} hourZhi={hourZhi!} dayGz={dayGz!} monthZhi={props.monthZhi ?? null} />,
+            },
+            {
+              key: 'xuankong', label: '玄空飞星',
+              children: <XuankongPanel wasm={wasm!} ganzhiYear={props.ganzhiYear ?? new Date().getFullYear()} heading={trueHeading} />,
+            },
             {
               key: 'ziwei', label: '紫微斗数',
               children: props.lunar

@@ -945,7 +945,8 @@ pub fn ziwei18_json(year_gz: u8, lunar_month: u8, is_leap: bool, lunar_day: u8, 
 
 /// 择日页婚嫁择吉：自 `jd0` 所在民用日起连续 `months.len()` 日逐日判定（协纪为纲、类编卷七并列，见 doc/folk/jiaqu.md）。
 /// 每日农历（月、日、闰、月大小）与朔弦望（0 朔 1 上弦 2 望 3 下弦，−1 无）由调用方按页面所示农历给出（与日历同源）。
-/// 女命生年干支序按立春分；`opts` 位：1 用女命行嫁月否决、2 周堂用类编、4 用类编凶神否决、8 用制化、16 白虎从鳌头（值门床堂路皆禳）。
+/// 女命生年干支序按立春分；`opts` 位：1 用女命行嫁月否决、2 周堂用类编、4 用类编凶神否决、8 用制化、16 白虎从鳌头（值门床堂路皆禳）、
+/// 32 协纪月表只避忌嫁娶、64 不用协纪月表、128 不用嫁娶周堂。可用与否全依所选规则。
 /// 返回逐日 JSON 数组；`verdict` 为「可用」「經制化可用」「不可用」，`jie` 为经制化之忌与制法出处。
 #[wasm_bindgen]
 pub fn jiaqu_days_json(
@@ -973,8 +974,21 @@ pub fn jiaqu_days_json(
     let table = TermTable::new(vsop.as_ref(), gy0, gy1);
     let inp = JiaquInput { nv_year_gz: nv_year_gz % 60, has_weng_gu, has_nv_fu_mu, na_xu };
     let o = JiaquOptions {
+        xieji_yiji: if opts & 64 != 0 {
+            lunar_core::folk::jiaqu::XieJiYiJi::BuYong
+        } else if opts & 32 != 0 {
+            lunar_core::folk::jiaqu::XieJiYiJi::BiJi
+        } else {
+            lunar_core::folk::jiaqu::XieJiYiJi::XuYi
+        },
         nv_ming_yue: opts & 1 != 0,
-        zhou_tang: if opts & 2 != 0 { ZhouTangRule::LeiBian } else { ZhouTangRule::XieJi },
+        zhou_tang: if opts & 128 != 0 {
+            ZhouTangRule::BuYong
+        } else if opts & 2 != 0 {
+            ZhouTangRule::LeiBian
+        } else {
+            ZhouTangRule::XieJi
+        },
         leibian_xiong: opts & 4 != 0,
         zhi_hua: opts & 8 != 0,
         bai_hu: if opts & 16 != 0 { lunar_core::folk::jiaqu::BaiHuRule::AoTou } else { lunar_core::folk::jiaqu::BaiHuRule::LeiBian },
@@ -1028,6 +1042,108 @@ pub fn jiaqu_days_json(
         )
     });
     Ok(json_arr(out))
+}
+
+/// 排盘页筮法：六爻纳甲装卦（京房八宫）与《周易》考变占取辞（朱熹《易學啟蒙》）。`values` 初至上六爻之数（6/7/8/9）；
+/// 月建支序（以节换月）、日干支序取页面四柱；`gua_shen` 0 火珠林卦身（缺省）1 不用；`san_bian` 0 初爻在变主贞（缺省，推定未核）1 贞悔并列。
+#[wasm_bindgen]
+pub fn liuyao_json(values: Vec<u8>, yue_zhi: u8, day_gz: u8, gua_shen: u8, san_bian: u8) -> String {
+    use lunar_core::folk::{liuyao as ly, zhouyi as zy};
+    let mut v = [7u8; 6];
+    for (i, x) in values.iter().take(6).enumerate() {
+        v[i] = *x;
+    }
+    let p = ly::pai_gua(
+        v,
+        Some(yue_zhi % 12),
+        Some(day_gz % 60),
+        ly::LiuyaoOptions { gua_shen: if gua_shen == 1 { ly::GuaShenRule::None } else { ly::GuaShenRule::HuoZhuLin }, ..Default::default() },
+    );
+    let yao = json_arr(p.yao.iter().map(|y| {
+        format!(
+            "{{\"yang\":{},\"dong\":{},\"gz\":{},\"wx\":{},\"qin\":{},\"shen\":{},\"fu\":{},\"bian\":{}}}",
+            y.yang,
+            y.dong,
+            json_str(&format!("{}{}", ly::GAN[y.gan as usize], ly::ZHI[y.zhi as usize])),
+            json_str(ly::WU_XING[y.wx as usize]),
+            json_str(ly::LIU_QIN[y.qin as usize]),
+            y.shen.map(|k| json_str(ly::LIU_SHEN[k as usize])).unwrap_or_else(|| "null".into()),
+            y.fu.map(|(q, g, z)| json_str(&format!("{}{}{}", ly::LIU_QIN[q as usize], ly::GAN[g as usize], ly::ZHI[z as usize]))).unwrap_or_else(|| "null".into()),
+            y.bian.map(|(g, z, w, q)| json_str(&format!("{}{}{} {}", ly::GAN[g as usize], ly::ZHI[z as usize], ly::WU_XING[w as usize], ly::LIU_QIN[q as usize]))).unwrap_or_else(|| "null".into())
+        )
+    }));
+    let zc = zy::kao_bian_zhan(v, zy::ZhanOptions { san_bian: if san_bian == 1 { zy::SanBianZhu::Both } else { zy::SanBianZhu::ChuYaoZaiBian } });
+    let readings = json_arr(zc.readings.iter().map(|r| {
+        let ci = match r.ci {
+            zy::Ci::GuaCi => "卦辭".to_string(),
+            zy::Ci::Yao(k) => format!("第{k}爻辭"),
+            zy::Ci::Yong => "用辭".to_string(),
+        };
+        let role = match r.role {
+            zy::Role::Zhu => "主",
+            zy::Role::Bing => "並",
+            zy::Role::Zhen => "貞",
+            zy::Role::Hui => "悔",
+        };
+        format!("{{\"gua\":{},\"ci\":{},\"role\":{},\"text\":{}}}", json_str(zy::name(r.gua)), json_str(&ci), json_str(role), json_str(r.text))
+    }));
+    format!(
+        "{{\"ben\":{},\"zhi\":{},\"gong\":{},\"gongWx\":{},\"shi\":{},\"ying\":{},\"xunKong\":{},\"guaShen\":{},\"yao\":{},\"rule\":{},\"readings\":{}}}",
+        json_str(p.ben_name),
+        json_str(p.zhi_name),
+        json_str(p.gong_name),
+        json_str(ly::WU_XING[p.gong_wx as usize]),
+        p.wei.shi,
+        p.wei.ying,
+        p.xun_kong.map(|k| json_str(&format!("{}{}", ly::ZHI[k[0] as usize], ly::ZHI[k[1] as usize]))).unwrap_or_else(|| "null".into()),
+        p.gua_shen.map(|z| json_str(ly::ZHI[z as usize])).unwrap_or_else(|| "null".into()),
+        yao,
+        json_str(zc.rule),
+        readings
+    )
+}
+
+/// 起卦：梅花易数年月日时起卦（年支、农历月日、时支），返回初至上六爻之数
+#[wasm_bindgen]
+pub fn meihua_time_values(year_zhi: u8, lunar_month: u8, lunar_day: u8, hour_zhi: u8) -> Vec<u8> {
+    use lunar_core::folk::liuyao as ly;
+    let (u, l, d) = ly::meihua_time(year_zhi % 12, lunar_month, lunar_day, hour_zhi % 12);
+    ly::meihua_values(u, l, d).to_vec()
+}
+
+/// 起卦：大衍揲蓍一爻（三变各取一随机数，由调用方给出），返回 6/7/8/9
+#[wasm_bindgen]
+pub fn dayan_yao_wasm(r1: u32, r2: u32, r3: u32) -> u8 {
+    lunar_core::folk::zhouyi::dayan_yao_from_random([r1, r2, r3])
+}
+
+/// 排盘页玄空飞星：`year` 干支年（定运，每运二十年）；`zuo` 坐山序（0 子……23 壬），或 `zuo_az` ≥ 0 时以坐山方位角（真北起）定山与替卦、空亡。
+/// 返回 {"yun":8,"zuo":"子","xiang":"午","ti":false,"kongWang":null,"yunPan":[洛书 1—9 宫],"shanPan":[…],"xiangPan":[…],"geju":[…],"chengMen":[[宫,正否,可用否]…],"yearPan":[…]}
+#[wasm_bindgen]
+pub fn xuankong_json(year: i32, zuo: u8, ti: bool, zuo_az: f64) -> String {
+    use lunar_core::folk::{taiyi::JiuYun, xuankong as xk};
+    let o = xk::DEFAULT_OPTIONS;
+    let yun = xk::yun_of_year(year, JiuYun::Even20);
+    let p = if zuo_az >= 0.0 { xk::zhai_pan_azimuth(yun, zuo_az, &o) } else { xk::zhai_pan(yun, zuo as usize % 24, ti, &o) };
+    let nums = |a: &[u8; 9]| json_arr(a.iter().map(|x| x.to_string()));
+    format!(
+        "{{\"yun\":{},\"zuo\":{},\"xiang\":{},\"ti\":{},\"kongWang\":{},\"yunPan\":{},\"shanPan\":{},\"xiangPan\":{},\"geju\":{},\"chengMen\":{},\"yearPan\":{}}}",
+        p.yun,
+        json_str(xk::SHAN24[p.zuo]),
+        json_str(xk::SHAN24[p.xiang]),
+        p.ti,
+        match p.kong_wang {
+            Some(xk::KongWang::Da) => json_str("大空亡"),
+            Some(xk::KongWang::Xiao) => json_str("小空亡"),
+            None => "null".into(),
+        },
+        nums(&p.yun_pan),
+        nums(&p.shan_pan),
+        nums(&p.xiang_pan),
+        json_arr(p.ge_ju.iter().map(|g| format!("{{\"n\":{},\"note\":{}}}", json_str(g.name), json_str(g.note)))),
+        json_arr(xk::cheng_men(&p, &o).iter().map(|(g, z, k)| format!("[{g},{z},{k}]"))),
+        nums(&xk::year_pan(year))
+    )
 }
 
 /// 排盘页大六壬：{"jiang":"卯","shi":"申","pan":[地盘子…亥上的天盘神],"siKe":[{"xia":"甲","shang":"子"}…],"sanChuan":[…],"fa":"知一"}。
