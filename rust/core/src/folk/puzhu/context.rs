@@ -17,7 +17,7 @@ use crate::calendar::gregorian::Gregorian;
 use crate::calendar::historical::HistoricalCalendar;
 use crate::calendar::lifa;
 use crate::folk::zajie;
-use crate::math::real::real;
+use crate::math::real::{real, RealOps};
 use crate::quantity::angle::PlaneAngle;
 
 /// 氣往亡日数的数法
@@ -43,6 +43,8 @@ pub struct PuzhuDay {
     pub shuo_gz: u8,
     /// 当日交节（月建换月之日）
     pub jiao_jie: bool,
+    /// 交节时刻（东八区钟点，0—24）；非交节日为 None
+    pub jiao_jie_hour: Option<f64>,
     /// 太阳所在宫的支序（以中气交宫：雨水後亥……大寒後子），無祿「太陽填實」用
     pub sun_palace_zhi: u8,
     pub input: PuzhuInput,
@@ -80,6 +82,16 @@ pub fn puzhu_days(
         }
     }
     terms.sort();
+    // 交节时刻：(日, 东八区钟点)
+    let mut jie_times: Vec<(i64, f64)> = Vec::new();
+    for y in (y0 - 1)..=(y1 + 1) {
+        for (k, t) in solar_term_jds_for_year_cached(vsop, y).iter().enumerate() {
+            if k % 2 == 1 {
+                let x = t.as_f64() + 8.0 / 24.0 + 0.5;
+                jie_times.push((tt_to_day_number_utc8(*t), (x - x.floor()) * 24.0));
+            }
+        }
+    }
     let term_day = |y: i32, k: usize| tt_to_day_number_utc8(solar_term_jds_for_year_cached(vsop, y)[k]);
     // 朔弦望
     let tol = PlaneAngle::from_rad(real(1e-9));
@@ -155,7 +167,8 @@ pub fn puzhu_days(
             before_zhong_qi: terms.iter().filter(|(d, _)| *d <= jdn).last().is_some_and(|(_, k)| k % 2 == 1),
         };
         let jiao_jie = terms.iter().any(|(t, k)| *t == jdn && k % 2 == 1);
-        out.push(PuzhuDay { jdn, lunar, month_ord, month_gz, year_gz, shuo_gz, jiao_jie, sun_palace_zhi, input });
+        let jiao_jie_hour = jie_times.iter().find(|(d, _)| *d == jdn).map(|(_, h)| *h);
+        out.push(PuzhuDay { jdn, lunar, month_ord, month_gz, year_gz, shuo_gz, jiao_jie, jiao_jie_hour, sun_palace_zhi, input });
     }
     out
 }
