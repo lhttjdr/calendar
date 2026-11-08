@@ -366,6 +366,9 @@ def yiji(m, k):
     # 有主凶神时，月建、月破、滿日并入主凶神一组（「從刑厭論」「從災煞論」等）
     if grade:
         major_set |= {"月建", "小時", "土府", "月破", "大耗", "滿日"}
+        # 卷十九空條：巳亥月值月厭從月厭論，辰戌丑未月值破日從月破論
+        if "九空" in names and names & {"月厭", "月破"}:
+            major_set |= {"九空"}
     ji_major = {d for d, ns in src.items() if ns & major_set}
     ji_minor = {d for d, ns in src.items() if ns - major_set}
     note, mode = "", "從忌"
