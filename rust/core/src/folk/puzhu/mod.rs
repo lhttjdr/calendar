@@ -20,6 +20,7 @@
 //! | 氣往亡 | 卷九：立春後七日……小寒後三十日 | 同往亡（卷十「徃亡 氣徃亡」同條），與德合赦願併猶忌 |
 //! | 嫁娶周堂 | 卷三十五：大月從夫順數，小月從婦逆數（夫姑堂翁第竈婦廚） | 「遇第堂厨竈日用之，如遇翁姑而無翁姑者亦可用」：值夫、婦之日不註宜嫁娶 |
 //! | 交節之日 | 当日交节 | 时宪书以新旧两月之宜相交（见 [`jiao_jie_base`]） |
+//! | 畋獵、取魚的节令 | 卷十一：畋獵「霜降後立春前」、取魚「雨水後立夏前」 | 月表按月建自戌月、寅月起注；逐年铺注于戌月霜降前、寅月雨水前不註宜 |
 //!
 //! 卷十：上朔以下「與德合赦願併猶忌，以下並同」，所以本层诸条一律不因德神而解。
 //!
@@ -112,6 +113,9 @@ pub struct PuzhuInput {
     pub phase: Option<&'static str>,
     /// 氣往亡
     pub qi_wang_wang: bool,
+    /// 节气月序（寅 = 0）与当日是否在本月中气之前（畋獵、取魚的节令用）
+    pub month_ord: u8,
+    pub before_zhong_qi: bool,
     /// 值無祿而不解（[`wulu`] 为 `Some(WuLu::Yes)`；癸亥月表已注，此处亦为真）
     pub wulu: bool,
 }
@@ -359,6 +363,13 @@ pub fn apply(day: &YueBiaoDay, p: &PuzhuInput, shuo_gz: u8) -> YueBiaoDay {
         ji(&mut d, &WANG_WANG_JI);
         // 鋪註條例：凡忌詔命公卿招賢不註宜施恩封拜舉正直襲爵受封
         bu_zhu_yi(&mut d, &["襲爵受封"]);
+    }
+    // 卷十一畋獵「霜降後立春前」、取魚「雨水後立夏前」：月表自戌月、寅月起注，中气以前不註宜
+    if p.before_zhong_qi && p.month_ord == 8 {
+        bu_zhu_yi(&mut d, &["畋獵"]);
+    }
+    if p.before_zhong_qi && p.month_ord == 0 {
+        bu_zhu_yi(&mut d, &["取魚"]);
     }
     if has("周堂值夫") || has("周堂值婦") {
         // 不註宜嫁娶（不添忌）

@@ -150,6 +150,9 @@ pub fn puzhu_days(
             phase,
             qi_wang_wang,
             wulu,
+            month_ord,
+            // 本月之节已交、中气未交
+            before_zhong_qi: terms.iter().filter(|(d, _)| *d <= jdn).last().is_some_and(|(_, k)| k % 2 == 1),
         };
         let jiao_jie = terms.iter().any(|(t, k)| *t == jdn && k % 2 == 1);
         out.push(PuzhuDay { jdn, lunar, month_ord, month_gz, year_gz, shuo_gz, jiao_jie, sun_palace_zhi, input });
