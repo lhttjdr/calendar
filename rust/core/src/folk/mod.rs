@@ -11,6 +11,7 @@
 
 pub mod gengdian;
 pub mod jianchu;
+pub mod jiaqu;
 pub mod jiuxing;
 pub mod liuren;
 pub mod liuyao;

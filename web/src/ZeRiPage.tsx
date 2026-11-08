@@ -138,7 +138,7 @@ export function ShanWheel({ data, size = 560, rotate = 0 }: { data: NianShenData
 
 type MonthLunar = { jd0: number; months: number[]; days: number[]; leaps: number[]; dims: number[]; phases: number[] }
 type JiaquDay = {
-  jdn: number; ok: boolean; yi: boolean; ji: boolean; jieHunYin: boolean; naCai: boolean; nvMingYue: string
+  jdn: number; ok: boolean; verdict?: string; jie?: [string, string][]; yi: boolean; ji: boolean; jieHunYin: boolean; naCai: boolean; nvMingYue: string
   zhouTang: string | null; baiHu: string | null; naXu: string | null; buJiang: boolean; jiang: string
   leibian: [string, string][]; reasons: string[]; notes: string[]
 }
@@ -154,14 +154,16 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
   const [ztLeibian, setZtLeibian] = useState(false)
   const [useXiong, setUseXiong] = useState(false)
   const [onlyOk, setOnlyOk] = useState(false)
+  const [zhiHua, setZhiHua] = useState(false)
+  const [aoTou, setAoTou] = useState(false)
   const nvGz = (((nvYear - 4) % 60) + 60) % 60
   const m = props.monthLunar
   const list = useMemo((): JiaquDay[] | null => {
     if (typeof props.wasm.jiaqu_days_json !== 'function') return null
     try {
-      return JSON.parse(props.wasm.jiaqu_days_json(m.jd0, props.ear, Uint8Array.from(m.months), Uint8Array.from(m.days), Uint8Array.from(m.leaps), Uint8Array.from(m.dims), Int8Array.from(m.phases), nvGz, wengGu, fuMu, naXu, (useYue ? 1 : 0) | (ztLeibian ? 2 : 0) | (useXiong ? 4 : 0))) as JiaquDay[]
+      return JSON.parse(props.wasm.jiaqu_days_json(m.jd0, props.ear, Uint8Array.from(m.months), Uint8Array.from(m.days), Uint8Array.from(m.leaps), Uint8Array.from(m.dims), Int8Array.from(m.phases), nvGz, wengGu, fuMu, naXu, (useYue ? 1 : 0) | (ztLeibian ? 2 : 0) | (useXiong ? 4 : 0) | (zhiHua ? 8 : 0) | (aoTou ? 16 : 0))) as JiaquDay[]
     } catch { return null }
-  }, [props.wasm, props.ear, m, nvGz, wengGu, fuMu, naXu, useYue, ztLeibian, useXiong])
+  }, [props.wasm, props.ear, m, nvGz, wengGu, fuMu, naXu, useYue, ztLeibian, useXiong, zhiHua, aoTou])
   return (
     <Card size="small" title={`婚嫁择吉（${props.monthLabel}）`} style={{ marginTop: 16 }}>
       <Flex gap={12} wrap align="center" style={{ marginBottom: 8 }}>
@@ -174,19 +176,22 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
         <Checkbox checked={useYue} onChange={(e) => setUseYue(e.target.checked)}>女命行嫁月否决（类编；协纪奏准删除）</Checkbox>
         <Checkbox checked={ztLeibian} onChange={(e) => setZtLeibian(e.target.checked)}>周堂从类编</Checkbox>
         <Checkbox checked={useXiong} onChange={(e) => setUseXiong(e.target.checked)}>类编嫁娶凶神否决</Checkbox>
+        <Checkbox checked={aoTou} onChange={(e) => setAoTou(e.target.checked)}>白虎从鳌头（值门床堂路）</Checkbox>
+        <Checkbox checked={zhiHua} onChange={(e) => setZhiHua(e.target.checked)}>用制化（周堂回避、白虎禳法；协纪不录）</Checkbox>
         <Checkbox checked={onlyOk} onChange={(e) => setOnlyOk(e.target.checked)}>只看可用之日</Checkbox>
       </Flex>
       {!list ? <Text type="secondary">无法判定</Text> : (
         <div style={{ fontSize: 12, lineHeight: 1.7 }}>
           {list.map((d, i) => (onlyOk && !d.ok ? null : (
             <div key={d.jdn} style={{ borderBottom: '1px solid #f0f0f0', padding: '2px 0' }}>
-              <Text strong type={d.ok ? 'success' : 'secondary'}>{`${i + 1}日 ${d.ok ? '可用' : '不用'}`}</Text>
+              <Text strong type={d.verdict === '經制化可用' ? 'warning' : d.ok ? 'success' : 'secondary'}>{`${i + 1}日 ${d.verdict ?? (d.ok ? '可用' : '不可用')}`}</Text>
               {` · 农历${m.leaps[i] ? '閏' : ''}${m.months[i]}月${m.days[i]}日`}
               {d.yi ? ' · 宜嫁娶' : d.ji ? ' · 忌嫁娶' : ''}
               {d.buJiang ? ' · 不將（协纪歷例表）' : ''}{d.jiang ? ` · 类编法${d.jiang}` : ''}
               {d.zhouTang ? ` · 周堂值${d.zhouTang}` : ''}
               {` · 女命${d.nvMingYue}`}
               {d.reasons.length > 0 && <Text type="danger">{` · ${d.reasons.join('；')}`}</Text>}
+              {d.jie && d.jie.length > 0 && <Text type="warning">{` · 制化：${d.jie.map(([a, b]) => `${a}（${b}）`).join('；')}`}</Text>}
               {d.leibian.length > 0 && <Text type="secondary">{` · 类编凶神：${d.leibian.map(([a]) => a).join(' ')}`}</Text>}
             </div>
           )))}

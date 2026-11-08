@@ -233,10 +233,45 @@ pub fn na_xu_zhou_tang(days_in_month: u8, lunar_day: u8) -> Option<&'static str>
 /// 嫁娶周堂值位之用
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ZhouTangRule {
-    /// 协纪卷三十五附录：「遇第堂厨竈日用之，如遇翁姑而無翁姑者亦可用」；时宪书于值夫、婦之日不注嫁娶（乾隆三十年核）
+    /// 协纪卷三十五附录：「遇第堂厨竈日用之，如遇翁姑而無翁姑者亦可用」；时宪书于值夫、婦之日不注嫁娶（乾隆三十年核）。
+    /// 故值夫婦不用，值翁姑则有翁姑在者不用
     XieJi,
-    /// 类编：值翁姑及夫「時俗有從權出外少避」，值婦「別擇日」
+    /// 类编：值婦「別擇日」；值翁姑及夫「時俗有從權出外少避」（视为可制，见 [`JiaquOptions::zhi_hua`]）
     LeiBian,
+}
+
+/// 行嫁白虎须禳之位
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BaiHuRule {
+    /// 类编卷七（第 51 页）：「如其日值路，先就門外路斬牲以禳之，若值其餘亦不必忌」
+    LeiBian,
+    /// 鳌头卷三（第 4 册第 14 页）：「如在死睡厨竈吉，如值門床堂路則祈禳之吉」
+    AoTou,
+}
+
+// ───────────────────────── 制化 ─────────────────────────
+
+/// 类编卷七白虎入中宫之禳（第 50 页「論大殺白虎雷霆白虎」）
+pub const JIE_BAI_HU_ZHONG_GONG: &str = "禳：新人入門時於廳中斬牲以魘禳，然後入廳下轎；不在正堂，忌廳堂大宴；鼓樂從門外遠處起動行入（类编卷七第 50 页「論大殺白虎雷霆白虎」「論白虎日娶婦用皷樂」）";
+/// 行嫁白虎之禳
+pub const JIE_XING_JIA_BAI_HU_LEIBIAN: &str = "禳：先就門外路斬牲以禳之（类编卷七第 51 页「論行嫁白虎」）";
+pub const JIE_XING_JIA_BAI_HU_AOTOU: &str = "祈禳之（鳌头通书卷三第 4 册第 14 页「行嫁周堂」）";
+/// 周堂值翁姑夫之避
+pub const JIE_ZHOU_TANG_BI: &str = "回避：新人入門時翁姑及夫從權出外少避，候新人坐床方可廻家（类编卷七第 51 页「論嫁娶周堂」；鳌头卷三「如值翁姑宜出宅少避」）";
+/// 纳婿周堂值姑第翁之避
+pub const JIE_NA_XU_BI: &str = "回避：可出外少避（类编卷七第 51 页「論納婿周堂」）";
+/// 受死之禳
+pub const JIE_SHOU_SI: &str = "禳：新人入門時斬牲於地以魘禳（类编卷七第 49 页「論受死日」，并云「今人多不忌」）";
+
+/// 判定三态
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Verdict {
+    /// 无否决
+    KeYong,
+    /// 否决皆可制，经制化可用（须选项「用制化」）
+    ZhiHuaKeYong,
+    /// 有不可制之否决
+    BuKeYong,
 }
 
 // ───────────────────────── 逐日判定 ─────────────────────────
@@ -261,13 +296,26 @@ pub struct JiaquOptions {
     pub zhou_tang: ZhouTangRule,
     /// 用类编嫁娶凶神表否决——缺省 false：只列出
     pub leibian_xiong: bool,
+    /// 行嫁白虎须禳之位（启用类编凶神时据以否决）
+    pub bai_hu: BaiHuRule,
+    /// 用制化：可制之否决移入 `jie`，判「经制化可用」——缺省 false。
+    /// 理由：协纪于嫁娶凶神之解只取诸德（卷十宜忌等第表「遇德从宜」，已含于月表），不录禳、避之法；
+    /// 《董公選擇日要覽》斥「或書一符、或書一字以為鎮魔，欺惑世人」，于白虎入中宫谓「縱有……天德月德可以化解……莫若不用」
+    pub zhi_hua: bool,
     /// 阴阳不将之戊己寄法（仅作附注；协纪逐月表另列）
     pub wuji: WuJiJi,
 }
 
 impl Default for JiaquOptions {
     fn default() -> Self {
-        Self { nv_ming_yue: false, zhou_tang: ZhouTangRule::XieJi, leibian_xiong: false, wuji: WuJiJi::LeiBian }
+        Self {
+            nv_ming_yue: false,
+            zhou_tang: ZhouTangRule::XieJi,
+            leibian_xiong: false,
+            bai_hu: BaiHuRule::LeiBian,
+            zhi_hua: false,
+            wuji: WuJiJi::LeiBian,
+        }
     }
 }
 
@@ -275,8 +323,8 @@ impl Default for JiaquOptions {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct JiaquDay {
     pub jdn: i64,
-    /// 可用（按所选之法）
-    pub ok: bool,
+    /// 三态：可用、经制化可用、不可用
+    pub verdict: Verdict,
     /// 协纪月表 + 铺注：宜嫁娶 / 忌嫁娶 / 两不注
     pub xieji_yi: bool,
     pub xieji_ji: bool,
@@ -292,14 +340,24 @@ pub struct JiaquDay {
     pub jiang: Jiang,
     /// 类编凶神 (名, 所忌)
     pub leibian_xiong: Vec<(&'static str, &'static str)>,
-    /// 否决之由（按所选之法）
+    /// 不可制（或未用制化）之否决
     pub reasons: Vec<String>,
+    /// 经制化之否决：(所制之忌, 制法与出处)。仅「用制化」时有
+    pub jie: Vec<(String, String)>,
     /// 附注（不否决）
     pub notes: Vec<String>,
 }
 
+impl JiaquDay {
+    /// 可用（含经制化）
+    pub fn usable(&self) -> bool {
+        self.verdict != Verdict::BuKeYong
+    }
+}
+
 /// 逐日判定。`d` 由 [`super::puzhu::puzhu_days`] 或 `TermTable::day` 得来。
 pub fn judge_day(d: &PuzhuDay, inp: &JiaquInput, o: &JiaquOptions) -> JiaquDay {
+    use super::yiji::yuebiao_day;
     let yb = yiji_for_day(d);
     let has = |v: &Option<Vec<String>>, s: &str| v.as_ref().is_some_and(|v| v.iter().any(|x| x == s));
     let xieji_yi = has(&yb.yi, "嫁娶");
@@ -311,42 +369,60 @@ pub fn judge_day(d: &PuzhuDay, inp: &JiaquInput, o: &JiaquOptions) -> JiaquDay {
     let bh = xing_jia_bai_hu(dim, ld);
     let nx = na_xu_zhou_tang(dim, ld);
     let lx = leibian_xiong(d.month_ord, d.month_gz % 10, gz, d.jdn);
-    let mut reasons: Vec<String> = Vec::new();
+    // 否决：(由, 可制之法)
+    let mut veto: Vec<(String, Option<&'static str>)> = Vec::new();
     let mut notes: Vec<String> = Vec::new();
 
-    // 协纪：须宜嫁娶（月表 + 铺注已含周堂值夫婦不注）
+    // 协纪：须宜嫁娶（月表 + 铺注；铺注已于周堂值夫婦去宜）。
+    // 月表本宜嫁娶而只因周堂值夫去宜者，类编以为可避（值婦则不可）
     if !xieji_yi {
-        reasons.push(if xieji_ji { "协纪：忌嫁娶".into() } else { "协纪：不注宜嫁娶".into() });
+        let base_yi = yuebiao_day(d.month_ord, gz).yi.as_ref().is_some_and(|v| v.iter().any(|x| x == "嫁娶"));
+        let by_zhou_tang_fu = zt == Some("夫") && base_yi && !xieji_ji;
+        if xieji_ji {
+            veto.push(("协纪：忌嫁娶".into(), None));
+        } else if by_zhou_tang_fu {
+            veto.push(("协纪：嫁娶周堂值夫不注宜".into(), Some(JIE_ZHOU_TANG_BI)));
+        } else {
+            veto.push(("协纪：不注宜嫁娶".into(), None));
+        }
     }
-    // 周堂（类编之用）：值婦别择；值翁姑夫回避
-    if o.zhou_tang == ZhouTangRule::LeiBian {
-        if let Some(z) = zt {
-            if z == "婦" {
-                reasons.push("类编：嫁娶周堂值婦，别擇日".into());
-            } else if ["翁", "姑", "夫"].contains(&z) {
-                notes.push(format!("嫁娶周堂值{z}：类编谓新人入門時從權出外少避"));
-                // 协纪月表因周堂值夫不注宜者，类编之用可解
-                if z == "夫" && !xieji_ji {
-                    reasons.retain(|r| !r.starts_with("协纪：不注宜"));
-                }
+    // 周堂
+    match (o.zhou_tang, zt) {
+        (ZhouTangRule::XieJi, Some(z @ ("翁" | "姑"))) if inp.has_weng_gu => {
+            veto.push((format!("协纪：嫁娶周堂值{z}而有翁姑"), Some(JIE_ZHOU_TANG_BI)));
+        }
+        (ZhouTangRule::LeiBian, Some("婦")) => veto.push(("类编：嫁娶周堂值婦，别擇日".into(), None)),
+        (ZhouTangRule::LeiBian, Some(z @ ("翁" | "姑" | "夫"))) => {
+            // 类编之用：值夫亦可避，故协纪因周堂值夫不注宜者不否决
+            veto.retain(|(r, _)| r != "协纪：嫁娶周堂值夫不注宜");
+            if z != "夫" && inp.has_weng_gu || z == "夫" {
+                notes.push(format!("嫁娶周堂值{z}：{JIE_ZHOU_TANG_BI}"));
             }
         }
-    } else if let Some(z) = zt {
-        notes.push(format!("嫁娶周堂值{z}"));
+        (_, Some(z)) => notes.push(format!("嫁娶周堂值{z}")),
+        _ => {}
     }
     if inp.na_xu {
-        if let Some(z) = nx {
-            if z == "夫" {
-                reasons.push("纳婿周堂值夫，别擇日".into());
-            } else if ["姑", "第", "翁"].contains(&z) {
-                notes.push(format!("纳婿周堂值{z}：类编谓可出外少避"));
-            }
+        match nx {
+            Some("夫") => veto.push(("纳婿周堂值夫，别擇日".into(), None)),
+            Some(z @ ("姑" | "第" | "翁")) => notes.push(format!("纳婿周堂值{z}：{JIE_NA_XU_BI}")),
+            _ => {}
         }
     }
-    if bh == Some("路") {
-        notes.push("行嫁白虎值路（类编谓先就門外路禳之，其餘不必忌）".into());
+    // 行嫁白虎
+    let bh_bad = match o.bai_hu {
+        BaiHuRule::LeiBian => bh == Some("路"),
+        BaiHuRule::AoTou => matches!(bh, Some("門" | "床" | "堂" | "路")),
+    };
+    let bh_jie = if o.bai_hu == BaiHuRule::LeiBian { JIE_XING_JIA_BAI_HU_LEIBIAN } else { JIE_XING_JIA_BAI_HU_AOTOU };
+    if bh_bad {
+        if o.leibian_xiong {
+            veto.push((format!("行嫁白虎值{}", bh.unwrap()), Some(bh_jie)));
+        } else {
+            notes.push(format!("行嫁白虎值{}（{bh_jie}）", bh.unwrap()));
+        }
     }
-    // 女命行嫁月
+    // 女命行嫁月（不可制）
     let bad_yue = match yue {
         NvMingYue::DaLi | NvMingYue::FangMeiShi => false,
         NvMingYue::FangWengGu => inp.has_weng_gu,
@@ -354,19 +430,29 @@ pub fn judge_day(d: &PuzhuDay, inp: &JiaquInput, o: &JiaquOptions) -> JiaquDay {
         NvMingYue::FangFu | NvMingYue::FangNvShen => true,
     };
     if o.nv_ming_yue && bad_yue {
-        reasons.push(format!("类编：女命{}", yue.name()));
+        veto.push((format!("类编：女命{}", yue.name()), None));
     } else if yue != NvMingYue::DaLi {
         notes.push(format!("女命{}（类编；协纪奏准删除）", yue.name()));
     }
-    // 类编凶神
-    let veto: Vec<_> = lx.iter().filter(|(n, _)| LEIBIAN_XIONG_RI.contains(n) || ["天寡", "地寡", "紅沙殺", "天罡勾絞", "河魁勾絞", "往亡", "無翹", "陰錯", "陽錯", "伏斷"].contains(n)).collect();
-    if o.leibian_xiong && !veto.is_empty() {
-        reasons.push(format!("类编凶神：{}", veto.iter().map(|(n, _)| *n).collect::<Vec<_>>().join(" ")));
+    // 类编凶神：白虎入中宫可禳；披麻殺书云「俗有厭𭫲之法，詳見諸公口訣」而法未载，不作可制；余不可制
+    const VETO_EXTRA: [&str; 10] = ["天寡", "地寡", "紅沙殺", "天罡勾絞", "河魁勾絞", "往亡", "無翹", "陰錯", "陽錯", "伏斷"];
+    let lx_veto: Vec<&(&str, &str)> = lx.iter().filter(|(n, _)| LEIBIAN_XIONG_RI.contains(n) || VETO_EXTRA.contains(n)).collect();
+    if o.leibian_xiong {
+        for (n, _) in &lx_veto {
+            let jie = match *n {
+                "大殺白虎入中宮" | "雷霆白虎入中宮" => Some(JIE_BAI_HU_ZHONG_GONG),
+                _ => None,
+            };
+            veto.push((format!("类编凶神：{n}"), jie));
+        }
     } else if !lx.is_empty() {
         notes.push(format!("类编所列：{}", lx.iter().map(|(n, _)| *n).collect::<Vec<_>>().join(" ")));
     }
+    if lx.iter().any(|(n, _)| *n == "披麻殺") {
+        notes.push("披麻殺：类编云「俗有厭𭫲之法，詳見諸公口訣」，法未载".into());
+    }
     if lx.iter().any(|(n, _)| *n == "受死") {
-        notes.push("受死：类编云「今人多不忌」".into());
+        notes.push(format!("受死：{JIE_SHOU_SI}"));
     }
     let bjx = bu_jiang_xieji(d.month_ord, gz);
     let jg = jiang(d.month_ord, gz, o.wuji);
@@ -377,9 +463,26 @@ pub fn judge_day(d: &PuzhuDay, inp: &JiaquInput, o: &JiaquOptions) -> JiaquDay {
             _ => "类编",
         }));
     }
+    // 三态
+    let mut reasons = Vec::new();
+    let mut jie = Vec::new();
+    for (r, j) in veto {
+        match j {
+            Some(j) if o.zhi_hua => jie.push((r, j.to_string())),
+            Some(j) => reasons.push(format!("{r}（可制：{j}；未用制化）")),
+            None => reasons.push(r),
+        }
+    }
+    let verdict = if !reasons.is_empty() {
+        Verdict::BuKeYong
+    } else if !jie.is_empty() {
+        Verdict::ZhiHuaKeYong
+    } else {
+        Verdict::KeYong
+    };
     JiaquDay {
         jdn: d.jdn,
-        ok: reasons.is_empty(),
+        verdict,
         xieji_yi,
         xieji_ji,
         yi_jie_hun_yin: has(&yb.yi, "結婚姻"),
@@ -392,6 +495,7 @@ pub fn judge_day(d: &PuzhuDay, inp: &JiaquInput, o: &JiaquOptions) -> JiaquDay {
         jiang: jg,
         leibian_xiong: lx,
         reasons,
+        jie,
         notes,
     }
 }
@@ -519,6 +623,45 @@ mod tests {
         assert!(has(0, "甲戌", "月厭") && has(0, "丙辰", "厭對"));
         assert!(has(0, "庚戌", "陰錯") && has(0, "甲寅", "陽錯"));
         assert!(has(5, "戊申", "人民離") && has(5, "乙亥", "亥日"));
+    }
+
+    /// 制化：以 2026 年逐日实算检验三态之间的关系
+    #[test]
+    fn zhi_hua_three_states() {
+        use crate::astronomy::ephemeris::{load_all, load_earth_vsop87_from_repo, Elpmpp02Correction};
+        use crate::calendar::gregorian::Gregorian;
+        use crate::math::real::RealOps;
+        let vsop = load_earth_vsop87_from_repo().unwrap();
+        let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT).unwrap();
+        let j0 = (Gregorian::to_julian_day(2026, 1, 1).as_f64() + 0.5).floor() as i64;
+        let inp = JiaquInput { nv_year_gz: 41, has_weng_gu: true, has_nv_fu_mu: true, na_xu: false };
+        let base = JiaquOptions { leibian_xiong: true, bai_hu: BaiHuRule::AoTou, ..JiaquOptions::default() };
+        let off = choose(&vsop, &elp, None, j0, j0 + 364, &inp, &base);
+        let on = choose(&vsop, &elp, None, j0, j0 + 364, &inp, &JiaquOptions { zhi_hua: true, ..base });
+        let mut n_zh = 0;
+        for (a, b) in off.iter().zip(&on) {
+            assert_eq!(a.jdn, b.jdn);
+            // 未用制化：无「经制化」态，jie 恒空
+            assert_ne!(a.verdict, Verdict::ZhiHuaKeYong);
+            assert!(a.jie.is_empty());
+            match b.verdict {
+                Verdict::ZhiHuaKeYong => {
+                    n_zh += 1;
+                    assert!(b.reasons.is_empty() && !b.jie.is_empty());
+                    // 不用制化时同日不可用，且由皆注「可制」
+                    assert_eq!(a.verdict, Verdict::BuKeYong);
+                    assert!(a.reasons.iter().all(|r| r.contains("可制")), "{:?}", a.reasons);
+                }
+                Verdict::KeYong => assert_eq!(a.verdict, Verdict::KeYong),
+                Verdict::BuKeYong => assert_eq!(a.verdict, Verdict::BuKeYong),
+            }
+        }
+        assert!(n_zh > 0, "一年中应有经制化可用之日");
+        // 协纪：周堂值翁姑而有翁姑在者否决，可避而制
+        assert!(off.iter().any(|d| d.reasons.iter().any(|r| r.contains("值翁而有翁姑") || r.contains("值姑而有翁姑"))));
+        // 无翁姑则不因此否决
+        let free = choose(&vsop, &elp, None, j0, j0 + 364, &JiaquInput { has_weng_gu: false, ..inp }, &JiaquOptions::default());
+        assert!(free.iter().all(|d| !d.reasons.iter().any(|r| r.contains("有翁姑"))));
     }
 
     #[test]

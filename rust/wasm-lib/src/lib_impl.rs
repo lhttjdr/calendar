@@ -945,7 +945,8 @@ pub fn ziwei18_json(year_gz: u8, lunar_month: u8, is_leap: bool, lunar_day: u8, 
 
 /// 择日页婚嫁择吉：自 `jd0` 所在民用日起连续 `months.len()` 日逐日判定（协纪为纲、类编卷七并列，见 doc/folk/jiaqu.md）。
 /// 每日农历（月、日、闰、月大小）与朔弦望（0 朔 1 上弦 2 望 3 下弦，−1 无）由调用方按页面所示农历给出（与日历同源）。
-/// 女命生年干支序按立春分；`opts` 位：1 用女命行嫁月否决、2 周堂用类编、4 用类编凶神否决。返回逐日 JSON 数组。
+/// 女命生年干支序按立春分；`opts` 位：1 用女命行嫁月否决、2 周堂用类编、4 用类编凶神否决、8 用制化、16 白虎从鳌头（值门床堂路皆禳）。
+/// 返回逐日 JSON 数组；`verdict` 为「可用」「經制化可用」「不可用」，`jie` 为经制化之忌与制法出处。
 #[wasm_bindgen]
 pub fn jiaqu_days_json(
     jd0: f64,
@@ -975,6 +976,8 @@ pub fn jiaqu_days_json(
         nv_ming_yue: opts & 1 != 0,
         zhou_tang: if opts & 2 != 0 { ZhouTangRule::LeiBian } else { ZhouTangRule::XieJi },
         leibian_xiong: opts & 4 != 0,
+        zhi_hua: opts & 8 != 0,
+        bai_hu: if opts & 16 != 0 { lunar_core::folk::jiaqu::BaiHuRule::AoTou } else { lunar_core::folk::jiaqu::BaiHuRule::LeiBian },
         ..JiaquOptions::default()
     };
     let strs = |v: &[String]| json_arr(v.iter().map(|x| json_str(x)));
@@ -1000,9 +1003,15 @@ pub fn jiaqu_days_json(
             Jiang::Neither => "",
         };
         format!(
-            "{{\"jdn\":{},\"ok\":{},\"yi\":{},\"ji\":{},\"jieHunYin\":{},\"naCai\":{},\"nvMingYue\":{},\"zhouTang\":{},\"baiHu\":{},\"naXu\":{},\"buJiang\":{},\"jiang\":{},\"leibian\":{},\"reasons\":{},\"notes\":{}}}",
+            "{{\"jdn\":{},\"ok\":{},\"verdict\":{},\"jie\":{},\"yi\":{},\"ji\":{},\"jieHunYin\":{},\"naCai\":{},\"nvMingYue\":{},\"zhouTang\":{},\"baiHu\":{},\"naXu\":{},\"buJiang\":{},\"jiang\":{},\"leibian\":{},\"reasons\":{},\"notes\":{}}}",
             jdn,
-            r.ok,
+            r.usable(),
+            json_str(match r.verdict {
+                lunar_core::folk::jiaqu::Verdict::KeYong => "可用",
+                lunar_core::folk::jiaqu::Verdict::ZhiHuaKeYong => "經制化可用",
+                lunar_core::folk::jiaqu::Verdict::BuKeYong => "不可用",
+            }),
+            json_arr(r.jie.iter().map(|(a, b)| format!("[{},{}]", json_str(a), json_str(b)))),
             r.xieji_yi,
             r.xieji_ji,
             r.yi_jie_hun_yin,
