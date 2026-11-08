@@ -18,7 +18,7 @@ $$X(t) = \sum_{\alpha} t^{\alpha} \sum_i A_{\alpha i} \cos(B_{\alpha i} + C_{\al
 
 ### 月亮：德洛奈、希尔–布朗与 ELP
 
-月亮受太阳的摄动远大于行星受彼此的摄动，级数收敛慢得多。德洛奈（Charles Delaunay）用二十年手算，于 1860、1867 年发表两卷月球理论，把摄动函数逐项消去，结果是字母系数的三角级数，四个基本幅角至今以他命名：
+月亮受太阳的摄动远大于行星受彼此的摄动，级数收敛慢得多。德洛奈（Charles Delaunay）1846 年向巴黎科学院报告了他的方法，此后独力手算约二十年，于 1860、1867 年发表两卷月球理论。他在序言中说，这项"tâche énorme"（巨大的工作）"je n'ai pu me faire aider par personne"（没能请任何人帮忙），而且"j'ai fait tous les calculs deux fois, sans aucune exception"（所有计算无一例外都做了两遍），两遍之间特意隔开尽量长的时间，以免沿用同样的思路（第一卷序言）。他把摄动函数逐项消去，结果是字母系数的三角级数，四个基本幅角至今以他命名：
 
 - $D$：月亮与太阳的平黄经之差（平距角）；
 - $F$：月亮的平升交角距；
@@ -178,7 +178,7 @@ $\sqrt{n}$ 来自截去的众多小项相位杂乱、正负相消，与上一节
 1. P. Bretagnon, G. Francou, "Planetary theories in rectangular and spherical variables. VSOP 87 solutions", *Astronomy and Astrophysics* 202 (1988), 309–315。
 2. M. Chapront-Touzé, J. Chapront, "The lunar ephemeris ELP 2000", *Astronomy and Astrophysics* 124 (1983), 50–62。
 3. J. Chapront, G. Francou, "The lunar theory ELP revisited. Introduction of new planetary perturbations", *Astronomy and Astrophysics* 404 (2003), 735–742。
-4. C. Delaunay, *La théorie du mouvement de la lune*, *Mémoires de l'Académie des Sciences* 28 (1860), 29 (1867)。第一卷即第 28 卷，据 *Monthly Notices of the Royal Astronomical Society* 21 (1861) 书评核；第二卷未核。
+4. C. Delaunay, *Théorie du mouvement de la lune*, tome premier, Paris: Mallet-Bachelier, 1860；tome second, Paris: Gauthier-Villars, 1867。分别为 *Mémoires de l'Académie des sciences de l'Institut impérial de France* 第 28、29 卷之抽印本。据两卷扉页核；所引见第一卷序言。
 5. E. W. Brown, *Tables of the Motion of the Moon*, New Haven: Yale University Press, 1919。据 archive.org 所存本核书名。
 6. S. Newcomb, "Tables of the motion of the Earth on its axis and around the Sun", *Astronomical Papers of the American Ephemeris* 6, part 1 (1895)。该卷总题 *Tables of the Four Inner Planets*；据 archive.org 所存 1898 年第二版核题名。
 7. E. W. Woolard, "Theory of the rotation of the Earth around its center of mass", *Astronomical Papers of the American Ephemeris* 15, part 1 (1953)。未核原书。
