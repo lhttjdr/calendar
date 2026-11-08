@@ -132,6 +132,8 @@ export interface LunarBackend {
   nian_shen_json?(jd: number, vsop87_ear: string): string
   /** 排盘页奇门（JSON） */
   qimen_json?(jd_ut: number, vsop87_ear: string, hour_gz: number, method: number, ji_gong: number, shen_ming: number, ding_ju: number, source: number): string
+  /** 排盘页紫微斗数（JSON） */
+  ziwei_json?(year_gz: number, lunar_month: number, is_leap: boolean, lunar_day: number, hour_zhi: number, male: boolean, leap: number, xin: number, bing_ding: number, si_hua: number, chang_sheng: number): string
   /** 排盘页大六壬（JSON） */
   liuren_json?(jd_ut: number, vsop87_ear: string, day_gz: number, hour_zhi: number, rule: number): string
   /** 排盘页太乙（JSON） */

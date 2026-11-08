@@ -42,6 +42,7 @@ declare module 'lunar-wasm' {
   export function nayin_of_ganzhi_name(name: string): string
   export function nian_shen_json(jd: number, vsop87_ear: string): string
   export function qimen_json(jd_ut: number, vsop87_ear: string, hour_gz: number, method: number, ji_gong: number, shen_ming: number, ding_ju: number, source: number): string
+  export function ziwei_json(year_gz: number, lunar_month: number, is_leap: boolean, lunar_day: number, hour_zhi: number, male: boolean, leap: number, xin: number, bing_ding: number, si_hua: number, chang_sheng: number): string
   export function liuren_json(jd_ut: number, vsop87_ear: string, day_gz: number, hour_zhi: number, rule: number): string
   export function taiyi_json(jd_ut: number, vsop87_ear: string, day_gz: number, hour_zhi: number, kind: number, school: number, dun: number): string
   export function paipan_wasm(jd_ut: number, vsop87_ear: string, day_gz: number, hour_zhi: number): string

@@ -2,11 +2,11 @@
  * 择日页：年神方位二十四山图（《协纪辨方书》卷三）、当日神煞宜忌（月表 + 卷十铺注 + 时宪书体例）、日游神鹤神。
  * 与日历共用所选日期；图依古图南上北下、东左西右。
  */
-import { Button, Card, Flex, Switch, Typography } from 'antd'
-import { AimOutlined, CompassOutlined, LeftOutlined, RightOutlined } from '@ant-design/icons'
-import { useMemo, useState } from 'react'
+import { Button, Card, Flex, Typography } from 'antd'
+import { LeftOutlined, RightOutlined } from '@ant-design/icons'
+import { useMemo } from 'react'
 import type { LunarBackend } from './lunar-backend-types'
-import { useCompassHeading } from './sensors'
+import { useCompassBar } from './CompassBar'
 
 const { Text } = Typography
 
@@ -132,11 +132,7 @@ export function ZeRiPage(props: {
   declination: number | null
 }) {
   const { wasm, ear, jd } = props
-  const compass = useCompassHeading()
-  const [locMsg, setLocMsg] = useState<string>('')
-  // 真北方位 = 磁北方位 + 磁偏角；盘上北在下（南上），故转 −真北方位 − 180°
-  const trueHeading = compass.heading == null ? null : compass.heading + (props.declination ?? 0)
-  const rotate = trueHeading == null ? 0 : -trueHeading - 180
+  const { rotate, bar: compassBar } = useCompassBar(props)
   const data = useMemo((): NianShenData | null => {
     if (!wasm || ear == null || typeof wasm.nian_shen_json !== 'function') return null
     try {
@@ -153,25 +149,7 @@ export function ZeRiPage(props: {
         <Button size="small" onClick={() => props.onShiftDay(1)}>后一日 <RightOutlined /></Button>
         <Text type="secondary" style={{ fontSize: 12 }}>与日历所选日期同步</Text>
       </Flex>
-      <Flex align="center" gap={8} wrap style={{ marginBottom: 12 }}>
-        <Button size="small" icon={<AimOutlined />} onClick={() => { setLocMsg('定位中…'); props.onLocate().then(setLocMsg, (e) => setLocMsg(String(e?.message ?? e))) }}>
-          定位
-        </Button>
-        <Text style={{ fontSize: 12 }}>{`北纬 ${props.latitude.toFixed(4)}° 东经 ${props.longitude.toFixed(4)}°`}{props.declination != null ? ` · 磁偏角 ${props.declination >= 0 ? '东' : '西'}${Math.abs(props.declination).toFixed(1)}°` : ''}</Text>
-        {locMsg && <Text type="secondary" style={{ fontSize: 12 }}>{locMsg}</Text>}
-        <span style={{ marginLeft: 8 }}><CompassOutlined /> 罗盘</span>
-        <Switch size="small" checked={compass.active} onChange={(on) => (on ? compass.start() : compass.stop())} />
-        {compass.active && trueHeading != null && <Text style={{ fontSize: 12 }}>{`设备朝向 真北 ${((trueHeading % 360) + 360) % 360 | 0}°（磁北 ${compass.heading! | 0}°）`}</Text>}
-        {compass.active && compass.tilt != null && (
-          compass.tilt > 15
-            ? <Text type="warning" style={{ fontSize: 12 }}>{`请将手机放平（倾斜 ${compass.tilt | 0}°）`}</Text>
-            : <Text type="success" style={{ fontSize: 12 }}>已水平</Text>
-        )}
-        {compass.active && compass.accuracy != null && (compass.accuracy < 0 || compass.accuracy > 15) && (
-          <Text type="warning" style={{ fontSize: 12 }}>罗盘精度低，请远离金属并将手机画「8」字校准</Text>
-        )}
-        {compass.error && <Text type="danger" style={{ fontSize: 12 }}>{compass.error}</Text>}
-      </Flex>
+      {compassBar}
       {!data ? (
         <Text type="secondary">加载历表后显示（需 VSOP87 历表）</Text>
       ) : (

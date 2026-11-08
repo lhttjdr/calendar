@@ -874,6 +874,13 @@ function App() {
           dateLabel={pageDateLabel}
           onShiftHour={(n) => shiftSelected(0, n)}
           onShiftDay={(n) => shiftSelected(n, 0)}
+          latitude={observerLatitude}
+          longitude={observerLongitude}
+          onLocate={locate}
+          declination={magneticDeclination}
+          lunar={selectedLunarSlot ? { yearGz: (((selectedLunarSlot.lunarYear - 4) % 60) + 60) % 60, month: selectedLunarSlot.lunarMonth, leap: selectedLunarSlot.isLeapMonth === 1, day: selectedLunarSlot.dayOfMonth } : null}
+          isLive={isLiveMode}
+          onSetLive={(on) => (on ? goToday() : setIsLiveMode(false))}
         /></Suspense>
       </div>
     )

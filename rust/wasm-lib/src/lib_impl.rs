@@ -830,6 +830,59 @@ pub fn qimen_json(jd_ut: f64, vsop87_ear: &str, hour_gz: u8, method: u8, ji_gong
     ))
 }
 
+/// 排盘页紫微斗数（十四主星派，《紫微斗數全書》）。输入生年干支序（农历正月初一换年）、农历月日（含闰）、时辰支序、性别；
+/// 选项：`leap` 0 闰月作下月（缺省）1 作本月 2 十五日为界；`xin` 0 辛年魁午钺寅（缺省）1 魁寅钺午；`bing_ding` 0 丙丁钺酉（缺省）1 钺戌；
+/// `si_hua` 0 全书表（缺省）1 近人表；`chang_sheng` 0 男顺女逆（缺省）1 阳男阴女顺。
+/// 返回 {"palaces":[地支子…亥之宫名],"gan":[宫干],"stars":[[星,支]…],"siHua":[[化,星]…],"ming":支,"shen":支,"ju":数,"juName":"水二局",
+/// "mingZhu":"…","shenZhu":"…","daXian":[[起岁,止岁,支]…],"changSheng":[…],"boShi":[…]}
+#[wasm_bindgen]
+pub fn ziwei_json(
+    year_gz: u8,
+    lunar_month: u8,
+    is_leap: bool,
+    lunar_day: u8,
+    hour_zhi: u8,
+    male: bool,
+    opt_leap: u8,
+    opt_xin: u8,
+    opt_bing_ding: u8,
+    opt_si_hua: u8,
+    opt_chang_sheng: u8,
+) -> String {
+    use lunar_core::folk::ziwei::{chart, BingDingYue, ChangShengDir, LeapRule, SiHuaTable, XinKuiYue, ZiweiInput, ZiweiOptions};
+    const GAN: [&str; 10] = ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"];
+    let o = ZiweiOptions {
+        leap: match opt_leap {
+            1 => LeapRule::SameMonth,
+            2 => LeapRule::SplitAt15,
+            _ => LeapRule::NextMonth,
+        },
+        xin_kui_yue: if opt_xin == 1 { XinKuiYue::KuiYinYueWu } else { XinKuiYue::KuiWuYueYin },
+        bing_ding_yue: if opt_bing_ding == 1 { BingDingYue::Xu } else { BingDingYue::You },
+        si_hua: if opt_si_hua == 1 { SiHuaTable::Modern } else { SiHuaTable::QuanShu },
+        chang_sheng: if opt_chang_sheng == 1 { ChangShengDir::YangMaleYinFemaleForward } else { ChangShengDir::MaleForward },
+    };
+    let inp = ZiweiInput { year_gz: year_gz % 60, lunar_month, is_leap_month: is_leap, lunar_day, hour_zhi: hour_zhi % 12, male };
+    let c = chart(&inp, &o);
+    let strs = |v: &[&'static str]| json_arr(v.iter().map(|x| json_str(x)));
+    format!(
+        "{{\"palaces\":{},\"gan\":{},\"stars\":{},\"siHua\":{},\"ming\":{},\"shen\":{},\"ju\":{},\"juName\":{},\"mingZhu\":{},\"shenZhu\":{},\"daXian\":{},\"changSheng\":{},\"boShi\":{}}}",
+        strs(&c.palaces),
+        json_arr(c.palace_gan.iter().map(|g| json_str(GAN[*g as usize % 10]))),
+        json_arr(c.stars.iter().map(|st| format!("[{},{}]", json_str(st.name), st.zhi))),
+        json_arr(c.si_hua.iter().map(|(h, st)| format!("[{},{}]", json_str(h), json_str(st)))),
+        c.ming,
+        c.shen,
+        c.ju,
+        json_str(c.ju_name),
+        json_str(c.ming_zhu),
+        json_str(c.shen_zhu),
+        json_arr(c.da_xian.iter().map(|(a, b, z)| format!("[{a},{b},{z}]"))),
+        strs(&c.chang_sheng),
+        strs(&c.bo_shi)
+    )
+}
+
 /// 排盘页大六壬：{"jiang":"卯","shi":"申","pan":[地盘子…亥上的天盘神],"siKe":[{"xia":"甲","shang":"子"}…],"sanChuan":[…],"fa":"知一"}。
 /// `rule`：0 按中气换将（缺省，《六壬大全》卷二）、1 按节换将（未核）。
 #[wasm_bindgen]
