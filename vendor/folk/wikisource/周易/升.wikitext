@@ -1,0 +1,30 @@
+{{
+Header2
+|previous =[[../萃|萃]]
+|next=[[../困|困]]
+}}
+周易　第四十六卦
+
+;升
+[[File:Iching-hexagram-46.svg|alt=䷭]] 巽下坤上
+
+*<span style="color:blue">'''易經：'''</span>
+**<span style="color:blue">'''升'''：元亨，用見大人，勿恤，南征吉。</span>
+*#<span style="color:blue">初六：允升，大吉。</span>
+*#<span style="color:blue">九二：孚乃利用禴，-{无}-咎。</span>
+*#<span style="color:blue">九三：升虛邑。</span>
+*#<span style="color:blue">六四：王用{{另|享|亨}}-{于}-岐山，吉-{无}-咎。</span>
+*#<span style="color:blue">六五：貞吉，升階。</span>
+*#<span style="color:blue">上六：冥升，利-{于}-不息之貞。</span>
+
+*'''彖曰：'''
+**柔以時升，巽而順，剛中而應，是以大亨。用見大人，勿恤；有慶也。南征吉，志行也。
+
+*'''象曰：'''
+**地中生木，升；君子以順德，積小以高大。
+*#允升大吉，上合志也。
+*#九二之孚，有喜也。
+*#升虛邑，-{无}-所疑也。
+*#王用亨-{于}-岐山，順事也。
+*#貞吉升階，大得志也。
+*#冥升在上，消不富也。

@@ -1,0 +1,30 @@
+{{
+Header2
+|previous =[[../賁|賁]]
+|next=[[../復|復]]
+}}
+周易　第二十三卦
+
+;剝
+[[File:Iching-hexagram-23.svg|alt=䷖]] 坤下艮上
+
+*<span style="color:blue">'''易經：'''</span>
+**<span style="color:blue">'''剝'''：不利。有攸往。</span>
+*#<span style="color:blue">初六：剝牀以足，蔑貞凶。</span>
+*#<span style="color:blue">六二：剝牀以辨，蔑貞凶。</span>
+*#<span style="color:blue">六三：剝之，-{无}-咎。</span>
+*#<span style="color:blue">六四：剝牀以膚，凶。</span>
+*#<span style="color:blue">六五：貫魚，以宮人寵，-{无}-不利。</span>
+*#<span style="color:blue">上九：碩果不食，君子{{另|德車|得輿}}，小人剝廬。</span>
+
+*'''彖曰：'''
+**剝，剝也，柔變剛也。不利有攸往，小人長也。順而止之，觀象也。君子尚消息盈虛，天行也。
+
+*'''象曰：'''
+**山附地上，剝；上以厚下，安宅。
+*#剝牀以足，以滅下也。
+*#剝牀以辨，未有與也。
+*#剝之-{无}-咎，失上下也。
+*#剝牀以膚，切近災也。
+*#以宮人寵，終-{无}-尤也。
+*#君子得輿，民所載也。小人剝廬，終不可用也。

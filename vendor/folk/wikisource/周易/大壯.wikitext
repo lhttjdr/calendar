@@ -1,0 +1,30 @@
+{{
+Header2
+|previous =[[../遯|遯]]
+|next=[[../晉|晉]]
+}}
+周易　第三十四卦
+
+;大壯
+[[File:Iching-hexagram-34.svg|alt=䷡]] 乾下震上
+
+*<span style="color:blue">'''易經：'''</span>
+**<span style="color:blue">'''大壯'''：利貞。</span>
+*#<span style="color:blue">初九：壯-{于}-趾，征凶，有孚。</span>
+*#<span style="color:blue">九二：貞吉。</span>
+*#<span style="color:blue">九三：小人用壯，君子用罔，貞厲。羝羊觸藩，羸其角。</span>
+*#<span style="color:blue">九四：貞吉悔亡，藩決不羸，壯-{于}-大{{另|轝|輿}}之{{另|腹|輹}}。</span>
+*#<span style="color:blue">六五：喪羊-{于}-易，-{无}-悔。</span>
+*#<span style="color:blue">上六：羝羊觸藩，不能退，不能遂，-{无}-攸利，艱則吉。</span>
+
+*'''彖曰：'''
+**大壯，大者壯也。剛以動，故壯。大壯利貞；大者正也。正大而天地之情可見矣！
+
+*'''象曰：'''
+**雷在天上，大壯；君子以非禮弗履。
+*#壯-{于}-趾，其孚窮也。
+*#九二貞吉，以中也。
+*#小人用壯，君子罔也。
+*#藩決不羸，尚往也。
+*#喪羊-{于}-易，位不當也。
+*#不能退，不能遂，不詳也。艱則吉，咎不長也。

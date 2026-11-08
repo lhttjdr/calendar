@@ -1,0 +1,30 @@
+{{
+Header2
+|previous =[[../臨|臨]]
+|next=[[../噬嗑|噬嗑]]
+}}
+[[周易]]　第二十卦
+
+;觀
+[[Image:Yijing20.jpg|alt=䷓]] 坤下巽上
+
+*<span style="color:blue">'''易經：'''</span>
+**<span style="color:blue">'''觀'''：盥而不薦，有孚顒若。</span>
+*#<span style="color:blue">初六：童觀，小人-{无}-咎，君子吝。</span>
+*#<span style="color:blue">六二：窺觀，利女貞。</span>
+*#<span style="color:blue">六三：觀我生，進退。</span>
+*#<span style="color:blue">六四：觀國之光，利用賓-{于}-王。</span>
+*#<span style="color:blue">九五：觀我生，君子-{无}-咎。</span>
+*#<span style="color:blue">上九：觀其生，君子-{无}-咎。</span>
+
+*'''彖曰：'''
+**大觀在上，順而巽，中正以觀天下。觀，盥而不薦，有孚顒若，下觀而化也。觀天之神道，而四時不忒，聖人以神道設教，而天下服矣。
+
+*'''象曰：'''
+**風行地上，觀；先王以省方，觀民設教。
+*#初六童觀，小人道也。
+*#窺觀女貞，亦可醜也。
+*#觀我生，進退；未失道也。
+*#觀國之光，尚賓也。
+*#觀我生，觀民也。
+*#觀其生，志未平也。

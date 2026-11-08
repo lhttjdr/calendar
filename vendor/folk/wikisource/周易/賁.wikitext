@@ -1,0 +1,31 @@
+{{
+Header2
+|previous =[[../噬嗑|噬嗑]]
+|next=[[../剝|剝]]
+}}
+
+周易　第二十二卦
+
+;賁
+[[File:Iching-hexagram-22.svg|alt=䷕]] 離下艮上
+
+*<span style="color:blue">'''易經：'''</span>
+**<span style="color:blue">'''賁'''：亨。小利有攸往。</span>
+*#<span style="color:blue">初九：賁其趾，舍車而徒。</span>
+*#<span style="color:blue">六二：賁其須。</span>
+*#<span style="color:blue">九三：賁如濡如，永貞吉。</span>
+*#<span style="color:blue">六四：賁如皤如，白馬翰如，匪寇婚媾。</span>
+*#<span style="color:blue">六五：賁於丘園，束帛戔戔，吝，終吉。</span>
+*#<span style="color:blue">上九：白賁，-{无}-咎。</span>
+
+*'''彖曰：'''
+**賁，亨；柔來而文剛，故亨。分剛上而文柔，故小利有攸往。剛柔交錯，天文也；文明以止，人文也。觀乎天文，以察時變；觀乎人文，以化成天下。
+
+*'''象曰：'''
+**山下有火，賁；君子以明庶政，-{无}-敢折獄。
+*#舍車而徒，義弗乘也。
+*#賁其須，與上興也。
+*#永貞之吉，終莫之陵也。
+*#六四，當位疑也。匪寇婚媾，終-{无}-尤也。
+*#六五之吉，有喜也。
+*#白賁-{无}-咎，上得志也。

@@ -1,0 +1,30 @@
+{{
+Header2
+|previous =[[../節|節]]
+|next=[[../小過|小過]]
+}}
+周易　第六十一卦
+
+;中孚
+[[File:Iching-hexagram-61.svg|alt=䷼]] 兌下巽上
+
+*<span style="color:blue">'''易經：'''</span>
+**<span style="color:blue">'''中孚'''：豚魚吉，利涉大川，利貞。</span>
+*#<span style="color:blue">初九：虞吉，有{{另|它|他}}不燕。</span>
+*#<span style="color:blue">九二：鳴鶴在陰，其子和之，我有好爵，吾與爾靡之。</span>
+*#<span style="color:blue">六三：得敵，或鼓或罷，或泣或歌。</span>
+*#<span style="color:blue">六四：月{{另|既|几、幾}}望，馬匹亡，-{无}-咎。</span>
+*#<span style="color:blue">九五：有孚攣如，-{无}-咎。</span>
+*#<span style="color:blue">上九：翰音登-{于}-天，貞凶。</span>
+
+*'''彖曰：'''
+**中孚，柔在內而剛得中。說而巽，孚，乃化邦也。豚魚吉，信及豚魚也。利涉大川，乘木舟虛也。中孚以利貞，乃應乎天也。
+
+*'''象曰：'''
+**澤上有風，中孚；君子以議獄緩死。
+*#初九虞吉，志未變也。
+*#其子和之，中心愿也。
+*#可鼓或罷，位不當也。
+*#馬匹亡，絕類上也。
+*#有孚攣如，位正當也。
+*#翰音登-{于}-天，何可長也。

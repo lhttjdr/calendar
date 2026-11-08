@@ -1,0 +1,30 @@
+{{
+Header2
+|previous =[[../頤|頤]]
+|next=[[../坎|坎]]
+}}
+周易　第二十八卦
+
+;大過
+[[File:Iching-hexagram-28.svg|alt=䷛]] 巽下兌上
+
+*<span style="color:blue">'''易經：'''</span>
+**<span style="color:blue">'''大過'''：棟橈，利有攸往，亨。</span>
+*#<span style="color:blue">初六：藉用白茅，-{无}-咎。</span>
+*#<span style="color:blue">九二：枯楊生稊，老夫得其女妻，-{无}-不利。</span>
+*#<span style="color:blue">九三：棟橈，凶。</span>
+*#<span style="color:blue">九四：棟隆，吉。有它吝。</span>
+*#<span style="color:blue">九五：枯楊生華，老婦得其士夫，-{无}-咎-{无}-譽。</span>
+*#<span style="color:blue">上六：過涉滅頂，凶，-{无}-咎。</span>
+
+*'''彖曰：'''
+**大過，大者過也。棟橈，本末弱也。剛過而中，巽而說行，利有攸往，乃亨。大過之時大矣哉！
+
+*'''象曰：'''
+**澤滅木，大過。君子以獨立不懼，遯世-{无}-悶。
+*#藉用白茅，柔在下也。
+*#老夫女妻，過以相與也。
+*#棟橈之凶，不可以有輔也。
+*#棟隆之吉，不橈乎下也。
+*#枯楊生華，何可久也。老婦士夫，亦可醜也。
+*#過涉之凶，不可咎也。
