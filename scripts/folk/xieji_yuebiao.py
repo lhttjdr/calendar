@@ -341,7 +341,9 @@ def yiji(m, k):
             if not src[d]:
                 del src[d]
     # 月建：與天德月德天德合月德合天赦月恩四相併，止忌土功（卷十月建條）
-    if "月建" in names and names & (DE4 | {"天赦", "月恩", "四相"}) and not (names & set(MAJOR)):
+    # 陽錯陰錯等德作建論之日，德不能解月建（卷十月厭條「從建所忌，六月己未亦不從德合所宜」）
+    if ("月建" in names and jnames & (DE4 | {"天赦", "月恩", "四相"}) and not (names & set(MAJOR))
+            and not names & {"陽錯", "陰錯", "陰陽俱錯"}):
         for d in list(src):
             if d not in TUGONG:
                 src[d] -= {"月建", "小時"}
