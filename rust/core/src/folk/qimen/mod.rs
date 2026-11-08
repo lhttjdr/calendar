@@ -11,10 +11,15 @@
 //! 节气来源（[`JieQiSource`]）：本项目定气，或当时行用历（明大统历等平气，表外与清以后用定气）。
 //! 日界：子初（23 时）换日、换局（「凡換竒皆子時換也」）；时刻取东八区民用时。
 //!
-//! 布盘（地盘、直符直使、天盘九星与干、八门、八神；转盘与飞盘并列，中五寄宫三说）见 [`pai_pan`]。
+//! 布盘（地盘、直符直使、天盘九星与干、八门、八神；转盘与飞盘并列，中五寄宫三说）见 [`pai_pan`]；
+//! 格局（演义卷二）见 [`ge_ju`]；年家奇门（三元年遁）见 [`nian_jia_pan`]。
 
 mod pan;
 pub use pan::*;
+mod geju;
+pub use geju::*;
+mod nianjia;
+pub use nianjia::*;
 
 use crate::astronomy::aspects::solar_term_jds_for_year_cached;
 use crate::astronomy::ephemeris::Vsop87;

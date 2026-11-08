@@ -5,8 +5,10 @@
 //!   「八門九星逐時移宫訣」、卷三「竒遁佈局法」「冬至陽遁時竒起例」「夏至隂遁時竒起例」「天乙直符吉凶神説」，
 //!   《太白陰經》卷九「課式」，《古今圖書集成·藝術典》卷七百八「凡例」「口訣」。《集成》卷七百九至七百十二
 //!   阴阳十八局逐时表逐项检验（见 doc/folk/qimen.md「布盘」）。缺省。
-//! - **飞盘**（飞宫）：九星、八门按洛书数序（一至九，含中五）整体平移，中五不寄。原典未得，只见《奇門寶鑑》
-//!   「释虚中合宫」「释游三避五」批评陶氏「定圖五還中宫」「溺於飛掌」；布法出处未核，八神不布。
+//! - **飞盘**（飞宫）：明陶仲文《陶真人遁甲神書》所创（原书未见），据《御定奇門寶鑑》「遁甲总论」转述：地盘阳一局
+//!   一戊二己……九乙、「五還中宫」不寄；天盘九星与干按洛书数序（一至九，含中五）整体平移，使旬首之仪落于时干之宫；
+//!   六甲时时干作戊（寶鑑以甲戌时与乙丑时同列第二图）；直符直使同加时干之宫（「以蓬休符使加于離九宮」）。
+//!   阴遁之布法与平移方向、八门平移后无门之宫与中五之门、八神：寶鑑未载，出处未核（八门照数平移、八神不布为缺省）。
 //!
 //! 中五寄宫（[`JiGong`]，只用于转盘；飞盘直符直使在五时取其门亦用之）：寄坤（缺省）、阳坤阴艮、阳巽阴震。
 
@@ -30,7 +32,7 @@ const XUN: [&str; 6] = ["甲子", "甲戌", "甲申", "甲午", "甲辰", "甲�
 pub enum PanMethod {
     /// 转盘（缺省）
     ZhuanPan,
-    /// 飞盘（飞宫），出处未核
+    /// 飞盘（飞宫）：陶氏法，据《奇門寶鑑》转述；阴遁、八门细节、八神出处未核
     FeiPan,
 }
 
@@ -165,10 +167,16 @@ pub fn pai_pan(ju: &ShiJu, hour_gz: u8, opts: PanOptions) -> QimenPan {
     let xun_yi = YI_QI[xun];
     let xun_gong = pos(xun_yi);
     let g = (hour_gz % 10) as usize;
-    // 时干为甲，遁于本旬之仪
-    let zhi_fu_gong = if g == 0 { xun_gong } else { pos(GAN[g]) };
+    let fei = opts.method == PanMethod::FeiPan;
+    // 时干为甲：转盘遁于本旬之仪；飞盘（陶氏）作戊——《奇門寶鑑》「遁甲总论」列甲戌时与乙丑时同为第二图，甲子时天地盘相同
+    let zhi_fu_gong = if g == 0 {
+        if fei { pos("戊") } else { xun_gong }
+    } else {
+        pos(GAN[g])
+    };
     let k = (hour_gz % 10) as i32;
-    let zhi_shi_gong = wrap9(xun_gong as i32 + if yang { k } else { -k });
+    // 直使：转盘自旬首宫逐时数宫（阳顺阴逆）；飞盘与直符同加时干之宫（寶鑑转述陶氏「以蓬休符使加于離九宮」）
+    let zhi_shi_gong = if fei { zhi_fu_gong } else { wrap9(xun_gong as i32 + if yang { k } else { -k }) };
     let ji = opts.ji_gong.gong(yang);
     let eff = |p: u8| if p == 5 { ji } else { p };
     let zhi_fu = XING[xun_gong as usize];
@@ -215,7 +223,8 @@ pub fn pai_pan(ju: &ShiJu, hour_gz: u8, opts: PanOptions) -> QimenPan {
                 c.xing.push(XING[s as usize]);
                 c.tian_pan.push(dp[s as usize]);
             }
-            // 八门按数平移：直使之门（旬首在五取寄宫之门）自其本宫至直使所加之宫；中五本无门，平移后所到之宫无门
+            // 八门按数平移：直使之门（旬首在五取寄宫之门）自其本宫至直使所加之宫（即时干之宫）；中五本无门，平移后所到之宫无门
+            //（寶鑑问「直使仅有八门，又将何法以分九宫」，可知陶图亦必有一宫无门，其处置原书未见，出处未核）
             let msrc = eff(xun_gong);
             let md = zhi_shi_gong as i32 - msrc as i32;
             for q in 1..=9u8 {
@@ -486,9 +495,42 @@ mod tests {
         assert_eq!(p.at(9).xing, vec!["天蓬"]);
         assert_eq!(p.at(1).xing, vec!["天芮"]);
         assert_eq!(p.at(4).xing, vec!["天禽"]);
-        assert_eq!(p.at(2).men, Some("休門"));
+        // 寶鑑「以蓬休符使加于離九宮」：直使与直符同加时干之宫
+        assert_eq!((p.zhi_fu_gong, p.zhi_shi_gong), (9, 9));
+        assert_eq!(p.at(9).men, Some("休門"));
         assert!(p.gong.iter().all(|c| c.shen.is_none()));
         // 八门八个、一宫无门
         assert_eq!(p.gong.iter().filter(|c| c.men.is_none()).count(), 1);
+    }
+
+    /// 《奇門寶鑑》「遁甲总论」转述陶氏阳一局：同甲子时者「共为一局第一图」，同乙丑时者「共为一局第二图」；
+    /// 乙丑时「以天盘甲子戊加乙于九宫，再加甲戌己于一宫……加乙奇于八宫，以蓬休符使加于离九宫」
+    #[test]
+    fn fei_pan_baojian_tu() {
+        let o = PanOptions { method: PanMethod::FeiPan, ..DEFAULT_PAN };
+        let d = di_pan(true, 1);
+        // 第一图：天盘同地盘、符使同在本宫
+        for h in ["甲子", "戊辰", "己卯", "庚寅", "辛丑", "壬子", "癸亥"] {
+            let p = pai_pan(&sj(true, 1), gz(h), o);
+            for q in 1..=9u8 {
+                assert_eq!(p.at(q).tian_pan, vec![d[q as usize]], "{h} {q}");
+            }
+        }
+        // 第二图：一己二庚三辛四壬五癸六丁七丙八乙九戊；甲戌时（甲作戊）与之同
+        let tu2 = ["", "己", "庚", "辛", "壬", "癸", "丁", "丙", "乙", "戊"];
+        for h in ["乙丑", "甲戌", "戊寅", "己丑", "庚子", "辛亥", "壬戌"] {
+            let p = pai_pan(&sj(true, 1), gz(h), o);
+            for q in 1..=9u8 {
+                assert_eq!(p.at(q).tian_pan, vec![tu2[q as usize]], "{h} {q}");
+            }
+            // 符使同加时干之宫
+            assert_eq!(p.zhi_fu_gong, p.zhi_shi_gong, "{h}");
+        }
+        // 乙丑：蓬休符使加离九
+        let p = pai_pan(&sj(true, 1), gz("乙丑"), o);
+        assert_eq!((p.zhi_fu, p.zhi_shi, p.zhi_fu_gong), ("天蓬", "休門", 9));
+        // 转盘不受影响：甲戌时仍伏吟（时干甲遁本旬之仪）
+        let z = pai_pan(&sj(true, 1), gz("甲戌"), DEFAULT_PAN);
+        assert_eq!(z.zhi_fu_gong, z.xun_gong);
     }
 }
