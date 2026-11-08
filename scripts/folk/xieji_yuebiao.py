@@ -245,6 +245,8 @@ def yiji(m, k):
     # 鋪註條例：二月甲戌四月丙申六月甲子七月戊申八月庚辰九月辛卯十月甲子十二月甲子，德合與赦願所會之辰，諸事不忌
     ZHUSHI_BUJI = {1: "甲戌", 3: "丙申", 5: "甲子", 6: "戊申", 7: "庚辰", 8: "辛卯", 9: "甲子", 11: "甲子"}
     src = {}  # 事 -> 忌之来源神集合
+    FUZANG_NEUTRAL.clear()
+    released = set()  # 按卷十各條「併則不忌」整神解除者
 
     def yi_of(n):
         return {d for d, _ in SHI60 if n in YI.get(SHI_ROW[d], set())}
@@ -270,8 +272,6 @@ def yiji(m, k):
             yi.add("取魚")
     if m >= 9 and ("危日" in names or z in "午申"):
         yi.add("伐木")
-    if "開日" in names:
-        yi -= {"破土", "安葬", "啟攢"}
 
     for d, _ in SHI60:
         for n in JI.get(SHI_ROW[d], set()) & names:
@@ -292,8 +292,10 @@ def yiji(m, k):
             jie = JIE.get(n, set())
             if jie and jnames & jie:
                 src[d].discard(n)
-                if n in ("復日", "重日"):
+                released.add(n)
+                if n in ("復日", "重日"):  # 卷十：「則不忌亦不註宜」
                     yi.discard(d)
+                    FUZANG_NEUTRAL.add(d)
             if n in ZHIJI and names & ZHIJI[n] and d not in RESIDUAL:
                 src[d].discard(n)
         if not src[d]:
@@ -333,6 +335,7 @@ def yiji(m, k):
                 del src[d]
     # 滿日：寅申月值守日、子午卯酉月值相日，與月德天德合月德合月恩四相併則不忌
     if "滿日" in names and mz in "寅申子午卯酉" and names & {"月德", "天德合", "月德合", "月恩", "四相"}:
+        released.add("滿日")
         for d in list(src):
             src[d].discard("滿日")
             if not src[d]:
@@ -384,11 +387,14 @@ def yiji(m, k):
             yi -= both
             ji_major = (ji_major - both) | (ji_major & residual)
             # 鋪註條例：吉凶相抵不註忌甲亦不註忌乙
-            freed = both - residual
+            freed = both - residual - ji_minor
             # 上冊受封、上表章同为卷十「上冊進表章」一事
             if freed & {"上冊受封", "上表章"}:
                 freed |= {"上冊受封", "上表章"}
                 ji_major -= {"上冊受封", "上表章"} - {d for d, ns in src.items() if ns - major_set}
+            # 「遇不將而不註忌嫁娶者亦仍註忌」：嫁娶只由不將放开时不连带
+            if "嫁娶" in freed and not (names - {"不將"}) & YI.get(SHI_ROW["嫁娶"], set()):
+                freed = freed - {"嫁娶"}
             for a, bs in LINK:
                 if a & freed:
                     ji_major -= bs
@@ -403,29 +409,41 @@ def yiji(m, k):
     ji = ji_major | ji_minor
     if ZHUSHI_BUJI.get(m) == gz:
         ji = set()
+    # 復日重日遇德：葬事不忌亦不註宜——只免復日重日与主凶神之忌，他神猶忌者照忌
+    ji -= {d for d in FUZANG_NEUTRAL if not (src.get(d, set()) - major_set)}
+    yi -= FUZANG_NEUTRAL
     yi -= ji
     # 鋪註條例：凡歲薄逐陣日所宜事照月厭所忌刪，所忌仍從本日
     if names & {"歲薄", "逐陣"}:
         yi -= {d for d, _ in SHI60 if "月厭" in JI.get(SHI_ROW[d], set())}
+    # 鋪註條例：凡開日不註宜破土安葬啟攢（他神相抵照算，最后不注宜）
+    if "開日" in names:
+        yi -= {"破土", "安葬", "啟攢"}
     # 鋪註條例：天狗寅日忌祭祀不註宜祈福求嗣
     if "祭祀" in ji:
         yi -= {"祈福", "求嗣"}
+    # 鋪註條例：凡月厭忌行幸上官，不註宜頒詔施恩封拜詔命公卿招賢舉正直
+    if "月厭" in names and {"出行", "上官赴任"} & ji:
+        yi.discard("襲爵受封")
     # 鋪註條例：凡忌詔命公卿招賢不註宜施恩封拜舉正直襲爵受封
-    zm = JI.get("詔命公卿招賢", set()) & names
+    zm = (JI.get("詔命公卿招賢", set()) & names) - released
     if (zm - major_set) or (zm & major_set and mode in ("從忌",)):
         yi.discard("襲爵受封")
     # 土府土符地囊止註忌補垣，亦不註宜塞穴；壬日止忌開渠，卯日止忌穿井
     disp = {}
-    if "補垣塞穴" in ji and src.get("補垣塞穴", set()) <= {"土府", "土符", "地囊"}:
+    eff = src.get("補垣塞穴", set()) if "補垣塞穴" in ji_major else src.get("補垣塞穴", set()) - major_set
+    if "補垣塞穴" in ji and eff and eff <= {"土府", "土符", "地囊"}:
         disp["補垣塞穴"] = "補垣"
-    if "開渠穿井" in ji and src.get("開渠穿井", set()) <= {"卯日", "壬日"}:
-        disp["開渠穿井"] = "穿井" if src["開渠穿井"] == {"卯日"} else ("開渠" if src["開渠穿井"] == {"壬日"} else "開渠穿井")
+    eff = src.get("開渠穿井", set()) if "開渠穿井" in ji_major else src.get("開渠穿井", set()) - major_set
+    if "開渠穿井" in ji and eff and eff <= {"卯日", "壬日"}:
+        disp["開渠穿井"] = "穿井" if eff == {"卯日"} else ("開渠" if eff == {"壬日"} else "開渠穿井")
     YIJI_DISP.clear()
     YIJI_DISP.update(disp)
     return shen, jc, yi, ji, note
 
 
 YIJI_DISP = {}
+FUZANG_NEUTRAL = set()
 
 
 # 鋪註條例「凡吉凶相抵不註忌甲亦不註忌乙」

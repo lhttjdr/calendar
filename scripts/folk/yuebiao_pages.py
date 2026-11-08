@@ -21,7 +21,7 @@ G, Z = "甲乙丙丁戊己庚辛壬癸", "子丑寅卯辰巳午未申酉戌亥"
 GZ = [G[k % 10] + Z[k % 12] for k in range(60)]
 
 
-def main(out, spec, width=640):
+def main(out, spec, width=640, cols=2):
     days = [(int(x.split("-")[0]), x.split("-")[1]) for x in spec.split(",")]
     rows = {(int(r["月"]), r["干支"]): r for r in csv.DictReader(open("data/folk/xieji_yuebiao.csv", encoding="utf-8"))}
     ims = []
@@ -33,11 +33,12 @@ def main(out, spec, width=640):
         r = rows[(m, gz)]
         print(f"{m}-{gz} {r['建除']} {r['等第']} |吉 {r['吉神']} |凶 {r['凶神']}\n  宜 {r['宜']}\n  忌 {r['忌']}")
     h = max(i.size[1] for i in ims)
-    sheet = Image.new("L", (width * 2, h * ((len(ims) + 1) // 2)), 255)
+    rows = (len(ims) + cols - 1) // cols
+    sheet = Image.new("L", (width * cols, h * rows), 255)
     for k, im in enumerate(ims):  # 右起：与古书翻页次序一致
-        sheet.paste(im, ((1 - k % 2) * width, (k // 2) * h))
+        sheet.paste(im, ((cols - 1 - k % cols) * width, (k // cols) * h))
     sheet.save(out)
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2])
+    main(sys.argv[1], sys.argv[2], *(int(x) for x in sys.argv[3:5]))
