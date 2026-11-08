@@ -49,10 +49,11 @@ jobs:
       - name: Setup Rust and wasm-pack
         uses: dtolnay/rust-toolchain@stable
       # 用预编译二进制安装；原先 curl rustwasm.github.io 的安装脚本偶发下载失败，导致整次部署失败
+      # 版本与根目录 mise.toml 一致（改一处要同步另一处）；也作下方 wasm-pack 缓存的键
       - name: Install wasm-pack
         uses: taiki-e/install-action@v2
         with:
-          tool: wasm-pack
+          tool: wasm-pack@0.14.0
 
       - name: Cache Rust target
         uses: actions/cache@v4
@@ -74,8 +75,23 @@ jobs:
             echo "vendor/IAU2000/tab5.3a.txt exists, skip fetch"
           fi
 
+      # wasm-pack 在构建中途从 GitHub Releases 下载 wasm-bindgen CLI 与 wasm-opt（Binaryen），其下载不重试；
+      # 同一代码时成时败（c8b5c09 成、797cf4d 败，其间 rust/ 与工作流无改动），疑为下载失败（未见日志，未核），
+      # 故缓存下载的工具，并整步重试
+      - name: Cache wasm-pack tools (wasm-bindgen, wasm-opt)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/.wasm-pack
+          key: ${{ runner.os }}-wasm-pack-0.14.0-${{ hashFiles('rust/Cargo.lock') }}
+
       - name: Build WASM (wasm-lib + wasm-lib-f64)
-        run: ./scripts/dev/build_wasm.sh --release
+        run: |
+          for i in 1 2 3; do
+            ./scripts/dev/build_wasm.sh --release && exit 0
+            echo "::warning::WASM 构建第 $i 次失败"
+            sleep 20
+          done
+          exit 1
 
       # 历表 + 改正：由原始文件生成 .bin（含章动 tab5.3a、VSOP87 地球改正 vsop87-{de406,de441}-earth，后者由已提交的
       # data/fit/*-planets.txt 生成；拟合本身需 DE406/DE441 BSP，在本地做），再压成 .bin.br
