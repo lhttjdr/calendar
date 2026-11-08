@@ -272,11 +272,14 @@ const XK_GRID: [number, string][][] = [[[4, '巽'], [9, '離'], [2, '坤']], [[3
 const CN_NUM = '〇一二三四五六七八九'
 
 /** 玄空飞星：运盘、山盘、向盘（洛书九宫，南上）；坐向可选，或以罗盘测（手机顶端朝向首，坐即其背） */
-function XuankongPanel(props: { wasm: LunarBackend; ganzhiYear: number; heading: number | null }) {
+function XuankongPanel(props: { wasm: LunarBackend; ganzhiYear: number; heading: number | null; rotate: number }) {
   const [zuo, setZuo] = useState(0)
   const [ti, setTi] = useState(false)
   const [useCompass, setUseCompass] = useState(false)
-  const az = useCompass && props.heading != null ? (props.heading + 180) % 360 : -1
+  /** 锁定的向首方位（量一次后定下，人走动不再变） */
+  const [locked, setLocked] = useState<number | null>(null)
+  const xiangAz = locked ?? (useCompass ? props.heading : null)
+  const az = xiangAz != null ? (xiangAz + 180) % 360 : -1
   const d = useMemo((): XkData | null => {
     if (typeof props.wasm.xuankong_json !== 'function') return null
     try { return JSON.parse(props.wasm.xuankong_json(props.ganzhiYear, zuo, ti, az)) as XkData } catch { return null }
@@ -284,7 +287,7 @@ function XuankongPanel(props: { wasm: LunarBackend; ganzhiYear: number; heading:
   const s = 116
   return (
     <Flex gap={16} wrap align="flex-start">
-      <div style={{ flex: '1 1 320px', maxWidth: 380 }}>
+      <div style={{ flex: '1 1 320px', maxWidth: 380, ...spinStyle(props.rotate) }}>
         {d && (
           <svg viewBox={`0 0 ${s * 3} ${s * 3}`} style={{ width: '100%' }} role="img" aria-label="玄空飞星宅盘">
             {XK_GRID.flatMap((row, ry) => row.map(([g, gua], rx) => (
@@ -299,7 +302,7 @@ function XuankongPanel(props: { wasm: LunarBackend; ganzhiYear: number; heading:
             )))}
           </svg>
         )}
-        <Text type="secondary" style={{ fontSize: 11 }}>每宫左上蓝字山星、右上红字向星、下为运星、角注流年紫白；南上北下</Text>
+        <Text type="secondary" style={{ fontSize: 11 }}>每宫左上蓝字山星、右上红字向星、下为运星、角注流年紫白；南上北下，开罗盘则随设备转至实地方位</Text>
       </div>
       <div style={{ flex: '1 1 280px' }}>
         <Flex vertical gap={6}>
@@ -309,12 +312,20 @@ function XuankongPanel(props: { wasm: LunarBackend; ganzhiYear: number; heading:
             </select>{' '}
             <label><input type="checkbox" checked={ti} disabled={useCompass} onChange={(e) => setTi(e.target.checked)} /> 替卦（兼向）</label>
           </span>
-          <label><input type="checkbox" checked={useCompass} onChange={(e) => setUseCompass(e.target.checked)} /> 用罗盘测向（先开上方罗盘；手机顶端朝向首）</label>
+          <label><input type="checkbox" checked={useCompass} onChange={(e) => { setUseCompass(e.target.checked); if (!e.target.checked) setLocked(null) }} /> 用罗盘测向（先开上方罗盘；站于门内、手机顶端朝门外向首，平放）</label>
+          {useCompass && (
+            <span>
+              <Button size="small" disabled={props.heading == null && locked == null} onClick={() => setLocked(locked == null ? props.heading : null)}>
+                {locked == null ? '锁定坐向' : '解除锁定'}
+              </Button>
+              {locked != null && <Text style={{ fontSize: 12 }}>{` 已锁定：向首 ${locked | 0}°`}</Text>}
+            </span>
+          )}
         </Flex>
         {d && (
           <div style={{ marginTop: 8, lineHeight: 1.8 }}>
             <div style={{ fontSize: 16 }}>{`${CN_NUM[d.yun]}运 ${d.zuo}山${d.xiang}向${d.ti ? '（替卦）' : '（下卦）'}${d.kongWang ? ` · ${d.kongWang}` : ''}`}</div>
-            {useCompass && props.heading != null && <div style={{ fontSize: 12 }}>{`实测：向首真北 ${props.heading | 0}°，坐 ${(props.heading + 180) % 360 | 0}°`}</div>}
+            {xiangAz != null && <div style={{ fontSize: 12 }}>{`${locked != null ? '锁定' : '实测'}：向首真北 ${xiangAz | 0}°，坐 ${(xiangAz + 180) % 360 | 0}°`}</div>}
             <div style={{ fontSize: 13 }}>{d.geju.map((g) => g.n).join('、') || '—'}</div>
             <div style={{ fontSize: 13 }}>{`城门：${d.chengMen.map(([g, z, k]) => `${['', '坎', '坤', '震', '巽', '中', '乾', '兌', '艮', '離'][g]}${z ? '（正）' : '（副）'}${k ? '可用' : '不可用'}`).join('；')}`}</div>
           </div>
@@ -491,7 +502,7 @@ export function PaiPanPage(props: LocationProps & {
             },
             {
               key: 'xuankong', label: '玄空飞星',
-              children: <XuankongPanel wasm={wasm!} ganzhiYear={props.ganzhiYear ?? new Date().getFullYear()} heading={trueHeading} />,
+              children: <XuankongPanel wasm={wasm!} ganzhiYear={props.ganzhiYear ?? new Date().getFullYear()} heading={trueHeading} rotate={rotate} />,
             },
             {
               key: 'ziwei', label: '紫微斗数',
