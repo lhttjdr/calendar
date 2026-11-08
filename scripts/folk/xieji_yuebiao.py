@@ -405,8 +405,11 @@ def yiji(m, k):
             both = ji_major & yi
             yi -= both
             ji_major = (ji_major - both) | (ji_major & residual)
-            # 鋪註條例：吉凶相抵不註忌甲亦不註忌乙
-            freed = both - residual - ji_minor
+            # 鋪註條例：吉凶相抵不註忌甲亦不註忌乙，「如遇德猶忌之日則仍註忌」——甲另有次要凶神之忌则不连带；
+            # 惟婚事「遇亥日厭對八專四忌四窮而仍註忌嫁娶者，止註所忌之事，其不忌者仍不註忌」（八月庚子月表）
+            HUN_ZHUANJI = {"亥日", "厭對", "八專", "四忌", "四窮"}
+            freed = {d for d in both - residual if d not in ji_minor
+                     or (d in ("結婚姻", "嫁娶") and src[d] - major_set <= HUN_ZHUANJI)}
             # 上冊受封、上表章同为卷十「上冊進表章」一事
             if freed & {"上冊受封", "上表章"}:
                 freed |= {"上冊受封", "上表章"}
