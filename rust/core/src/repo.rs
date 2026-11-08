@@ -36,6 +36,9 @@ pub mod paths {
     pub const FIT_VSOP87_DE431_EARTH_BIN: &str = "data/fit/vsop87-de431-earth.bin";
     pub const FIT_VSOP87_DE441_EARTH_BIN: &str = "data/fit/vsop87-de441-earth.bin";
 
+    /// 世界磁场模型 WMM2025 系数（NOAA/NCEI，原样），见 astronomy::geomag
+    pub const WMM2025_COF: &str = "vendor/geomag/wmm2025/WMM.COF";
+
     /// 《月相和二十四节气的计算》§7.4 节气朔望标准时刻表
     pub const SOLAR_TERMS_REFERENCE: &str = "vendor/月相和二十四节气的计算/TDBtimes.txt";
 

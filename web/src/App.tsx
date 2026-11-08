@@ -1,9 +1,12 @@
 import { useState, useEffect, useMemo, useRef, createContext, useContext } from 'react'
 import { Button, Card, Select, Radio, Checkbox, Space, Flex, Typography, Tag, Spin, Alert, Modal, Tabs, InputNumber } from 'antd'
-import { LeftOutlined, RightOutlined, CalendarOutlined, SettingOutlined, ApartmentOutlined, EyeOutlined, GlobalOutlined, StarOutlined, ReadOutlined } from '@ant-design/icons'
+import { LeftOutlined, RightOutlined, CalendarOutlined, SettingOutlined, ApartmentOutlined, EyeOutlined, GlobalOutlined, StarOutlined, ReadOutlined, CompassOutlined, AppstoreOutlined } from '@ant-design/icons'
 import { TransformGraphPage } from './TransformGraphPage'
 import { EclipseMapPage } from './EclipseMapPage'
 import { StarChartPage } from './StarChartPage'
+import { ZeRiPage } from './ZeRiPage'
+import { getCurrentPosition } from './sensors'
+import { PaiPanPage } from './PaiPanPage'
 import type { LunarBackend } from './lunar-backend-types'
 import {
   getYearDataForDisplay,
@@ -275,6 +278,16 @@ function getWeekOfYear(y: number, m: number, d: number): number {
   return Math.floor((doy - mon1) / 7) + 1
 }
 
+/** 本机记住的数值设置（无或无效时用缺省） */
+function readStoredNumber(key: string, fallback: number): number {
+  try {
+    const v = Number(localStorage.getItem(key))
+    return localStorage.getItem(key) != null && Number.isFinite(v) ? v : fallback
+  } catch {
+    return fallback
+  }
+}
+
 function App() {
   const [timeZone, setTimeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone)
   const today = useMemo(() => {
@@ -305,9 +318,9 @@ function App() {
   const [optionsPanelOpen, setOptionsPanelOpen] = useState(false)
   /** 时柱所用钟点：0=时区钟点 1=当地平太阳时 2=当地真太阳时；经度为东经度数 */
   const [hourClockMode, setHourClockMode] = useState(0)
-  const [observerLongitude, setObserverLongitude] = useState(116.4)
+  const [observerLongitude, setObserverLongitude] = useState(() => readStoredNumber('observer-longitude', 116.4))
   /** 更点：观测地纬度（北纬为正）与方法 0=清台官法 1=元授时法 */
-  const [observerLatitude, setObserverLatitude] = useState(39.92)
+  const [observerLatitude, setObserverLatitude] = useState(() => readStoredNumber('observer-latitude', 39.92))
   const [gengdianMethod, setGengdianMethod] = useState(0)
   const [displayLayersPanelOpen, setDisplayLayersPanelOpen] = useState(false)
   /** 仅小时变化时更新，用于年月日时与农历/八字；不每秒更新避免整页重算 */
@@ -317,7 +330,7 @@ function App() {
   /** 一周起始日：0=周日 1=周一 … 6=周六 */
   const [weekStart, setWeekStart] = useState(1)
   /** 当前视图：日历 | 视位置变换图 */
-  const [view, setView] = useState<'calendar' | 'graph' | 'eclipse' | 'stars'>('calendar')
+  const [view, setView] = useState<'calendar' | 'graph' | 'eclipse' | 'stars' | 'zeri' | 'paipan'>('calendar')
   /** Real 后端：twofloat=高精度，f64=体积/速度；切换后重新加载 WASM */
   const [realBackendVariant, setRealBackendVariant] = useState<RealBackendVariant>(getStoredRealBackend)
   const [ephemerisSource, setEphemerisSource] = useState<EphemerisDataSource | null>(null)
@@ -667,6 +680,48 @@ function App() {
     : ''
 
   // 民俗：四柱纳音、值日宿与七曜、年月九星（规则见 rust/core/src/folk，出处见 doc/folk/nayin-zhiri.md）
+  // 页面所示日柱、时支的序数（择日、排盘页与民俗栏共用）
+  const pillarDayGz = (() => {
+    if (!dayPillar || !/^[\u4e00-\u9fa5]{2}$/.test(dayPillar)) return null
+    const g = '甲乙丙丁戊己庚辛壬癸'.indexOf(dayPillar[0]!), z = '子丑寅卯辰巳午未申酉戌亥'.indexOf(dayPillar[1]!)
+    if (g < 0 || z < 0) return null
+    return [...Array(60).keys()].find((k) => k % 10 === g && k % 12 === z) ?? null
+  })()
+  const pillarHourZhi = hourGanzhi && hourGanzhi.length === 2 ? (() => { const z = '子丑寅卯辰巳午未申酉戌亥'.indexOf(hourGanzhi[1]!); return z < 0 ? null : z })() : null
+  const selectedJdUt = (() => {
+    const utc = utcFromLocalInZone({ year: displayY, month: displayM, day: displayD, hour: displayHour, minute: displayMinute, second: displaySecond }, timeZone)
+    return utc.getTime() / 86400000 + 2440587.5
+  })()
+  /** GPS 定位，写回观测地经纬度（时柱当地时、更点、罗盘磁偏角共用）；返回提示文字 */
+  const locate = async (): Promise<string> => {
+    const f = await getCurrentPosition()
+    const lon = Math.round(f.longitude * 1e4) / 1e4, lat = Math.round(f.latitude * 1e4) / 1e4
+    setObserverLongitude(lon)
+    setObserverLatitude(lat)
+    try { localStorage.setItem('observer-longitude', String(lon)); localStorage.setItem('observer-latitude', String(lat)) } catch {}
+    return `已定位（精度约 ${Math.round(f.accuracy)} 米${f.altitude != null ? `，海拔 ${Math.round(f.altitude)} 米` : ''}）`
+  }
+  /** 观测地磁偏角（WMM，东偏为正）；无此接口或超出模型有效期为 null */
+  const magneticDeclination = (() => {
+    if (!wasm || typeof wasm.magnetic_declination_wasm !== 'function') return null
+    const v = wasm.magnetic_declination_wasm(observerLatitude, observerLongitude, 0, displayY + (displayM - 1) / 12 + (displayD - 1) / 365.25)
+    return Number.isFinite(v) ? v : null
+  })()
+  const [locateMsg, setLocateMsg] = useState('')
+  /** 择日、排盘页的日、时调整：与日历同一份所选日期时刻 */
+  const shiftSelected = (days: number, hours: number) => {
+    let jd = displayCivilToJd(displayY, displayM, displayD) + days
+    let h = displayHour + hours
+    while (h < 0) { h += 24; jd -= 1 }
+    while (h >= 24) { h -= 24; jd += 1 }
+    const d = jdToDisplayDate(jd)
+    setYear(d.year)
+    setMonth(d.month)
+    setSelectedDate(d)
+    setSelectedTime({ hour: h, minute: displayMinute, second: displaySecond })
+    setIsLiveMode(false)
+  }
+
   const folkDay = (() => {
     if (!wasm || !dayInfoLayers.folk_jishi || typeof wasm.folk_day_wasm !== 'function') return null
     const ear = getCachedVsop87Ear()
@@ -707,18 +762,7 @@ function App() {
           phase,
         )
       })()
-      // 排盘（奇门、六壬、太乙、三元九运）：日柱、时支取页面所示四柱
-      const paipan = (() => {
-        if (typeof wasm.paipan_wasm !== 'function' || !dayPillar || !hourGanzhi) return ''
-        const G = '甲乙丙丁戊己庚辛壬癸', Z = '子丑寅卯辰巳午未申酉戌亥'
-        const g = G.indexOf(dayPillar[0]!), z = Z.indexOf(dayPillar[1]!), hz = Z.indexOf(hourGanzhi[1]!)
-        if (g < 0 || z < 0 || hz < 0) return ''
-        const dayGz = [...Array(60).keys()].find((k) => k % 10 === g && k % 12 === z)
-        if (dayGz === undefined) return ''
-        const utc = utcFromLocalInZone({ year: displayY, month: displayM, day: displayD, hour: displayHour, minute: displayMinute, second: displaySecond }, timeZone)
-        const jdUt = utc.getTime() / 86400000 + 2440587.5
-        return wasm.paipan_wasm(jdUt, ear, dayGz, hz)
-      })()
+      const paipan = typeof wasm.paipan_wasm === 'function' && pillarDayGz != null && pillarHourZhi != null ? wasm.paipan_wasm(selectedJdUt, ear, pillarDayGz, pillarHourZhi) : ''
       return { paipan, xiu: get('xiu'), qiYao: get('qi_yao'), yearStar: get('year_star'), monthStar: get('month_star'), nianShen: get('nian_shen'), riShen: get('ri_shen'), zajie, geng, jianchu, shensha }
     } catch {
       return null
@@ -758,6 +802,12 @@ function App() {
       <Button type={view === 'stars' ? 'primary' : 'link'} icon={<StarOutlined />} onClick={() => setView('stars')}>
         星图
       </Button>
+      <Button type={view === 'zeri' ? 'primary' : 'link'} icon={<CompassOutlined />} onClick={() => setView('zeri')}>
+        择日
+      </Button>
+      <Button type={view === 'paipan' ? 'primary' : 'link'} icon={<AppstoreOutlined />} onClick={() => setView('paipan')}>
+        排盘
+      </Button>
       {/* 文档站（VitePress）由 pages.yml 构建后放在应用站 docs/ 子路径；本地 dev 需另起 doc/ 的 npm run dev */}
       <Button type="link" icon={<ReadOutlined />} href={`${import.meta.env.BASE_URL}docs/`}>
         文档
@@ -779,6 +829,51 @@ function App() {
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24, overflow: 'visible' }}>
         {viewNav}
         <StarChartPage />
+      </div>
+    )
+  }
+
+  const pageDateLabel = `${displayY}年${displayM}月${displayD}日 ${String(displayHour).padStart(2, '0')}:${String(displayMinute).padStart(2, '0')}${selectedLunarSlot ? ` · 农历${selectedLunarSlot.isLeapMonth === 1 ? '閏' : ''}${selectedLunarSlot.lunarMonth}月${selectedLunarSlot.dayOfMonth}日` : ''}${dayPillar ? ` · ${dayPillar}日${hourGanzhi ? hourGanzhi + '时' : ''}` : ''}`
+  if (view === 'zeri') {
+    return (
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24, overflow: 'visible' }}>
+        {viewNav}
+        <ZeRiPage
+          wasm={wasm}
+          ear={getCachedVsop87Ear()}
+          jd={wasm ? wasm.gregorian_to_jd(displayY, displayM, displayD) + 0.5 : 0}
+          dateLabel={pageDateLabel}
+          shensha={folkDay?.shensha ?? ''}
+          jianchu={folkDay?.jianchu ?? ''}
+          onShiftDay={(n) => shiftSelected(n, 0)}
+          latitude={observerLatitude}
+          longitude={observerLongitude}
+          onLocate={locate}
+          declination={magneticDeclination}
+        />
+      </div>
+    )
+  }
+  if (view === 'paipan') {
+    return (
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24, overflow: 'visible' }}>
+        {viewNav}
+        <PaiPanPage
+          wasm={wasm}
+          ear={getCachedVsop87Ear()}
+          jdUt={selectedJdUt}
+          dayGz={pillarDayGz}
+          hourZhi={pillarHourZhi}
+          hourGz={(() => {
+            if (!hourGanzhi || hourGanzhi.length !== 2) return null
+            const g = '甲乙丙丁戊己庚辛壬癸'.indexOf(hourGanzhi[0]!), z = '子丑寅卯辰巳午未申酉戌亥'.indexOf(hourGanzhi[1]!)
+            return g < 0 || z < 0 ? null : ([...Array(60).keys()].find((k) => k % 10 === g && k % 12 === z) ?? null)
+          })()}
+          dateLabel={pageDateLabel}
+          summary={folkDay?.paipan ?? ''}
+          onShiftHour={(n) => shiftSelected(0, n)}
+          onShiftDay={(n) => shiftSelected(n, 0)}
+        />
       </div>
     )
   }
@@ -984,12 +1079,6 @@ function App() {
                       {`${folkDay.xiu}宿 · ${folkDay.qiYao}曜 · 年${folkDay.yearStar} · 月${folkDay.monthStar}`}
                     </div>
                   )}
-                  {folkDay?.nianShen && (
-                    <div style={{ fontSize: 11, lineHeight: 1.5, color: 'rgba(0,0,0,0.65)' }}>
-                      {`年神方位（《协纪辨方书》卷三）：${folkDay.nianShen}`}
-                      {folkDay.riShen ? <div>{folkDay.riShen}</div> : null}
-                    </div>
-                  )}
                   {folkDay?.jianchu && (
                     <div style={{ fontSize: 12, lineHeight: 1.5 }}>
                       {folkDay.jianchu}
@@ -999,15 +1088,11 @@ function App() {
                     </div>
                   )}
                   {folkDay?.shensha && (
-                    <div style={{ fontSize: 11, lineHeight: 1.5, color: 'rgba(0,0,0,0.65)', whiteSpace: 'pre-line' }}>
-                      {folkDay.shensha}
-                      <div style={{ color: 'rgba(0,0,0,0.45)' }}>据《协纪辨方书》月表加卷十铺注（反支、上朔、四離四絕、晦日、二至二分、土王用事、伏社、朔弦望、月忌、人神、長短星、氣往亡、無祿），并依时宪书体例计嫁娶周堂、交节日；「時憲書宜」为民用三十七事；「時憲書朱字」为底栏朱字应值之神（含钦天监沿用的通书之神荒蕪、枯焦、四不祥、天獄）</div>
-                    </div>
-                  )}
-                  {folkDay?.paipan && (
-                    <div style={{ fontSize: 11, lineHeight: 1.5, color: 'rgba(0,0,0,0.65)', whiteSpace: 'pre-line' }}>
-                      {folkDay.paipan}
-                      <div style={{ color: 'rgba(0,0,0,0.45)' }}>奇门据《遁甲演義》（置閏法），六壬据《六壬大全》，太乙据《太乙金鏡式經》；各家异说见知识库</div>
+                    <div style={{ fontSize: 11, lineHeight: 1.5, color: 'rgba(0,0,0,0.65)' }}>
+                      {folkDay.shensha.split('\n').filter((l) => l.startsWith('時憲書宜') || l.startsWith('忌：')).map((l) => <div key={l}>{l.replace(/^時憲書宜/, '宜')}</div>)}
+                      <Button type="link" size="small" style={{ padding: 0, height: 'auto', fontSize: 11 }} onClick={() => setView('zeri')}>
+                        神煞、年神方位详见「择日」 · 奇门六壬太乙见「排盘」
+                      </Button>
                     </div>
                   )}
                   {folkDay?.zajie && (
@@ -1346,9 +1431,11 @@ function App() {
                       <div style={{ marginTop: 6, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                         <InputNumber size="small" min={-180} max={180} step={0.1} value={observerLongitude}
                           onChange={(v) => v != null && setObserverLongitude(v)} addonBefore="东经" addonAfter="°" />
-                        <InputNumber size="small" min={-66} max={66} step={0.1} value={observerLatitude}
+                        <InputNumber size="small" min={-90} max={90} step={0.1} value={observerLatitude}
                           onChange={(v) => v != null && setObserverLatitude(v)} addonBefore="北纬" addonAfter="°" />
+                        <Button size="small" onClick={() => { setLocateMsg('定位中…'); locate().then(setLocateMsg, (e) => setLocateMsg(String(e?.message ?? e))) }}>GPS 定位</Button>
                       </div>
+                      {locateMsg && <Text type="secondary" style={{ fontSize: 11 }}>{locateMsg}</Text>}
                     </div>
                     <div style={{ marginTop: 12 }}>
                       <Text type="secondary" style={{ fontSize: 11 }}>更点</Text>

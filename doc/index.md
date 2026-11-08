@@ -29,6 +29,7 @@
 | [celestial-phenomena.md](astronomy/celestial-phenomena.md) | 天象模块：日月食、行星会合与视星等、近距与月掩星、伏见可见性、恒星与二十八宿（含入宿度、去极度、古代黄道度与现代坐标的关系）；设计、实施进展与校验结论 |
 | [sky-view-3d.md](astronomy/sky-view-3d.md) | 3D 星空：站心、折射、气象、海平线俯角、视半径、天色、月亮眩光、月相、日食、残余光、日冕、银河、地形、历史地理调研、播放与限制 |
 | [phenomena-checks.md](astronomy/phenomena-checks.md) | 天象模块逐条校验结果（脚本生成）：NASA 日月食典、史书日月食与凌犯、Skyfield 对照、原文表格复现等 |
+| [geomag.md](astronomy/geomag.md) | 地磁：世界磁场模型 WMM2025（NOAA/BGS）磁偏角、磁倾角、总强度；官方 100 点与 12 点测试值逐条检验；网页罗盘磁北→真北改正 |
 
 ## 二、农历编算（`calendar/`）
 
@@ -58,6 +59,7 @@
 | [data-paths-summary.md](engineering/data-paths-summary.md) | 历表与数据路径总结（VSOP87/ELPMPP02/DE406 路径、标架、时间尺度） |
 | [pipeline-graph-taxonomy.md](engineering/pipeline-graph-taxonomy.md) | 管线图：节点与边的分类与抽象（OriginRole、TransitionKind/Form） |
 | [ci.md](engineering/ci.md) | 持续集成：Pages 部署与覆盖率工作流的 LFS 数据、DE406 缓存、工具版本、本地模拟 CI |
+| [web-folk-pages.md](engineering/web-folk-pages.md) | 网页择日页（年神二十四山罗盘图、神煞宜忌）与排盘页（奇门九宫、六壬天地盘、太乙盘）；GPS 定位、罗盘（磁北经 WMM 磁偏角改真北、平放检测） |
 | [site-writing-guide.md](engineering/site-writing-guide.md) | 读者站写作规范：原理推导、源流、各家并列、原典核对与存放、生成页处理、多会话协作 |
 
 ## 四、案例分析（`case-studies/`）

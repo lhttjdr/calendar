@@ -124,6 +124,16 @@ export interface LunarBackend {
   /** 干支名的纳音名目 */
   nayin_of_ganzhi_name?(name: string): string
   /** 月家日神煞 */
+  /** WMM 磁偏角（度，东偏为正；有效期外 NaN） */
+  magnetic_declination_wasm?(lat_deg: number, lon_deg: number, alt_km: number, decimal_year: number): number
+  /** 择日页年神二十四山（JSON） */
+  nian_shen_json?(jd: number, vsop87_ear: string): string
+  /** 排盘页奇门（JSON） */
+  qimen_json?(jd_ut: number, vsop87_ear: string, hour_gz: number, method: number, ji_gong: number, shen_ming: number, ding_ju: number, source: number): string
+  /** 排盘页大六壬（JSON） */
+  liuren_json?(jd_ut: number, vsop87_ear: string, day_gz: number, hour_zhi: number, rule: number): string
+  /** 排盘页太乙（JSON） */
+  taiyi_json?(jd_ut: number, vsop87_ear: string, day_gz: number, hour_zhi: number, kind: number, school: number, dun: number): string
   /** 排盘摘要：奇门时家局、六壬起课、太乙时计、三元九运 */
   paipan_wasm?(jd_ut: number, vsop87_ear: string, day_gz: number, hour_zhi: number): string
   /** 灌入 Worker 解出的节气（每年 24 项），返回灌入年数 */

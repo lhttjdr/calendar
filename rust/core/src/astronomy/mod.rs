@@ -34,6 +34,7 @@ pub mod correction;
 pub mod ephemeris;
 pub mod frame;
 pub mod geodesy;
+pub mod geomag;
 pub mod phenomena;
 pub mod pipeline;
 pub mod sky_culture;
