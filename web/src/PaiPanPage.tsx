@@ -8,13 +8,14 @@ import { LeftOutlined, RightOutlined } from '@ant-design/icons'
 import { useMemo, useState } from 'react'
 import type { LunarBackend } from './lunar-backend-types'
 import { useCompassBar, type LocationProps } from './CompassBar'
+import { LiurenWheel, QimenWheel, TaiyiWheel } from './Wheels'
 
 const { Text } = Typography
 
 const ZHI = '子丑寅卯辰巳午未申酉戌亥'
 
 /** 罗盘模式：方位盘（九宫、天地盘、十六神盘）整盘旋转至实地方位；紫微命盘不对应实地方位，不转 */
-const spinStyle = (deg: number) => (deg === 0 ? {} : { transform: `rotate(${deg}deg)`, transition: 'transform 120ms linear', margin: '10% 0' })
+const spinStyle = (deg: number) => (deg === 0 ? {} : { transform: `rotate(${deg}deg)`, transition: 'transform 120ms linear' })
 
 type LiurenData = { jiang: string; shi: string; pan: string[]; siKe: { xia: string; shang: string }[]; sanChuan: string[]; fa: string }
 type TaiyiData = {
@@ -27,32 +28,7 @@ type QimenData = {
   ju: string; xunShou: string; xunYi: string; zhiFu: string; zhiShi: string; zhiFuGong: number; zhiShiGong: number
   gong: { di: string[]; tian: string[]; xing: string[]; men: string | null; shen: string | null }[]
 }
-/** 洛书九宫，南上：巽四 离九 坤二 / 震三 中五 兑七 / 艮八 坎一 乾六 */
-const LUOSHU: [number, string][][] = [[[4, '巽'], [9, '離'], [2, '坤']], [[3, '震'], [5, '中'], [7, '兌']], [[8, '艮'], [1, '坎'], [6, '乾']]]
 
-function QimenBoard({ d }: { d: QimenData }) {
-  const s = 120
-  return (
-    <svg viewBox={`0 0 ${s * 3} ${s * 3}`} style={{ width: '100%', maxWidth: 420 }} role="img" aria-label="奇门遁甲九宫盘">
-      {LUOSHU.flatMap((row, ry) => row.map(([g, gua], rx) => {
-        const c = d.gong[g - 1]!
-        const x = rx * s, y = ry * s
-        const hot = g === d.zhiFuGong || g === d.zhiShiGong
-        return (
-          <g key={g}>
-            <rect x={x + 1} y={y + 1} width={s - 2} height={s - 2} fill={hot ? '#fff7e6' : '#fffdf7'} stroke="#999" />
-            <text x={x + 6} y={y + 16} fontSize={12} fill="#888">{`${gua}${g}`}</text>
-            {c.shen && <text x={x + s / 2} y={y + 18} fontSize={14} textAnchor="middle" fill="#531dab">{c.shen}</text>}
-            <text x={x + s - 8} y={y + 18} fontSize={18} textAnchor="end" fill="#a8071a">{c.tian.join('')}</text>
-            <text x={x + s / 2} y={y + s / 2 + 6} fontSize={17} textAnchor="middle" fontWeight={c.xing.includes(d.zhiFu) ? 700 : 400}>{c.xing.join(' ')}</text>
-            {c.men && <text x={x + 8} y={y + s - 10} fontSize={16} fill="#0958d9" fontWeight={c.men === d.zhiShi ? 700 : 400}>{c.men}</text>}
-            <text x={x + s - 8} y={y + s - 10} fontSize={18} textAnchor="end">{c.di.join('')}</text>
-          </g>
-        )
-      }))}
-    </svg>
-  )
-}
 
 function QimenPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; hourGz: number; rotate: number }) {
   const [method, setMethod] = useState(0)
@@ -66,7 +42,7 @@ function QimenPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; hour
   }, [props.wasm, props.ear, props.jdUt, props.hourGz, method, jiGong, shenMing, dingJu, source])
   return (
     <Flex gap={16} wrap align="flex-start">
-      <div style={{ flex: '1 1 320px', maxWidth: 440, ...spinStyle(props.rotate) }}>{d ? <QimenBoard d={d} /> : <Text type="secondary">无法布盘</Text>}</div>
+      <div style={{ flex: '1 1 320px', maxWidth: 440, ...spinStyle(props.rotate) }}>{d ? <QimenWheel d={d} /> : <Text type="secondary">无法布盘</Text>}</div>
       <div style={{ flex: '1 1 280px' }}>
         {d && (
           <div style={{ marginBottom: 10, lineHeight: 1.8 }}>
@@ -87,7 +63,7 @@ function QimenPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; hour
             options={[{ label: '节气从行用历', value: 0 }, { label: '定气', value: 1 }]} />
         </Flex>
         <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 8 }}>
-          每宫：上中八神、右上天盘干（红）、中九星、左下八门（蓝）、右下地盘干；直符、直使所加之宫底色标出。定局据《遁甲演義》卷一、卷三；转盘布法据演义、《太白陰經》卷九、《古今圖書集成》卷七百八；寄宫三说以集成十八局表衡量，寄坤最合。飞盘原典未见，出处未核。
+          八宫按八卦方位，南上北下；每宫由内向外为地盘干、八门（蓝）、九星、天盘干（红）、八神；直符、直使所加之宫底色标出。定局据《遁甲演義》卷一、卷三；转盘布法据演义、《太白陰經》卷九、《古今圖書集成》卷七百八；寄宫三说以集成十八局表衡量，寄坤最合。飞盘原典未见，出处未核。
         </Text>
       </div>
     </Flex>
@@ -193,26 +169,6 @@ const LIUREN_CELLS: [string, number, number][] = [
   ['寅', 0, 3], ['丑', 1, 3], ['子', 2, 3], ['亥', 3, 3],
 ]
 
-function LiurenBoard({ d }: { d: LiurenData }) {
-  const s = 84
-  return (
-    <svg viewBox={`0 0 ${s * 4} ${s * 4}`} style={{ width: '100%', maxWidth: 360 }} role="img" aria-label="大六壬天地盘">
-      {LIUREN_CELLS.map(([z, cx, cy]) => {
-        const tian = d.pan[ZHI.indexOf(z)]!
-        const hot = d.sanChuan.includes(tian)
-        return (
-          <g key={z}>
-            <rect x={cx * s + 1} y={cy * s + 1} width={s - 2} height={s - 2} fill={z === d.shi ? '#fff7e6' : '#fffdf7'} stroke="#999" />
-            <text x={cx * s + s / 2} y={cy * s + s * 0.45} fontSize={s * 0.36} textAnchor="middle" dominantBaseline="central" fill={hot ? '#a8071a' : '#000'} fontWeight={hot ? 700 : 500}>{tian}</text>
-            <text x={cx * s + s / 2} y={cy * s + s * 0.82} fontSize={s * 0.18} textAnchor="middle" fill="#888">{z}</text>
-          </g>
-        )
-      })}
-      <text x={s * 2} y={s * 1.75} fontSize={s * 0.2} textAnchor="middle">{`${d.jiang}將加${d.shi}時`}</text>
-      <text x={s * 2} y={s * 2.15} fontSize={s * 0.17} textAnchor="middle" fill="#888">大字天盘 · 小字地盘</text>
-    </svg>
-  )
-}
 
 function LiurenPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; dayGz: number; hourZhi: number; rotate: number }) {
   const [rule, setRule] = useState(0)
@@ -223,7 +179,7 @@ function LiurenPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; day
   if (!d) return <Text type="secondary">无法起课</Text>
   return (
     <Flex gap={16} wrap align="flex-start">
-      <div style={{ flex: '1 1 300px', maxWidth: 380, ...spinStyle(props.rotate) }}><LiurenBoard d={d} /></div>
+      <div style={{ flex: '1 1 300px', maxWidth: 380, ...spinStyle(props.rotate) }}><LiurenWheel pan={d.pan} shi={d.shi} sanChuan={d.sanChuan} label={`${d.jiang}將加${d.shi}時`} /></div>
       <div style={{ flex: '1 1 260px' }}>
         <div style={{ marginBottom: 8 }}>
           <Text type="secondary" style={{ fontSize: 12 }}>换将</Text>{' '}
@@ -252,51 +208,7 @@ function LiurenPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; day
   )
 }
 
-/** 5×5：外圈十六神位（南上），内圈洛书九宫 */
-const POS16_CELLS: [string, number, number][] = [
-  ['巽', 0, 0], ['巳', 1, 0], ['午', 2, 0], ['未', 3, 0], ['坤', 4, 0],
-  ['申', 4, 1], ['酉', 4, 2], ['戌', 4, 3],
-  ['乾', 4, 4], ['亥', 3, 4], ['子', 2, 4], ['丑', 1, 4], ['艮', 0, 4],
-  ['寅', 0, 3], ['卯', 0, 2], ['辰', 0, 1],
-]
-const GONG9: [number, number, number][] = [[4, 1, 1], [9, 2, 1], [2, 3, 1], [3, 1, 2], [5, 2, 2], [7, 3, 2], [8, 1, 3], [1, 2, 3], [6, 3, 3]]
 
-function TaiyiBoard({ d }: { d: TaiyiData }) {
-  const s = 66
-  const marks = (g: number) => {
-    const m: string[] = []
-    if (d.gong === g) m.push('太乙')
-    if (d.zhuDa === g) m.push('主大')
-    if (d.zhuCan === g) m.push('主參')
-    if (d.keDa === g) m.push('客大')
-    if (d.keCan === g) m.push('客參')
-    return m
-  }
-  return (
-    <svg viewBox={`0 0 ${s * 5} ${s * 5}`} style={{ width: '100%', maxWidth: 380 }} role="img" aria-label="太乙盘">
-      {POS16_CELLS.map(([p, cx, cy]) => {
-        const m: string[] = []
-        if (d.tianMuPos === p) m.push('文昌')
-        if (d.jiShen === p) m.push('計神')
-        if (d.shiJiPos === p) m.push('始擊')
-        return (
-          <g key={p}>
-            <rect x={cx * s + 1} y={cy * s + 1} width={s - 2} height={s - 2} fill="#fffdf7" stroke="#bbb" />
-            <text x={cx * s + s / 2} y={cy * s + 16} fontSize={13} textAnchor="middle" fill="#888">{p}</text>
-            {m.map((t, i) => <text key={t} x={cx * s + s / 2} y={cy * s + 34 + i * 14} fontSize={12} textAnchor="middle" fill="#a8071a">{t}</text>)}
-          </g>
-        )
-      })}
-      {GONG9.map(([g, cx, cy]) => (
-        <g key={g}>
-          <rect x={cx * s + 1} y={cy * s + 1} width={s - 2} height={s - 2} fill={d.gong === g ? '#fff1b8' : '#fff'} stroke="#999" />
-          <text x={cx * s + 8} y={cy * s + 16} fontSize={12} fill="#888">{g}</text>
-          {marks(g).map((t, i) => <text key={t} x={cx * s + s / 2} y={cy * s + 28 + i * 13} fontSize={12} textAnchor="middle" fill={t === '太乙' ? '#ad4e00' : '#333'} fontWeight={t === '太乙' ? 700 : 400}>{t}</text>)}
-        </g>
-      ))}
-    </svg>
-  )
-}
 
 function TaiyiPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; dayGz: number; hourZhi: number; rotate: number }) {
   const [kind, setKind] = useState(3)
@@ -308,7 +220,7 @@ function TaiyiPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; dayG
   }, [props.wasm, props.ear, props.jdUt, props.dayGz, props.hourZhi, kind, school, dun])
   return (
     <Flex gap={16} wrap align="flex-start">
-      <div style={{ flex: '1 1 300px', maxWidth: 400, ...spinStyle(props.rotate) }}>{d ? <TaiyiBoard d={d} /> : <Text type="secondary">无法起局</Text>}</div>
+      <div style={{ flex: '1 1 300px', maxWidth: 400, ...spinStyle(props.rotate) }}>{d ? <TaiyiWheel d={d} /> : <Text type="secondary">无法起局</Text>}</div>
       <div style={{ flex: '1 1 260px' }}>
         <Flex vertical gap={6}>
           <Radio.Group size="small" value={kind} onChange={(e) => setKind(e.target.value)} optionType="button"
@@ -330,7 +242,7 @@ function TaiyiPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; dayG
           </div>
         )}
         <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 8 }}>
-          据《太乙金鏡式經》卷一、《古今圖書集成·藝術典》卷六八八、《太乙秘書》、淘金歌；时计冬至后阳遁、夏至后阴遁。外圈十六神位，内圈洛书九宫（不入中五）。
+          据《太乙金鏡式經》卷一、《古今圖書集成·藝術典》卷六八八、《太乙秘書》、淘金歌；时计冬至后阳遁、夏至后阴遁。外圈十六神位，内圈八宫（不入中五）。
         </Text>
       </div>
     </Flex>
