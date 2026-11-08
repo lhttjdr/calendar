@@ -659,6 +659,16 @@ pub fn nayin_of_ganzhi_name(name: &str) -> String {
         .unwrap_or_default()
 }
 
+/// 年神方位文字：岁德、岁德合一句，其后按二十四山列有神之位
+fn nian_shen_text(year_gz: u8) -> String {
+    use lunar_core::folk::nianshen::{by_position, nian_shen};
+    let all = nian_shen(year_gz);
+    let p = |n: &str| all.iter().find(|s| s.name == n).map(|s| s.positions.join("")).unwrap_or_default();
+    let mut parts = vec![format!("歲德在{}合在{}", p("歲德"), p("歲德合"))];
+    parts.extend(by_position(year_gz).into_iter().filter(|(_, v)| !v.is_empty()).map(|(q, v)| format!("{q}：{}", v.join(" "))));
+    parts.join("；")
+}
+
 /// 某民用日（JD 取该日任一时刻）的值日宿与七曜，以及该时刻的年、月紫白九星。
 /// 九星按立春换年、按节换月（《協紀辨方書》卷八、卷三十四），不随四柱预设变化。
 #[wasm_bindgen]
@@ -678,6 +688,7 @@ pub fn folk_day_wasm(jd: f64, vsop87_ear: &str) -> Result<FolkDayResult, JsValue
         qi_yao: zhiri::QI_YAO[zhiri::xiu_qi_yao(xiu) as usize].to_string(),
         year_star: jiuxing::JIU_XING[jiuxing::year_star(ganzhi_year) as usize - 1].to_string(),
         month_star: jiuxing::JIU_XING[jiuxing::month_star(yi % 12, month_ord) as usize - 1].to_string(),
+        nian_shen: nian_shen_text(yi),
     })
 }
 
@@ -862,6 +873,8 @@ pub struct FolkDayResult {
     qi_yao: String,
     year_star: String,
     month_star: String,
+    /// 年神方位（协纪卷三；年以立春分）：「歲德在某合在某；酉：太歲 歲刑 大煞；……」，按二十四山自子起，空位不列
+    nian_shen: String,
 }
 
 #[wasm_bindgen]
@@ -877,6 +890,10 @@ impl FolkDayResult {
     #[wasm_bindgen(getter_with_clone)]
     pub fn year_star(&self) -> String {
         self.year_star.clone()
+    }
+    #[wasm_bindgen(getter_with_clone)]
+    pub fn nian_shen(&self) -> String {
+        self.nian_shen.clone()
     }
     #[wasm_bindgen(getter_with_clone)]
     pub fn month_star(&self) -> String {

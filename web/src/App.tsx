@@ -674,7 +674,7 @@ function App() {
     try {
       const jd = wasm.gregorian_to_jd(displayY, displayM, displayD) + (displayHour + displayMinute / 60) / 24
       const r = wasm.folk_day_wasm(jd, ear)
-      const get = (k: 'xiu' | 'qi_yao' | 'year_star' | 'month_star'): string => {
+      const get = (k: 'xiu' | 'qi_yao' | 'year_star' | 'month_star' | 'nian_shen'): string => {
         const v = (r as unknown as Record<string, unknown>)[k]
         return typeof v === 'function' ? String((v as (this: unknown) => string).call(r)) : String(v ?? '')
       }
@@ -707,7 +707,7 @@ function App() {
           phase,
         )
       })()
-      return { xiu: get('xiu'), qiYao: get('qi_yao'), yearStar: get('year_star'), monthStar: get('month_star'), zajie, geng, jianchu, shensha }
+      return { xiu: get('xiu'), qiYao: get('qi_yao'), yearStar: get('year_star'), monthStar: get('month_star'), nianShen: get('nian_shen'), zajie, geng, jianchu, shensha }
     } catch {
       return null
     }
@@ -970,6 +970,11 @@ function App() {
                   {folkDay && (
                     <div style={{ fontSize: 12, lineHeight: 1.5 }}>
                       {`${folkDay.xiu}宿 · ${folkDay.qiYao}曜 · 年${folkDay.yearStar} · 月${folkDay.monthStar}`}
+                    </div>
+                  )}
+                  {folkDay?.nianShen && (
+                    <div style={{ fontSize: 11, lineHeight: 1.5, color: 'rgba(0,0,0,0.65)' }}>
+                      {`年神方位（《协纪辨方书》卷三）：${folkDay.nianShen}`}
                     </div>
                   )}
                   {folkDay?.jianchu && (

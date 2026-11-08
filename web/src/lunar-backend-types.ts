@@ -136,7 +136,7 @@ export interface LunarBackend {
   /** 杂节气标签（「；」分隔） */
   zajie_for_day_wasm?(jd: number, vsop87_ear: string): string
   /** 值日宿、七曜、年月九星 */
-  folk_day_wasm?(jd: number, vsop87_ear: string): { xiu: string; qi_yao: string; year_star: string; month_star: string }
+  folk_day_wasm?(jd: number, vsop87_ear: string): { xiu: string; qi_yao: string; year_star: string; month_star: string; nian_shen?: string }
   /** 与定气同名的平气 JD(TT)，按行用历；表外 NaN */
   pingqi_tt_wasm?(dingqi_tt: number, qi_from_winter_solstice: number): number
   /** 公元某年行用的平气历名；表外空串 */

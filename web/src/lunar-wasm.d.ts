@@ -46,7 +46,7 @@ declare module 'lunar-wasm' {
   export function huanghei_hour_wasm(day_name: string, hour_name: string): string
   export function gengdian_wasm(jd: number, latitude_deg: number, longitude_deg: number, method: number, vsop87_ear: string): string
   export function zajie_for_day_wasm(jd: number, vsop87_ear: string): string
-  export function folk_day_wasm(jd: number, vsop87_ear: string): { xiu: string; qi_yao: string; year_star: string; month_star: string }
+  export function folk_day_wasm(jd: number, vsop87_ear: string): { xiu: string; qi_yao: string; year_star: string; month_star: string; nian_shen?: string }
   export function pingqi_tt_wasm(dingqi_tt: number, qi_from_winter_solstice: number): number
   export function pingqi_li_name_wasm(year: number): string
   export function local_solar_hours_wasm(jd_ut: number, longitude_deg: number, mode: number, vsop87_ear: string): number
