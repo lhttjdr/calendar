@@ -49,6 +49,9 @@ export type YearData = {
   lunarYear: number
   newMoonJds: Float64Array
   zhongQiJds: Float64Array
+  /** 岁内朔、上弦、望、下弦 JD(TT)，与 phaseKinds（0 朔 1 上弦 2 望 3 下弦）一一对应；铺注「朔弦望」用 */
+  phaseJds?: Float64Array
+  phaseKinds?: Uint8Array
 }
 
 import type { LunarBackend } from './lunar-backend-types'
@@ -281,6 +284,8 @@ async function getYearDataMainThreadImpl(
         lunarYear: result.lunar_year,
         newMoonJds: new Float64Array(result.new_moon_jds),
         zhongQiJds: new Float64Array(result.zhong_qi_jds),
+        phaseJds: result.phase_jds ? new Float64Array(result.phase_jds) : undefined,
+        phaseKinds: result.phase_kinds ? new Uint8Array(result.phase_kinds) : undefined,
       }
       yearDataCache.set(lunarYear, yearData)
       if (import.meta.env.DEV) console.log('[历表] 使用全二进制')
@@ -314,6 +319,8 @@ async function getYearDataMainThreadImpl(
       lunarYear: result.lunar_year,
       newMoonJds: new Float64Array(result.new_moon_jds),
       zhongQiJds: new Float64Array(result.zhong_qi_jds),
+      phaseJds: result.phase_jds ? new Float64Array(result.phase_jds) : undefined,
+      phaseKinds: result.phase_kinds ? new Uint8Array(result.phase_kinds) : undefined,
     }
     yearDataCache.set(lunarYear, yearData)
     onSourceUsed?.('vsop_binary_elp_text')
@@ -337,6 +344,8 @@ async function getYearDataMainThreadImpl(
     lunarYear: result.lunar_year,
     newMoonJds: new Float64Array(result.new_moon_jds),
     zhongQiJds: new Float64Array(result.zhong_qi_jds),
+    phaseJds: result.phase_jds ? new Float64Array(result.phase_jds) : undefined,
+    phaseKinds: result.phase_kinds ? new Uint8Array(result.phase_kinds) : undefined,
   }
   yearDataCache.set(lunarYear, yearData)
   onSourceUsed?.('full_text')

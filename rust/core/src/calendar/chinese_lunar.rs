@@ -19,7 +19,8 @@ pub struct ChineseLunarDate {
     pub days_in_month: u8,
 }
 
-/// 一岁内的气朔数据（冬至到下一冬至）：14 朔、12 中气。JD 用 Real。
+/// 一岁内的气朔数据（冬至到下一冬至）：14 朔（闰岁实历 15 朔）、13 中气（冬至起至下一冬至，末一个即下一冬至）。JD 用 Real。
+/// 末一中气用来分辨岁末无中气之月：含下一冬至者为十一月，不是闰月。
 #[derive(Clone, Debug)]
 pub struct ChineseLunarYearData {
     pub lunar_year: i32,
@@ -107,6 +108,7 @@ pub fn new_moon_day_numbers_utc8(year_data: &ChineseLunarYearData) -> Vec<i64> {
 
 /// 中气下标 0..11 -> 农历月 11,12,1..10
 fn zhong_qi_to_month(k: usize) -> u8 {
+    let k = k % 12;
     if k <= 1 {
         (k + 11) as u8
     } else {
@@ -117,14 +119,12 @@ fn zhong_qi_to_month(k: usize) -> u8 {
 fn build_month_has_zhong_qi(year_data: &ChineseLunarYearData) -> Vec<i32> {
     let zq = &year_data.zhong_qi_jds;
     let nm = &year_data.new_moon_jds;
-    let mut arr = vec![-1_i32; 13];
-    for mi in 0..13 {
-        if mi + 1 >= nm.len() {
-            break;
-        }
+    let months = nm.len().saturating_sub(1);
+    let mut arr = vec![-1_i32; months.max(13)];
+    for mi in 0..months {
         let month_start = &nm[mi];
         let month_end = &nm[mi + 1];
-        for k in 0..12 {
+        for k in 0..zq.len() {
             let jd_z = &zq[k];
             if jd_z >= month_start && jd_z < month_end {
                 arr[mi] = k as i32;
@@ -375,9 +375,11 @@ pub fn compute_year_data(
         terms_curr[ZHONG_QI_TERM_INDICES[9]],
         terms_curr[ZHONG_QI_TERM_INDICES[10]],
         terms_curr[ZHONG_QI_TERM_INDICES[11]],
+        // 下一冬至：岁末含之者为十一月
+        terms_curr[ZHONG_QI_TERM_INDICES[0]],
     ]
     .to_vec();
-    debug_assert_eq!(zhong_qi_jds.len(), 12, "zhong_qi always 12 terms");
+    debug_assert_eq!(zhong_qi_jds.len(), 13, "冬至起至下一冬至共 13 中气");
     Ok(ChineseLunarYearData::new(
         lunar_year,
         new_moon_jds,

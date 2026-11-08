@@ -78,7 +78,7 @@ export interface LunarBackend {
     elp_pert_s2: string,
     elp_pert_s3: string,
     nutation_tab53a_bin: Uint8Array
-  ): { lunar_year: number; new_moon_jds: Float64Array; zhong_qi_jds: Float64Array }
+  ): { lunar_year: number; new_moon_jds: Float64Array; zhong_qi_jds: Float64Array; phase_jds?: Float64Array; phase_kinds?: Uint8Array }
   /** 岁数据：VSOP87 用二进制（零解析），ELP 仍为文本。可选，优先使用以省带宽与 CPU。 */
   compute_year_data_from_binary?(
     lunar_year: number,
@@ -90,7 +90,7 @@ export interface LunarBackend {
     elp_pert_s2: string,
     elp_pert_s3: string,
     nutation_tab53a_bin: Uint8Array
-  ): { lunar_year: number; new_moon_jds: Float64Array; zhong_qi_jds: Float64Array }
+  ): { lunar_year: number; new_moon_jds: Float64Array; zhong_qi_jds: Float64Array; phase_jds?: Float64Array; phase_kinds?: Uint8Array }
   /** 岁数据：VSOP87 + 6 个 ELP 全二进制，零解析。可选，7 个 .bin 均可用时调用。 */
   compute_year_data_full_binary?(
     lunar_year: number,
@@ -103,7 +103,7 @@ export interface LunarBackend {
     elp_pert_s3_bin: Uint8Array,
     /** 章动完整表二进制（tab5.3a.bin），未取到时传空 Uint8Array。 */
     nutation_tab53a_bin: Uint8Array
-  ): { lunar_year: number; new_moon_jds: Float64Array; zhong_qi_jds: Float64Array }
+  ): { lunar_year: number; new_moon_jds: Float64Array; zhong_qi_jds: Float64Array; phase_jds?: Float64Array; phase_kinds?: Uint8Array }
   /** 视位置变换图可视化数据（节点=参考架，边=6×6 状态转移，含步骤标签）。可选，由 wasm-pack 构建产物提供。 */
   transformGraphVisualizationData?(): {
     readonly nodeIds: string[]
@@ -124,7 +124,7 @@ export interface LunarBackend {
   /** 干支名的纳音名目 */
   nayin_of_ganzhi_name?(name: string): string
   /** 月家日神煞 */
-  shensha_day_wasm?(jd: number, vsop87_ear: string): string
+  shensha_day_wasm?(jd: number, vsop87_ear: string, lunar_month: number, lunar_day: number, is_leap: boolean, days_in_month: number, phase: number): string
   /** 建除、日黄黑道、百忌 */
   jianchu_day_wasm?(jd: number, vsop87_ear: string): string
   /** 时黄黑道 */

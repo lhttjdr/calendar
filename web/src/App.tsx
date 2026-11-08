@@ -683,7 +683,30 @@ function App() {
         ? wasm.gengdian_wasm(wasm.gregorian_to_jd(displayY, displayM, displayD), observerLatitude, observerLongitude, gengdianMethod, ear)
         : ''
       const jianchu = typeof wasm.jianchu_day_wasm === 'function' ? wasm.jianchu_day_wasm(wasm.gregorian_to_jd(displayY, displayM, displayD), ear) : ''
-      const shensha = typeof wasm.shensha_day_wasm === 'function' ? wasm.shensha_day_wasm(wasm.gregorian_to_jd(displayY, displayM, displayD), ear) : ''
+      // 神煞宜忌：月表加卷十铺注，需当日农历（与所显示者一致）与朔弦望
+      const shensha = (() => {
+        if (typeof wasm.shensha_day_wasm !== 'function' || !selectedLunarSlot) return ''
+        const jd0 = wasm.gregorian_to_jd(displayY, displayM, displayD)
+        const jdn = Math.floor(jd0 + 0.5)
+        let phase = -1
+        const pj = selectedYearData?.phaseJds
+        const pk = selectedYearData?.phaseKinds
+        if (pj && pk) {
+          for (let i = 0; i < pj.length; i++) {
+            // 东八区民用日，与核心 tt_to_day_number_utc8 同法
+            if (Math.floor(jdTtToUtc(wasm, pj[i]!) + 8 / 24 + 0.5) === jdn) { phase = pk[i]!; break }
+          }
+        }
+        return wasm.shensha_day_wasm(
+          jd0,
+          ear,
+          selectedLunarSlot.lunarMonth,
+          selectedLunarSlot.dayOfMonth,
+          selectedLunarSlot.isLeapMonth === 1,
+          selectedLunarSlot.daysInMonth,
+          phase,
+        )
+      })()
       return { xiu: get('xiu'), qiYao: get('qi_yao'), yearStar: get('year_star'), monthStar: get('month_star'), zajie, geng, jianchu, shensha }
     } catch {
       return null
@@ -960,7 +983,7 @@ function App() {
                   {folkDay?.shensha && (
                     <div style={{ fontSize: 11, lineHeight: 1.5, color: 'rgba(0,0,0,0.65)', whiteSpace: 'pre-line' }}>
                       {folkDay.shensha}
-                      <div style={{ color: 'rgba(0,0,0,0.45)' }}>据《协纪辨方书》月表，未计年份、节气相关铺注（無祿、四離四絕、氣往亡等）</div>
+                      <div style={{ color: 'rgba(0,0,0,0.45)' }}>据《协纪辨方书》月表加卷十铺注（反支、上朔、四離四絕、晦日、二至二分、土王用事、伏社、朔弦望、月忌、人神、長短星、氣往亡、無祿），并依时宪书体例计嫁娶周堂、交节日；「時憲書宜」为民用三十七事</div>
                     </div>
                   )}
                   {folkDay?.zajie && (

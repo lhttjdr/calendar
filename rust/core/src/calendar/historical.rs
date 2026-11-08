@@ -123,10 +123,10 @@ impl HistoricalCalendar {
             new_moon_jds.push(civil_to_julian_day(wy, wm, wd));
             is_leap.push(leap);
         }
-        // 12 中气：每个非闰月区间取中点
-        let mut zhong_qi_jds: Vec<Real> = Vec::with_capacity(12);
+        // 13 中气：每个非闰月区间取中点（去年十一月至今年十一月，末一个代下一冬至）
+        let mut zhong_qi_jds: Vec<Real> = Vec::with_capacity(13);
         for i in 0..new_moon_jds.len().saturating_sub(1) {
-            if zhong_qi_jds.len() >= 12 {
+            if zhong_qi_jds.len() >= 13 {
                 break;
             }
             if is_leap.get(i).copied().unwrap_or(0) == 0 {
@@ -136,8 +136,8 @@ impl HistoricalCalendar {
             }
         }
         debug_assert!(
-            zhong_qi_jds.len() == 12,
-            "实历岁应有 12 个中气: lunar_year={} len={}",
+            zhong_qi_jds.len() == 13,
+            "实历岁应有 13 个中气: lunar_year={} len={}",
             lunar_year,
             zhong_qi_jds.len()
         );
@@ -195,6 +195,27 @@ mod tests {
     use super::*;
     use crate::calendar::chinese_lunar::from_julian_day_in_year;
 
+    /// 岁末含下一冬至之月是十一月，不是闰月；真闰十月（1984）仍为闰月
+    #[test]
+    fn year_end_month_not_leap() {
+        let root = crate::repo::repo_root();
+        let Ok(text) = std::fs::read_to_string(root.join("vendor/calendar/chinese_calendar/实历朔日表.csv")) else {
+            return;
+        };
+        let cal = HistoricalCalendar::from_csv(&text).unwrap();
+        let on = |ly: i32, y: i32, m: i32, d: i32| {
+            from_julian_day_in_year(civil_to_julian_day(y, m, d), &cal.year_data(ly).unwrap(), None).unwrap()
+        };
+        let a = on(2024, 2024, 12, 1);
+        assert_eq!((a.month, a.day, a.is_leap_month), (11, 1, false), "2024-12-01 十一月初一");
+        let b = on(1765, 1765, 12, 12);
+        assert_eq!((b.month, b.day, b.is_leap_month), (11, 1, false), "乾隆三十年十一月初一（该岁閏二月）");
+        let c = on(1984, 1984, 11, 23);
+        assert_eq!((c.month, c.day, c.is_leap_month), (10, 1, true), "1984 閏十月初一");
+        let e = on(1984, 1984, 12, 22);
+        assert_eq!((e.month, e.day, e.is_leap_month), (11, 1, false), "1984 十一月初一");
+    }
+
     #[test]
     fn historical_year_range() {
         assert!(HISTORICAL_LUNAR_YEAR_MIN <= -105);
@@ -237,7 +258,7 @@ mod tests {
         assert_eq!(year_data.lunar_year, -105);
         // 岁 = 去年十一、十二 + 今年正..十二 → 14 朔
         assert_eq!(year_data.new_moon_jds.len(), 14);
-        assert_eq!(year_data.zhong_qi_jds.len(), 12);
+        assert_eq!(year_data.zhong_qi_jds.len(), 13);
         // 实历 -105 年正月初一 = 儒略历 -105/2/15（表中日期为民用历，不是前推格里高利历）
         let date = from_julian_day_in_year(civil_to_julian_day(-105, 2, 15), &year_data, None).unwrap();
         assert_eq!(date.year, -105);

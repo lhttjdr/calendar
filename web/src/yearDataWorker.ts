@@ -10,6 +10,8 @@ export type YearDataMessage = {
   lunarYear: number
   newMoonJds: Float64Array
   zhongQiJds: Float64Array
+  phaseJds?: Float64Array
+  phaseKinds?: Uint8Array
 }
 
 let wasm: {
@@ -24,7 +26,7 @@ let wasm: {
     p2: Uint8Array,
     p3: Uint8Array,
     nutationTab53aBin: Uint8Array
-  ) => { lunar_year: number; new_moon_jds: number[]; zhong_qi_jds: number[] }
+  ) => { lunar_year: number; new_moon_jds: number[]; zhong_qi_jds: number[]; phase_jds?: number[]; phase_kinds?: number[] }
 } | null = null
 
 async function loadWasm() {
@@ -55,7 +57,9 @@ async function computeInWorker(lunarYear: number): Promise<YearDataMessage | nul
   )
   const newMoonJds = new Float64Array(result.new_moon_jds)
   const zhongQiJds = new Float64Array(result.zhong_qi_jds)
-  return { lunarYear: result.lunar_year, newMoonJds, zhongQiJds }
+  const phaseJds = result.phase_jds ? new Float64Array(result.phase_jds) : undefined
+  const phaseKinds = result.phase_kinds ? new Uint8Array(result.phase_kinds) : undefined
+  return { lunarYear: result.lunar_year, newMoonJds, zhongQiJds, phaseJds, phaseKinds }
 }
 
 self.onmessage = async (ev: MessageEvent<{ type: string; id: number; lunarYear?: number }>) => {
@@ -65,7 +69,10 @@ self.onmessage = async (ev: MessageEvent<{ type: string; id: number; lunarYear?:
     const data = await computeInWorker(lunarYear)
     if (data) {
       // 用 options 形式传 transfer：tsconfig 只含 DOM 类型（self 按 Window 检查），此形式在 Window 与 Worker 下签名一致
-      self.postMessage({ id, yearData: data }, { transfer: [data.newMoonJds.buffer, data.zhongQiJds.buffer] })
+      const transfer: ArrayBuffer[] = [data.newMoonJds.buffer as ArrayBuffer, data.zhongQiJds.buffer as ArrayBuffer]
+      if (data.phaseJds) transfer.push(data.phaseJds.buffer as ArrayBuffer)
+      if (data.phaseKinds) transfer.push(data.phaseKinds.buffer as ArrayBuffer)
+      self.postMessage({ id, yearData: data }, { transfer })
     } else {
       self.postMessage({ id, fallback: true, lunarYear })
     }

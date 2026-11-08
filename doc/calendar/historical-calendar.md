@@ -24,7 +24,7 @@
 ## 设计原则
 
 - **实历优先**：对实历表覆盖的农历年，公历↔农历换算一律使用表内朔日，不做推步。换算结果为**主表**下的农历月日（主表 = 各朝颁历据历还原推步的连续表），按年对应中原各政权之年号；不适用于蜀、吴、北朝等其它政权历。
-- **接口统一**：实历产出与算历相同的 [ChineseLunarYearData]（14 朔 + 12 中气），沿用 [chinese_lunar] 的 JD↔农历逻辑。
+- **接口统一**：实历产出与算历相同的 [ChineseLunarYearData]（14 朔，闰岁 15 朔；13 中气，由相邻朔日中点合成，末一个代下一冬至），沿用 [chinese_lunar] 的 JD↔农历逻辑。
 - **数据来源**：朔日表来自 [ytliu0/ChineseCalendar](https://github.com/ytliu0/ChineseCalendar) 主表；《三千五百年历日天象》按各朝历法据历还原推步编制历表，见 `data/calendar/README_shuori.md`。
 
 ## 实现位置

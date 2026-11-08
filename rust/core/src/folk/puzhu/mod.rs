@@ -36,7 +36,7 @@
 use super::yiji::YueBiaoDay;
 
 pub mod context;
-pub use context::{puzhu_days, PuzhuDay, QiWangWangCount};
+pub use context::{puzhu_days, PuzhuDay, QiWangWangCount, TermTable};
 
 /// 月表所用通书六十事（卷十一「通書選擇六十事」，立券交易、開倉庫出貨財合并显示，共 58 项），按原书次第
 pub const SHI: [&str; 58] = [
@@ -310,6 +310,18 @@ fn bu_zhu_yi(d: &mut YueBiaoDay, items: &[&str]) {
 fn zhi_yi(d: &mut YueBiaoDay, allowed: &[&str]) {
     if let Some(yi) = d.yi.as_mut() {
         yi.retain(|s| allowed.iter().any(|x| shi_index(x) == shi_index(s)));
+    }
+}
+
+/// 一日的宜忌：月表（交节之日按 [`jiao_jie_base`]）加铺注，即时宪书体例下的通书六十事宜忌。
+pub fn yiji_for_day(d: &PuzhuDay) -> YueBiaoDay {
+    use super::yiji::yuebiao_day;
+    let base = yuebiao_day(d.month_ord, d.input.day_gz);
+    if d.jiao_jie && d.jiao_jie_hour.is_some_and(|h| h >= JIAO_JIE_EARLY_HOUR) {
+        let jj = jiao_jie_base(base, yuebiao_day((d.month_ord + 11) % 12, d.input.day_gz));
+        apply(&jj, &d.input, d.shuo_gz)
+    } else {
+        apply(base, &d.input, d.shuo_gz)
     }
 }
 

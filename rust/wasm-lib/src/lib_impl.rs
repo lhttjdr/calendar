@@ -788,20 +788,41 @@ pub fn jianchu_day_wasm(jd: f64, vsop87_ear: &str) -> Result<String, JsValue> {
     ))
 }
 
-/// 某民用日所值的月家日神煞（《協紀》卷五、卷六），返回「吉：…；凶：…」。月建按节，交节日全日属新月。
+/// 某民用日的神煞宜忌：《協紀》月表（卷二十至三十一）加卷十铺注（年份、节气、朔望诸日）与时宪书体例（嫁娶周堂、交节日）。
+/// 农历日期由前端传入（与所显示者一致）：lunar_month 1—12（闰月取所闰之月）、lunar_day、days_in_month（29/30）；
+/// phase：该日所值 0 朔、1 上弦、2 望、3 下弦，无则 -1。节气用地球历表现算。
+/// 返回四行：「吉神：…；凶神：…」「宜：…」「忌：…」「時憲書宜：…」（后者为民用三十七事）。
 #[wasm_bindgen]
-pub fn shensha_day_wasm(jd: f64, vsop87_ear: &str) -> Result<String, JsValue> {
-    use lunar_core::calendar::gan_zhi_options::{ganzhi_from_jd_solar, preset_zi_ping_ba_zi};
+pub fn shensha_day_wasm(
+    jd: f64,
+    vsop87_ear: &str,
+    lunar_month: u8,
+    lunar_day: u8,
+    is_leap: bool,
+    days_in_month: u8,
+    phase: i32,
+) -> Result<String, JsValue> {
+    use lunar_core::calendar::chinese_lunar::ChineseLunarDate;
+    use lunar_core::folk::puzhu::{minyong, yiji_for_day, QiWangWangCount, TermTable};
     let vsop = vsop87_cached(vsop87_ear)?;
-    let jdn = (jd + 0.5).floor();
-    let (_, mi, _) = ganzhi_from_jd_solar(vsop.as_ref(), jdn + 0.5 - 8.0 / 24.0 - 1e-6, &preset_zi_ping_ba_zi());
-    let month_ord = ((mi % 12) as i32 - 2).rem_euclid(12) as u8;
-    let gz = (jdn as i64 + 49).rem_euclid(60) as u8;
-    // 協紀月表：吉神、凶神、宜、忌
-    let d = lunar_core::folk::yiji::yuebiao_day(month_ord, gz);
+    let jdn = (jd + 0.5).floor() as i64;
+    let (gy, _, _) = lunar_core::calendar::gregorian::Gregorian::from_julian_day(real(jd));
+    let table = TermTable::new(vsop.as_ref(), gy, gy);
+    let lunar = ChineseLunarDate { year: gy, month: lunar_month, day: lunar_day, is_leap_month: is_leap, days_in_month };
+    let ph = match phase {
+        0 => Some("朔"),
+        1 => Some("上弦"),
+        2 => Some("望"),
+        3 => Some("下弦"),
+        _ => None,
+    };
+    let day = table.day(jdn, lunar, ph, QiWangWangCount::Inclusive);
+    let d = yiji_for_day(&day);
     let join = |v: &[String]| if v.is_empty() { "—".to_string() } else { v.join(" ") };
     let yi = match &d.yi { Some(v) => join(v), None => "諸事不宜".to_string() };
-    Ok(format!("吉神：{}；凶神：{}\n宜：{}\n忌：{}", join(&d.ji_shen), join(&d.xiong_shen), yi, join(&d.ji)))
+    let (my, _) = minyong(&d);
+    let my = match my { Some(v) if v.is_empty() => "—".to_string(), Some(v) => v.join(" "), None => "諸事不宜".to_string() };
+    Ok(format!("吉神：{}；凶神：{}\n宜：{}\n忌：{}\n時憲書宜：{}", join(&d.ji_shen), join(&d.xiong_shen), yi, join(&d.ji), my))
 }
 
 /// 时黄黑道：按日支起时。day_name、hour_name 为干支名（如「乙未」「丙子」）；不合法返回空串。
@@ -1062,6 +1083,39 @@ pub struct YearDataResult {
     lunar_year: i32,
     new_moon_jds: Vec<f64>,
     zhong_qi_jds: Vec<f64>,
+    /// 岁内朔、上弦、望、下弦时刻 JD(TT)（首朔至末朔），与 phase_kinds 一一对应
+    phase_jds: Vec<f64>,
+    /// 0 朔、1 上弦、2 望、3 下弦
+    phase_kinds: Vec<u8>,
+}
+
+/// 岁数据结果，附岁内朔弦望（铺注「朔弦望忌求醫療病」用）
+fn year_data_result(
+    year_data: &lunar_core::calendar::chinese_lunar::ChineseLunarYearData,
+    vsop: &Vsop87,
+    elp: &Elpmpp02Data,
+) -> YearDataResult {
+    use lunar_core::astronomy::aspects::{lunar_phase_jds_in_range, LunarPhase};
+    let nm = &year_data.new_moon_jds;
+    let phases = match (nm.first(), nm.last()) {
+        (Some(a), Some(b)) => lunar_phase_jds_in_range(vsop, elp, *a - real(1.0), *b + real(1.0), lunar_core::quantity::angle::PlaneAngle::from_rad(real(1e-8)), 30),
+        _ => Vec::new(),
+    };
+    YearDataResult {
+        lunar_year: year_data.lunar_year,
+        new_moon_jds: nm.iter().map(|r| r.as_f64()).collect(),
+        zhong_qi_jds: year_data.zhong_qi_jds.iter().map(|r| r.as_f64()).collect(),
+        phase_jds: phases.iter().map(|(t, _)| t.as_f64()).collect(),
+        phase_kinds: phases
+            .iter()
+            .map(|(_, p)| match p {
+                LunarPhase::Shuo => 0,
+                LunarPhase::ShangXian => 1,
+                LunarPhase::Wang => 2,
+                LunarPhase::XiaXian => 3,
+            })
+            .collect(),
+    }
 }
 
 #[wasm_bindgen]
@@ -1077,6 +1131,14 @@ impl YearDataResult {
     #[wasm_bindgen(getter)]
     pub fn zhong_qi_jds(&self) -> Vec<f64> {
         self.zhong_qi_jds.clone()
+    }
+    #[wasm_bindgen(getter)]
+    pub fn phase_jds(&self) -> Vec<f64> {
+        self.phase_jds.clone()
+    }
+    #[wasm_bindgen(getter)]
+    pub fn phase_kinds(&self) -> Vec<u8> {
+        self.phase_kinds.clone()
     }
 }
 
@@ -1119,11 +1181,7 @@ pub fn compute_year_data_wasm(
         30,
     )
     .map_err(|e| JsValue::from_str(&e))?;
-    Ok(YearDataResult {
-        lunar_year: year_data.lunar_year,
-        new_moon_jds: year_data.new_moon_jds.iter().map(|r| r.as_f64()).collect(),
-        zhong_qi_jds: year_data.zhong_qi_jds.iter().map(|r| r.as_f64()).collect(),
-    })
+    Ok(year_data_result(&year_data, &vsop, &elp))
 }
 
 /// 与 [compute_year_data_wasm] 相同，但 VSOP87 地心历表以二进制传入，零解析、省带宽与 CPU。
@@ -1165,11 +1223,7 @@ pub fn compute_year_data_from_binary(
         30,
     )
     .map_err(|e| JsValue::from_str(&e))?;
-    Ok(YearDataResult {
-        lunar_year: year_data.lunar_year,
-        new_moon_jds: year_data.new_moon_jds.iter().map(|r| r.as_f64()).collect(),
-        zhong_qi_jds: year_data.zhong_qi_jds.iter().map(|r| r.as_f64()).collect(),
-    })
+    Ok(year_data_result(&year_data, &vsop, &elp))
 }
 
 /// 全二进制岁数据：VSOP87 + 6 个 ELP 均为二进制，零解析。前端 fetch 全部 .bin 时调用。
@@ -1203,11 +1257,7 @@ pub fn compute_year_data_full_binary(
         30,
     )
     .map_err(|e| JsValue::from_str(&e))?;
-    Ok(YearDataResult {
-        lunar_year: year_data.lunar_year,
-        new_moon_jds: year_data.new_moon_jds.iter().map(|r| r.as_f64()).collect(),
-        zhong_qi_jds: year_data.zhong_qi_jds.iter().map(|r| r.as_f64()).collect(),
-    })
+    Ok(year_data_result(&year_data, &vsop, &elp))
 }
 
 /// 加载 VSOP87 地球的 DE406/DE441 拟合改正（`data/fit/vsop87-<目标>-earth.bin`，或解压后的 .br）。前端在计算前调用；
