@@ -171,7 +171,7 @@ J2000 前后几个世纪两者一致到毫角秒级（20、21 世纪之差小于
 3. C. Ptolemy, *Almagest*, trans. G. J. Toomer, London: Duckworth, 1984，卷七第 2—3 章（第 327—338 页）。据 archive.org 所存本核。
 4. I. Newton, *Philosophiae Naturalis Principia Mathematica*, London, 1687，第三卷命题三十九。据 archive.org 所存 1687 年本核。
 5. J. le R. d'Alembert, *Recherches sur la précession des equinoxes, et sur la nutation de l'axe de la terre, dans le systême newtonien*, Paris, 1749。据 archive.org 所存本核书名，内容未逐页核。
-6. S. Newcomb, "A new determination of the precessional motion", *Astronomical Journal* 17 (1897), no. 405, 161 起。据 ADS 扫描本核首页；完整的正式刊本在 *Astronomical Papers of the American Ephemeris* 第 8 卷，未核。
+6. S. Newcomb, "A new determination of the precessional motion", *Astronomical Journal* 17 (1897), no. 405, 161 起。据 ADS 扫描本核首页；正式刊本为 S. Newcomb, "The Precessional Constant", *Astronomical Papers of the American Ephemeris* 8, part 1, Washington, 1897，据 archive.org 所存本核题名。
 7. J. H. Lieske, T. Lederle, W. Fricke, B. Morando, "Expressions for the precession quantities based upon the IAU (1976) system of astronomical constants", *Astronomy and Astrophysics* 58 (1977), 1–16。
 8. N. Capitaine, P. T. Wallace, J. Chapront, "Expressions for IAU 2000 precession quantities", *Astronomy and Astrophysics* 412 (2003), 567–586。
 9. J. Vondrák, N. Capitaine, P. Wallace, "New precession expressions, valid for long time intervals", *Astronomy and Astrophysics* 534 (2011), A22。

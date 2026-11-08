@@ -167,7 +167,7 @@ $$
 2. 《隋書》卷十九《天文志上》，唐魏徵等撰。据维基文库录文。
 3. 《新唐書》卷二十八上《曆志四上》（大衍历黄道度）；《元史》卷五十四《曆志三》（授时历黄道宿度）。
 4. 吴守贤、全和钧主编：《中国古代天体测量学及天文仪器》，中国科学技术出版社，2013 年，第三章第五节《借助北天极的准黄道天文坐标系》，第 60—65 页。
-5. C. Ptolemy, *Almagest*, trans. G. J. Toomer, *Ptolemy's Almagest*, London: Duckworth, 1984。卷一第 12 章（第 61—63 页，黄赤交角，据 archive.org 所存本核）；卷七—八（星表，未核）。
+5. C. Ptolemy, *Almagest*, trans. G. J. Toomer, *Ptolemy's Almagest*, London: Duckworth, 1984。卷一第 12 章（第 61—63 页，黄赤交角，据 archive.org 所存本核）；卷七—八（星表；星数通常计为 1022 颗，手稿所附各区合计 Toomer 认为非托勒密原有，见其导言）。
 6. J. Needham, *Science and Civilisation in China*, vol. 3: *Mathematics and the Sciences of the Heavens and the Earth*, Cambridge University Press, 1959，§20 (f)(1) "Star catalogues and star co-ordinates"、§20 (g)(6)(iii) "The invention of the clock-drive"（1959 年剑桥版第 266、366 页）。
 7. W. M. Smart, *Textbook on Spherical Astronomy*, 6th ed., revised by R. M. Green, Cambridge University Press, 1977。坐标换算。
 8. N. Capitaine, P. T. Wallace, J. Chapront, "Expressions for IAU 2000 precession quantities", *Astronomy and Astrophysics* 412 (2003), 567–586。平黄赤交角公式。

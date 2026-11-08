@@ -146,10 +146,10 @@ $$\Delta t = -\frac{\Delta\lambda_\text{月}}{v_\text{月} - v_\text{日}}$$
 
 1. 《九章算術》九卷，魏刘徽注，唐李淳风等注释。据维基文库《四部叢刊》景上海涵芬楼藏微波榭刊本录文；卷七《盈不足》。
 2. 《新唐書》卷二十五《曆志一》（戊寅曆）。求定朔术据点校本，读法见历法篇各章。
-3. B. Bolzano, *Rein analytischer Beweis des Lehrsatzes…*, Prag, 1817。未核原书。
+3. B. Bolzano, *Rein analytischer Beweis des Lehrsatzes, dass zwischen je zwey Werthen, die ein entgegengesetztes Resultat gewähren, wenigstens eine reelle Wurzel der Gleichung liege*, Prag, 1817。据 archive.org 所存 1905 年重印本核书名与定理表述。
 4. I. Newton, *De analysi per aequationes numero terminorum infinitas*（1669 年手稿），收入 W. Jones (ed.), *Analysis per quantitatum series, fluxiones, ac differentias*, London, 1711, 第 8—9 页（数值方程的解法）。据 archive.org 所存 1711 年本核。
 5. J. Raphson, *Analysis aequationum universalis*, London, 1690。archive.org 存有 1697 年第二版；迭代公式据 Ypma 1995 转述，原书未逐页核。
-6. T. Simpson, *Essays on Several Curious and Useful Subjects in Speculative and Mix'd Mathematicks*, London, 1740。未核原书。
+6. T. Simpson, *Essays on Several Curious and Useful Subjects in Speculative and Mix'd Mathematicks*, London, 1740，"A new Method for the Solution of Equations in Numbers"一篇（对方程求流数，以误差除以流数商修正近似值，反复进行）。据 archive.org 所存本核。
 7. T. J. Ypma, "Historical development of the Newton–Raphson method", *SIAM Review* 37(4) (1995), 531–551。牛顿、拉弗森、辛普森一节据此，据 Crossref 核书目，doi:10.1137/1037125。
 8. J. Kepler, *Epitome Astronomiae Copernicanae*, 1618—1621，第五卷（1621）第二部"De terminis astronomicis et calculo, in orbita eccentrica orientibus"，由平近点角求其余近点角一问。据七卷合印本核。
 9. J. Kiefer, "Sequential minimax search for a maximum", *Proceedings of the American Mathematical Society* 4 (1953), 502–506。据 Crossref 核书目，doi:10.1090/S0002-9939-1953-0055639-3。

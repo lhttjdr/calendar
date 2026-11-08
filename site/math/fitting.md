@@ -186,7 +186,7 @@ $\Delta T$ 的配套要知道两部月历表的月亮平黄经之差 $\Delta\lam
 2. 张培瑜、陈美东、薄树人、胡铁珠：《中国古代历法》，中国科学技术出版社，2013 年，第一章《历表及表格计算法》，第 5、51、55 页。
 3. A.-M. Legendre, *Nouvelles méthodes pour la détermination des orbites des comètes*, Paris, 1805；附录《Sur la méthode des moindres quarrés》，第 72—73 页。据 archive.org 所存 1805 年本核。
 4. C. F. Gauss, *Theoria motus corporum coelestium in sectionibus conicis solem ambientium*, Hamburg, 1809, §§175–186。据 archive.org 所存 1809 年本核第 186 条。
-5. C. F. Gauss, *Theoria combinationis observationum erroribus minimis obnoxiae*, Göttingen, 1823。未核原书。
+5. C. F. Gauss, *Theoria combinationis observationum erroribus minimis obnoxiae*, Göttingen, 1823，第 17 条起（回顾正态误差律下的论证与拉普拉斯的大样本论证，再给出不依赖误差律的一般论证）。据 archive.org 所存本核。
 6. R. J. Boscovich, "De litteraria expeditione per pontificiam ditionem", *De Bononiensi Scientiarum et Artium Instituto atque Academia Commentarii* 4 (1757), 353 起。据 archive.org 所存本核所引准则一句（页码未能从扫描文字中确定）。
 7. S. M. Stigler, "Gauss and the invention of least squares", *Annals of Statistics* 9(3) (1981), 465–474。据 Crossref 核书目，doi:10.1214/aos/1176345451。
 8. R. L. Plackett, "The discovery of the method of least squares", *Biometrika* 59(2) (1972), 239–251。据 Crossref 核书目，doi:10.2307/2334569。
