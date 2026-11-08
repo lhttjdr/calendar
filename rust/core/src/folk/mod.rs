@@ -7,11 +7,10 @@
 //!   [jianchu]（建除十二值、黄道黑道十二神、百忌日）、[shensha]（月家日神煞，数据表 data/folk/shensha_month.csv）、[jiaqu]（婚嫁择吉）、
 //!   [nianshen]（年神方位、日游神、鹤神，协纪卷三）。
 //! - **排盘**：[qimen]（奇门遁甲定局：置闰、拆补，行用历平气）、[liuren]（大六壬月将与起课）、
-//!   [taiyi]（太乙四计与三元九运）、[ziwei]（紫微斗数十四主星派命盘）、[ziwei18]（紫微斗数十八飞星派，续道藏本）、[xuankong]（玄空飞星）、[liuyao]（六爻纳甲与梅花起卦）、[zhouyi]（周易大衍筮法与考变占）。
+//!   [taiyi]（太乙四计与三元九运）、[ziwei]（紫微斗数十四主星派命盘）、[ziwei18]（紫微斗数十八飞星派，续道藏本）、[xuankong]（玄空飞星）、[liuyao]（六爻纳甲与梅花起卦）、[zhouyi]（周易大衍筮法与考变占）、[qizheng]（七政四余）。
 
 pub mod gengdian;
 pub mod jianchu;
-pub mod jiaqu;
 pub mod jiuxing;
 pub mod liuren;
 pub mod liuyao;
@@ -28,3 +27,4 @@ pub mod ziwei18;
 pub mod zhouyi;
 pub mod puzhu;
 pub mod qimen;
+pub mod qizheng;
