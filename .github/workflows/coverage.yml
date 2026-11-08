@@ -16,6 +16,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 编进核心与测试读取的数据表（年号、实历朔日、民俗月表、天象检验等）由 Git LFS 管理；不拉则全是指针，测试失败。
+      # 只拉表格（约 23 MB），不拉书影 PDF 等大文件
+      - name: Pull LFS tables
+        run: git lfs pull --include="data/**/*.csv,data/**/*.txt,vendor/calendar/**/*.csv"
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
