@@ -284,6 +284,11 @@ def yiji(m, k):
             src.setdefault(d, set()).add(key + "日")
     if "天狗" in names:
         src.setdefault("祭祀", set()).add("天狗")
+    # 卷十月建條「又為土府，專忌營建宮室……破土」：土功之忌遇德不解，相抵亦留（三月壬辰月表）
+    if "土府" in names:
+        for d in TUGONG | {"築隄防"}:
+            if d in src:
+                src[d].add("土府專忌")
     # 卷十一補垣塞穴條：土府土符地囊土王用事後止忌補垣
     for n in names & {"土府", "土符", "地囊"}:
         src.setdefault("補垣塞穴", set()).add(n)
@@ -450,7 +455,7 @@ def yiji(m, k):
     # 土府土符地囊止註忌補垣，亦不註宜塞穴；壬日止忌開渠，卯日止忌穿井
     disp = {}
     eff = src.get("補垣塞穴", set()) if "補垣塞穴" in ji_major else src.get("補垣塞穴", set()) - major_set
-    if "補垣塞穴" in ji and eff and eff <= {"土府", "土符", "地囊"}:
+    if "補垣塞穴" in ji and eff and eff <= {"土府", "土府專忌", "土符", "地囊"}:
         disp["補垣塞穴"] = "補垣"
     eff = src.get("開渠穿井", set()) if "開渠穿井" in ji_major else src.get("開渠穿井", set()) - major_set
     if "開渠穿井" in ji and eff and eff <= {"卯日", "壬日"}:
