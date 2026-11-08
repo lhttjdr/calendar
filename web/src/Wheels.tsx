@@ -84,7 +84,7 @@ export function QimenWheel({ d }: { d: QimenWheelData }) {
 const ZHI = '子丑寅卯辰巳午未申酉戌亥'
 
 /** 大六壬天地盘：内圈地盘十二支（不动），外圈天盘十二神（月将加时而转）；三传标红，占时之位底色标出 */
-export function LiurenWheel({ pan, shi, sanChuan, label }: { pan: string[]; shi: string; sanChuan: string[]; label: string }) {
+export function LiurenWheel({ pan, shi, sanChuan, label, tianJiang }: { pan: string[]; shi: string; sanChuan: string[]; label: string; tianJiang?: string[] }) {
   return (
     <Frame label="大六壬天地盘">
       <circle cx={C} cy={C} r={205} fill="#fffdf7" stroke="#999" />
@@ -98,12 +98,13 @@ export function LiurenWheel({ pan, shi, sanChuan, label }: { pan: string[]; shi:
           <g key={z}>
             <path d={sector(70, 205, deg - 15, deg + 15)} fill={z === shi ? '#fff7e6' : 'none'} stroke="#ddd" />
             <T r={100} deg={deg} size={18} fill="#666">{z}</T>
-            <T r={168} deg={deg} size={26} fill={hot ? '#a8071a' : '#000'} weight={hot ? 700 : 500}>{tian}</T>
+            <T r={tianJiang ? 155 : 168} deg={deg} size={24} fill={hot ? '#a8071a' : '#000'} weight={hot ? 700 : 500}>{tian}</T>
+            {tianJiang && <T r={190} deg={deg} size={13} fill={tianJiang[i] === '貴人' ? '#ad4e00' : '#531dab'} weight={tianJiang[i] === '貴人' ? 700 : 400}>{tianJiang[i]}</T>}
           </g>
         )
       })}
       <text x={C} y={C - 6} fontSize={14} textAnchor="middle">{label}</text>
-      <text x={C} y={C + 14} fontSize={11} textAnchor="middle" fill="#888">外天盘 · 内地盘</text>
+      <text x={C} y={C + 14} fontSize={11} textAnchor="middle" fill="#888">{tianJiang ? '外天将 · 中天盘 · 内地盘' : '外天盘 · 内地盘'}</text>
     </Frame>
   )
 }

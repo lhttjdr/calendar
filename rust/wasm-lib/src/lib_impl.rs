@@ -785,7 +785,7 @@ pub fn nian_shen_json(jd: f64, vsop87_ear: &str) -> Result<String, JsValue> {
 /// 返回 {"ju":"立冬中元 隂遁9局","xunShou":"甲子","xunYi":"戊","zhiFu":"天蓬","zhiShi":"休門","zhiFuGong":1,"zhiShiGong":1,
 /// "gong":[{"di":["戊"],"tian":["…"],"xing":["…"],"men":"休門"|null,"shen":"直符"|null}…洛书1—9宫]}
 #[wasm_bindgen]
-pub fn qimen_json(jd_ut: f64, vsop87_ear: &str, hour_gz: u8, method: u8, ji_gong: u8, shen_ming: u8, ding_ju: u8, source: u8) -> Result<String, JsValue> {
+pub fn qimen_json(jd_ut: f64, vsop87_ear: &str, hour_gz: u8, method: u8, ji_gong: u8, shen_ming: u8, ding_ju: u8, source: u8, day_gz: u8) -> Result<String, JsValue> {
     use lunar_core::folk::qimen;
     let vsop = vsop87_cached(vsop87_ear)?;
     let dj = match ding_ju {
@@ -805,6 +805,19 @@ pub fn qimen_json(jd_ut: f64, vsop87_ear: &str, hour_gz: u8, method: u8, ji_gong
         shen_ming: if shen_ming == 1 { qimen::ShenMing::GouChenZhuQue } else { qimen::ShenMing::BaiHuXuanWu },
     };
     let pan = qimen::pai_pan(&ju, hour_gz % 60, opts);
+    // 格局（演义卷二）：日干支取页面日柱；年干支按立春；月朔干不给（月格不判）
+    let year_gz = folk_year_gz(vsop.as_ref(), jd_ut);
+    let gj = qimen::ge_ju(&pan, &qimen::GeJuContext { day_gz: day_gz % 60, year_gz: Some(year_gz), month_shuo_gan: None });
+    let geju = json_arr(gj.iter().map(|g| {
+        format!(
+            "{{\"n\":{},\"gong\":{},\"ji\":{},\"basis\":{},\"note\":{}}}",
+            json_str(g.name),
+            g.gong.map(|x| x.to_string()).unwrap_or_else(|| "null".into()),
+            g.ji,
+            json_str(g.basis),
+            g.note.map(json_str).unwrap_or_else(|| "null".into())
+        )
+    }));
     let list = |v: &Vec<&'static str>| json_arr(v.iter().map(|x| json_str(x)));
     let opt = |v: Option<&'static str>| v.map(json_str).unwrap_or_else(|| "null".into());
     let gong = json_arr(pan.gong.iter().map(|c| {
@@ -818,7 +831,7 @@ pub fn qimen_json(jd_ut: f64, vsop87_ear: &str, hour_gz: u8, method: u8, ji_gong
         )
     }));
     Ok(format!(
-        "{{\"ju\":{},\"xunShou\":{},\"xunYi\":{},\"zhiFu\":{},\"zhiShi\":{},\"zhiFuGong\":{},\"zhiShiGong\":{},\"gong\":{}}}",
+        "{{\"ju\":{},\"xunShou\":{},\"xunYi\":{},\"zhiFu\":{},\"zhiShi\":{},\"zhiFuGong\":{},\"zhiShiGong\":{},\"gong\":{},\"geju\":{}}}",
         json_str(&pan.ju.describe()),
         json_str(pan.xun_shou),
         json_str(pan.xun_yi),
@@ -826,7 +839,8 @@ pub fn qimen_json(jd_ut: f64, vsop87_ear: &str, hour_gz: u8, method: u8, ji_gong
         json_str(pan.zhi_shi),
         pan.zhi_fu_gong,
         pan.zhi_shi_gong,
-        gong
+        gong,
+        geju
     ))
 }
 
@@ -869,7 +883,12 @@ pub fn ziwei_json(
         "{{\"palaces\":{},\"gan\":{},\"stars\":{},\"siHua\":{},\"ming\":{},\"shen\":{},\"ju\":{},\"juName\":{},\"mingZhu\":{},\"shenZhu\":{},\"daXian\":{},\"changSheng\":{},\"boShi\":{}}}",
         strs(&c.palaces),
         json_arr(c.palace_gan.iter().map(|g| json_str(GAN[*g as usize % 10]))),
-        json_arr(c.stars.iter().map(|st| format!("[{},{}]", json_str(st.name), st.zhi))),
+        json_arr(c.stars.iter().map(|st| format!(
+            "[{},{},{}]",
+            json_str(st.name),
+            st.zhi,
+            lunar_core::folk::ziwei::miao_wang(st.name, st.zhi).map(|m| json_str(m.name())).unwrap_or_else(|| "null".into())
+        ))),
         json_arr(c.si_hua.iter().map(|(h, st)| format!("[{},{}]", json_str(h), json_str(st)))),
         c.ming,
         c.shen,
@@ -883,10 +902,108 @@ pub fn ziwei_json(
     )
 }
 
+/// 排盘页紫微斗数十八飞星派（续道藏本，明万历刻本校）：缺省照原书。返回 {"palaces":[…],"stars":[[星,支]…],"ming":支,"shen":支,
+/// "daXian":[[起岁,止岁,支]…],"liuNian":[…]}
+#[wasm_bindgen]
+pub fn ziwei18_json(year_gz: u8, lunar_month: u8, is_leap: bool, lunar_day: u8, hour_zhi: u8, male: bool) -> String {
+    use lunar_core::folk::ziwei18::{chart, Ziwei18Input, Ziwei18Options};
+    let c = chart(
+        &Ziwei18Input { year_gz: year_gz % 60, lunar_month, is_leap_month: is_leap, lunar_day, hour_zhi: hour_zhi % 12, male },
+        &Ziwei18Options::default(),
+    );
+    format!(
+        "{{\"palaces\":{},\"stars\":{},\"ming\":{},\"shen\":{},\"daXian\":{},\"liuNian\":{}}}",
+        json_arr(c.palaces.iter().map(|x| json_str(x))),
+        json_arr(c.stars.iter().map(|st| format!("[{},{}]", json_str(st.name), st.zhi))),
+        c.ming,
+        c.shen,
+        json_arr(c.da_xian.iter().map(|(a, b, z)| format!("[{a},{b},{z}]"))),
+        json_arr(c.liu_nian.iter().map(|x| json_str(x)))
+    )
+}
+
+/// 择日页婚嫁择吉：自 `jd0` 所在民用日起连续 `months.len()` 日逐日判定（协纪为纲、类编卷七并列，见 doc/folk/jiaqu.md）。
+/// 每日农历（月、日、闰、月大小）与朔弦望（0 朔 1 上弦 2 望 3 下弦，−1 无）由调用方按页面所示农历给出（与日历同源）。
+/// 女命生年干支序按立春分；`opts` 位：1 用女命行嫁月否决、2 周堂用类编、4 用类编凶神否决。返回逐日 JSON 数组。
+#[wasm_bindgen]
+pub fn jiaqu_days_json(
+    jd0: f64,
+    vsop87_ear: &str,
+    months: Vec<u8>,
+    days: Vec<u8>,
+    leaps: Vec<u8>,
+    dims: Vec<u8>,
+    phases: Vec<i8>,
+    nv_year_gz: u8,
+    has_weng_gu: bool,
+    has_nv_fu_mu: bool,
+    na_xu: bool,
+    opts: u8,
+) -> Result<String, JsValue> {
+    use lunar_core::calendar::chinese_lunar::ChineseLunarDate;
+    use lunar_core::folk::jiaqu::{judge_day, Jiang, JiaquInput, JiaquOptions, ZhouTangRule};
+    use lunar_core::folk::puzhu::{QiWangWangCount, TermTable};
+    let vsop = vsop87_cached(vsop87_ear)?;
+    let j0 = (jd0 + 0.5).floor() as i64;
+    let n = months.len().min(days.len()).min(leaps.len()).min(dims.len()).min(phases.len());
+    let (gy0, _, _) = lunar_core::calendar::gregorian::Gregorian::from_julian_day(real(j0 as f64));
+    let (gy1, _, _) = lunar_core::calendar::gregorian::Gregorian::from_julian_day(real((j0 + n as i64) as f64));
+    let table = TermTable::new(vsop.as_ref(), gy0, gy1);
+    let inp = JiaquInput { nv_year_gz: nv_year_gz % 60, has_weng_gu, has_nv_fu_mu, na_xu };
+    let o = JiaquOptions {
+        nv_ming_yue: opts & 1 != 0,
+        zhou_tang: if opts & 2 != 0 { ZhouTangRule::LeiBian } else { ZhouTangRule::XieJi },
+        leibian_xiong: opts & 4 != 0,
+        ..JiaquOptions::default()
+    };
+    let strs = |v: &[String]| json_arr(v.iter().map(|x| json_str(x)));
+    let opt = |v: Option<&'static str>| v.map(json_str).unwrap_or_else(|| "null".into());
+    let out = (0..n).map(|i| {
+        let jdn = j0 + i as i64;
+        let (gy, _, _) = lunar_core::calendar::gregorian::Gregorian::from_julian_day(real(jdn as f64));
+        let lunar = ChineseLunarDate { year: gy, month: months[i], day: days[i], is_leap_month: leaps[i] != 0, days_in_month: dims[i] };
+        let ph = match phases[i] {
+            0 => Some("朔"),
+            1 => Some("上弦"),
+            2 => Some("望"),
+            3 => Some("下弦"),
+            _ => None,
+        };
+        let d = table.day(jdn, lunar, ph, QiWangWangCount::Inclusive);
+        let r = judge_day(&d, &inp, &o);
+        let jiang = match r.jiang {
+            Jiang::BuJiang => "陰陽不將",
+            Jiang::YangJiang => "陽將",
+            Jiang::YinJiang => "陰將",
+            Jiang::JuJiang => "陰陽俱將",
+            Jiang::Neither => "",
+        };
+        format!(
+            "{{\"jdn\":{},\"ok\":{},\"yi\":{},\"ji\":{},\"jieHunYin\":{},\"naCai\":{},\"nvMingYue\":{},\"zhouTang\":{},\"baiHu\":{},\"naXu\":{},\"buJiang\":{},\"jiang\":{},\"leibian\":{},\"reasons\":{},\"notes\":{}}}",
+            jdn,
+            r.ok,
+            r.xieji_yi,
+            r.xieji_ji,
+            r.yi_jie_hun_yin,
+            r.yi_na_cai,
+            json_str(r.nv_ming_yue.name()),
+            opt(r.zhou_tang),
+            opt(r.xing_jia_bai_hu),
+            opt(r.na_xu_zhou_tang),
+            r.bu_jiang_xieji,
+            json_str(jiang),
+            json_arr(r.leibian_xiong.iter().map(|(a, b)| format!("[{},{}]", json_str(a), json_str(b)))),
+            strs(&r.reasons),
+            strs(&r.notes)
+        )
+    });
+    Ok(json_arr(out))
+}
+
 /// 排盘页大六壬：{"jiang":"卯","shi":"申","pan":[地盘子…亥上的天盘神],"siKe":[{"xia":"甲","shang":"子"}…],"sanChuan":[…],"fa":"知一"}。
 /// `rule`：0 按中气换将（缺省，《六壬大全》卷二）、1 按节换将（未核）。
 #[wasm_bindgen]
-pub fn liuren_json(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8, rule: u8) -> Result<String, JsValue> {
+pub fn liuren_json(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8, rule: u8, gui_rule: u8, zhou: i8) -> Result<String, JsValue> {
     use lunar_core::folk::liuren;
     const ZHI: [&str; 12] = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"];
     const GAN: [&str; 10] = ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"];
@@ -896,17 +1013,25 @@ pub fn liuren_json(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8, rule:
     let k = liuren::qi_ke_at(vsop.as_ref(), real(jd_tt), day_gz % 60, hour_zhi % 12, r);
     let pan = json_arr((0..12u8).map(|d| json_str(ZHI[k.pan.above(d) as usize])));
     let gz = day_gz % 60;
+    // 天将：贵人起例 0 俗例（缺省，《六壬大全》提要「尚沿俗例」）1 考原定法；昼夜 zhou −1 以占时卯至申为昼（缺省）、0 夜、1 昼
+    let is_zhou = if zhou < 0 { liuren::is_zhou_mao_you(hour_zhi % 12) } else { zhou == 1 };
+    let gr = if gui_rule == 1 { liuren::GuiRule::KaoYuan } else { liuren::GuiRule::SuLi };
+    let tj = liuren::tian_jiang(&k.pan, gz % 10, is_zhou, gr);
     // 一课之下为日干，二课之下为一课上神，三课之下为日支，四课之下为三课上神
     let xia = [GAN[(gz % 10) as usize], ZHI[k.si_ke[0].shang as usize], ZHI[(gz % 12) as usize], ZHI[k.si_ke[2].shang as usize]];
     let si_ke = json_arr((0..4).map(|i| format!("{{\"xia\":{},\"shang\":{}}}", json_str(xia[i]), json_str(ZHI[k.si_ke[i].shang as usize]))));
     Ok(format!(
-        "{{\"jiang\":{},\"shi\":{},\"pan\":{},\"siKe\":{},\"sanChuan\":{},\"fa\":{}}}",
+        "{{\"jiang\":{},\"shi\":{},\"pan\":{},\"siKe\":{},\"sanChuan\":{},\"fa\":{},\"tianJiang\":{},\"gui\":{},\"shun\":{},\"zhou\":{}}}",
         json_str(ZHI[k.pan.jiang as usize]),
         json_str(ZHI[(hour_zhi % 12) as usize]),
         pan,
         si_ke,
         json_arr(k.san_chuan.iter().map(|z| json_str(ZHI[*z as usize]))),
-        json_str(k.fa.name())
+        json_str(k.fa.name()),
+        json_arr((0..12u8).map(|d| json_str(tj.name_of(k.pan.above(d))))),
+        json_str(ZHI[tj.gui as usize]),
+        tj.shun,
+        is_zhou
     ))
 }
 

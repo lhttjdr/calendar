@@ -131,11 +131,15 @@ export interface LunarBackend {
   /** 择日页年神二十四山（JSON） */
   nian_shen_json?(jd: number, vsop87_ear: string): string
   /** 排盘页奇门（JSON） */
-  qimen_json?(jd_ut: number, vsop87_ear: string, hour_gz: number, method: number, ji_gong: number, shen_ming: number, ding_ju: number, source: number): string
+  qimen_json?(jd_ut: number, vsop87_ear: string, hour_gz: number, method: number, ji_gong: number, shen_ming: number, ding_ju: number, source: number, day_gz: number): string
   /** 排盘页紫微斗数（JSON） */
   ziwei_json?(year_gz: number, lunar_month: number, is_leap: boolean, lunar_day: number, hour_zhi: number, male: boolean, leap: number, xin: number, bing_ding: number, si_hua: number, chang_sheng: number): string
   /** 排盘页大六壬（JSON） */
-  liuren_json?(jd_ut: number, vsop87_ear: string, day_gz: number, hour_zhi: number, rule: number): string
+  liuren_json?(jd_ut: number, vsop87_ear: string, day_gz: number, hour_zhi: number, rule: number, gui_rule: number, zhou: number): string
+  /** 紫微十八飞星派（JSON） */
+  ziwei18_json?(year_gz: number, lunar_month: number, is_leap: boolean, lunar_day: number, hour_zhi: number, male: boolean): string
+  /** 婚嫁择吉逐日（JSON） */
+  jiaqu_days_json?(jd0: number, vsop87_ear: string, months: Uint8Array, days: Uint8Array, leaps: Uint8Array, dims: Uint8Array, phases: Int8Array, nv_year_gz: number, has_weng_gu: boolean, has_nv_fu_mu: boolean, na_xu: boolean, opts: number): string
   /** 排盘页太乙（JSON） */
   taiyi_json?(jd_ut: number, vsop87_ear: string, day_gz: number, hour_zhi: number, kind: number, school: number, dun: number): string
   /** 排盘摘要：奇门时家局、六壬起课、太乙时计、三元九运 */

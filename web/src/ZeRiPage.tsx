@@ -2,9 +2,9 @@
  * 择日页：年神方位二十四山图（《协纪辨方书》卷三）、当日神煞宜忌（月表 + 卷十铺注 + 时宪书体例）、日游神鹤神。
  * 与日历共用所选日期；图依古图南上北下、东左西右。
  */
-import { Button, Card, Flex, Typography } from 'antd'
+import { Button, Card, Checkbox, Flex, InputNumber, Typography } from 'antd'
 import { LeftOutlined, RightOutlined } from '@ant-design/icons'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { LunarBackend } from './lunar-backend-types'
 import { useCompassBar } from './CompassBar'
 
@@ -114,6 +114,69 @@ export function ShanWheel({ data, size = 560, rotate = 0 }: { data: NianShenData
   )
 }
 
+type MonthLunar = { jd0: number; months: number[]; days: number[]; leaps: number[]; dims: number[]; phases: number[] }
+type JiaquDay = {
+  jdn: number; ok: boolean; yi: boolean; ji: boolean; jieHunYin: boolean; naCai: boolean; nvMingYue: string
+  zhouTang: string | null; baiHu: string | null; naXu: string | null; buJiang: boolean; jiang: string
+  leibian: [string, string][]; reasons: string[]; notes: string[]
+}
+const GZ_GAN = '甲乙丙丁戊己庚辛壬癸', GZ_ZHI = '子丑寅卯辰巳午未申酉戌亥'
+
+/** 婚嫁择吉：所显示月份逐日判定（协纪为纲、类编历法通书大全卷七并列；见知识库 jiaqu） */
+function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthLunar; monthLabel: string }) {
+  const [nvYear, setNvYear] = useState(2000)
+  const [wengGu, setWengGu] = useState(true)
+  const [fuMu, setFuMu] = useState(true)
+  const [naXu, setNaXu] = useState(false)
+  const [useYue, setUseYue] = useState(false)
+  const [ztLeibian, setZtLeibian] = useState(false)
+  const [useXiong, setUseXiong] = useState(false)
+  const [onlyOk, setOnlyOk] = useState(true)
+  const nvGz = (((nvYear - 4) % 60) + 60) % 60
+  const m = props.monthLunar
+  const list = useMemo((): JiaquDay[] | null => {
+    if (typeof props.wasm.jiaqu_days_json !== 'function') return null
+    try {
+      return JSON.parse(props.wasm.jiaqu_days_json(m.jd0, props.ear, Uint8Array.from(m.months), Uint8Array.from(m.days), Uint8Array.from(m.leaps), Uint8Array.from(m.dims), Int8Array.from(m.phases), nvGz, wengGu, fuMu, naXu, (useYue ? 1 : 0) | (ztLeibian ? 2 : 0) | (useXiong ? 4 : 0))) as JiaquDay[]
+    } catch { return null }
+  }, [props.wasm, props.ear, m, nvGz, wengGu, fuMu, naXu, useYue, ztLeibian, useXiong])
+  return (
+    <Card size="small" title={`婚嫁择吉（${props.monthLabel}）`} style={{ marginTop: 16 }}>
+      <Flex gap={12} wrap align="center" style={{ marginBottom: 8 }}>
+        <span>女命生年 <InputNumber size="small" value={nvYear} min={1} max={2200} onChange={(v) => v != null && setNvYear(v)} />{` ${GZ_GAN[nvGz % 10]}${GZ_ZHI[nvGz % 12]}（立春换年）`}</span>
+        <Checkbox checked={wengGu} onChange={(e) => setWengGu(e.target.checked)}>翁姑在</Checkbox>
+        <Checkbox checked={fuMu} onChange={(e) => setFuMu(e.target.checked)}>女父母在</Checkbox>
+        <Checkbox checked={naXu} onChange={(e) => setNaXu(e.target.checked)}>纳婿</Checkbox>
+      </Flex>
+      <Flex gap={12} wrap align="center" style={{ marginBottom: 8 }}>
+        <Checkbox checked={useYue} onChange={(e) => setUseYue(e.target.checked)}>女命行嫁月否决（类编；协纪奏准删除）</Checkbox>
+        <Checkbox checked={ztLeibian} onChange={(e) => setZtLeibian(e.target.checked)}>周堂从类编</Checkbox>
+        <Checkbox checked={useXiong} onChange={(e) => setUseXiong(e.target.checked)}>类编嫁娶凶神否决</Checkbox>
+        <Checkbox checked={onlyOk} onChange={(e) => setOnlyOk(e.target.checked)}>只看可用之日</Checkbox>
+      </Flex>
+      {!list ? <Text type="secondary">无法判定</Text> : (
+        <div style={{ fontSize: 12, lineHeight: 1.7 }}>
+          {list.map((d, i) => (onlyOk && !d.ok ? null : (
+            <div key={d.jdn} style={{ borderBottom: '1px solid #f0f0f0', padding: '2px 0' }}>
+              <Text strong type={d.ok ? 'success' : 'secondary'}>{`${i + 1}日 ${d.ok ? '可用' : '不用'}`}</Text>
+              {` · 农历${m.leaps[i] ? '閏' : ''}${m.months[i]}月${m.days[i]}日`}
+              {d.yi ? ' · 宜嫁娶' : d.ji ? ' · 忌嫁娶' : ''}
+              {d.buJiang ? ' · 不將' : d.jiang ? ` · ${d.jiang}` : ''}
+              {d.zhouTang ? ` · 周堂值${d.zhouTang}` : ''}
+              {` · 女命${d.nvMingYue}`}
+              {d.reasons.length > 0 && <Text type="danger">{` · ${d.reasons.join('；')}`}</Text>}
+              {d.leibian.length > 0 && <Text type="secondary">{` · 类编凶神：${d.leibian.map(([a]) => a).join(' ')}`}</Text>}
+            </div>
+          )))}
+        </div>
+      )}
+      <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 8 }}>
+        以协纪为纲（月表加铺注之宜忌嫁娶、嫁娶周堂、阴阳不将；协纪于大利月诸说「奏准刪除」，缺省只列不否决），并列《类编历法通书大全》卷七之女命行嫁月、周堂、嫁娶凶神表为选项。只算到规则给出的结果，不论吉凶应验。
+      </Text>
+    </Card>
+  )
+}
+
 export function ZeRiPage(props: {
   wasm: LunarBackend | null
   ear: string | null
@@ -130,6 +193,8 @@ export function ZeRiPage(props: {
   onLocate: () => Promise<string>
   /** 所在地磁偏角（度，东偏为正）；未知为 null */
   declination: number | null
+  monthLunar?: MonthLunar | null
+  monthLabel?: string
 }) {
   const { wasm, ear, jd } = props
   const { rotate, bar: compassBar } = useCompassBar(props)
@@ -176,6 +241,9 @@ export function ZeRiPage(props: {
             </Text>
           </Card>
         </Flex>
+      )}
+      {wasm && ear != null && props.monthLunar && props.monthLabel && (
+        <JiaquPanel wasm={wasm} ear={ear} monthLunar={props.monthLunar} monthLabel={props.monthLabel} />
       )}
     </div>
   )

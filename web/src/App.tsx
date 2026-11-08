@@ -710,6 +710,30 @@ function App() {
     return Number.isFinite(v) ? v : null
   })()
   const [locateMsg, setLocateMsg] = useState('')
+  /** 婚嫁择吉用：所显示月份逐日的农历（与日历同源）与朔弦望 */
+  const monthLunar = useMemo(() => {
+    if (!wasm || panelYearDataList.length === 0) return null
+    const months: number[] = [], days: number[] = [], leaps: number[] = [], dims: number[] = [], phases: number[] = []
+    const jd0 = displayCivilToJd(displayY, displayM, 1)
+    const all = civilMonthDays(displayY, displayM)
+    for (const d of all) {
+      const p = civilToProleptic(displayY, displayM, d)
+      const slot = getLunarSlotForDay(wasm, p.year, p.month, p.day, panelYearDataList)
+      if (!slot) return null
+      months.push(slot.lunarMonth); days.push(slot.dayOfMonth); leaps.push(slot.isLeapMonth === 1 ? 1 : 0); dims.push(slot.daysInMonth ?? 30)
+      const jdn = Math.floor(displayCivilToJd(displayY, displayM, d) + 0.5)
+      let ph = -1
+      for (const yd of panelYearDataList) {
+        const pj = yd.phaseJds, pk = yd.phaseKinds
+        if (!pj || !pk) continue
+        for (let i = 0; i < pj.length; i++) if (Math.floor(jdTtToUtc(wasm, pj[i]!) + 8 / 24 + 0.5) === jdn) { ph = pk[i]!; break }
+        if (ph >= 0) break
+      }
+      phases.push(ph)
+    }
+    return { jd0, months, days, leaps, dims, phases }
+  }, [wasm, panelYearDataList, displayY, displayM])
+
   /** 择日、排盘页的日、时调整：与日历同一份所选日期时刻 */
   const shiftSelected = (days: number, hours: number) => {
     let jd = displayCivilToJd(displayY, displayM, displayD) + days
@@ -852,6 +876,8 @@ function App() {
           longitude={observerLongitude}
           onLocate={locate}
           declination={magneticDeclination}
+          monthLunar={monthLunar}
+          monthLabel={`${displayY}年${displayM}月`}
         /></Suspense>
       </div>
     )

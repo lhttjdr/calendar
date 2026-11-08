@@ -41,9 +41,11 @@ declare module 'lunar-wasm' {
   export function ganzhi_preset_name(preset_index: number): string
   export function nayin_of_ganzhi_name(name: string): string
   export function nian_shen_json(jd: number, vsop87_ear: string): string
-  export function qimen_json(jd_ut: number, vsop87_ear: string, hour_gz: number, method: number, ji_gong: number, shen_ming: number, ding_ju: number, source: number): string
+  export function qimen_json(jd_ut: number, vsop87_ear: string, hour_gz: number, method: number, ji_gong: number, shen_ming: number, ding_ju: number, source: number, day_gz: number): string
   export function ziwei_json(year_gz: number, lunar_month: number, is_leap: boolean, lunar_day: number, hour_zhi: number, male: boolean, leap: number, xin: number, bing_ding: number, si_hua: number, chang_sheng: number): string
-  export function liuren_json(jd_ut: number, vsop87_ear: string, day_gz: number, hour_zhi: number, rule: number): string
+  export function liuren_json(jd_ut: number, vsop87_ear: string, day_gz: number, hour_zhi: number, rule: number, gui_rule: number, zhou: number): string
+  export function ziwei18_json(year_gz: number, lunar_month: number, is_leap: boolean, lunar_day: number, hour_zhi: number, male: boolean): string
+  export function jiaqu_days_json(jd0: number, vsop87_ear: string, months: Uint8Array, days: Uint8Array, leaps: Uint8Array, dims: Uint8Array, phases: Int8Array, nv_year_gz: number, has_weng_gu: boolean, has_nv_fu_mu: boolean, na_xu: boolean, opts: number): string
   export function taiyi_json(jd_ut: number, vsop87_ear: string, day_gz: number, hour_zhi: number, kind: number, school: number, dun: number): string
   export function paipan_wasm(jd_ut: number, vsop87_ear: string, day_gz: number, hour_zhi: number): string
   export function seed_solar_terms_wasm(years: Int32Array, jds: Float64Array): number
