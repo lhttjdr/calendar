@@ -14,3 +14,4 @@ pub mod shensha;
 pub mod yiji;
 pub mod zajie;
 pub mod zhiri;
+pub mod puzhu;

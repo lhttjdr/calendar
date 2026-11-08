@@ -374,14 +374,28 @@ pub fn new_moon_jd_fine(
     tolerance: PlaneAngle,
     max_iterations: usize,
 ) -> Real {
+    lunar_phase_jd_fine(vsop, elp, t_approx, PlaneAngle::from_rad(real_const(0.0)), tolerance, max_iterations)
+}
+
+/// 月相：月视黄经 − 日视黄经 = elongation 的 JD(TT)（0 朔、90° 上弦、180° 望、270° 下弦）。
+/// 从 t_approx 出发，视黄经 + 数值导数牛顿迭代；t_approx 须在真时刻前后一两日内。
+pub fn lunar_phase_jd_fine(
+    vsop: &Vsop87,
+    elp: &Elpmpp02Data,
+    t_approx: TimePoint,
+    elongation: PlaneAngle,
+    tolerance: PlaneAngle,
+    max_iterations: usize,
+) -> Real {
     let tol_r = tolerance.rad();
+    let target = elongation.rad();
     let opts = synodic_apparent_options();
     let mut jd = t_approx.to_scale(TimeScale::TT).jd;
     for _ in 0..max_iterations {
         let t = TimePoint::new(TimeScale::TT, jd);
         let moon_lam = moon_apparent_ecliptic_longitude_with_options(elp, t, &opts).rad();
         let sun_lam = sun_apparent_ecliptic_longitude_with_options(vsop, t, &opts).rad();
-        let residual_r = (moon_lam - sun_lam).wrap_to_signed_pi();
+        let residual_r = (moon_lam - sun_lam - target).wrap_to_signed_pi();
         if residual_r.abs() <= tol_r {
             return jd;
         }
@@ -409,6 +423,67 @@ pub fn new_moon_jd_fine(
         jd -= residual_r / safe_velocity;
     }
     jd
+}
+
+/// 朔、上弦、望、下弦
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LunarPhase {
+    Shuo,
+    ShangXian,
+    Wang,
+    XiaXian,
+}
+
+impl LunarPhase {
+    pub const ALL: [LunarPhase; 4] = [LunarPhase::Shuo, LunarPhase::ShangXian, LunarPhase::Wang, LunarPhase::XiaXian];
+    /// 月日视黄经差（度）
+    pub fn elongation_deg(self) -> f64 {
+        match self {
+            LunarPhase::Shuo => 0.0,
+            LunarPhase::ShangXian => 90.0,
+            LunarPhase::Wang => 180.0,
+            LunarPhase::XiaXian => 270.0,
+        }
+    }
+    pub fn name(self) -> &'static str {
+        match self {
+            LunarPhase::Shuo => "朔",
+            LunarPhase::ShangXian => "上弦",
+            LunarPhase::Wang => "望",
+            LunarPhase::XiaXian => "下弦",
+        }
+    }
+}
+
+/// [jd_start, jd_end] 内的朔、上弦、望、下弦时刻 (JD(TT), 相)，按时间升序。
+/// 以平朔加相应分数朔望月为初值逐个精算。
+pub fn lunar_phase_jds_in_range(
+    vsop: &Vsop87,
+    elp: &Elpmpp02Data,
+    jd_start: Real,
+    jd_end: Real,
+    tolerance: PlaneAngle,
+    max_iterations: usize,
+) -> Vec<(Real, LunarPhase)> {
+    if jd_end < jd_start {
+        return vec![];
+    }
+    let month = MEAN_SYNODIC_MONTH_W0;
+    let n0 = ((jd_start - NEW_MOON_W0_EPOCH_JD) / month).to_i32_floor() - 1;
+    let n1 = ((jd_end - NEW_MOON_W0_EPOCH_JD) / month).to_i32_floor() + 1;
+    let mut out = Vec::new();
+    for n in n0..=n1 {
+        for ph in LunarPhase::ALL {
+            let approx = approximate_new_moon_jd(n) + month * real(ph.elongation_deg() / 360.0);
+            let el = PlaneAngle::from_rad(real(ph.elongation_deg().to_radians()));
+            let jd = lunar_phase_jd_fine(vsop, elp, TimePoint::new(TimeScale::TT, approx), el, tolerance, max_iterations);
+            if jd >= jd_start && jd <= jd_end {
+                out.push((jd, ph));
+            }
+        }
+    }
+    out.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));
+    out
 }
 
 /// 定朔：求月视黄经 − 日视黄经 = 0 的 JD(TT)。默认先粗算（几何+常数导数）再精算（视黄经+数值导数）。
@@ -752,6 +827,49 @@ mod tests {
     }
 
     /// expectedNewMoonLongitudeDifference(J2000) 非负
+    /// 朔、上弦、望、下弦：2026 年与节气朔望标准时刻表 Q0—Q3 列对照（视黄经差 0°、90°、180°、270°），容差 5 s。
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn lunar_phases_2026_vs_reference() {
+        let base = crate::repo::repo_root();
+        let (Ok(vsop), Ok(elp)) = (
+            load_earth_vsop87_corrected_from_repo(PatchTarget::DEFAULT),
+            load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT),
+        ) else {
+            println!("lunar_phases_2026_vs_reference: skipped（缺历表）");
+            return;
+        };
+        nutation::try_init_full_nutation_from_repo();
+        let Ok(text) = std::fs::read_to_string(base.join(crate::repo::paths::SOLAR_TERMS_REFERENCE)) else {
+            println!("lunar_phases_2026_vs_reference: skipped（缺参考表）");
+            return;
+        };
+        let row: Vec<f64> = text
+            .lines()
+            .find(|l| l.split_whitespace().next() == Some("2026"))
+            .unwrap()
+            .split_whitespace()
+            .map(|t| t.parse().unwrap())
+            .collect();
+        let jd0 = row[1];
+        // Q0_01 起每月四相，列 27 起
+        let reference: Vec<(f64, LunarPhase)> =
+            (0..15 * 4).map(|i| (jd0 + row[27 + i], LunarPhase::ALL[i % 4])).collect();
+        let jd_start = Gregorian::to_julian_day(2026, 1, 1);
+        let jd_end = Gregorian::to_julian_day(2026, 12, 31);
+        let ours = lunar_phase_jds_in_range(&vsop, &elp, jd_start, jd_end, PlaneAngle::from_rad(real_const(1e-9)), 30);
+        assert!(ours.len() >= 48, "2026 年应有约 49 个月相，得 {}", ours.len());
+        for (jd, ph) in &ours {
+            let (rjd, rph) = reference
+                .iter()
+                .min_by(|a, b| (a.0 - jd.as_f64()).abs().partial_cmp(&(b.0 - jd.as_f64()).abs()).unwrap())
+                .unwrap();
+            let dt = (jd.as_f64() - rjd) * 86400.0;
+            assert_eq!(ph, rph, "{} 相别不合", jd.as_f64());
+            assert!(dt.abs() < 5.0, "{} {:?} 差 {:.1} s", jd.as_f64(), ph, dt);
+        }
+    }
+
     #[test]
     fn expected_new_moon_longitude_difference_at_j2000() {
         let diff = expected_new_moon_longitude_difference(J2000);
