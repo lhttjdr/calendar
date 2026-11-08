@@ -8,6 +8,7 @@ data/folk/shixianshu_qianlong30_checks.csv：结果「合」「異」，异者�
 时宪书只印宜与少数「不宜」，故只比宜；「—」表示该日无宜（推算的諸事不宜同此）；
 「?」表示书影漫漶未能辨认，记「未辨」，不计合异。
 朱字另比：书印之神应在推算「朱字」（应值全集）之内；推算有而书未印者多因宜事长、栏底无空，只记不判。
+「不宜」同此：书印之事应在推算「不宜」（应值全集，puzhu::bu_yi）之内；推算有而书未印者只记不判。
 """
 import csv
 import sys
@@ -41,8 +42,12 @@ def main():
                 "時憲書宜": "?", "推算宜": c["宜"], "月表宜": c["月表宜"], "鋪註": c["铺注"],
                 "結果": "未辨", "推算多注": "", "推算少注": "", "說明": old.get((r["月"], r["日"]), {}).get("說明", ""),
                 "時憲書朱字": r["朱字"], "推算朱字": c.get("朱字", ""), "朱字書有推算無": " ".join(z_extra), "朱字推算有書未印": " ".join(z_miss),
+                "時憲書不宜": r["不宜"], "推算不宜": c.get("不宜", ""), "不宜書有推算無": " ".join(by_extra), "不宜推算有書未印": " ".join(by_miss),
             })
             continue
+        bb, bc = r["不宜"].split(), c.get("不宜", "").split()
+        by_extra = [x for x in bb if x not in bc]
+        by_miss = [x for x in bc if x not in bb]
         zb, zc = r["朱字"].split(), c.get("朱字", "").split()
         z_extra = [x for x in zb if x not in zc]
         z_miss = [x for x in zc if x not in zb]
@@ -57,6 +62,7 @@ def main():
             "時憲書宜": r["宜"], "推算宜": c["宜"], "月表宜": c["月表宜"], "鋪註": c["铺注"],
             "結果": "合" if ok else "異", "推算多注": " ".join(more), "推算少注": " ".join(less), "說明": note,
             "時憲書朱字": r["朱字"], "推算朱字": c.get("朱字", ""), "朱字書有推算無": " ".join(z_extra), "朱字推算有書未印": " ".join(z_miss),
+            "時憲書不宜": r["不宜"], "推算不宜": c.get("不宜", ""), "不宜書有推算無": " ".join(by_extra), "不宜推算有書未印": " ".join(by_miss),
         })
     with open(OUT, "w", encoding="utf-8", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys()), lineterminator="\n")
@@ -70,6 +76,14 @@ def main():
     print(f"朱字：书印 {zh} 位，在推算之内 {zh - sum(len(x[2].split()) for x in zx)}，书有推算无 {sum(len(x[2].split()) for x in zx)}，推算有书未印 {zm}")
     for m, d, x in zx:
         print(f"  朱字 {m}月{d} 书有推算无 [{x}]")
+    ok = [r for r in rows if r["結果"] != "未辨"]
+    bh = sum(len(r["時憲書不宜"].split()) for r in ok)
+    bx = [(r["月"], r["日"], r["不宜書有推算無"]) for r in ok if r["不宜書有推算無"]]
+    bm = sum(len(r["不宜推算有書未印"].split()) for r in ok)
+    nx = sum(len(x[2].split()) for x in bx)
+    print(f"不宜：书印 {bh} 处，在推算之内 {bh - nx}，书有推算无 {nx}，推算有书未印 {bm}（不计未辨之日）")
+    for m, d, x in bx:
+        print(f"  不宜 {m}月{d} 书有推算无 [{x}]")
     for r in rows:
         if r["結果"] == "異":
             print(f"  {r['月']}月{r['日']} {r['干支']} 多注[{r['推算多注']}] 少注[{r['推算少注']}] 鋪註[{r['鋪註']}]")

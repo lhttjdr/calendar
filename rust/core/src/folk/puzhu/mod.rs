@@ -367,6 +367,46 @@ pub fn zhu_zi(d: &PuzhuDay) -> Vec<&'static str> {
     out
 }
 
+/// 时宪书「不宜某事」所用五事（乾隆三十年时宪书归纳）
+pub const BU_YI: [&str; 5] = ["出行", "移徙", "針刺", "動土", "栽種"];
+
+/// 时宪书「不宜某事」应值之全集（以乾隆三十年时宪书归纳，见 doc/folk/shensha.md「时宪书「不宜」与朱字」）：
+/// 某事在当日忌（月表加铺注之后，通书六十事）之内，且当日值该事的触发之神：
+/// - 出行：往亡、氣往亡、天賊、月厭，或巳日（百忌「巳不遠行」，卷十作「巳日忌出行」）；
+/// - 移徙：歸忌、月厭；
+/// - 針刺：血忌、血支；
+/// - 動土（修造動土）：土府（建日）、土符、地囊；
+/// - 栽種：九焦（时宪书朱字作枯焦）、月煞、月厭，或乙日（百忌「乙不栽植」）。
+///
+/// 触发神皆为协纪卷十所载该事之忌神。书印 244 处中 233 处在此集内；此集中书未印者多在宜事长、栏底无空之日，
+/// 宜事短之日书亦常只印一二事，取舍未明，故只给全集，不模拟取舍。月表「諸事不宜」之日（忌不另列）不给。
+pub fn bu_yi(d: &PuzhuDay) -> Vec<&'static str> {
+    use super::yiji::yuebiao_day;
+    let after = yiji_for_day(d);
+    let base = yuebiao_day(d.month_ord, d.input.day_gz);
+    let names = puzhu_names(&d.input, d.shuo_gz);
+    let has = |n: &str| base.xiong_shen.iter().any(|x| x == n) || names.iter().any(|x| x == n);
+    let ji = |e: &str| after.ji.iter().any(|x| x == e);
+    let (gan, zhi) = (d.input.day_gz % 10, d.input.day_gz % 12);
+    let mut out = Vec::new();
+    if ji("出行") && (has("往亡") || has("氣往亡") || has("天賊") || has("月厭") || zhi == 5) {
+        out.push("出行");
+    }
+    if ji("移徙") && (has("歸忌") || has("月厭")) {
+        out.push("移徙");
+    }
+    if ji("針刺") && (has("血忌") || has("血支")) {
+        out.push("針刺");
+    }
+    if ji("修造動土") && (has("土府") || has("土符") || has("地囊")) {
+        out.push("動土");
+    }
+    if ji("栽種") && (has("九焦") || has("月煞") || has("月厭") || gan == 1) {
+        out.push("栽種");
+    }
+    out
+}
+
 /// 一日的月表宜忌加铺注。`shuo_gz` 为本农历月朔日干支（反支用）。返回加注后的一日，凶神栏后附所值诸日名
 pub fn apply(day: &YueBiaoDay, p: &PuzhuInput, shuo_gz: u8) -> YueBiaoDay {
     let mut d = day.clone();

@@ -1,11 +1,11 @@
 //! 按农历年列出逐日宜忌：月表（民用三十七事）与加铺注后的结果，供与时宪书逐日对照。
 //! 用法（仓库根）：cargo run -p lunar-core --no-default-features --features real-f64 --example puzhu_year -- 1765 [exclusive] [csv]
-//! csv：输出 月,日,干支,建除,月表宜,宜,忌,铺注,朱字（时宪书底栏朱字应值之神）（民用三十七事，空格分隔；諸事不宜作「諸事不宜」，無宜作「—」），供 scripts/folk/shixianshu_check.py 比对。
+//! csv：输出 月,日,干支,建除,月表宜,宜,忌,铺注,朱字（时宪书底栏朱字应值之神）,忌全（通书六十事）,不宜（时宪书「不宜」应值之全集）（民用三十七事，空格分隔；諸事不宜作「諸事不宜」，無宜作「—」），供 scripts/folk/shixianshu_check.py 比对。
 //! 参数为公历年：列出该年正月初一至次年正月初一前一日（农历以实历朔日表为先）。
 use lunar_core::astronomy::ephemeris::{load_all, load_earth_vsop87_from_repo, Elpmpp02Correction};
 use lunar_core::calendar::gregorian::Gregorian;
 use lunar_core::calendar::historical::HistoricalCalendar;
-use lunar_core::folk::puzhu::{minyong, puzhu_days, wulu, yiji_for_day, zhu_zi, QiWangWangCount, WuLu};
+use lunar_core::folk::puzhu::{bu_yi, minyong, puzhu_days, wulu, yiji_for_day, zhu_zi, QiWangWangCount, WuLu};
 use lunar_core::folk::yiji::yuebiao_day;
 use lunar_core::math::real::RealOps;
 
@@ -33,7 +33,7 @@ fn main() {
     let days = puzhu_days(&vsop, &elp, Some(&hist), j0, j1, count);
     let csv = args.iter().any(|a| a == "csv");
     if csv {
-        println!("月,日,干支,月建,建除,吉神,凶神,月表宜,宜,忌,铺注,朱字");
+        println!("月,日,干支,月建,建除,吉神,凶神,月表宜,宜,忌,铺注,朱字,忌全,不宜");
     }
     let join = |v: &[&str]| if v.is_empty() { "—".to_string() } else { v.join(" ") };
     // 正月初一至次年正月初一前一日
@@ -58,7 +58,7 @@ fn main() {
         let changed = if yi0 != yi1 { "*" } else { " " };
         if csv {
             println!(
-                "{}{},{},{},{},{},{},{},{},{},{},{},{}",
+                "{}{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
                 if d.lunar.is_leap_month { "閏" } else { "" },
                 MON[d.lunar.month as usize - 1],
                 DAY[d.lunar.day as usize - 1],
@@ -71,7 +71,9 @@ fn main() {
                 fmt(&yi1),
                 ji1.join(" "),
                 names.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(" "),
-                zhu_zi(d).join(" ")
+                zhu_zi(d).join(" "),
+                after.ji.join(" "),
+                bu_yi(d).join(" ")
             );
             continue;
         }
