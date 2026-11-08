@@ -128,7 +128,7 @@ $\dot R$ 是转动矩阵对时间的导数。速度用于求根时的解析导�
 
 ## 参考文献
 
-1. O. Rømer, "Démonstration touchant le mouvement de la lumière", *Journal des Sçavans* (1676 年 12 月 7 日)，法文原刊未核；英译 "A demonstration concerning the motion of light, communicated from Paris, in the Journal des Sçavans, and here made English", *Philosophical Transactions* 12 (1677), 893–894，据 archive.org 所存 JSTOR 早期期刊本核。
+1. O. Rømer, « Demonstration touchant le mouvement de la lumiere trouvé par M. Römer de l'Academie Royale des Sciences », *Journal des Sçavans*, 1676 年 12 月 7 日号，第 233—236 页；第 235 页"à raison de 22 pour tout l'intervalle HE"，以及 11 月 9 日复现"10. minutes plus tard qu'on ne l'eût deû attendre"、"ce que Mr Romer avoit predit à l'Academie"。据 chemteam.info 所载原刊书影核。英译 "A demonstration concerning the motion of light, communicated from Paris, in the Journal des Sçavans, and here made English", *Philosophical Transactions* 12 (1677), no. 136, 893–894，据 archive.org 所存 JSTOR 早期期刊本核。
 2. J. Bradley, "A letter … to Dr. Edmond Halley … giving an account of a new discovered motion of the fix'd stars", *Philosophical Transactions of the Royal Society* 35（卷期标 1727—1728 年，1729 年刊出）, 636–660。据 archive.org 所存 JSTOR 早期期刊本核题目卷页。
 3. F. W. Bessel, "Bestimmung der Entfernung des 61sten Sterns des Schwans", *Astronomische Nachrichten* 16 (1838), Nr. 365–366, 65–96。据 ADS 扫描本核。
 4. I. I. Shapiro, "Fourth test of general relativity", *Physical Review Letters* 13 (1964), 789–791。据 Crossref 核书目，doi:10.1103/PhysRevLett.13.789。
