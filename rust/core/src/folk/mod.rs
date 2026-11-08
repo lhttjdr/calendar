@@ -5,15 +5,20 @@
 //!   [jiuxing]（年、月紫白九星）、[zajie]（三伏、社日、寒食、腊日、入梅出梅、土王用事、数九、七十二候；
 //!   输入为节气所在民用日）、[gengdian]（更点，元授时法与清台官法；输入为纬度与太阳赤纬）、
 //!   [jianchu]（建除十二值、黄道黑道十二神、百忌日）、[shensha]（月家日神煞，数据表 data/folk/shensha_month.csv）、
-//!   [nianshen]（年神方位，协纪卷三）。
+//!   [nianshen]（年神方位、日游神、鹤神，协纪卷三）。
+//! - **排盘**：[qimen]（奇门遁甲定局：置闰、拆补，行用历平气）、[liuren]（大六壬月将与起课）、
+//!   [taiyi]（太乙四计与三元九运）。
 
 pub mod gengdian;
 pub mod jianchu;
 pub mod jiuxing;
+pub mod liuren;
 pub mod nayin;
 pub mod nianshen;
 pub mod shensha;
+pub mod taiyi;
 pub mod yiji;
 pub mod zajie;
 pub mod zhiri;
 pub mod puzhu;
+pub mod qimen;
