@@ -23,14 +23,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 星图、日食图用到的 CSV 及编译时嵌入 WASM 的年号表由 Git LFS 管理；只拉这几个，不拉仓库里的大文件（PDF 等）
+      # 星图、日食图用到的 CSV 及编译时嵌入 WASM 的年号表、平气表、民俗月表与月家神煞表由 Git LFS 管理；只拉这几个，不拉仓库里的大文件（PDF 等）
       - name: Pull LFS data for web
-        run: git lfs pull --include="data/phenomena/capitals.csv,data/stars/hipparcos_bright.csv,data/sky_culture/*.csv,data/calendar/era_gaiyuan_day.csv,data/calendar/汇总/era_names_merged.csv,data/calendar/汇总/main_calendar_periods.csv"
+        run: git lfs pull --include="data/phenomena/capitals.csv,data/stars/hipparcos_bright.csv,data/sky_culture/*.csv,data/calendar/era_gaiyuan_day.csv,data/calendar/汇总/era_names_merged.csv,data/calendar/汇总/main_calendar_periods.csv,data/calendar/pingqi_lifa.csv,data/folk/shensha_month.csv,data/folk/xieji_yuebiao.csv"
 
       # 编译时嵌入 WASM 的 CSV 若仍是 LFS 指针，构建不会报错，只会让线上数据静默失效，所以在这里拦下
       - name: Check embedded CSVs are not LFS pointers
         run: |
-          for f in data/calendar/era_gaiyuan_day.csv data/calendar/汇总/era_names_merged.csv data/calendar/汇总/main_calendar_periods.csv; do
+          for f in data/calendar/era_gaiyuan_day.csv data/calendar/汇总/era_names_merged.csv data/calendar/汇总/main_calendar_periods.csv data/calendar/pingqi_lifa.csv data/folk/shensha_month.csv data/folk/xieji_yuebiao.csv; do
             if head -n 1 "$f" | grep -q '^version https://git-lfs'; then
               echo "::error file=$f::仍是 LFS 指针，请加入上一步的 git lfs pull 列表"
               exit 1
