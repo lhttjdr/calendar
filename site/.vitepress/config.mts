@@ -27,7 +27,7 @@ export default defineConfig({
     docFooter: { prev: '上一章', next: '下一章' },
     search: { provider: 'local' },
     nav: [
-      { text: '数学篇', link: '/math/rotations' },
+      { text: '数学篇', link: '/math/vectors' },
       { text: '天文篇', link: '/astronomy/sphere' },
       { text: '历法篇', link: '/calendar/dates' },
       { text: '民俗篇', link: '/folk/ganzhi' },
@@ -40,11 +40,22 @@ export default defineConfig({
       {
         text: '数学篇',
         items: [
-          { text: '转动', link: '/math/rotations' },
-          { text: '级数求值', link: '/math/series' },
-          { text: '求根与极值', link: '/math/roots' },
-          { text: '最小二乘拟合', link: '/math/fitting' },
-          { text: '数值精度', link: '/math/precision' },
+          {
+            text: '基础',
+            items: [
+              { text: '向量与空间', link: '/math/vectors' },
+              { text: '转动', link: '/math/rotations' },
+              { text: '数值精度', link: '/math/precision' },
+            ],
+          },
+          {
+            text: '数值方法',
+            items: [
+              { text: '级数求值', link: '/math/series' },
+              { text: '求根与极值', link: '/math/roots' },
+              { text: '最小二乘拟合', link: '/math/fitting' },
+            ],
+          },
         ],
       },
       {
@@ -106,12 +117,28 @@ export default defineConfig({
       {
         text: '民俗篇',
         items: [
-          { text: '干支历四柱', link: '/folk/ganzhi' },
-          { text: '纳音与值日', link: '/folk/nayin' },
-          { text: '杂节气', link: '/folk/zajie' },
-          { text: '更点时刻', link: '/folk/gengdian' },
-          { text: '建除与黄道', link: '/folk/jianchu' },
-          { text: '民俗规划', link: '/folk/plan' },
+          {
+            text: '纪时',
+            items: [
+              { text: '干支历四柱', link: '/folk/ganzhi' },
+              { text: '纳音与值日', link: '/folk/nayin' },
+            ],
+          },
+          {
+            text: '节令',
+            items: [
+              { text: '杂节气', link: '/folk/zajie' },
+              { text: '更点时刻', link: '/folk/gengdian' },
+            ],
+          },
+          {
+            text: '择日',
+            items: [
+              { text: '建除与黄道', link: '/folk/jianchu' },
+              { text: '神煞宜忌', link: '/folk/shensha' },
+            ],
+          },
+          { text: '规划', items: [{ text: '民俗规划', link: '/folk/plan' }] },
         ],
       },
       {
