@@ -11,7 +11,7 @@
 
 "历表"一词在中西都由来已久，指按时刻列出天体位置的表，或据以推算位置的表与算法。
 
-**巴比伦与希腊。** 塞琉古时代（前 3 世纪起）的巴比伦泥板上已有逐月推算日月位置、朔望时刻的"星历"，用的是分段线性的"之字形函数"，今人称为系统 A、系统 B（Neugebauer 1955）。托勒密的《实用天文表》（Handy Tables，2 世纪）把《至大论》的几何模型化为查表计算，是后来伊斯兰与欧洲天文表的范本。
+**巴比伦与希腊。** 塞琉古时代（前 3 世纪起）的巴比伦泥板上已有逐月推算日月位置、朔望时刻的"星历"，用的是分段线性的"之字形函数"，今人称为系统 A、系统 B（Neugebauer 1955、1975）。托勒密的《实用天文表》（Handy Tables，2 世纪）把《至大论》的几何模型化为查表计算，是后来伊斯兰与欧洲天文表的范本。
 
 **中世纪到开普勒。** 卡斯蒂利亚的《阿方索星表》（13 世纪编成，1483 年印行）在欧洲通用二百余年；开普勒据第谷观测与椭圆轨道编成《鲁道夫星表》（1627），精度提高一个数量级以上。
 
@@ -249,7 +249,7 @@ $\tau$ 为距 2000 年的千年数；$\varphi_j$ 取该变量主问题级数中�
 
 ## 参考文献
 
-1. O. Neugebauer, *Astronomical Cuneiform Texts*, London: Lund Humphries, 1955。未核原书。
+1. O. Neugebauer, *Astronomical Cuneiform Texts*, London: Lund Humphries, 1955。未核原书。另据 O. Neugebauer, *A History of Ancient Mathematical Astronomy*, Berlin: Springer, 1975，第二卷《巴比伦天文学》：行星理论、月亮理论均分系统 A、系统 B 论述。
 2. 《崇禎曆書》，明徐光启等编，崇祯七年（1634）。本地有故宫珍本丛刊影印本之五纬表、五纬历指部分。
 3. 《大宋寶祐四年會天曆》，阮元辑《宛委别藏》本。本地有影印本。
 4. P. Bretagnon, G. Francou, "Planetary theories in rectangular and spherical variables. VSOP 87 solutions", *Astronomy and Astrophysics* 202 (1988), 309–315。
