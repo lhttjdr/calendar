@@ -10,6 +10,8 @@
 - **Coarse**：几何黄经差 + 平均 synodic 速度 ≈ 0.213 rad/日，得到 Fine 初值。
 - **Fine**：视黄经 + 解析导数；可选光行时从第 2 步起；ELP 项数前 3 步用 fineMaxTerms，残差 &lt;1e-3 rad 后放宽到全项；光行时 Fast/Full 见代码；收敛判据 |λ_M−λ_S| &lt; tolerance（如 1e-8 rad）。
 - **区间合朔**：`newMoonJDsInRange` 从 W0 按平均朔望月步进得近似 JD，再对每个求精。
+- **区间弦望**（`lunar_phase_jds_in_range` / `lunar_phase_jds_in_range_of`，`rust/core/src/astronomy/aspects/synodic/new_moon.rs`）：初值为 W0 平朔加 ¼、½、¾ 朔望月；先粗算（`lunar_phase_jd_coarse`：几何黄经差减目标距角、平均会合角速度迭代至 1e-4 rad，同定朔粗算段），再精算（`lunar_phase_jd_fine`：视黄经，中心差分求导，每轮三次视位置）。平值离区间两日以上者不解。`_of` 只解所列诸相：网页岁数据的朔直接取岁数据之朔（与初一同源），只另解弦、望。
+  - 耗时（原生 release，2026 农历岁 39 个弦望，2026-11-08 测）：f64 由 2.55 s（无粗算、含区间外与重复的朔，53 个）降到 0.97 s；TwoFloat 由 49.8 s 降到 19.1 s。2026 年 Q0—Q3 对 TDBtimes 仍在 5 s 内（测试 `lunar_phases_2026_vs_reference`），乾隆三十年时宪书比对结果不变。
 
 ## 8.2 平朔近似公式（W0）
 

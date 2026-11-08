@@ -61,7 +61,13 @@ import { fetchBinaryMaybeBrotli, isVsop87Binary } from './fetchEphemerisBinary'
 export type { RealBackendVariant } from './lunar-backend-loader'
 
 const backendCache: Partial<Record<RealBackendVariant, LunarBackend>> = {}
-const yearDataCache = new Map<number, YearData>()
+/** 后端对象 → 其 Real 变体：调用方只传后端，岁数据据此交给同一变体的 Worker 计算 */
+const backendVariant = new WeakMap<LunarBackend, RealBackendVariant>()
+/** 岁数据缓存，键为「变体:农历年」（两种 Real 的结果有微差，不混用） */
+const yearDataCache = new Map<string, YearData>()
+const yearDataKey = (variant: RealBackendVariant, lunarYear: number) => `${variant}:${lunarYear}`
+/** 正在算的岁数据（同键并发请求合并，免得 Worker 把同一岁串行重算几遍） */
+const yearDataInflight = new Map<string, Promise<YearData>>()
 let cachedVsop87Ear: string | null = null
 
 /** Worker 计算岁数据，避免阻塞主线程；仅在全二进制路径可用时生效 */
@@ -72,29 +78,38 @@ const yearDataWorkerPending = new Map<
     resolve: (d: YearData) => void
     reject: (e: unknown) => void
     lunarYear: number
+    variant: RealBackendVariant
     onSourceUsed?: (source: EphemerisDataSource) => void
   }
 >()
 let yearDataWorkerId = 0
-/** Worker 无响应时超时（毫秒），超时后回退主线程计算，避免界面卡死 */
-const YEAR_DATA_WORKER_TIMEOUT_MS = 45_000
 
 function getYearDataWorker(): Worker | null {
   if (yearDataWorker != null) return yearDataWorker
   try {
     const w = new Worker(new URL('./yearDataWorker.ts', import.meta.url), { type: 'module' })
-    w.onmessage = (ev: MessageEvent<{ type?: string; id?: number; yearData?: YearData; fallback?: boolean; lunarYear?: number }>) => {
+    w.onmessage = (ev: MessageEvent<{ type?: string; id?: number; yearData?: YearData & { termYears?: Int32Array; termJds?: Float64Array }; fallback?: boolean; lunarYear?: number }>) => {
       const { id, yearData: data, fallback } = ev.data
       if (typeof id === 'number') {
         const pending = yearDataWorkerPending.get(id)
         yearDataWorkerPending.delete(id)
         if (pending) {
           if (data) {
-            yearDataCache.set(data.lunarYear, data)
-            pending.onSourceUsed?.('full_binary')
-            pending.resolve(data)
+            const { termYears, termJds, ...yearData } = data
+            // 先把 Worker 解出的节气灌进主线程同一变体的 WASM，再交付岁数据：其後逐日干支、杂节、铺注只查缓存
+            const seed = termYears && termJds
+              ? loadWasm(pending.variant).then((bk) => { bk.seed_solar_terms_wasm?.(termYears, termJds) }).catch(() => {})
+              : Promise.resolve()
+            seed.then(() => {
+              yearDataCache.set(yearDataKey(pending.variant, yearData.lunarYear), yearData)
+              pending.onSourceUsed?.('full_binary')
+              pending.resolve(yearData)
+            })
           } else if (fallback && typeof pending.lunarYear === 'number') {
-            getYearDataMainThreadImpl(pending.lunarYear, undefined, pending.onSourceUsed).then(pending.resolve).catch(pending.reject)
+            loadWasm(pending.variant)
+              .then((w) => getYearDataMainThreadImpl(pending.lunarYear, pending.variant, w, pending.onSourceUsed))
+              .then(pending.resolve)
+              .catch(pending.reject)
           } else {
             pending.reject(new Error('Worker year data failed'))
           }
@@ -103,7 +118,13 @@ function getYearDataWorker(): Worker | null {
     }
     w.onerror = () => {
       yearDataWorker = null
-      for (const [, p] of yearDataWorkerPending) p.reject(new Error('Worker error'))
+      // Worker 崩溃：未完成者改在主线程算（慢，但不丢结果）
+      for (const [, p] of yearDataWorkerPending) {
+        loadWasm(p.variant)
+          .then((bk) => getYearDataMainThreadImpl(p.lunarYear, p.variant, bk, p.onSourceUsed))
+          .then(p.resolve)
+          .catch(p.reject)
+      }
       yearDataWorkerPending.clear()
     }
     yearDataWorker = w
@@ -122,6 +143,7 @@ export async function loadWasm(variant: RealBackendVariant = 'f64'): Promise<Lun
   if (cached) return cached
   const backend = await loadLunarBackend(variant)
   backendCache[variant] = backend
+  backendVariant.set(backend, variant)
   return backend
 }
 
@@ -231,38 +253,49 @@ export async function getYearData(
   backend?: LunarBackend,
   onSourceUsed?: (source: EphemerisDataSource) => void
 ): Promise<YearData> {
-  const cached = yearDataCache.get(lunarYear)
+  // 未知变体的后端（非经 loadWasm 取得）只能在主线程用它算
+  const known = backend ? backendVariant.get(backend) : 'f64'
+  const variant: RealBackendVariant = known ?? 'f64'
+  const key = yearDataKey(variant, lunarYear)
+  const cached = yearDataCache.get(key)
   if (cached) return cached
+  const inflight = yearDataInflight.get(key)
+  if (inflight) return inflight
+  const p = computeYearData(lunarYear, variant, known ? undefined : backend, onSourceUsed)
+  yearDataInflight.set(key, p)
+  p.finally(() => yearDataInflight.delete(key)).catch(() => {})
+  return p
+}
 
-  const worker = !backend ? getYearDataWorker() : null
+async function computeYearData(
+  lunarYear: number,
+  variant: RealBackendVariant,
+  /** 未经 loadWasm 登记的后端：只能在主线程用它算 */
+  unknownBackend: LunarBackend | undefined,
+  onSourceUsed?: (source: EphemerisDataSource) => void
+): Promise<YearData> {
+
+  // 一年的节气、朔弦望要解几十个方程，TwoFloat 下数十秒：一律放 Worker，不在主线程算（否则整页卡死）。
+  // Worker 不设超时回退主线程——慢的正是这一步，回退只会把卡顿搬回主线程；Worker 不可用或明确失败时才回退。
+  const worker = unknownBackend ? null : getYearDataWorker()
   if (worker) {
     const id = ++yearDataWorkerId
-    const workerPromise = new Promise<YearData>((resolve, reject) => {
-      yearDataWorkerPending.set(id, { resolve, reject, lunarYear, onSourceUsed })
-      worker.postMessage({ type: 'getYearData', id, lunarYear })
+    return new Promise<YearData>((resolve, reject) => {
+      yearDataWorkerPending.set(id, { resolve, reject, lunarYear, variant, onSourceUsed })
+      worker.postMessage({ type: 'getYearData', id, lunarYear, variant })
     })
-    const timeoutPromise = new Promise<YearData>((_, reject) => {
-      setTimeout(() => {
-        if (yearDataWorkerPending.has(id)) {
-          yearDataWorkerPending.delete(id)
-          reject(new Error('Worker timeout'))
-        }
-      }, YEAR_DATA_WORKER_TIMEOUT_MS)
-    })
-    return Promise.race([workerPromise, timeoutPromise]).catch(() =>
-      getYearDataMainThreadImpl(lunarYear, backend, onSourceUsed)
-    )
   }
 
-  return getYearDataMainThreadImpl(lunarYear, backend, onSourceUsed)
+  const w = unknownBackend ?? await loadWasm(variant)
+  return getYearDataMainThreadImpl(lunarYear, variant, w, onSourceUsed)
 }
 
 async function getYearDataMainThreadImpl(
   lunarYear: number,
-  backend?: LunarBackend,
+  variant: RealBackendVariant,
+  w: LunarBackend,
   onSourceUsed?: (source: EphemerisDataSource) => void
 ): Promise<YearData> {
-  const w = backend ?? await loadWasm()
 
   if (typeof w.compute_year_data_full_binary === 'function') {
     const fullSet = await fetchFullBinaryEphemerisSet()
@@ -287,7 +320,7 @@ async function getYearDataMainThreadImpl(
         phaseJds: result.phase_jds ? new Float64Array(result.phase_jds) : undefined,
         phaseKinds: result.phase_kinds ? new Uint8Array(result.phase_kinds) : undefined,
       }
-      yearDataCache.set(lunarYear, yearData)
+      yearDataCache.set(yearDataKey(variant, lunarYear), yearData)
       if (import.meta.env.DEV) console.log('[历表] 使用全二进制')
       onSourceUsed?.('full_binary')
       return yearData
@@ -322,7 +355,7 @@ async function getYearDataMainThreadImpl(
       phaseJds: result.phase_jds ? new Float64Array(result.phase_jds) : undefined,
       phaseKinds: result.phase_kinds ? new Uint8Array(result.phase_kinds) : undefined,
     }
-    yearDataCache.set(lunarYear, yearData)
+    yearDataCache.set(yearDataKey(variant, lunarYear), yearData)
     onSourceUsed?.('vsop_binary_elp_text')
     return yearData
   }
@@ -347,7 +380,7 @@ async function getYearDataMainThreadImpl(
     phaseJds: result.phase_jds ? new Float64Array(result.phase_jds) : undefined,
     phaseKinds: result.phase_kinds ? new Uint8Array(result.phase_kinds) : undefined,
   }
-  yearDataCache.set(lunarYear, yearData)
+  yearDataCache.set(yearDataKey(variant, lunarYear), yearData)
   onSourceUsed?.('full_text')
   return yearData
 }

@@ -425,6 +425,23 @@ pub fn lunar_phase_jd_fine(
     jd
 }
 
+/// 月相粗算：几何黄经差（不含光行差、章动，可截断级数）以平均会合角速度迭代，给精算一个近处的初值，
+/// 省去精算（每轮三次视位置）的大部分迭代。同 [`new_moon_jd_with_options`] 的粗算段，推广到任意距角。
+fn lunar_phase_jd_coarse(vsop: &Vsop87, elp: &Elpmpp02Data, jd0: Real, elongation: PlaneAngle, options: &NewMoonOptions) -> Real {
+    let Some(tol) = options.coarse_tolerance else { return jd0 };
+    let mut jd = jd0;
+    for _ in 0..options.coarse_max_iterations {
+        let t = TimePoint::new(TimeScale::TT, jd);
+        let diff = (longitude_difference_geometric_unwrapped(vsop, elp, t, None, options.coarse_max_terms) - elongation.rad())
+            .wrap_to_signed_pi();
+        if diff.abs() <= tol.rad() {
+            break;
+        }
+        jd -= diff / mean_synodic_velocity().rad_per_day();
+    }
+    jd
+}
+
 /// 朔、上弦、望、下弦
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LunarPhase {
@@ -456,12 +473,25 @@ impl LunarPhase {
 }
 
 /// [jd_start, jd_end] 内的朔、上弦、望、下弦时刻 (JD(TT), 相)，按时间升序。
-/// 以平朔加相应分数朔望月为初值逐个精算。
+/// 以平朔加相应分数朔望月为初值，先粗算（几何黄经）再精算（视黄经）。
 pub fn lunar_phase_jds_in_range(
     vsop: &Vsop87,
     elp: &Elpmpp02Data,
     jd_start: Real,
     jd_end: Real,
+    tolerance: PlaneAngle,
+    max_iterations: usize,
+) -> Vec<(Real, LunarPhase)> {
+    lunar_phase_jds_in_range_of(vsop, elp, jd_start, jd_end, &LunarPhase::ALL, tolerance, max_iterations)
+}
+
+/// 同 [`lunar_phase_jds_in_range`]，只求 `kinds` 所列诸相（如朔已由岁数据算得，只求弦望）。
+pub fn lunar_phase_jds_in_range_of(
+    vsop: &Vsop87,
+    elp: &Elpmpp02Data,
+    jd_start: Real,
+    jd_end: Real,
+    kinds: &[LunarPhase],
     tolerance: PlaneAngle,
     max_iterations: usize,
 ) -> Vec<(Real, LunarPhase)> {
@@ -471,12 +501,19 @@ pub fn lunar_phase_jds_in_range(
     let month = MEAN_SYNODIC_MONTH_W0;
     let n0 = ((jd_start - NEW_MOON_W0_EPOCH_JD) / month).to_i32_floor() - 1;
     let n1 = ((jd_end - NEW_MOON_W0_EPOCH_JD) / month).to_i32_floor() + 1;
+    // 平均月相与真月相相差不过一日左右（月行迟疾、日行盈缩合计）；离区间两日以上的不必求解
+    let margin = real_const(2.0);
+    let coarse = NewMoonOptions::default();
     let mut out = Vec::new();
     for n in n0..=n1 {
-        for ph in LunarPhase::ALL {
+        for &ph in kinds {
             let approx = approximate_new_moon_jd(n) + month * real(ph.elongation_deg() / 360.0);
+            if approx < jd_start - margin || approx > jd_end + margin {
+                continue;
+            }
             let el = PlaneAngle::from_rad(real(ph.elongation_deg().to_radians()));
-            let jd = lunar_phase_jd_fine(vsop, elp, TimePoint::new(TimeScale::TT, approx), el, tolerance, max_iterations);
+            let start = lunar_phase_jd_coarse(vsop, elp, approx, el, &coarse);
+            let jd = lunar_phase_jd_fine(vsop, elp, TimePoint::new(TimeScale::TT, start), el, tolerance, max_iterations);
             if jd >= jd_start && jd <= jd_end {
                 out.push((jd, ph));
             }

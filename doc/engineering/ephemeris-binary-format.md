@@ -35,7 +35,7 @@
 
 ## 阶段三：主线程隔离与精度（已实现）
 
-- **Web Worker**：岁数据计算（fetch 历表 + WASM `compute_year_data_full_binary`）在 `yearDataWorker.ts` 中执行；结果通过 `postMessage` 的 **Transferable**（`newMoonJds.buffer`、`zhongQiJds.buffer`）回传主线程，避免阻塞 UI。主线程仅在全二进制路径失败时回退到主线程计算。
+- **Web Worker**：岁数据计算（fetch 历表 + WASM `compute_year_data_full_binary`）在 `yearDataWorker.ts` 中执行，Worker 按所选 Real 后端（f64 / TwoFloat）加载对应 WASM；结果通过 `postMessage` 的 **Transferable** 回传主线程，避免阻塞 UI。主线程仅在 Worker 不可用、全二进制路径失败或 Worker 崩溃时回退到主线程计算，不设超时回退（见 [wasm-react-performance.md](wasm-react-performance.md) §12.6.1）。
 - **精度**：Web 端统一使用 Float64；若需更高精度，仅在 WASM 内部用高精度库闭环计算，对外只暴露 64 位结果。
 
 ---

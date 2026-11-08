@@ -40,6 +40,7 @@ declare module 'lunar-wasm' {
   ): string
   export function ganzhi_preset_name(preset_index: number): string
   export function nayin_of_ganzhi_name(name: string): string
+  export function seed_solar_terms_wasm(years: Int32Array, jds: Float64Array): number
   export function shensha_day_wasm(jd: number, vsop87_ear: string, lunar_month: number, lunar_day: number, is_leap: boolean, days_in_month: number, phase: number): string
   export function jianchu_day_wasm(jd: number, vsop87_ear: string): string
   export function huanghei_hour_wasm(day_name: string, hour_name: string): string
@@ -75,7 +76,7 @@ declare module 'lunar-wasm' {
     elp_pert_s2: string,
     elp_pert_s3: string,
     nutation_tab53a_bin: Uint8Array
-  ): { lunar_year: number; new_moon_jds: Float64Array; zhong_qi_jds: Float64Array; phase_jds?: Float64Array; phase_kinds?: Uint8Array }
+  ): { lunar_year: number; new_moon_jds: Float64Array; zhong_qi_jds: Float64Array; phase_jds?: Float64Array; phase_kinds?: Uint8Array; solar_term_years?: Int32Array; solar_term_jds?: Float64Array }
 
   /** 视位置变换图可视化：节点=参考架，边=6×6 状态转移。供前端画架变换图（如 D3 / Mermaid）。 */
   export function transformGraphVisualizationData(): TransformGraphViz

@@ -587,6 +587,21 @@ pub fn ganzhi_from_jd_solar_wasm(
     })
 }
 
+/// 灌入他处（网页 Worker）算好的节气：`years` 每年对应 `jds` 中 24 项（0 春分 … 23 驚蟄）。返回灌入的年数。
+/// 经 JS 传递为 f64（JD 约 40 μs 分辨率），对逐日判定足够；已有缓存的年份不覆盖。
+#[wasm_bindgen]
+pub fn seed_solar_terms_wasm(years: Vec<i32>, jds: Vec<f64>) -> u32 {
+    use lunar_core::astronomy::aspects::seed_solar_terms_cache;
+    if jds.len() != years.len() * 24 {
+        return 0;
+    }
+    years
+        .iter()
+        .zip(jds.chunks(24))
+        .filter(|(y, c)| seed_solar_terms_cache(**y, c.iter().map(|&x| real(x)).collect()))
+        .count() as u32
+}
+
 /// 取缓存的地球 VSOP87；未缓存时用传入文本解析一次。
 fn vsop87_cached(vsop87_ear: &str) -> Result<Arc<Vsop87>, JsValue> {
     let mut guard = VSOP87_CACHE.lock().unwrap();
@@ -1087,6 +1102,10 @@ pub struct YearDataResult {
     phase_jds: Vec<f64>,
     /// 0 朔、1 上弦、2 望、3 下弦
     phase_kinds: Vec<u8>,
+    /// 农历年前後各一公历年（lunar_year − 1 … lunar_year + 1）的二十四节气 JD(TT)，每年 24 项、0 春分 … 23 驚蟄。
+    /// 网页 Worker 算出後交主线程以 [`seed_solar_terms_wasm`] 灌入节气缓存，逐日的干支、杂节、铺注便不在主线程求解
+    solar_term_years: Vec<i32>,
+    solar_term_jds: Vec<f64>,
 }
 
 /// 岁数据结果，附岁内朔弦望（铺注「朔弦望忌求醫療病」用）
@@ -1095,13 +1114,25 @@ fn year_data_result(
     vsop: &Vsop87,
     elp: &Elpmpp02Data,
 ) -> YearDataResult {
-    use lunar_core::astronomy::aspects::{lunar_phase_jds_in_range, LunarPhase};
+    use lunar_core::astronomy::aspects::{lunar_phase_jds_in_range_of, LunarPhase};
     let nm = &year_data.new_moon_jds;
-    let phases = match (nm.first(), nm.last()) {
-        (Some(a), Some(b)) => lunar_phase_jds_in_range(vsop, elp, *a - real(1.0), *b + real(1.0), lunar_core::quantity::angle::PlaneAngle::from_rad(real(1e-8)), 30),
-        _ => Vec::new(),
-    };
+    // 朔即岁数据之朔（与初一同源），只另求首朔至末朔间的弦、望
+    let mut phases: Vec<_> = nm.iter().map(|&t| (t, LunarPhase::Shuo)).collect();
+    if let (Some(a), Some(b)) = (nm.first(), nm.last()) {
+        let tol = lunar_core::quantity::angle::PlaneAngle::from_rad(real(1e-8));
+        let kinds = [LunarPhase::ShangXian, LunarPhase::Wang, LunarPhase::XiaXian];
+        phases.extend(lunar_phase_jds_in_range_of(vsop, elp, *a, *b, &kinds, tol, 30));
+    }
+    phases.sort_by(|x, y| x.0.partial_cmp(&y.0).unwrap_or(core::cmp::Ordering::Equal));
+    let solar_term_years: Vec<i32> = ((year_data.lunar_year - 1)..=(year_data.lunar_year + 1)).collect();
+    let solar_term_jds = solar_term_years
+        .iter()
+        .flat_map(|&y| lunar_core::astronomy::aspects::solar_term_jds_for_year_cached(vsop, y))
+        .map(|r| r.as_f64())
+        .collect();
     YearDataResult {
+        solar_term_years,
+        solar_term_jds,
         lunar_year: year_data.lunar_year,
         new_moon_jds: nm.iter().map(|r| r.as_f64()).collect(),
         zhong_qi_jds: year_data.zhong_qi_jds.iter().map(|r| r.as_f64()).collect(),
@@ -1120,6 +1151,14 @@ fn year_data_result(
 
 #[wasm_bindgen]
 impl YearDataResult {
+    #[wasm_bindgen(getter)]
+    pub fn solar_term_years(&self) -> Vec<i32> {
+        self.solar_term_years.clone()
+    }
+    #[wasm_bindgen(getter)]
+    pub fn solar_term_jds(&self) -> Vec<f64> {
+        self.solar_term_jds.clone()
+    }
     #[wasm_bindgen(getter)]
     pub fn lunar_year(&self) -> i32 {
         self.lunar_year

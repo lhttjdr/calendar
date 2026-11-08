@@ -642,6 +642,16 @@ pub fn solar_term_jds_for_year_with_options(
 static SOLAR_TERMS_CACHE: Lazy<RwLock<HashMap<i32, Vec<Real>>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
 
+/// 以他处（如网页 Worker 用同一历表）算好的某年 24 节气灌入缓存，此後 [`solar_term_jds_for_year_cached`] 直接取用、不再求解。
+/// `jds` 须为 24 项、顺序同 [`solar_term_jds_for_year`]（0 春分 … 23 驚蟄）；否则不灌。已有者不覆盖。
+pub fn seed_solar_terms_cache(year: i32, jds: Vec<Real>) -> bool {
+    if jds.len() != 24 {
+        return false;
+    }
+    SOLAR_TERMS_CACHE.write().unwrap().entry(year).or_insert(jds);
+    true
+}
+
 /// 某年 24 节气 JD(TT)，带缓存。返回 Vec<R>，不写死 f64。
 pub fn solar_term_jds_for_year_cached(vsop: &Vsop87, year: i32) -> Vec<Real> {
     let cache = SOLAR_TERMS_CACHE.read().unwrap();
@@ -659,6 +669,18 @@ pub fn solar_term_jds_for_year_cached(vsop: &Vsop87, year: i32) -> Vec<Real> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn seeded_terms_are_returned_without_solving() {
+        // 取历表范围外的年份，免与其它测试共用的全局缓存相撞；灌入後应原样取回、不覆盖、长度不对不灌
+        let year = -88_888;
+        let jds: Vec<Real> = (0..24).map(|k| real(1000.0 + k as f64)).collect();
+        assert!(!seed_solar_terms_cache(year, jds[..23].to_vec()));
+        assert!(seed_solar_terms_cache(year, jds.clone()));
+        assert!(seed_solar_terms_cache(year, vec![real(0.0); 24]));
+        let vsop = crate::astronomy::ephemeris::vsop87::minimal_earth_vsop();
+        assert_eq!(solar_term_jds_for_year_cached(&vsop, year), jds);
+    }
     use crate::astronomy::apparent::ApparentPipelineOptions;
     use crate::astronomy::ephemeris::De406Kernel;
     #[cfg(not(target_arch = "wasm32"))]
