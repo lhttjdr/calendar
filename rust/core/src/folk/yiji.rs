@@ -15,7 +15,7 @@ const GAN: &str = "甲乙丙丁戊己庚辛壬癸";
 const ZHI: &str = "子丑寅卯辰巳午未申酉戌亥";
 
 /// 月表一日
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct YueBiaoDay {
     /// 建除（建、除、滿……）
     pub jian_chu: String,

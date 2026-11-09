@@ -1155,7 +1155,48 @@ pub fn hun_shen_list_json() -> String {
     json_arr(lunar_core::folk::yiji_derive::HUN_SHEN.iter().map(|(n, y)| format!("[{},{}]", json_str(n), y)))
 }
 
-/// 末两参 `ignore_lo`、`ignore_hi`：不看之神的位掩码（低、高 32 位；位义见 `hun_shen_list_json`），略去后按协纪推法重推婚事宜忌。
+#[wasm_bindgen]
+pub fn tongshu_shen_list_json() -> String {
+    // 协纪改删之旧说与类编、鳌头、董公诸神：[名, 组, 所主与协纪之断]；下标即 jiaqu_days_json 之 tongshu_mask 位
+    json_arr(lunar_core::folk::jiaqu_tongshu::TONGSHU_SHEN.iter().map(|(n, g, w)| format!("[{},{},{}]", json_str(n), json_str(g), json_str(w))))
+}
+
+fn jiaqu_views_json(vs: &[lunar_core::folk::jiaqu::View]) -> String {
+    json_arr(vs.iter().map(|x| {
+        format!(
+            "{{\"book\":{},\"cite\":{},\"stance\":{},\"rule\":{},\"effect\":{},\"quote\":{}}}",
+            json_str(x.book), json_str(x.cite), json_str(x.stance), json_str(x.rule), json_str(x.effect), json_str(x.quote)
+        )
+    }))
+}
+
+/// 婚嫁择吉可取舍诸项之说明目录：[{key, name, group, views:[{book, cite, stance, rule, effect, quote}]}]，各书之说并列。
+/// key 与 web/src/jiaquShared.ts 参数名一致（类编凶神 `lb:名`、诸神 `ts:名`、铺注 `pz:名`）
+#[wasm_bindgen]
+pub fn jiaqu_rule_catalog_json() -> String {
+    json_arr(lunar_core::folk::jiaqu::RULE_CATALOG.iter().map(|r| {
+        format!("{{\"key\":{},\"name\":{},\"group\":{},\"views\":{}}}", json_str(r.key), json_str(r.name), json_str(r.group), jiaqu_views_json(r.views))
+    }))
+}
+
+/// 协纪婚事诸神（hun_shen_list_json 之序）之说明：[{key: "xj:名", name, group: "宜"|"忌", views}]
+#[wasm_bindgen]
+pub fn hun_shen_info_json() -> String {
+    json_arr(lunar_core::folk::jiaqu::hun_shen_catalog().into_iter().map(|(k, n, g, vs)| {
+        format!("{{\"key\":{},\"name\":{},\"group\":{},\"views\":{}}}", json_str(&k), json_str(n), json_str(g), jiaqu_views_json(&vs))
+    }))
+}
+
+#[wasm_bindgen]
+pub fn puzhu_hun_list_json() -> String {
+    // 协纪铺注中改动婚事之注者：下标即 jiaqu_days_json 之 puzhu_skip 位
+    json_arr(lunar_core::folk::puzhu::PUZHU_HUN.iter().map(|n| json_str(n)))
+}
+
+/// `ignore_lo`、`ignore_hi`：不看之神的位掩码（低、高 32 位；位义见 `hun_shen_list_json`），略去后按协纪推法重推婚事宜忌。
+/// `tongshu_mask`：协纪改删旧说与类编、鳌头、董公诸神逐神否决（位义见 `tongshu_shen_list_json`；0 只作附注）。
+/// `puzhu_skip`：铺注婚事诸日逐项不看（位义见 `puzhu_hun_list_json`）。`opts` 另有 131072 董公忌婚姻否决、262144 须董公宜婚姻（优先）、
+/// 524288 须见鳌头嫁娶或備急表。返回增 `tongshu`（所值诸神名）、`dongGong`（董公婚姻宜忌）、`aotou`（鳌头婚姻表所列）。
 #[wasm_bindgen]
 pub fn jiaqu_days_json(
     jd0: f64,
@@ -1173,6 +1214,8 @@ pub fn jiaqu_days_json(
     ignore_lo: u32,
     ignore_hi: u32,
     leibian_mask: u32,
+    tongshu_mask: u32,
+    puzhu_skip: u32,
 ) -> Result<String, JsValue> {
     use lunar_core::calendar::chinese_lunar::ChineseLunarDate;
     use lunar_core::folk::jiaqu::{judge_day, ChiKouRule, Jiang, JiaquInput, JiaquOptions, ZhouTangRule};
@@ -1227,6 +1270,16 @@ pub fn jiaqu_days_json(
             ChiKouRule::BuYong
         },
         heng_tian_zhu_que: opts & 1024 != 0,
+        tongshu_mask: tongshu_mask as u64,
+        ignore_puzhu: (puzhu_skip & 0xffff) as u16,
+        dong_gong: if opts & 262144 != 0 {
+            lunar_core::folk::jiaqu::DongGongHun::XuYi
+        } else if opts & 131072 != 0 {
+            lunar_core::folk::jiaqu::DongGongHun::BiJi
+        } else {
+            lunar_core::folk::jiaqu::DongGongHun::BuYong
+        },
+        aotou_jiri: if opts & 524288 != 0 { lunar_core::folk::jiaqu::AoTouJiRiRule::XuJiaQu } else { lunar_core::folk::jiaqu::AoTouJiRiRule::BuYong },
         ..JiaquOptions::default()
     };
     let strs = |v: &[String]| json_arr(v.iter().map(|x| json_str(x)));
@@ -1252,7 +1305,7 @@ pub fn jiaqu_days_json(
             Jiang::Neither => "",
         };
         format!(
-            "{{\"jdn\":{},\"ok\":{},\"verdict\":{},\"jie\":{},\"yi\":{},\"ji\":{},\"jieHunYin\":{},\"naCai\":{},\"nvMingYue\":{},\"zhouTang\":{},\"baiHu\":{},\"naXu\":{},\"buJiang\":{},\"jiang\":{},\"leibian\":{},\"liuRen\":{},\"wuRi\":{},\"jiri\":{},\"reasons\":{},\"notes\":{},\"xj\":{}}}",
+            "{{\"jdn\":{},\"ok\":{},\"verdict\":{},\"jie\":{},\"yi\":{},\"ji\":{},\"jieHunYin\":{},\"naCai\":{},\"nvMingYue\":{},\"zhouTang\":{},\"baiHu\":{},\"naXu\":{},\"buJiang\":{},\"jiang\":{},\"leibian\":{},\"liuRen\":{},\"wuRi\":{},\"jiri\":{},\"tongshu\":{},\"dongGong\":{},\"aotou\":{},\"reasons\":{},\"notes\":{},\"xj\":{}}}",
             jdn,
             r.usable(),
             json_str(match r.verdict {
@@ -1275,6 +1328,9 @@ pub fn jiaqu_days_json(
             json_str(r.xiao_liu_ren),
             opt(r.wu_ri),
             json_arr(r.leibian_jiri.iter().map(|(a, b)| format!("[{},{}]", json_str(a.name()), json_str(b)))),
+            json_arr(r.tongshu.iter().map(|x| json_str(x))),
+            strs(&r.dong_gong),
+            strs(&r.aotou_jiri),
             strs(&r.reasons),
             strs(&r.notes),
             {

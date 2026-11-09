@@ -8,7 +8,9 @@
 //!
 //! 只录规则，不录应验之说。
 
-use super::puzhu::{puzhu_names, yiji_for_day, yuebiao_base_for_day, zhou_tang, PuzhuDay};
+pub use super::jiaqu_catalog::{hun_shen_catalog, rule_info, RuleInfo, View, RULE_CATALOG};
+use super::jiaqu_tongshu::{jiu_ben_yi_shen, huang_hei_dao, sha_gong_zhi_xing_ren_zhuan, tongshu_hits, TongshuInput, TONGSHU_SHEN};
+use super::puzhu::{apply_skipping, puzhu_names, yiji_for_day, yuebiao_base_for_day, zhou_tang, PuzhuDay};
 use super::zhiri::xiu_index;
 
 fn gz_index(name: &str) -> u8 {
@@ -469,6 +471,35 @@ pub struct JiaquOptions {
     pub chi_kou: ChiKouRule,
     /// 用鳌头「橫天朱雀」（初一）否决——缺省 false：只作附注
     pub heng_tian_zhu_que: bool,
+    /// 协纪铺注婚事诸日逐项「不看」（位义见 [`super::puzhu::PUZHU_HUN`]）：上朔、四離、四絕、晦日、二分二至、月忌日、氣往亡、無祿、
+    /// 周堂值夫婦。缺省 0 即时宪书体例
+    pub ignore_puzhu: u16,
+    /// 协纪改删之旧说与类编、鳌头、董公诸神逐神否决（位义见 [`super::jiaqu_tongshu::TONGSHU_SHEN`]）——缺省 0：只作附注
+    pub tongshu_mask: u64,
+    /// 董公逐日婚姻宜忌之用——缺省只作附注
+    pub dong_gong: DongGongHun,
+    /// 鳌头卷三婚姻四表之用——缺省只作附注
+    pub aotou_jiri: AoTouJiRiRule,
+}
+
+/// 董公（《董公選擇日要覽》逐月 × 建除）婚姻宜忌之用。所取事目：婚姻、納采，及泛言之「諸事」
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DongGongHun {
+    /// 只作附注（缺省）：董公与协纪神煞体系、吉凶相抵之法皆异，作并列之说（见 `doc/folk/tongshu_yiji.md` 第九节）
+    BuYong,
+    /// 董公忌婚姻（或諸事忌）之日否决
+    BiJi,
+    /// 须董公宜婚姻（或諸事宜）方可用，并避其忌
+    XuYi,
+}
+
+/// 鳌头卷三婚姻四表（求婚、下定結婚、嫁娶、嫁娶結婚備急用，`data/folk/aotou_jiaqu_days.csv`）之用
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AoTouJiRiRule {
+    /// 只作附注（缺省）：鳌头只出吉日表，表中未收之日不等于忌
+    BuYong,
+    /// 须见于鳌头嫁娶表或嫁娶結婚備急表（正选或「外」日）
+    XuJiaQu,
 }
 
 impl Default for JiaquOptions {
@@ -489,6 +520,10 @@ impl Default for JiaquOptions {
             wuji: WuJiJi::LeiBian,
             chi_kou: ChiKouRule::BuYong,
             heng_tian_zhu_que: false,
+            ignore_puzhu: 0,
+            tongshu_mask: 0,
+            dong_gong: DongGongHun::BuYong,
+            aotou_jiri: AoTouJiRiRule::BuYong,
         }
     }
 }
@@ -637,15 +672,15 @@ fn base_ignoring(d: &PuzhuDay, ignore: u64) -> super::yiji::YueBiaoDay {
 
 /// 一日协纪嫁娶宜忌之依据
 pub fn xieji_basis(d: &PuzhuDay) -> XieJiBasis {
-    xieji_basis_ignoring(d, 0)
+    xieji_basis_ignoring(d, 0, 0)
 }
 
-/// 同 [`xieji_basis`]，略去 `ignore` 诸神
-pub fn xieji_basis_ignoring(d: &PuzhuDay, ignore: u64) -> XieJiBasis {
+/// 同 [`xieji_basis`]，略去 `ignore` 诸神（位义见 [`super::yiji_derive::HUN_SHEN`]）、不加 `skip` 诸铺注（位义见 [`super::puzhu::PUZHU_HUN`]）
+pub fn xieji_basis_ignoring(d: &PuzhuDay, ignore: u64, skip: u16) -> XieJiBasis {
     const GAN: &str = "甲乙丙丁戊己庚辛壬癸";
     const ZHI: &str = "子丑寅卯辰巳午未申酉戌亥";
     let base = base_ignoring(d, ignore);
-    let fin = super::puzhu::apply(&base, &d.input, d.shuo_gz);
+    let fin = apply_skipping(&base, &d.input, d.shuo_gz, skip);
     let gz = d.input.day_gz as usize;
     let mut names: Vec<String> = base.ji_shen.iter().chain(base.xiong_shen.iter()).cloned().collect();
     names.push(format!("{}日", base.jian_chu));
@@ -662,7 +697,21 @@ pub fn xieji_basis_ignoring(d: &PuzhuDay, ignore: u64) -> XieJiBasis {
         yi_shen: pick(&yi_s),
         ji_shen: pick(&ji_s),
         deng_di: base.deng_di.clone(),
-        puzhu: if a != b { puzhu_names(&d.input, d.shuo_gz) } else { Vec::new() },
+        puzhu: if a != b {
+            // 不看之铺注不列（周堂值夫、值婦同一位）
+            let off = |n: &str| {
+                let k = match n {
+                    "月忌" => "月忌日",
+                    "周堂值夫" | "周堂值婦" => "周堂值夫婦",
+                    "春分" | "秋分" | "夏至" | "冬至" => "二分二至",
+                    x => x,
+                };
+                skip & super::puzhu::puzhu_hun_bit(k) != 0
+            };
+            puzhu_names(&d.input, d.shuo_gz).into_iter().filter(|n| !off(n)).collect()
+        } else {
+            Vec::new()
+        },
     }
 }
 
@@ -695,6 +744,12 @@ pub struct JiaquDay {
     pub wu_ri: Option<&'static str>,
     /// 类编卷七逐月吉日表所列：(表, 注)
     pub leibian_jiri: Vec<(JiriBiao, &'static str)>,
+    /// 所值协纪改删之旧说与类编、鳌头、董公诸神（[`TONGSHU_SHEN`] 名）
+    pub tongshu: Vec<&'static str>,
+    /// 董公逐日婚姻宜忌：「宜（等第）：所据原句」等
+    pub dong_gong: Vec<String>,
+    /// 鳌头卷三婚姻四表所列：「表（正／外，注）」
+    pub aotou_jiri: Vec<String>,
     /// 不可制（或未用制化）之否决
     pub reasons: Vec<String>,
     /// 经制化之否决：(所制之忌, 制法与出处)。仅「用制化」时有
@@ -712,7 +767,11 @@ impl JiaquDay {
 
 /// 逐日判定。`d` 由 [`super::puzhu::puzhu_days`] 或 `TermTable::day` 得来。
 pub fn judge_day(d: &PuzhuDay, inp: &JiaquInput, o: &JiaquOptions) -> JiaquDay {
-    let yb = if o.ignore_shen == 0 { yiji_for_day(d) } else { super::puzhu::apply(&base_ignoring(d, o.ignore_shen), &d.input, d.shuo_gz) };
+    let yb = if o.ignore_shen == 0 && o.ignore_puzhu == 0 {
+        yiji_for_day(d)
+    } else {
+        apply_skipping(&base_ignoring(d, o.ignore_shen), &d.input, d.shuo_gz, o.ignore_puzhu)
+    };
     let has = |v: &Option<Vec<String>>, s: &str| v.as_ref().is_some_and(|v| v.iter().any(|x| x == s));
     let xieji_yi = has(&yb.yi, "嫁娶");
     let xieji_ji = yb.yi.is_none() || yb.ji.iter().any(|x| x == "嫁娶");
@@ -890,6 +949,81 @@ pub fn judge_day(d: &PuzhuDay, inp: &JiaquInput, o: &JiaquOptions) -> JiaquDay {
             notes.push("橫天朱雀（鳌头：初一行嫁主再娶）".into());
         }
     }
+    // 协纪改删之旧说与类编、鳌头、董公诸神（清点篇第十一节待实现清单 4—21）：置位者否决（不可制），余只作附注
+    let ti = TongshuInput {
+        month_ord: d.month_ord,
+        day_gz: gz,
+        jdn: d.jdn,
+        year_gz: d.year_gz,
+        nv_year_gz: inp.nv_year_gz,
+        phase: d.input.phase,
+        hui: d.input.lunar_day == d.input.days_in_month,
+    };
+    let hits = tongshu_hits(&ti);
+    for (i, txt) in &hits {
+        let (_, grp, why) = TONGSHU_SHEN[*i];
+        if o.tongshu_mask >> i & 1 == 1 {
+            veto.push((format!("{grp}：{txt}"), None));
+        } else {
+            notes.push(format!("{txt}（{grp}：{why}）"));
+        }
+    }
+    // 旧本宜婚之神（协纪改其所宜）与黄道：只作附注
+    let jb = jiu_ben_yi_shen(d.month_ord, gz % 12);
+    let (hd, is_hd) = huang_hei_dao(d.month_ord, gz % 12);
+    if !jb.is_empty() || is_hd {
+        let mut v: Vec<String> = jb.iter().map(|(n, a, b)| format!("{n}（{a}；协纪{b}）")).collect();
+        if is_hd {
+            v.push(format!("黃道{hd}（神樞經：宜結婚姻；协纪卷十「諸事皆宜而無專宜之事」）"));
+        }
+        notes.push(format!("旧说宜婚：{}", v.join("、")));
+    }
+    // 十二星斷（鳌头卷一）之宜：建平宜行嫁，滿定執成收開宜婚，閉宜娶婦（破危之忌、除日又說在上）
+    let (xd_jc, xd_yj, xd_ju) = super::jiaqu_tongshu::shi_er_xing_duan(d.month_ord, gz % 12);
+    if xd_yj == "宜" {
+        notes.push(format!("十二星斷：{xd_jc}日「{xd_ju}」（鳌头卷一）"));
+    }
+    let sg = sha_gong_zhi_xing_ren_zhuan(d.month_ord, gz);
+    if !sg.is_empty() {
+        notes.push(format!("董公：{}（「能解凶星，唯不能解金神七煞」；略记又云白虎入中宮之日「莫若不用為上」）", sg.join("、")));
+    }
+    // 董公逐日婚姻宜忌（婚姻、納采与泛言之諸事）
+    let dg = super::dong_gong::dong_gong_day((d.month_ord + 2) % 12, gz);
+    let dg_rules: Vec<&super::dong_gong::DongGongRule> = dg.rules.iter().filter(|r| matches!(r.event, "婚姻" | "納采" | "諸事")).collect();
+    let dg_txt: Vec<String> = dg_rules
+        .iter()
+        .map(|r| {
+            let g = if r.grade.is_empty() { String::new() } else { format!("，{}", r.grade) };
+            let c = if r.condition.is_empty() { String::new() } else { format!("，{}", r.condition) };
+            format!("{}{}{g}{c}：{}", r.event, if r.yi { "宜" } else { "忌" }, r.basis)
+        })
+        .collect();
+    let dg_ji = dg_rules.iter().any(|r| !r.yi);
+    let dg_yi = dg_rules.iter().any(|r| r.yi);
+    match o.dong_gong {
+        DongGongHun::BiJi | DongGongHun::XuYi if dg_ji => veto.push(("董公：忌婚姻".into(), None)),
+        DongGongHun::XuYi if !dg_yi => veto.push((format!("董公：不注宜婚姻{}", if dg.no_text() { "（董公无宜忌之文）" } else { "" }), None)),
+        _ => {}
+    }
+    if !dg_txt.is_empty() {
+        notes.push(format!("董公婚姻：{}", dg_txt.join("；")));
+    }
+    // 鳌头卷三婚姻四表
+    let at: Vec<super::aotou::AoTouJiRi> = super::aotou::jiri_for_day(d.month_ord, gz).into_iter().filter(|r| r.table.starts_with("逐月") && matches!(r.shi.as_str(), "求婚" | "下定結婚" | "嫁娶") || r.table == "逐月嫁娶結婚吉日備急用").collect();
+    let at_txt: Vec<String> = at
+        .iter()
+        .map(|r| {
+            let name = if r.table == "逐月嫁娶結婚吉日備急用" { "嫁娶備急".to_string() } else { r.shi.clone() };
+            let n = [r.deng.as_str(), r.note.as_str()].iter().filter(|x| !x.is_empty()).copied().collect::<Vec<_>>().join("，");
+            if n.is_empty() { name } else { format!("{name}（{n}）") }
+        })
+        .collect();
+    if o.aotou_jiri == AoTouJiRiRule::XuJiaQu && !at.iter().any(|r| r.shi == "嫁娶" || r.table == "逐月嫁娶結婚吉日備急用") {
+        veto.push(("鳌头：不在嫁娶、嫁娶備急表".into(), None));
+    }
+    if !at_txt.is_empty() {
+        notes.push(format!("鳌头婚姻表：{}", at_txt.join("、")));
+    }
     let jiri = leibian_jiri(d.month_ord, gz);
     if !jiri.is_empty() {
         notes.push(format!(
@@ -924,7 +1058,7 @@ pub fn judge_day(d: &PuzhuDay, inp: &JiaquInput, o: &JiaquOptions) -> JiaquDay {
         Verdict::KeYong
     };
     JiaquDay {
-        xieji_basis: xieji_basis_ignoring(d, o.ignore_shen),
+        xieji_basis: xieji_basis_ignoring(d, o.ignore_shen, o.ignore_puzhu),
         jdn: d.jdn,
         verdict,
         xieji_yi,
@@ -941,6 +1075,9 @@ pub fn judge_day(d: &PuzhuDay, inp: &JiaquInput, o: &JiaquOptions) -> JiaquDay {
         xiao_liu_ren: lr,
         wu_ri,
         leibian_jiri: jiri,
+        tongshu: hits.iter().map(|(i, _)| TONGSHU_SHEN[*i].0).collect(),
+        dong_gong: dg_txt,
+        aotou_jiri: at_txt,
         reasons,
         jie,
         notes,
@@ -1366,6 +1503,89 @@ mod tests {
         assert!((55..=67).contains(&xia.len()), "{}", xia.len());
         // 赤口日约占六分之一
         assert!((55..=67).contains(&ck_days), "{ck_days}");
+    }
+
+    /// 2026 年逐日：新增诸选项（铺注逐项不看、协纪改删旧说与类编鳌头董公诸神逐神否决、董公婚姻、鳌头婚姻表）于可用日之影响。
+    /// 缺省判定与诸选项全关时同；每项否决只落在所值之日；铺注全看时与 `yiji_for_day` 逐日全同。
+    /// `cargo test -p lunar-core --lib tongshu_options_2026 -- --nocapture` 打印表（写入 doc/folk/jiaqu.md）
+    #[test]
+    fn tongshu_options_2026() {
+        use super::super::jiaqu_tongshu::TONGSHU_SHEN;
+        use super::super::puzhu::{puzhu_days, yiji_for_day, QiWangWangCount, PUZHU_HUN};
+        use crate::astronomy::ephemeris::{load_all, load_earth_vsop87_from_repo, Elpmpp02Correction};
+        use crate::calendar::gregorian::Gregorian;
+        use crate::math::real::RealOps;
+        let vsop = load_earth_vsop87_from_repo().unwrap();
+        let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT).unwrap();
+        let j0 = (Gregorian::to_julian_day(2026, 1, 1).as_f64() + 0.5).floor() as i64;
+        let days = puzhu_days(&vsop, &elp, None, j0, j0 + 364, QiWangWangCount::Inclusive);
+        let inp = JiaquInput { nv_year_gz: 41, has_weng_gu: true, has_nv_fu_mu: true, na_xu: false };
+        let run = |o: &JiaquOptions| -> Vec<JiaquDay> { days.iter().map(|d| judge_day(d, &inp, o)).collect() };
+        let base = run(&JiaquOptions::default());
+        let n_ok = |v: &[JiaquDay]| v.iter().filter(|d| d.usable()).count();
+        // 铺注全看：与 yiji_for_day 逐日全同
+        for (d, j) in days.iter().zip(&base) {
+            let y = yiji_for_day(d);
+            assert_eq!(j.xieji_yi, y.yi.as_ref().is_some_and(|v| v.iter().any(|x| x == "嫁娶")));
+        }
+        println!("| 选项 | 所值之日 | 可用（缺省 {}） | 由否变可／由可变否 |\n|---|---|---|---|", n_ok(&base));
+        let diff = |v: &[JiaquDay]| -> (usize, usize) {
+            let a = v.iter().zip(&base).filter(|(x, y)| x.usable() && !y.usable()).count();
+            let b = v.iter().zip(&base).filter(|(x, y)| !x.usable() && y.usable()).count();
+            (a, b)
+        };
+        // 铺注逐项不看
+        for (i, n) in PUZHU_HUN.iter().enumerate() {
+            let v = run(&JiaquOptions { ignore_puzhu: 1 << i, ..JiaquOptions::default() });
+            let (a, b) = diff(&v);
+            assert_eq!(b, 0, "{n}：不看铺注不应使可用日变否");
+            let hit = days.iter().zip(&v).zip(&base).filter(|((_, x), y)| x.xieji_yi != y.xieji_yi).count();
+            println!("| 不看铺注「{n}」 | 改注宜 {hit} | {} | {a}／{b} |", n_ok(&v));
+        }
+        let all_off = run(&JiaquOptions { ignore_puzhu: 0x1ff, ..JiaquOptions::default() });
+        println!("| 不看铺注九项 | — | {} | {}／{} |", n_ok(&all_off), diff(&all_off).0, diff(&all_off).1);
+        // 诸神逐神否决
+        for (i, (n, grp, _)) in TONGSHU_SHEN.iter().enumerate() {
+            let v = run(&JiaquOptions { tongshu_mask: 1 << i, ..JiaquOptions::default() });
+            let hit = base.iter().filter(|d| d.tongshu.contains(n)).count();
+            let (a, b) = diff(&v);
+            assert_eq!(a, 0, "{n}");
+            // 否决只落在所值之日
+            for (x, y) in v.iter().zip(&base) {
+                if x.usable() != y.usable() {
+                    assert!(y.tongshu.contains(n));
+                    assert!(x.reasons.iter().any(|r| r.starts_with(grp)));
+                }
+            }
+            println!("| {grp}：{n} | {hit} | {} | {a}／{b} |", n_ok(&v));
+        }
+        let all_on = run(&JiaquOptions { tongshu_mask: (1 << TONGSHU_SHEN.len()) - 1, ..JiaquOptions::default() });
+        println!("| 诸神全否决 | — | {} | {}／{} |", n_ok(&all_on), diff(&all_on).0, diff(&all_on).1);
+        for (name, o) in [
+            ("董公：避忌婚姻", JiaquOptions { dong_gong: DongGongHun::BiJi, ..JiaquOptions::default() }),
+            ("董公：须宜婚姻", JiaquOptions { dong_gong: DongGongHun::XuYi, ..JiaquOptions::default() }),
+            ("鳌头：须见嫁娶或備急表", JiaquOptions { aotou_jiri: AoTouJiRiRule::XuJiaQu, ..JiaquOptions::default() }),
+            ("只用鳌头嫁娶表（协纪月表、周堂不用）", JiaquOptions { xieji_yiji: XieJiYiJi::BuYong, zhou_tang: ZhouTangRule::BuYong, aotou_jiri: AoTouJiRiRule::XuJiaQu, ..JiaquOptions::default() }),
+            ("只用董公须宜（协纪月表、周堂不用）", JiaquOptions { xieji_yiji: XieJiYiJi::BuYong, zhou_tang: ZhouTangRule::BuYong, dong_gong: DongGongHun::XuYi, ..JiaquOptions::default() }),
+        ] {
+            let v = run(&o);
+            let hit = match o.dong_gong {
+                DongGongHun::BuYong => base.iter().filter(|d| !d.aotou_jiri.is_empty()).count(),
+                _ => base.iter().filter(|d| !d.dong_gong.is_empty()).count(),
+            };
+            let (a, b) = diff(&v);
+            println!("| {name} | {hit} | {} | {a}／{b} |", n_ok(&v));
+        }
+        // 女嫁厄年：女命乙巳（巳）厄年为戌；2026 丙午非厄年，女命己酉（酉）厄年为午
+        assert!(base.iter().all(|d| !d.tongshu.contains(&"女嫁厄年")));
+        let inp2 = JiaquInput { nv_year_gz: 45, ..inp };
+        let v2: Vec<JiaquDay> = days.iter().map(|d| judge_day(d, &inp2, &JiaquOptions::default())).collect();
+        let cj = (Gregorian::to_julian_day(2026, 2, 4).as_f64() + 0.5).floor() as i64;
+        for d in &v2 {
+            if d.jdn > cj {
+                assert!(d.tongshu.contains(&"女嫁厄年"), "{}", d.jdn);
+            }
+        }
     }
 
     const GZ60: [&str; 60] = [

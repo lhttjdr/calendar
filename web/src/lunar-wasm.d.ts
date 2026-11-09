@@ -53,7 +53,11 @@ declare module 'lunar-wasm' {
   export function ziwei18_json(year_gz: number, lunar_month: number, is_leap: boolean, lunar_day: number, hour_zhi: number, male: boolean, opts: number): string
   export function hun_shen_list_json(): string
   export function leibian_shen_list_json(): string
-  export function jiaqu_days_json(jd0: number, vsop87_ear: string, months: Uint8Array, days: Uint8Array, leaps: Uint8Array, dims: Uint8Array, phases: Int8Array, nv_year_gz: number, has_weng_gu: boolean, has_nv_fu_mu: boolean, na_xu: boolean, opts: number, ignore_lo?: number, ignore_hi?: number, leibian_mask?: number): string
+  export function tongshu_shen_list_json(): string
+  export function puzhu_hun_list_json(): string
+  export function jiaqu_rule_catalog_json(): string
+  export function hun_shen_info_json(): string
+  export function jiaqu_days_json(jd0: number, vsop87_ear: string, months: Uint8Array, days: Uint8Array, leaps: Uint8Array, dims: Uint8Array, phases: Int8Array, nv_year_gz: number, has_weng_gu: boolean, has_nv_fu_mu: boolean, na_xu: boolean, opts: number, ignore_lo?: number, ignore_hi?: number, leibian_mask?: number, tongshu_mask?: number, puzhu_skip?: number): string
   export function taiyi_json(jd_ut: number, vsop87_ear: string, day_gz: number, hour_zhi: number, kind: number, school: number, dun: number, opts: number): string
   export function paipan_wasm(jd_ut: number, vsop87_ear: string, day_gz: number, hour_zhi: number): string
   export function seed_solar_terms_wasm(years: Int32Array, jds: Float64Array): number

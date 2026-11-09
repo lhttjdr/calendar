@@ -16,6 +16,8 @@ pub mod ganzhi_presets;
 pub mod gengdian;
 pub mod jianchu;
 pub mod jiaqu;
+pub mod jiaqu_tongshu;
+pub mod jiaqu_catalog;
 pub mod jiuxing;
 pub mod liuren;
 pub mod liuyao;

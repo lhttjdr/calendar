@@ -449,11 +449,34 @@ fn bu_yi_month(d: &PuzhuDay, m: u8) -> Vec<&'static str> {
     out
 }
 
+/// 铺注诸日中改动婚事（結婚姻、納采問名、嫁娶）之注者，下标即 [`apply_skipping`] 之 `skip` 位（婚嫁择吉「不看」用）。
+/// 反支、土王、伏社、朔弦望、人神、長短星等不及婚事，不列
+pub const PUZHU_HUN: [&str; 9] = ["上朔", "四離", "四絕", "晦日", "二分二至", "月忌日", "氣往亡", "無祿", "周堂值夫婦"];
+
+/// `skip` 中某名之位
+pub fn puzhu_hun_bit(name: &str) -> u16 {
+    PUZHU_HUN.iter().position(|x| *x == name).map_or(0, |i| 1 << i)
+}
+
 /// 一日的月表宜忌加铺注。`shuo_gz` 为本农历月朔日干支（反支用）。返回加注后的一日，凶神栏后附所值诸日名
 pub fn apply(day: &YueBiaoDay, p: &PuzhuInput, shuo_gz: u8) -> YueBiaoDay {
+    apply_skipping(day, p, shuo_gz, 0)
+}
+
+/// 同 [`apply`]，而 `skip` 置位之铺注（位义见 [`PUZHU_HUN`]）不加——其名仍列于凶神栏，只是不改宜忌。
+/// `skip` 为 0 即 [`apply`]
+pub fn apply_skipping(day: &YueBiaoDay, p: &PuzhuInput, shuo_gz: u8, skip: u16) -> YueBiaoDay {
     let mut d = day.clone();
     let names = puzhu_names(p, shuo_gz);
-    let has = |n: &str| names.iter().any(|x| x == n);
+    let off = |n: &str| skip & puzhu_hun_bit(n) != 0;
+    let has = |n: &str| {
+        let k = match n {
+            "月忌" => "月忌日",
+            "周堂值夫" | "周堂值婦" => "周堂值夫婦",
+            x => x,
+        };
+        !off(k) && names.iter().any(|x| x == n)
+    };
     if has("反支") {
         ji(&mut d, &["上冊受封", "上表章"]);
     }
@@ -471,7 +494,7 @@ pub fn apply(day: &YueBiaoDay, p: &PuzhuInput, shuo_gz: u8) -> YueBiaoDay {
     if has("無祿") {
         zhi_yi(&mut d, &WULU_ZHI_ZHU);
     }
-    if let Some(f) = p.fen_zhi {
+    if let Some(f) = p.fen_zhi.filter(|_| !off("二分二至")) {
         bu_zhu_yi(&mut d, &FEN_ZHI_BU_ZHU);
         if f == FenZhi::DongZhi {
             bu_zhu_yi(&mut d, &["伐木"]);
@@ -662,6 +685,58 @@ mod tests {
         let p = PuzhuInput { day_gz: 1, lunar_day: 5, days_in_month: 30, ..Default::default() };
         let d = apply(&none, &p, 0);
         assert!(d.yi.is_none() && d.ji.is_empty());
+    }
+
+    /// 铺注九项逐项可不看：720 月表日 × 各项单值之输入，全看与 [`apply`] 同；只跳过所值之项则婚事之注回到月表，
+    /// 跳过他项不变
+    #[test]
+    fn skipping_each_item() {
+        use super::super::yiji::yuebiao_day;
+        // 各项单值之输入（day_gz 另设）：上朔取年干使 shang_shuo_gz 恰为当日
+        let mk = |k: &str, gz: u8| -> PuzhuInput {
+            let mut p = PuzhuInput { day_gz: gz, year_gan: 0, lunar_month: 3, lunar_day: 3, days_in_month: 29, month_ord: 2, ..Default::default() };
+            // 初三小月周堂值第（不值夫婦）；year_gan 取使上朔不值者
+            p.year_gan = (0..10u8).find(|g| shang_shuo_gz(*g) != gz).unwrap();
+            match k {
+                "上朔" => p.year_gan = (0..10u8).find(|g| shang_shuo_gz(*g) == gz).unwrap_or(p.year_gan),
+                "四離" => p.si_li = true,
+                "四絕" => p.si_jue = true,
+                "晦日" => p.lunar_day = 29,
+                "二分二至" => p.fen_zhi = Some(FenZhi::ChunFen),
+                "月忌日" => p.lunar_day = 5,
+                "氣往亡" => p.qi_wang_wang = true,
+                "無祿" => p.wulu = true,
+                "周堂值夫婦" => p.lunar_day = 1, // 小月初一值婦
+                _ => {}
+            }
+            p
+        };
+        let hun = |d: &YueBiaoDay| -> Vec<(bool, bool)> {
+            ["結婚姻", "納采問名", "嫁娶"].iter().map(|s| (d.yi.as_ref().is_some_and(|v| v.iter().any(|x| x == s)), d.ji.iter().any(|x| x == s))).collect()
+        };
+        let mut changed = [0usize; 9];
+        for m in 0..12u8 {
+            for gz in 0..60u8 {
+                let base = yuebiao_day(m, gz);
+                for (i, k) in PUZHU_HUN.iter().enumerate() {
+                    let p = mk(k, gz);
+                    if *k == "上朔" && shang_shuo_gz(p.year_gan) != gz {
+                        continue;
+                    }
+                    let full = apply(base, &p, 0);
+                    assert_eq!(full, apply_skipping(base, &p, 0, 0));
+                    // 跳过他项（全部他位）：不变
+                    assert_eq!(full, apply_skipping(base, &p, 0, 0x1ff & !(1 << i)), "{k}");
+                    // 跳过本项：婚事之注同无此项之日
+                    let none = apply(base, &mk("", gz), 0);
+                    let sk = apply_skipping(base, &p, 0, 1 << i);
+                    assert_eq!(hun(&sk), hun(&none), "{k} {m} {gz}");
+                    changed[i] += (hun(&full) != hun(&sk)) as usize;
+                }
+            }
+        }
+        // 每项皆有改动婚事之日
+        assert!(changed.iter().all(|&n| n > 0), "{changed:?}");
     }
 
     #[test]

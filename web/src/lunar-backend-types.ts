@@ -153,7 +153,15 @@ export interface LunarBackend {
   hun_shen_list_json?(): string
   /** 类编嫁娶凶神：[名, 缺省是否否决]，下标即 leibian_mask 位 */
   leibian_shen_list_json?(): string
-  jiaqu_days_json?(jd0: number, vsop87_ear: string, months: Uint8Array, days: Uint8Array, leaps: Uint8Array, dims: Uint8Array, phases: Int8Array, nv_year_gz: number, has_weng_gu: boolean, has_nv_fu_mu: boolean, na_xu: boolean, opts: number, ignore_lo?: number, ignore_hi?: number, leibian_mask?: number): string
+  /** 协纪改删旧说与类编、鳌头、董公诸神：[名, 组, 说明]，下标即 jiaqu_days_json 之 tongshu_mask 位 */
+  tongshu_shen_list_json?(): string
+  /** 铺注婚事诸日：下标即 jiaqu_days_json 之 puzhu_skip 位 */
+  puzhu_hun_list_json?(): string
+  /** 可取舍诸项说明：[{key,name,group,views:[{book,cite,stance,rule,effect,quote}]}] */
+  jiaqu_rule_catalog_json?(): string
+  /** 协纪婚事诸神说明：同上结构，key 为 xj:名，group 为宜/忌 */
+  hun_shen_info_json?(): string
+  jiaqu_days_json?(jd0: number, vsop87_ear: string, months: Uint8Array, days: Uint8Array, leaps: Uint8Array, dims: Uint8Array, phases: Int8Array, nv_year_gz: number, has_weng_gu: boolean, has_nv_fu_mu: boolean, na_xu: boolean, opts: number, ignore_lo?: number, ignore_hi?: number, leibian_mask?: number, tongshu_mask?: number, puzhu_skip?: number): string
   /** 排盘页太乙（JSON） */
   taiyi_json?(jd_ut: number, vsop87_ear: string, day_gz: number, hour_zhi: number, kind: number, school: number, dun: number, opts: number): string
   /** 排盘摘要：奇门时家局、六壬起课、太乙时计、三元九运 */
