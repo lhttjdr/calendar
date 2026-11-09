@@ -8,6 +8,7 @@ import { Notes, OptionsFold, useOpt, useOptGroup } from './fold'
 import type { LunarBackend } from './lunar-backend-types'
 import { useCompassBar, useSpinDriver, type CompassSpinSource } from './CompassBar'
 import { ensureLiShu, LISHU_FAMILY } from './Wheels'
+import { JIAQU_DEFAULTS as JD, JIAQU_IN_NS, JIAQU_RULE_NS, jiaquMonth, nvGzOf, type JiaquDay, type MonthLunar } from './jiaquShared'
 
 const { Text } = Typography
 
@@ -140,12 +141,6 @@ export const ShanWheel = memo(function ShanWheel({ data, size = 560, spin }: { d
   )
 })
 
-type MonthLunar = { jd0: number; months: number[]; days: number[]; leaps: number[]; dims: number[]; phases: number[] }
-type JiaquDay = {
-  jdn: number; ok: boolean; verdict?: string; jie?: [string, string][]; yi: boolean; ji: boolean; jieHunYin: boolean; naCai: boolean; nvMingYue: string
-  zhouTang: string | null; baiHu: string | null; naXu: string | null; buJiang: boolean; jiang: string
-  leibian: [string, string][]; liuRen?: string; wuRi?: string | null; jiri?: [string, string][]; reasons: string[]; notes: string[]
-}
 const GZ_GAN = '甲乙丙丁戊己庚辛壬癸', GZ_ZHI = '子丑寅卯辰巳午未申酉戌亥'
 
 const WEEK = '日一二三四五六'
@@ -214,35 +209,36 @@ function JiaquDetail(props: { d: JiaquDay; i: number; m: MonthLunar }) {
 /** 婚嫁择吉：所显示月份逐日判定（协纪为纲、类编历法通书大全卷七并列；见知识库 jiaqu） */
 function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthLunar; monthLabel: string; selJdn: number; onPick: (jdn: number) => void }) {
   const [view, setView] = useState<'grid' | 'list'>('grid')
-  const [nvYear, setNvYear] = useState(2000)
-  const [wengGu, setWengGu] = useState(true)
-  const [fuMu, setFuMu] = useState(true)
-  const [naXu, setNaXu] = useState(false)
-  const g = useOptGroup('jiaqu')
-  const [useYue, setUseYue] = useOpt(g, 'useYue', false, '女命行嫁月')
-  const [xieji, setXieji] = useOpt(g, 'xieji', 0, '协纪月表')
-  const [zt, setZt] = useOpt(g, 'zt', 0, '嫁娶周堂')
-  const [useXiong, setUseXiong] = useOpt(g, 'useXiong', false, '类编凶神')
+  // 输入与规则皆记于本机，日历「择吉」图层同读（jiaquShared.ts）
+  const gi = useOptGroup(JIAQU_IN_NS)
+  const [nvYear, setNvYear] = useOpt(gi, 'nvYear', JD.nvYear)
+  const [wengGu, setWengGu] = useOpt(gi, 'wengGu', JD.wengGu)
+  const [fuMu, setFuMu] = useOpt(gi, 'fuMu', JD.fuMu)
+  const [naXu, setNaXu] = useOpt(gi, 'naXu', JD.naXu)
+  const g = useOptGroup(JIAQU_RULE_NS)
+  const [useYue, setUseYue] = useOpt(g, 'useYue', JD.useYue, '女命行嫁月')
+  const [xieji, setXieji] = useOpt(g, 'xieji', JD.xieji, '协纪月表')
+  const [zt, setZt] = useOpt(g, 'zt', JD.zt, '嫁娶周堂')
+  const [useXiong, setUseXiong] = useOpt(g, 'useXiong', JD.useXiong, '类编凶神')
   const [onlyOk, setOnlyOk] = useState(false)
-  const [zhiHua, setZhiHua] = useOpt(g, 'zhiHua', false, '制化')
-  const [aoTou, setAoTou] = useOpt(g, 'aoTou', false, '鳌头白虎')
-  const [chiKou, setChiKou] = useOpt(g, 'chiKou', 0, '赤口')
-  const [hengTian, setHengTian] = useOpt(g, 'hengTian', false, '橫天朱雀')
-  const nvGz = (((nvYear - 4) % 60) + 60) % 60
+  const [zhiHua, setZhiHua] = useOpt(g, 'zhiHua', JD.zhiHua, '制化')
+  const [aoTou, setAoTou] = useOpt(g, 'aoTou', JD.aoTou, '鳌头白虎')
+  const [chiKou, setChiKou] = useOpt(g, 'chiKou', JD.chiKou, '赤口')
+  const [hengTian, setHengTian] = useOpt(g, 'hengTian', JD.hengTian, '橫天朱雀')
+  const nvGz = nvGzOf(nvYear)
   const m = props.monthLunar
   const [err, setErr] = useState<string | null>(null)
   const list = useMemo((): JiaquDay[] | null => {
-    if (typeof props.wasm.jiaqu_days_json !== 'function') return null
     try {
       setErr(null)
-      return JSON.parse(props.wasm.jiaqu_days_json(m.jd0, props.ear, Uint8Array.from(m.months), Uint8Array.from(m.days), Uint8Array.from(m.leaps), Uint8Array.from(m.dims), Int8Array.from(m.phases), nvGz, wengGu, fuMu, naXu, (useYue ? 1 : 0) | (zt === 1 ? 2 : zt === 2 ? 128 : 0) | (xieji === 1 ? 32 : xieji === 2 ? 64 : 0) | (useXiong ? 4 : 0) | (zhiHua ? 8 : 0) | (aoTou ? 16 : 0) | (chiKou === 1 ? 256 : chiKou === 2 ? 512 : chiKou === 3 ? 2048 : 0) | (hengTian ? 1024 : 0))) as JiaquDay[]
+      return jiaquMonth(props.wasm, props.ear, m, { nvYear, wengGu, fuMu, naXu, useYue, xieji, zt, useXiong, zhiHua, aoTou, chiKou, hengTian })
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       console.error('jiaqu_days_json', e)
       setErr(msg)
       return null
     }
-  }, [props.wasm, props.ear, m, nvGz, wengGu, fuMu, naXu, useYue, zt, xieji, useXiong, zhiHua, aoTou, chiKou, hengTian])
+  }, [props.wasm, props.ear, m, nvYear, wengGu, fuMu, naXu, useYue, zt, xieji, useXiong, zhiHua, aoTou, chiKou, hengTian])
   return (
     <Card size="small" title={`婚嫁择吉（${props.monthLabel}）`} style={{ marginTop: 16 }}>
       <Flex gap={12} wrap align="center" style={{ marginBottom: 8 }}>

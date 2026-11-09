@@ -828,10 +828,15 @@ const TaiyiPanel = memo(function TaiyiPanel(props: { wasm: LunarBackend; ear: st
   const three = (v: number, set: (v: number) => void, label: string, a: string[]) => (
     <div style={{ fontSize: 12 }}>{label}：<Radio.Group size="small" value={v} onChange={(e) => set(e.target.value)} options={a.map((x, i) => ({ label: x, value: i }))} /></div>
   )
+  /** 盘⇄文字：所选之宫 */
+  const [selG, setSelG] = useState<number | null>(null)
+  const gongLink = (gg: number | null | undefined, text: string) => gg == null ? text : (
+    <span role="button" onClick={() => setSelG(selG === gg ? null : gg)} style={{ cursor: 'pointer', borderRadius: 3, padding: '0 2px', background: selG === gg ? '#bae0ff' : undefined, textDecoration: 'underline dotted' }}>{text}</span>
+  )
   const suanText = (x?: TySuan) => x ? `${x.he ? '和' : '不和'}${x.ming.length ? `（${x.ming.join('、')}）` : ''}${x.sanCai ? `、${x.sanCai}` : ''}` : ''
   return (
     <Flex gap={16} wrap align="flex-start">
-      <CompassSpin spin={props.spin} style={{ flex: '1 1 300px', maxWidth: 460 }}>{d ? <TaiyiWheel d={d} next={next} /> : <Text type="secondary">无法起局</Text>}</CompassSpin>
+      <CompassSpin spin={props.spin} style={{ flex: '1 1 300px', maxWidth: 460 }}>{d ? <TaiyiWheel d={d} next={next} hl={selG} onGong={(gg) => setSelG(selG === gg ? null : gg)} /> : <Text type="secondary">无法起局</Text>}</CompassSpin>
       <div style={{ flex: '1 1 260px' }}>
         <Flex vertical gap={6}>
           <Radio.Group size="small" value={kind} onChange={(e) => setKind(e.target.value)} optionType="button"
@@ -846,11 +851,29 @@ const TaiyiPanel = memo(function TaiyiPanel(props: { wasm: LunarBackend; ear: st
               options={[{ label: '阳遁', value: 0 }, { label: '阴遁', value: 1 }]} />
           )}
         </Flex>
+        {d && selG != null && (() => {
+          const items: string[] = [
+            d.gong === selG ? '太乙' : '',
+            ...([[d.zhuDa, '主大將'], [d.zhuCan, '主參將'], [d.keDa, '客大將'], [d.keCan, '客參將'], [d.dingJiDa, '定計大將'], [d.dingJiCan, '定計參將']] as [number | null | undefined, string][]).filter(([gg]) => gg === selG).map(([, n]) => n),
+            ...([[d.siShen, '四神'], [d.tianYi, '天乙'], [d.diYi, '地乙'], [d.zhiFu, '直符'], [d.wuFu, '五福'], [d.daYou, '大游']] as [{ gong: number; name?: string } | null | undefined, string][]).filter(([x]) => x?.gong === selG).map(([x, n]) => `${n}${x?.name ? `（${x.name}）` : ''}`),
+            d.xiaoYou === selG ? '小游' : '',
+            ...(d.shiJing ?? []).filter((x) => x.gong === selG).map((x) => `${x.n}${x.label}`),
+          ].filter(Boolean)
+          return (
+            <div className="gong-detail" style={{ marginTop: 10 }}>
+              <Flex justify="space-between" align="center">
+                <Text strong>{`${'　坎坤震巽中乾兌艮離'[selG]}${selG}宫${d.men?.[selG] ? ` · ${d.men[selG]}` : ''}`}</Text>
+                <Button size="small" type="text" onClick={() => setSelG(null)}>✕</Button>
+              </Flex>
+              <div style={{ fontSize: 13 }}>{items.join('、') || <Text type="secondary" style={{ fontSize: 12 }}>此宫无太乙、诸将与宫中诸神</Text>}</div>
+            </div>
+          )
+        })()}
         {d && (
           <div style={{ marginTop: 10, lineHeight: 1.8 }}>
             <div>{`${d.kind}第${d.r}局 ${d.dun}遁 · ${d.yuan}元第${d.ju}局 · 第${d.ji}纪`}</div>
-            <div>{`太乙在${d.gong}宫（入宫第${d.ruGong}）· 文昌${d.tianMu}（${d.tianMuPos}）· 計神${d.jiShen} · 始擊${d.shiJi}（${d.shiJiPos}）`}</div>
-            <div>{`主算${d.zhuSuan}（大將${d.zhuDa ?? '杜'}、參將${d.zhuCan ?? '杜'}）· 客算${d.keSuan}（大將${d.keDa ?? '杜'}、參將${d.keCan ?? '杜'}）`}</div>
+            <div>太乙在{gongLink(d.gong, `${d.gong}宫`)}{`（入宫第${d.ruGong}）· 文昌${d.tianMu}（${d.tianMuPos}）· 計神${d.jiShen} · 始擊${d.shiJi}（${d.shiJiPos}）`}</div>
+            <div>{`主算${d.zhuSuan}（大將`}{gongLink(d.zhuDa, String(d.zhuDa ?? '杜'))}{'、參將'}{gongLink(d.zhuCan, String(d.zhuCan ?? '杜'))}{`）· 客算${d.keSuan}（大將`}{gongLink(d.keDa, String(d.keDa ?? '杜'))}{'、參將'}{gongLink(d.keCan, String(d.keCan ?? '杜'))}{'）'}</div>
             {d.dingJi && <div>{`定计目${d.dingJi}（${d.dingJiPos}）· 定算${d.dingJiSuan}（大將${d.dingJiDa ?? '杜'}、參將${d.dingJiCan ?? '杜'}）`}</div>}
             {d.siShen && <div style={{ fontSize: 13 }}>{`${d.suiNian ?? ''}岁：四神${d.siShen.name}、天乙${d.tianYi?.name ?? ''}、地乙${d.diYi?.name ?? ''}、直符${d.zhiFu?.name ?? ''}；五福${d.wuFu?.name ?? ''}；大游${d.daYou?.gong ?? ''}宫、小游${d.xiaoYou ?? ''}宫；君基${d.junJi?.zhi ?? ''}、臣基${d.chenJi?.zhi ?? ''}、民基${d.minJi?.zhi ?? ''}`}</div>}
             {(() => {

@@ -453,7 +453,8 @@ const SHEN16 = ['地主', '陽德', '和德', '呂申', '高叢', '太陽', '大
  * 两者逐局各移一位，可沿外环向下一局之位滑去；太乙按洛书数移宫（坎一→坤二→震三跨盘）、始击与主客将由算数得，皆不插值。
  * 太乙移宫时沿洛书路径飞行（经五穿中心）。
  */
-export function TaiyiWheel({ d, next }: { d: TaiyiWheelData; next?: { d: TaiyiWheelData; f: number } }) {
+/** `hl`、`onGong`：与文字联动之宫（1—9） */
+export function TaiyiWheel({ d, next, hl, onGong }: { d: TaiyiWheelData; next?: { d: TaiyiWheelData; f: number }; hl?: number | null; onGong?: (g: number) => void }) {
   const R = [46, 76, 98, 120, 140, 160, 178, 198, 216, 226, 236]
   const mid = (k: number) => (R[k]! + R[k + 1]!) / 2
   const byGong = (pairs: [number | null | undefined, string][]) => {
@@ -504,6 +505,7 @@ export function TaiyiWheel({ d, next }: { d: TaiyiWheelData; next?: { d: TaiyiWh
         return (
           <g key={g}>
             {d.gong === g && <path d={sector(R[0]!, R[1]!, deg - 22.5, deg + 22.5)} fill="#fff1b8" />}
+            {hl === g && <path d={sector(R[0]!, R[4]!, deg - 22.5, deg + 22.5)} fill="#bae0ff" opacity={0.55} stroke="#1677ff" strokeWidth={1.5} />}
             <T r={mid(0) - 7} deg={deg} size={11} fill="#888">{`${GUA[g]}${g}`}</T>
             {js && <T r={mid(1)} deg={deg} size={sz(js, 12)} fill="#0958d9">{lab(js)}</T>}
             {ss && <T r={mid(2)} deg={deg} size={sz(ss, 12)} fill="#531dab">{lab(ss)}</T>}
@@ -537,6 +539,14 @@ export function TaiyiWheel({ d, next }: { d: TaiyiWheelData; next?: { d: TaiyiWh
       <text x={C} y={C - 18} fontSize={10} textAnchor="middle" fill="#888">中五</text>
       {d.zhuSuan != null && <text x={C} y={C - 5} fontSize={10} textAnchor="middle" fill="#0958d9">{`主筭${d.zhuSuan} 客筭${d.keSuan}`}</text>}
       {center.slice(0, 3).map((t, i) => <text key={t} x={C} y={C + 9 + i * 11} fontSize={9} textAnchor="middle" fill="#531dab">{t}</text>)}
+      {onGong && (
+        <g style={{ cursor: 'pointer' }}>
+          {[1, 8, 3, 4, 9, 2, 7, 6].map((g) => {
+            const deg = scr(GONG_AZ[g]!)
+            return <path key={g} d={sector(R[0]!, R[4]!, deg - 22.5, deg + 22.5)} fill="transparent" pointerEvents="all" onClick={() => onGong(g)}><title>{`${GUA[g]}${g}宫`}</title></path>
+          })}
+        </g>
+      )}
     </Frame>
   )
 }

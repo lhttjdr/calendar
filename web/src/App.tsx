@@ -4,6 +4,7 @@ import { SettingOutlined, EyeOutlined } from '@ant-design/icons'
 import { getCurrentPosition } from './sensors'
 import { AppHeader, useIsNarrow, type ViewKey } from './AppHeader'
 import { parseHash, buildHash } from './urlState'
+import { jiaquMonth, readJiaquParams } from './jiaquShared'
 
 /** 打开网页时网址所带的状态（视图、页签、时刻、地点） */
 const URL0 = parseHash(typeof window !== 'undefined' ? window.location.hash : '')
@@ -90,6 +91,7 @@ type DayInfoLayerKey =
   | 'calendar_regimeCalendars' // 历法·独立基础层：其它政权推步历（蜀汉四分、东吴乾象等）
   | 'calendar_ganzhi' // 历法：干支历四柱
   | 'folk_jishi' // 民俗·独立基础层：纳音、值日宿与七曜、年月紫白九星
+  | 'folk_jiaqu' // 民俗·派生层：婚嫁可用日（条件依择日页所设）
   | 'repoStatus' // 工程：天文仲裁层状态（历表/章动表/地球改正加载情况）
 
 const DAY_INFO_LAYERS_STORAGE_KEY = 'lunar-day-info-layers'
@@ -112,7 +114,10 @@ const DAY_INFO_LAYER_GROUPS: { title: string; items: { key: DayInfoLayerKey; lab
   },
   {
     title: '民俗',
-    items: [{ key: 'folk_jishi', label: '纳音·值日宿·九星·建除黄道·神煞·杂节气·更点' }],
+    items: [
+      { key: 'folk_jishi', label: '纳音·值日宿·九星·建除黄道·神煞·杂节气·更点' },
+      { key: 'folk_jiaqu', label: '择吉：月格标婚嫁可用日（女命生年与取舍规则依择日页所设）' },
+    ],
   },
   {
     title: '工程（仲裁层状态）',
@@ -127,6 +132,7 @@ const DEFAULT_DAY_INFO_LAYERS: Record<DayInfoLayerKey, boolean> = {
   calendar_regimeCalendars: true,
   calendar_ganzhi: true,
   folk_jishi: true,
+  folk_jiaqu: false,
   // 历表加载状态属工程信息，缺省不显示（「显示图层」可开）
   repoStatus: false,
 }
@@ -739,6 +745,16 @@ function App() {
     }
     return { jd0, months, days, leaps, dims, phases }
   }, [wasm, panelYearDataList, civilY, civilM])
+  /** 日历「择吉」图层：所示月逐日婚嫁判定（条件读本机所存，与择日页同；切换页面时重读） */
+  const jiaquByDay = useMemo(() => {
+    const ear = getCachedVsop87Ear()
+    if (!dayInfoLayers.folk_jiaqu || !wasm || !monthLunar || ear == null || civilY !== year || civilM !== month) return null
+    try {
+      const list = jiaquMonth(wasm, ear, monthLunar, readJiaquParams())
+      return list ? Object.fromEntries(list.map((d, i) => [i + 1, d.verdict === '經制化可用' ? 'zhi' : d.ok ? 'ok' : ''])) as Record<number, string> : null
+    } catch { return null }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dayInfoLayers.folk_jiaqu, wasm, monthLunar, civilY, civilM, year, month, view, vsop87Tick])
 
   /** 择日、排盘页的日、时调整：与日历同一份所选日期时刻 */
   const shiftSelected = (days: number, hours: number) => {
@@ -1306,6 +1322,12 @@ function App() {
                       <Tag color="blue" style={{ position: 'absolute', top: 4, right: 4, margin: 0 }}>
                         今
                       </Tag>
+                    )}
+                    {isCurMonth && cellDay != null && jiaquByDay?.[cellDay] && (
+                      <span title={jiaquByDay[cellDay] === 'ok' ? '婚嫁可用（条件依择日页）' : '婚嫁经制化可用（条件依择日页）'}
+                        style={{ position: 'absolute', top: 4, left: 4, fontSize: 10, lineHeight: '14px', padding: '0 3px', borderRadius: 3, color: '#fff', background: jiaquByDay[cellDay] === 'ok' ? '#52c41a' : '#faad14' }}>
+                        嫁
+                      </span>
                     )}
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 0, width: '100%' }}>
                       <div style={{ fontWeight: 600, fontSize: isCurMonth ? 16 : 14 }}>{cellDay ?? ''}</div>
