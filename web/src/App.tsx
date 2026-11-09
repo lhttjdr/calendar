@@ -716,17 +716,18 @@ function App() {
   })()
   const [locateMsg, setLocateMsg] = useState('')
   /** 婚嫁择吉用：所显示月份逐日的农历（与日历同源）与朔弦望 */
+  // 月份以民用历（1582-10-15 前儒略历）计，与所选日期、日历同
   const monthLunar = useMemo(() => {
     if (!wasm || panelYearDataList.length === 0) return null
     const months: number[] = [], days: number[] = [], leaps: number[] = [], dims: number[] = [], phases: number[] = []
-    const jd0 = displayCivilToJd(displayY, displayM, 1)
-    const all = civilMonthDays(displayY, displayM)
+    const jd0 = displayCivilToJd(civilY, civilM, 1)
+    const all = civilMonthDays(civilY, civilM)
     for (const d of all) {
-      const p = civilToProleptic(displayY, displayM, d)
+      const p = civilToProleptic(civilY, civilM, d)
       const slot = getLunarSlotForDay(wasm, p.year, p.month, p.day, panelYearDataList)
       if (!slot) return null
       months.push(slot.lunarMonth); days.push(slot.dayOfMonth); leaps.push(slot.isLeapMonth === 1 ? 1 : 0); dims.push(slot.daysInMonth ?? 30)
-      const jdn = Math.floor(displayCivilToJd(displayY, displayM, d) + 0.5)
+      const jdn = Math.floor(displayCivilToJd(civilY, civilM, d) + 0.5)
       let ph = -1
       for (const yd of panelYearDataList) {
         const pj = yd.phaseJds, pk = yd.phaseKinds
@@ -737,11 +738,12 @@ function App() {
       phases.push(ph)
     }
     return { jd0, months, days, leaps, dims, phases }
-  }, [wasm, panelYearDataList, displayY, displayM])
+  }, [wasm, panelYearDataList, civilY, civilM])
 
   /** 择日、排盘页的日、时调整：与日历同一份所选日期时刻 */
   const shiftSelected = (days: number, hours: number) => {
-    let jd = displayCivilToJd(displayY, displayM, displayD) + days
+    // 所选日期以民用历（1582-10-15 前儒略历）存，须用民用历日期换 JD；displayY 等为前推格里高利历，1582 年前差十日上下
+    let jd = displayCivilToJd(civilY, civilM, civilD) + days
     let h = displayHour + hours
     while (h < 0) { h += 24; jd -= 1 }
     while (h >= 24) { h -= 24; jd += 1 }
@@ -827,6 +829,18 @@ function App() {
     setSelectedTime({ hour: v.hour, minute: v.minute, second: 0 })
     setIsLiveMode(false)
   }
+  /** 由 UT 儒略日定全站所选时刻（星图播放、选食等用）：按当前所选时刻与其 UT 之差（时区偏移）换回民用历 */
+  const setJdUt = (jd: number) => {
+    const secs = displayHour * 3600 + displayMinute * 60 + displaySecond + Math.round((jd - selectedJdUt) * 86400)
+    const dayShift = Math.floor(secs / 86400)
+    const rem = secs - dayShift * 86400
+    const d = jdToDisplayDate(displayCivilToJd(civilY, civilM, civilD) + dayShift)
+    setYear(d.year)
+    setMonth(d.month)
+    setSelectedDate(d)
+    setSelectedTime({ hour: Math.floor(rem / 3600), minute: Math.floor((rem % 3600) / 60), second: rem % 60 })
+    setIsLiveMode(false)
+  }
   const setPlace = (lat: number, lon: number) => {
     setObserverLatitude(lat)
     setObserverLongitude(lon)
@@ -872,18 +886,19 @@ function App() {
   const stepDay = { label: '日', prev: () => shiftSelected(-1, 0), next: () => shiftSelected(1, 0) }
   const stepMonth = { label: '月', prev, next }
   const stepShichen = { label: '时辰', prev: () => shiftSelected(0, -2), next: () => shiftSelected(0, 2) }
+  const stepHour = { label: '时', prev: () => shiftSelected(0, -1), next: () => shiftSelected(0, 1) }
   const header = (
     <AppHeader
       view={view}
       onView={setView}
-      showTime={view === 'calendar' || view === 'zeri' || view === 'paipan'}
+      showTime={view === 'calendar' || view === 'zeri' || view === 'paipan' || view === 'stars'}
       title={`${yearText(civilY)}${civilM}月${civilD}日 ${pad2(displayHour)}:${pad2(displayMinute)}`}
       titleShort={`${civilY === today.year ? '' : yearText(civilY)}${civilM}月${civilD}日 ${pad2(displayHour)}:${pad2(displayMinute)}`}
       subtitle={[
         selectedLunarSlot ? `农历${selectedLunarSlot.isLeapMonth === 1 ? '閏' : ''}${selectedLunarSlot.lunarMonth}月${selectedLunarSlot.dayOfMonth}日` : '',
         dayPillar ? `${dayPillar}日${hourGanzhi ? hourGanzhi + '时' : ''}` : '',
       ].filter(Boolean).join(' · ')}
-      steps={view === 'paipan' ? [stepDay, stepShichen] : view === 'calendar' || view === 'zeri' ? [stepMonth, stepDay] : []}
+      steps={view === 'paipan' ? [stepDay, stepShichen] : view === 'stars' ? [stepDay, stepHour] : view === 'calendar' || view === 'zeri' ? [stepMonth, stepDay] : []}
       isLive={isLiveMode}
       onLive={(on) => (on ? goToday() : freezeNow())}
       value={{ year: civilY, month: civilM, day: civilD, hour: displayHour, minute: displayMinute }}
@@ -909,7 +924,7 @@ function App() {
     return (
       <div className="page">
         {header}
-        <Suspense fallback={pageFallback}><StarChartPage /></Suspense>
+        <Suspense fallback={pageFallback}><StarChartPage jdUt={selectedJdUt} lat={observerLatitude} lon={observerLongitude} onTime={setJdUt} onPlace={setPlace} /></Suspense>
       </div>
     )
   }
@@ -929,7 +944,7 @@ function App() {
           onLocate={locate}
           declination={magneticDeclination}
           monthLunar={monthLunar}
-          monthLabel={`${displayY}年${displayM}月`}
+          monthLabel={`${civilY > 0 ? civilY : `前${1 - civilY}`}年${civilM}月`}
           onPickJdn={(n) => { if (wasm) shiftSelected(n - Math.floor(wasm.gregorian_to_jd(displayY, displayM, displayD) + 1), 0) }}
         /></Suspense>
       </div>
@@ -969,7 +984,7 @@ function App() {
     return (
       <div className="page">
         {header}
-        <Suspense fallback={pageFallback}><EclipseMapPage /></Suspense>
+        <Suspense fallback={pageFallback}><EclipseMapPage year0={civilY} onPickTime={setJdUt} onView={setView} /></Suspense>
       </div>
     )
   }

@@ -231,9 +231,16 @@ function Legend() {
 
 // ---------------------------------------------------------------------------------------------------------------------
 
-export function EclipseMapPage() {
+/**
+ * 日月食图。年份初值取全站所选之年；点选某食即把全站时刻移到其食甚（UT），换到日历、星图、排盘即见该时（doc/engineering/ui-interaction.md）。
+ */
+export function EclipseMapPage(props: { year0: number; onPickTime: (jdUt: number) => void; onView: (v: 'calendar' | 'stars') => void }) {
   const call = useWorkerRpc<EclipseRequest>(() => new Worker(new URL('./eclipseWorker.ts', import.meta.url), { type: 'module' }))
-  const [year, setYear] = useState(-180)
+  const [year, setYear] = useState(props.year0)
+  const pick = (r: AnyItem | null) => {
+    setSelected(r)
+    if (r) props.onPickTime(r.greatestTt - r.deltaT / 86400)
+  }
   const [list, setList] = useState<AnyItem[] | null>(null)
   const [selected, setSelected] = useState<AnyItem | null>(null)
   const [map, setMap] = useState<EclipseMap | null>(null)
@@ -332,6 +339,13 @@ export function EclipseMapPage() {
           <Button onClick={() => { const y = year + 1; setYear(y); query(y) }}>下一年</Button>
           <Text type="secondary">{yearLabel(year)} 年；1582-10-15 前用儒略历；时刻为 UT</Text>
         </Flex>
+        {selected && (
+          <Flex gap={8} align="center" wrap="wrap" style={{ marginTop: 8 }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>点选某食，全站时刻即移到其食甚：</Text>
+            <Button size="small" onClick={() => { pick(selected); props.onView('stars') }}>在星图看食甚天象</Button>
+            <Button size="small" onClick={() => { pick(selected); props.onView('calendar') }}>看当日历注</Button>
+          </Flex>
+        )}
       </Card>
       {error && <Alert type="error" message={error} showIcon closable onClose={() => setError(null)} />}
       <Spin spinning={!!busy} tip={busy ?? undefined}>
@@ -345,9 +359,9 @@ export function EclipseMapPage() {
             rowSelection={{
               type: 'radio',
               selectedRowKeys: selected ? [String(selected.greatestTt)] : [],
-              onChange: (_, rows) => setSelected(rows[0] ?? null),
+              onChange: (_, rows) => pick(rows[0] ?? null),
             }}
-            onRow={(r) => ({ onClick: () => setSelected(r) })}
+            onRow={(r) => ({ onClick: () => pick(r) })}
             columns={[
               { title: '日期', render: (_, r) => fmtDate(r.greatestTt - r.deltaT / 86400) },
               { title: '食甚 UT', render: (_, r) => fmtTime(r.greatestTt - r.deltaT / 86400) },

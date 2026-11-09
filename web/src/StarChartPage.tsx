@@ -338,12 +338,21 @@ const PLAY_STEPS: { label: string; minutes?: number; months?: number }[] = [
 const MIN_YEAR = -2000
 const MAX_YEAR = 3000
 
-export function StarChartPage() {
+/** 地方平时（以经度 lon 计）之民用历日期时刻 */
+function lmtOf(jdUt: number, lon: number) {
+  const c = jdToCivil(jdUt + lon / 360)
+  return { y: c.y, m: c.m, d: c.d, h: c.h, mi: c.mi }
+}
+
+/**
+ * 星图。时刻、地点取全站时空（顶栏），见 doc/engineering/ui-interaction.md：
+ * `jdUt`、`lat`、`lon` 由外给；播放时本页自行步进，停播时把所到时刻写回全站（`onTime`）；选都城即改全站地点（`onPlace`）。
+ */
+export function StarChartPage(props: { jdUt: number; lat: number; lon: number; onTime: (jdUt: number) => void; onPlace: (lat: number, lon: number) => void }) {
   const call = useWorkerRpc<SkyRequest>(() => new Worker(new URL('./skyWorker.ts', import.meta.url), { type: 'module' }))
-  const now = jdToCivil(Date.now() / 86400000 + 2440587.5)
-  const [date, setDate] = useState({ y: now.y, m: now.m, d: now.d, h: 20, mi: 0 })
+  const [date, setDate] = useState(() => lmtOf(props.jdUt, props.lon))
   const [capitals, setCapitals] = useState<Capital[]>([])
-  const [place, setPlace] = useState<{ name: string; lon: number; lat: number }>({ name: '长安', lon: 108.94, lat: 34.27 })
+  const [place, setPlace] = useState<{ name: string; lon: number; lat: number }>({ name: '', lon: props.lon, lat: props.lat })
   /** 'auto' = 按图上日期取适用体系（Rust：sky_culture::periods），否则为手选的体系 id */
   const [systemChoice, setSystemChoice] = useState<string>('auto')
   const [period, setPeriod] = useState<{ system: string; epoch: string; basis: string } | null>(null)
@@ -369,6 +378,14 @@ export function StarChartPage() {
   const [playInterval, setPlayInterval] = useState(SPEEDS[1].value)
   const playingRef = useRef(false)
   playingRef.current = playing
+  // 全站时空 → 本页（播放中不跟，免与本页步进相争）
+  useEffect(() => {
+    if (!playingRef.current) setDate(lmtOf(props.jdUt, props.lon))
+  }, [props.jdUt, props.lon])
+  useEffect(() => {
+    const name = capitals.find((c) => Math.abs(c.lat - props.lat) < 0.005 && Math.abs(c.lon - props.lon) < 0.005)?.name ?? ''
+    setPlace((p) => (p.lat === props.lat && p.lon === props.lon && p.name === name ? p : { name, lon: props.lon, lat: props.lat }))
+  }, [props.lat, props.lon, capitals])
 
   useEffect(() => {
     loadCapitals().then(setCapitals).catch(() => setCapitals([]))
@@ -483,9 +500,12 @@ export function StarChartPage() {
   const refraction = layerSet.has('refraction') ? refractionTable : null
   const system = SYSTEMS.find((s) => s.id === systemId)!
 
-  const shift = (hours: number) => {
-    const c = jdToCivil(civilToJd(date.y, date.m, date.d, date.h + date.mi / 60) + hours / 24)
-    setDate({ y: c.y, m: c.m, d: c.d, h: c.h, mi: c.mi })
+  /** 3D 全屏内的步进：直接改全站时刻（本页随之） */
+  const shift = (hours: number) => props.onTime(jdUt + hours / 24)
+  /** 播放开关：停播时把所到时刻写回全站 */
+  const togglePlay = () => {
+    if (playing) props.onTime(jdUt)
+    setPlaying(!playing)
   }
 
   useFrameTimer(playing, snap, playInterval, () => {
@@ -500,7 +520,7 @@ export function StarChartPage() {
       const m = months - y * 12 + 1
       next = { ...date, y, m, d: clampCivilDay(y, m, date.d) }
     }
-    if (next.y < MIN_YEAR || next.y > MAX_YEAR) setPlaying(false)
+    if (next.y < MIN_YEAR || next.y > MAX_YEAR) { setPlaying(false); props.onTime(jdUt) }
     else setDate(next)
   })
 
@@ -581,41 +601,25 @@ export function StarChartPage() {
       <Card size="small">
         <Flex vertical gap={10}>
           <Flex gap={8} align="center" wrap="wrap">
-            <Text>日期</Text>
-            <InputNumber value={date.y} min={MIN_YEAR} max={MAX_YEAR} style={{ width: 90 }} onChange={(v) => v != null && setDate({ ...date, y: v })} />
-            <Text type="secondary">年</Text>
-            <InputNumber value={date.m} min={1} max={12} style={{ width: 60 }} onChange={(v) => v != null && setDate({ ...date, m: v })} />
-            <Text type="secondary">月</Text>
-            <InputNumber value={date.d} min={1} max={31} style={{ width: 60 }} onChange={(v) => v != null && setDate({ ...date, d: v })} />
-            <Text type="secondary">日</Text>
-            <InputNumber value={date.h} min={0} max={23} style={{ width: 60 }} onChange={(v) => v != null && setDate({ ...date, h: v })} />
-            <Text type="secondary">:</Text>
-            <InputNumber value={date.mi} min={0} max={59} style={{ width: 60 }} onChange={(v) => v != null && setDate({ ...date, mi: v })} />
-            <Text type="secondary">地方平时（{yearLabel(date.y)} 年；天文纪年，1582-10-15 前儒略历）</Text>
-          </Flex>
-          <Flex gap={8} align="center" wrap="wrap">
-            <Button size="small" onClick={() => shift(-24)}>−1 日</Button>
-            <Button size="small" onClick={() => shift(-1)}>−1 时</Button>
-            <Button size="small" onClick={() => shift(1)}>+1 时</Button>
-            <Button size="small" onClick={() => shift(24)}>+1 日</Button>
-            <span style={{ marginLeft: 12 }}><PlayButton playing={playing} onClick={() => setPlaying(!playing)} /></span>
+            <PlayButton playing={playing} onClick={togglePlay} />
             <Text>步长</Text>
             <Select size="small" style={{ width: 84 }} value={playStep} onChange={setPlayStep} options={PLAY_STEPS.map((s, i) => ({ label: s.label, value: i }))} />
             <Text>速度</Text>
             <Select size="small" style={{ width: 66 }} value={playInterval} onChange={setPlayInterval} options={SPEEDS} />
-            <Text style={{ marginLeft: 12 }}>地点</Text>
+            <Text style={{ marginLeft: 12 }}>都城</Text>
             <Select
+              size="small"
               style={{ width: 150 }}
-              value={capitals.some((c) => c.name === place.name) ? place.name : undefined}
-              placeholder="自定"
+              value={place.name || undefined}
+              placeholder="选都城作观测地"
+              showSearch
               options={capitals.map((c) => ({ label: c.name, value: c.name }))}
               onChange={(n) => {
                 const c = capitals.find((x) => x.name === n)
-                if (c) setPlace({ name: c.name, lon: c.lon, lat: c.lat })
+                if (c) props.onPlace(c.lat, c.lon)
               }}
             />
-            <InputNumber value={place.lon} step={0.01} style={{ width: 100 }} suffix="E" onChange={(v) => v != null && setPlace({ name: '', lon: v, lat: place.lat })} />
-            <InputNumber value={place.lat} step={0.01} style={{ width: 100 }} suffix="N" onChange={(v) => v != null && setPlace({ name: '', lon: place.lon, lat: v })} />
+            <Text type="secondary" style={{ fontSize: 12 }}>{`地方平时 ${yearLabel(date.y)} 年 ${date.m} 月 ${date.d} 日 ${String(date.h).padStart(2, '0')}:${String(date.mi).padStart(2, '0')}（天文纪年，1582-10-15 前儒略历）；日期、地点在顶栏改`}</Text>
           </Flex>
           <Flex gap={8} align="center" wrap="wrap">
             <Text>星官体系</Text>
@@ -701,7 +705,7 @@ export function StarChartPage() {
                     overlay={
                       <Flex gap={8} align="center" wrap="wrap">
                         <Button size="small" onClick={() => shift(-1)}>−1 时</Button>
-                        <PlayButton playing={playing} onClick={() => setPlaying(!playing)} />
+                        <PlayButton playing={playing} onClick={togglePlay} />
                         <Button size="small" onClick={() => shift(1)}>+1 时</Button>
                         <Select size="small" style={{ width: 84 }} value={playStep} onChange={setPlayStep} getPopupContainer={(n) => n.parentElement!} options={PLAY_STEPS.map((st, i) => ({ label: st.label, value: i }))} />
                         <Select size="small" style={{ width: 66 }} value={playInterval} onChange={setPlayInterval} getPopupContainer={(n) => n.parentElement!} options={SPEEDS} />
