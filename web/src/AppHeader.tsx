@@ -8,6 +8,7 @@ import {
   AimOutlined,
   ApartmentOutlined,
   AppstoreOutlined,
+  BgColorsOutlined,
   CalendarOutlined,
   CompassOutlined,
   DoubleLeftOutlined,
@@ -20,6 +21,7 @@ import {
   RightOutlined,
   StarOutlined,
 } from '@ant-design/icons'
+import { setThemeMode, useTheme, type ThemeMode } from './theme'
 
 const { Text } = Typography
 
@@ -80,6 +82,8 @@ function docsHref() {
 }
 
 function MoreMenu(props: { onView: (v: ViewKey) => void; children: ReactNode }) {
+  const { mode } = useTheme()
+  const mark = (m: ThemeMode) => (mode === m ? ' ✓' : '')
   return (
     <Dropdown
       trigger={['click']}
@@ -87,6 +91,15 @@ function MoreMenu(props: { onView: (v: ViewKey) => void; children: ReactNode }) 
         items: [
           { key: 'docs', icon: <ReadOutlined />, label: <a href={docsHref()}>文档</a> },
           { key: 'graph', icon: <ApartmentOutlined />, label: '视位置变换图（开发）', onClick: () => props.onView('graph') },
+          { type: 'divider' },
+          {
+            key: 'theme', icon: <BgColorsOutlined />, label: '明暗',
+            children: [
+              { key: 't-auto', label: `跟随系统${mark('auto')}`, onClick: () => setThemeMode('auto') },
+              { key: 't-light', label: `浅色${mark('light')}`, onClick: () => setThemeMode('light') },
+              { key: 't-dark', label: `深色${mark('dark')}`, onClick: () => setThemeMode('dark') },
+            ],
+          },
         ],
       }}
     >

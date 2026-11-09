@@ -282,7 +282,7 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
       ) : (
         <div style={{ fontSize: 12, lineHeight: 1.7 }}>
           {list.map((d, i) => (onlyOk && !d.ok ? null : (
-            <div key={d.jdn} style={{ borderBottom: '1px solid #f0f0f0', padding: '2px 0' }}>
+            <div key={d.jdn} style={{ borderBottom: '1px solid var(--border-1)', padding: '2px 0' }}>
               <Text strong type={d.verdict === '經制化可用' ? 'warning' : d.ok ? 'success' : 'secondary'}>{`${i + 1}日 ${d.verdict ?? (d.ok ? '可用' : '不可用')}`}</Text>
               {` · 农历${m.leaps[i] ? '閏' : ''}${m.months[i]}月${m.days[i]}日`}
               {d.yi ? ' · 宜嫁娶' : d.ji ? ' · 忌嫁娶' : ''}

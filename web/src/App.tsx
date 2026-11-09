@@ -16,7 +16,7 @@ const EclipseMapPage = lazy(() => import('./EclipseMapPage').then((m) => ({ defa
 const StarChartPage = lazy(() => import('./StarChartPage').then((m) => ({ default: m.StarChartPage })))
 const ZeRiPage = lazy(() => import('./ZeRiPage').then((m) => ({ default: m.ZeRiPage })))
 const PaiPanPage = lazy(() => import('./PaiPanPage').then((m) => ({ default: m.PaiPanPage })))
-const pageFallback = <div style={{ padding: 24, color: '#888' }}>加载页面…</div>
+const pageFallback = <div style={{ padding: 24, color: 'var(--text-3)' }}>加载页面…</div>
 import type { LunarBackend } from './lunar-backend-types'
 import {
   getYearDataForDisplay,
@@ -1017,18 +1017,18 @@ function App() {
           <Flex vertical gap={12} style={{ width: narrow ? '100%' : 260, flexShrink: 0, overflow: 'visible' }}>
             <Card size="small" style={{ width: '100%', overflow: 'visible' }} styles={{ body: { padding: 0, overflow: 'visible' } }}>
               {/* 顶部：只保留公历年月 */}
-              <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(0,0,0,0.06)', textAlign: 'center' }}>
+              <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-2)', textAlign: 'center' }}>
                 <Text type="secondary" style={{ fontSize: 11 }}>{year > 0 ? year : `公元前${1 - year}`}年{month}月</Text>
               </div>
               {/* 日（大号） */}
               <div style={{ padding: '16px 12px 8px', textAlign: 'center' }}>
-                <div style={{ fontSize: 48, fontWeight: 700, lineHeight: 1, color: 'rgba(0,0,0,0.88)', fontVariantNumeric: 'tabular-nums' }}>
+                <div style={{ fontSize: 48, fontWeight: 700, lineHeight: 1, color: 'var(--text-1)', fontVariantNumeric: 'tabular-nums' }}>
                   {civilD}
                 </div>
                 <Text type="secondary" style={{ fontSize: 12, marginTop: 4 }}>{timeZone}</Text>
               </div>
               {/* 各行统一为：历法 纪元 月 日 时刻 */}
-              <div style={{ padding: '0 12px 12px', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+              <div style={{ padding: '0 12px 12px', borderBottom: '1px solid var(--border-2)' }}>
                 {(() => {
                   const timeProps = { live: isLiveMode, timeZone, hour: displayHour, minute: displayMinute, second: displaySecond }
                   const clock = (h: number, m: number, s: number) =>
@@ -1146,19 +1146,19 @@ function App() {
                       <div style={{ fontSize: 13, fontWeight: 600 }}>星期{WEEKDAY_NAMES[weekdayIndex]}</div>
                       <Text type="secondary" style={{ fontSize: 11 }}>第{dayOfYear}天，第{weekOfYear}周</Text>
                       {!isLiveMode && isSelectedToday && <Tag color="blue" style={{ marginTop: 6 }}>今天</Tag>}
-                      {secondary.length > 0 && <div style={{ fontSize: 12, marginTop: 6, color: 'rgba(0,0,0,0.65)' }}>{secondary}</div>}
+                      {secondary.length > 0 && <div style={{ fontSize: 12, marginTop: 6, color: 'var(--text-2)' }}>{secondary}</div>}
                     </>
                   )
                 })()}
                 {/* 朔日：合朔时刻（天文，非实历） */}
                 {dayInfoLayers.astro_synodic && selectedLunarSlot?.dayOfMonth === 1 && newMoonJdUtcOnDay != null && (
-                  <div style={{ fontSize: 11, marginTop: 6, color: 'rgba(0,0,0,0.6)' }}>
+                  <div style={{ fontSize: 11, marginTop: 6, color: 'var(--text-2)' }}>
                     合朔 {formatJdUtcInZone(newMoonJdUtcOnDay, timeZone)}（天文，古代可能算不准）
                   </div>
                 )}
                 {/* 节气：交节时刻（定气）；若与平气不一致则显示平气 */}
                 {dayInfoLayers.astro_solarTerm && zhongQiOnDay.length > 0 && (
-                  <div style={{ fontSize: 11, marginTop: 6, color: 'rgba(0,0,0,0.6)' }}>
+                  <div style={{ fontSize: 11, marginTop: 6, color: 'var(--text-2)' }}>
                     {zhongQiOnDay.map((q) => (
                       <div key={q.name}>
                         {q.name} 交节 {formatJdUtcInZone(q.jdUtc, timeZone)}（定气）
@@ -1219,7 +1219,7 @@ function App() {
                             {jiN > 0 && (
                               <details className="day-ji">
                                 <summary><span style={{ color: '#a8071a', fontWeight: 600 }}>忌</span> {`${jiN} 事`}</summary>
-                                <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.65)' }}>{ji}</div>
+                                <div style={{ fontSize: 11, color: 'var(--text-2)' }}>{ji}</div>
                               </details>
                             )}
                           </>
@@ -1236,7 +1236,7 @@ function App() {
                   {folkDay?.geng && (
                     <details className="day-ji">
                       <summary style={{ fontSize: 12 }}>更点</summary>
-                      <div style={{ fontSize: 11, lineHeight: 1.5, color: 'rgba(0,0,0,0.6)' }}>
+                      <div style={{ fontSize: 11, lineHeight: 1.5, color: 'var(--text-2)' }}>
                         {`${gengdianMethod === 1 ? '元授时法' : '清台官法'}，当地真太阳时：${folkDay.geng}`}
                       </div>
                     </details>
@@ -1307,13 +1307,13 @@ function App() {
                       alignItems: 'center',
                       justifyContent: 'center',
                       textAlign: 'center',
-                      border: '1px solid #f0f0f0',
+                      border: '1px solid var(--border-1)',
                       borderRadius: 0,
                       boxSizing: 'border-box',
-                      outline: isSelected ? '2px solid #1677ff' : 'none',
+                      outline: isSelected ? '2px solid var(--accent)' : 'none',
                       outlineOffset: -1,
-                      background: isToday ? '#e6f4ff' : isSelected ? '#f0f7ff' : undefined,
-                      color: isCurMonth ? (isWeekend ? '#ff4d4f' : undefined) : '#bfbfbf',
+                      background: isToday ? 'var(--today-bg)' : isSelected ? 'var(--hl-soft)' : undefined,
+                      color: isCurMonth ? (isWeekend ? '#ff4d4f' : undefined) : 'var(--text-4)',
                       overflow: 'hidden',
                       position: 'relative',
                     }}
@@ -1541,7 +1541,7 @@ function App() {
           </Flex>
         </Flex>
         {dayInfoLayers.repoStatus && (
-        <div style={{ marginTop: 12, paddingTop: 8, borderTop: '1px solid #f0f0f0' }}>
+        <div style={{ marginTop: 12, paddingTop: 8, borderTop: '1px solid var(--border-1)' }}>
           <Text type="secondary" style={{ fontSize: 12 }}>
             {loading === 'WASM' && 'Repo：加载 WASM…'}
             {loading === '数据' && 'Repo：加载历表…'}

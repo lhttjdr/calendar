@@ -121,7 +121,7 @@ const QimenPanel = memo(function QimenPanel(props: { wasm: LunarBackend; ear: st
   const gongItem = (gg: number | null | undefined, style: React.CSSProperties = {}) => ({
     role: gg != null ? 'button' : undefined,
     onClick: gg != null ? () => pick(gg) : undefined,
-    style: { marginRight: 8, cursor: gg != null ? 'pointer' : undefined, borderRadius: 3, padding: '0 2px', background: gg != null && gg === selGong ? '#bae0ff' : undefined, ...style },
+    style: { marginRight: 8, cursor: gg != null ? 'pointer' : undefined, borderRadius: 3, padding: '0 2px', background: gg != null && gg === selGong ? 'var(--hl-bg)' : undefined, ...style },
   })
   const next = useMemo(() => {
     if (!interp || method !== 0 || jia !== 0 || typeof props.wasm.qimen_json !== 'function') return undefined
@@ -488,7 +488,7 @@ const LiuyaoPanel = memo(function LiuyaoPanel(props: { wasm: LunarBackend; lunar
               {[5, 4, 3, 2, 1, 0].map((k) => {
                 const y = d.yao[k]!
                 return (
-                  <tr key={k} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <tr key={k} style={{ borderBottom: '1px solid var(--border-1)' }}>
                     <td style={{ color: '#531dab', width: 40 }}>{y.shen ?? ''}</td>
                     <td style={{ color: '#888', fontSize: 11, width: 80 }}>{fuShen === 1 ? (mk && mk.jing.shi === k + 1 ? `伏${mk.jing.fuGz}` : '') : y.fu ? `伏${y.fu}` : ''}</td>
                     <td style={{ width: 90 }}>{`${y.qin} ${y.gz}${y.wx}`}</td>
@@ -614,7 +614,7 @@ const XuankongPanel = memo(function XuankongPanel(props: { wasm: LunarBackend; g
             {d.gongMarks && (
               <div style={{ fontSize: 12, marginTop: 4 }}>
                 {d.gongMarks.map((ms, i) => ms.length > 0 && (
-                  <div key={i} role="button" onClick={() => pickG(i + 1)} style={{ cursor: 'pointer', borderRadius: 3, background: selG === i + 1 ? '#bae0ff' : undefined }}><b>{`${['坎', '坤', '震', '巽', '中', '乾', '兌', '艮', '離'][i]}${CN_NUM[i + 1]}`}</b>{' '}{ms.map((m) => <span key={m.n} title={m.note} style={{ marginRight: 6 }}>{m.n}</span>)}</div>
+                  <div key={i} role="button" onClick={() => pickG(i + 1)} style={{ cursor: 'pointer', borderRadius: 3, background: selG === i + 1 ? 'var(--hl-bg)' : undefined }}><b>{`${['坎', '坤', '震', '巽', '中', '乾', '兌', '艮', '離'][i]}${CN_NUM[i + 1]}`}</b>{' '}{ms.map((m) => <span key={m.n} title={m.note} style={{ marginRight: 6 }}>{m.n}</span>)}</div>
                 ))}
               </div>
             )}
@@ -688,7 +688,7 @@ const LiurenPanel = memo(function LiurenPanel(props: { wasm: LunarBackend; ear: 
   const [hlZhi, setHlZhi] = useState<string | null>(null)
   const zhiBtn = (z: string, extra: React.CSSProperties = {}) => (
     <span role="button" title="点看其在天盘之位" onClick={() => setHlZhi(hlZhi === z ? null : z)}
-      style={{ cursor: 'pointer', borderRadius: 3, padding: '0 2px', background: hlZhi === z ? '#bae0ff' : undefined, ...extra }}>{z}</span>
+      style={{ cursor: 'pointer', borderRadius: 3, padding: '0 2px', background: hlZhi === z ? 'var(--hl-bg)' : undefined, ...extra }}>{z}</span>
   )
   if (!d) return <Text type="secondary">无法起课</Text>
   return (
@@ -831,7 +831,7 @@ const TaiyiPanel = memo(function TaiyiPanel(props: { wasm: LunarBackend; ear: st
   /** 盘⇄文字：所选之宫 */
   const [selG, setSelG] = useState<number | null>(null)
   const gongLink = (gg: number | null | undefined, text: string) => gg == null ? text : (
-    <span role="button" onClick={() => setSelG(selG === gg ? null : gg)} style={{ cursor: 'pointer', borderRadius: 3, padding: '0 2px', background: selG === gg ? '#bae0ff' : undefined, textDecoration: 'underline dotted' }}>{text}</span>
+    <span role="button" onClick={() => setSelG(selG === gg ? null : gg)} style={{ cursor: 'pointer', borderRadius: 3, padding: '0 2px', background: selG === gg ? 'var(--hl-bg)' : undefined, textDecoration: 'underline dotted' }}>{text}</span>
   )
   const suanText = (x?: TySuan) => x ? `${x.he ? '和' : '不和'}${x.ming.length ? `（${x.ming.join('、')}）` : ''}${x.sanCai ? `、${x.sanCai}` : ''}` : ''
   return (

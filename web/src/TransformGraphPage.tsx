@@ -326,7 +326,7 @@ export function TransformGraphPage({ wasm }: { wasm: LunarBackend | null }) {
           </Text>
         }
       >
-        <div style={{ height: 760, marginBottom: 16, background: '#fafafa', borderRadius: 8 }}>
+        <div style={{ height: 760, marginBottom: 16, background: 'var(--bg-2)', borderRadius: 8 }}>
           <ReactFlow
             nodes={nodes}
             edges={flowEdges}
