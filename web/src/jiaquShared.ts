@@ -17,6 +17,8 @@ export type JiaquDay = {
 export const JIAQU_DEFAULTS = {
   nvYear: 2000, wengGu: true, fuMu: true, naXu: false,
   useYue: false, xieji: 0, zt: 0, useXiong: false, zhiHua: false, aoTou: false, chiKou: 0, hengTian: false,
+  /** 协纪推法中不看之神，以「、」连名（名见 hun_shen_list_json）；空即全依协纪月表 */
+  ignore: '',
 }
 export type JiaquParams = typeof JIAQU_DEFAULTS
 /** 输入之组名（不入起例摘要）与规则之组名（起例区「取舍规则」） */
@@ -25,16 +27,16 @@ export const JIAQU_RULE_NS = 'jiaqu'
 const IN_KEYS = new Set(['nvYear', 'wengGu', 'fuMu', 'naXu'])
 
 export function readJiaquParams(): JiaquParams {
-  const p = { ...JIAQU_DEFAULTS } as Record<string, number | boolean>
+  const p = { ...JIAQU_DEFAULTS } as unknown as Record<string, number | boolean | string>
   for (const k of Object.keys(JIAQU_DEFAULTS)) {
     try {
       const s = localStorage.getItem(`opt:${IN_KEYS.has(k) ? JIAQU_IN_NS : JIAQU_RULE_NS}/${k}`)
       if (s == null) continue
       const v = JSON.parse(s) as unknown
-      if (typeof v === typeof p[k]) p[k] = v as number | boolean
+      if (typeof v === typeof p[k]) p[k] = v as number | boolean | string | string
     } catch { /* 读不到即用缺省 */ }
   }
-  return p as JiaquParams
+  return p as unknown as JiaquParams
 }
 
 export function jiaquFlags(p: JiaquParams): number {
@@ -44,9 +46,27 @@ export function jiaquFlags(p: JiaquParams): number {
 
 export const nvGzOf = (year: number) => (((year - 4) % 60) + 60) % 60
 
+/** 婚事宜神、忌神（与「特定日」）之表：[名, 是否宜神] */
+export function hunShenList(wasm: LunarBackend): [string, boolean][] {
+  if (typeof wasm.hun_shen_list_json !== 'function') return []
+  try { return JSON.parse(wasm.hun_shen_list_json()) as [string, boolean][] } catch { return [] }
+}
+
+/** 不看之神 → 位掩码（低、高 32 位） */
+export function ignoreMask(wasm: LunarBackend, ignore: string): [number, number] {
+  const set = new Set(ignore.split('、').filter(Boolean))
+  let lo = 0, hi = 0
+  hunShenList(wasm).forEach(([n], i) => {
+    if (!set.has(n)) return
+    if (i < 32) lo = (lo | (1 << i)) >>> 0
+    else hi = (hi | (1 << (i - 32))) >>> 0
+  })
+  return [lo, hi]
+}
+
 /** 一月逐日判定；wasm 无此函数返回 null，出错抛出 */
 export function jiaquMonth(wasm: LunarBackend, ear: string, m: MonthLunar, p: JiaquParams): JiaquDay[] | null {
   if (typeof wasm.jiaqu_days_json !== 'function') return null
   return JSON.parse(wasm.jiaqu_days_json(m.jd0, ear, Uint8Array.from(m.months), Uint8Array.from(m.days), Uint8Array.from(m.leaps), Uint8Array.from(m.dims), Int8Array.from(m.phases),
-    nvGzOf(p.nvYear), p.wengGu, p.fuMu, p.naXu, jiaquFlags(p))) as JiaquDay[]
+    nvGzOf(p.nvYear), p.wengGu, p.fuMu, p.naXu, jiaquFlags(p), ...ignoreMask(wasm, p.ignore))) as JiaquDay[]
 }

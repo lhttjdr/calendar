@@ -440,6 +440,8 @@ pub struct JiaquInput {
 pub struct JiaquOptions {
     /// 协纪月表（加铺注）之嫁娶宜忌如何用：须宜嫁娶（缺省）、只避忌嫁娶、不用
     pub xieji_yiji: XieJiYiJi,
+    /// 不看之神（位掩码，位义见 [`super::yiji_derive::HUN_SHEN`]）：略去后按协纪推法重推婚事宜忌。缺省 0 即月表
+    pub ignore_shen: u64,
     /// 用女命行嫁月（类编；协纪奏准删除）——缺省 false：只列出不据以否决
     pub nv_ming_yue: bool,
     pub zhou_tang: ZhouTangRule,
@@ -463,6 +465,7 @@ impl Default for JiaquOptions {
     fn default() -> Self {
         Self {
             xieji_yiji: XieJiYiJi::XuYi,
+            ignore_shen: 0,
             nv_ming_yue: false,
             zhou_tang: ZhouTangRule::XieJi,
             leibian_xiong: false,
@@ -512,18 +515,41 @@ fn jiaqu_status(d: &super::yiji::YueBiaoDay) -> &'static str {
     }
 }
 
+/// 一日铺注前之月表；略去 `ignore` 诸神者婚事按协纪推法重推（交节之日新旧两月各推后取其交）
+fn base_ignoring(d: &PuzhuDay, ignore: u64) -> super::yiji::YueBiaoDay {
+    use super::puzhu::{jiao_jie_base, JIAO_JIE_EARLY_HOUR};
+    use super::yiji_derive::{ignore_names, yuebiao_day_ignoring};
+    if ignore == 0 {
+        return yuebiao_base_for_day(d);
+    }
+    let names = ignore_names(ignore);
+    let now = yuebiao_day_ignoring(d.month_ord, d.input.day_gz, &names);
+    if d.jiao_jie && d.jiao_jie_hour.is_some_and(|h| h >= JIAO_JIE_EARLY_HOUR) {
+        jiao_jie_base(&now, &yuebiao_day_ignoring((d.month_ord + 11) % 12, d.input.day_gz, &names))
+    } else {
+        now
+    }
+}
+
 /// 一日协纪嫁娶宜忌之依据
 pub fn xieji_basis(d: &PuzhuDay) -> XieJiBasis {
+    xieji_basis_ignoring(d, 0)
+}
+
+/// 同 [`xieji_basis`]，略去 `ignore` 诸神
+pub fn xieji_basis_ignoring(d: &PuzhuDay, ignore: u64) -> XieJiBasis {
     const GAN: &str = "甲乙丙丁戊己庚辛壬癸";
     const ZHI: &str = "子丑寅卯辰巳午未申酉戌亥";
-    let base = yuebiao_base_for_day(d);
-    let fin = yiji_for_day(d);
+    let base = base_ignoring(d, ignore);
+    let fin = super::puzhu::apply(&base, &d.input, d.shuo_gz);
     let gz = d.input.day_gz as usize;
     let mut names: Vec<String> = base.ji_shen.iter().chain(base.xiong_shen.iter()).cloned().collect();
     names.push(format!("{}日", base.jian_chu));
     names.push(format!("{}日", GAN.chars().nth(gz % 10).unwrap()));
     names.push(format!("{}日", ZHI.chars().nth(gz % 12).unwrap()));
     let (yi_s, ji_s) = super::yiji::shi_shen("嫁娶");
+    let ign = super::yiji_derive::ignore_names(ignore);
+    names.retain(|n| !ign.contains(n));
     let pick = |list: &[&str]| -> Vec<String> { list.iter().filter(|n| names.iter().any(|x| x == *n)).map(|n| n.to_string()).collect() };
     let (a, b) = (jiaqu_status(&base), jiaqu_status(&fin));
     XieJiBasis {
@@ -582,8 +608,7 @@ impl JiaquDay {
 
 /// 逐日判定。`d` 由 [`super::puzhu::puzhu_days`] 或 `TermTable::day` 得来。
 pub fn judge_day(d: &PuzhuDay, inp: &JiaquInput, o: &JiaquOptions) -> JiaquDay {
-    use super::yiji::yuebiao_day;
-    let yb = yiji_for_day(d);
+    let yb = if o.ignore_shen == 0 { yiji_for_day(d) } else { super::puzhu::apply(&base_ignoring(d, o.ignore_shen), &d.input, d.shuo_gz) };
     let has = |v: &Option<Vec<String>>, s: &str| v.as_ref().is_some_and(|v| v.iter().any(|x| x == s));
     let xieji_yi = has(&yb.yi, "嫁娶");
     let xieji_ji = yb.yi.is_none() || yb.ji.iter().any(|x| x == "嫁娶");
@@ -601,7 +626,7 @@ pub fn judge_day(d: &PuzhuDay, inp: &JiaquInput, o: &JiaquOptions) -> JiaquDay {
     // 协纪：须宜嫁娶（月表 + 铺注；铺注已于周堂值夫婦去宜）。
     // 月表本宜嫁娶而只因周堂值夫去宜者，类编以为可避（值婦则不可）
     if o.xieji_yiji != XieJiYiJi::BuYong && !xieji_yi && (o.xieji_yiji == XieJiYiJi::XuYi || xieji_ji) {
-        let base_yi = yuebiao_day(d.month_ord, gz).yi.as_ref().is_some_and(|v| v.iter().any(|x| x == "嫁娶"));
+        let base_yi = base_ignoring(d, o.ignore_shen).yi.as_ref().is_some_and(|v| v.iter().any(|x| x == "嫁娶"));
         let by_zhou_tang_fu = zt == Some("夫") && base_yi && !xieji_ji;
         if xieji_ji {
             veto.push(("协纪：忌嫁娶".into(), None));
@@ -751,7 +776,7 @@ pub fn judge_day(d: &PuzhuDay, inp: &JiaquInput, o: &JiaquOptions) -> JiaquDay {
         Verdict::KeYong
     };
     JiaquDay {
-        xieji_basis: xieji_basis(d),
+        xieji_basis: xieji_basis_ignoring(d, o.ignore_shen),
         jdn: d.jdn,
         verdict,
         xieji_yi,

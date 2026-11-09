@@ -149,7 +149,9 @@ export interface LunarBackend {
   /** 紫微十八飞星派（JSON） */
   ziwei18_json?(year_gz: number, lunar_month: number, is_leap: boolean, lunar_day: number, hour_zhi: number, male: boolean, opts: number): string
   /** 婚嫁择吉逐日（JSON） */
-  jiaqu_days_json?(jd0: number, vsop87_ear: string, months: Uint8Array, days: Uint8Array, leaps: Uint8Array, dims: Uint8Array, phases: Int8Array, nv_year_gz: number, has_weng_gu: boolean, has_nv_fu_mu: boolean, na_xu: boolean, opts: number): string
+  /** 婚事宜神、忌神与「特定日」：[名, 是否宜神]，下标即 jiaqu_days_json 之 ignore 位 */
+  hun_shen_list_json?(): string
+  jiaqu_days_json?(jd0: number, vsop87_ear: string, months: Uint8Array, days: Uint8Array, leaps: Uint8Array, dims: Uint8Array, phases: Int8Array, nv_year_gz: number, has_weng_gu: boolean, has_nv_fu_mu: boolean, na_xu: boolean, opts: number, ignore_lo?: number, ignore_hi?: number): string
   /** 排盘页太乙（JSON） */
   taiyi_json?(jd_ut: number, vsop87_ear: string, day_gz: number, hour_zhi: number, kind: number, school: number, dun: number, opts: number): string
   /** 排盘摘要：奇门时家局、六壬起课、太乙时计、三元九运 */

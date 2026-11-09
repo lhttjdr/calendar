@@ -11,6 +11,7 @@
 
 pub mod aotou;
 pub mod dong_gong;
+pub mod yiji_derive;
 pub mod ganzhi_presets;
 pub mod gengdian;
 pub mod jianchu;

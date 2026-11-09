@@ -2,13 +2,13 @@
  * 择日页：年神方位二十四山图（《协纪辨方书》卷三）、当日神煞宜忌（月表 + 卷十铺注 + 时宪书体例；可切《董公選擇日要覽》为另一说）、日游神鹤神。
  * 与日历共用所选日期；图依古图南上北下、东左西右。
  */
-import { Button, Card, Checkbox, Flex, InputNumber, Radio, Typography } from 'antd'
+import { Button, Card, Checkbox, Flex, InputNumber, Radio, Tag, Typography } from 'antd'
 import { memo, useMemo, useRef, useState } from 'react'
 import { Notes, OptionsFold, useOpt, useOptGroup } from './fold'
 import type { LunarBackend } from './lunar-backend-types'
 import { useCompassBar, useSpinDriver, type CompassSpinSource } from './CompassBar'
 import { ensureLiShu, LISHU_FAMILY } from './Wheels'
-import { JIAQU_DEFAULTS as JD, JIAQU_IN_NS, JIAQU_RULE_NS, jiaquMonth, nvGzOf, type JiaquDay, type MonthLunar } from './jiaquShared'
+import { JIAQU_DEFAULTS as JD, JIAQU_IN_NS, JIAQU_RULE_NS, hunShenList, jiaquMonth, nvGzOf, type JiaquDay, type MonthLunar } from './jiaquShared'
 
 const { Text } = Typography
 
@@ -181,7 +181,7 @@ function JiaquGrid(props: { list: JiaquDay[]; m: MonthLunar; selJdn: number; onP
 /** 卷十宜忌等第表所论之主凶神 */
 const MAJOR_XIONG = ['平日', '收日', '閉日', '劫煞', '災煞', '月煞', '月刑', '月害', '月厭', '大時', '天吏', '月破', '四廢']
 /** 协纪月表嫁娶之注从何而来：卷十一宜神、忌神 → 卷十相併相抵与等第 → 铺注 */
-function XieJiBasisView({ xj }: { xj: NonNullable<JiaquDay['xj']> }) {
+function XieJiBasisView({ xj, ignored }: { xj: NonNullable<JiaquDay['xj']>; ignored?: string }) {
   const mode = xj.dengDi.split('→')[1] ?? ''
   const why = (() => {
     if (xj.yuebiao === '諸事不宜') return '月表諸事不宜'
@@ -201,18 +201,18 @@ function XieJiBasisView({ xj }: { xj: NonNullable<JiaquDay['xj']> }) {
   return (
     <div style={{ fontSize: 12, margin: '4px 0', padding: '4px 8px', background: 'var(--bg-2)', borderRadius: 6 }}>
       <div>
-        <Text strong style={{ fontSize: 12 }}>协纪月表 </Text>
+        <Text strong style={{ fontSize: 12 }}>{ignored ? `协纪推法（不看${ignored}）` : '协纪月表'} </Text>
         {`嫁娶${xj.final === '宜' ? '宜' : xj.final === '忌' ? '忌' : xj.final === '諸事不宜' ? '（諸事不宜）' : '两不注'}`}
         {xj.final !== xj.yuebiao && <Text type="warning" style={{ fontSize: 12 }}>{`（月表原${xj.yuebiao}，铺注${xj.puzhu.length ? `值${xj.puzhu.join('、')}` : ''}而改）`}</Text>}
       </div>
       <div><Text type="success" style={{ fontSize: 12 }}>宜神 </Text>{xj.yiShen.join(' ') || '—'}<Text type="danger" style={{ fontSize: 12, marginLeft: 8 }}>忌神 </Text>{xj.jiShen.join(' ') || '—'}</div>
-      <div style={{ color: 'var(--text-3)' }}>{`月表：${why}`}</div>
+      <div style={{ color: 'var(--text-3)' }}>{`${ignored ? '推' : '月表'}：${why}`}</div>
     </div>
   )
 }
 
 /** 一日之依据：否决、制化、标注分组 */
-function JiaquDetail(props: { d: JiaquDay; i: number; m: MonthLunar }) {
+function JiaquDetail(props: { d: JiaquDay; i: number; m: MonthLunar; ignored?: string }) {
   const { d, i, m } = props
   const kind = verdictKind(d)
   const marks = [
@@ -230,7 +230,7 @@ function JiaquDetail(props: { d: JiaquDay; i: number; m: MonthLunar }) {
         <Text strong type={kind === 'ok' ? 'success' : kind === 'zhi' ? 'warning' : 'secondary'}>{`${i + 1}日 ${verdictOf(d)}`}</Text>
         <Text type="secondary" style={{ fontSize: 12 }}>{` · 农历${m.leaps[i] ? '閏' : ''}${m.months[i]}月${m.days[i]}日`}</Text>
       </div>
-      {d.xj && <XieJiBasisView xj={d.xj} />}
+      {d.xj && <XieJiBasisView xj={d.xj} ignored={props.ignored} />}
       {d.reasons.length > 0 && <div><Text type="danger" strong style={{ fontSize: 12 }}>否决 </Text>{d.reasons.map((r, k) => <div key={k} className="jq-r">{r}</div>)}</div>}
       {d.jie && d.jie.length > 0 && <div><Text type="warning" strong style={{ fontSize: 12 }}>制化 </Text>{d.jie.map(([a, b], k) => <div key={k} className="jq-r">{`${a}（${b}）`}</div>)}</div>}
       <div style={{ fontSize: 12, marginTop: 4 }}><Text type="secondary">标注 </Text>{marks.join(' · ')}</div>
@@ -259,20 +259,29 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
   const [aoTou, setAoTou] = useOpt(g, 'aoTou', JD.aoTou, '鳌头白虎')
   const [chiKou, setChiKou] = useOpt(g, 'chiKou', JD.chiKou, '赤口')
   const [hengTian, setHengTian] = useOpt(g, 'hengTian', JD.hengTian, '橫天朱雀')
+  /** 协纪推法中不看之神（「、」连名） */
+  const [ignore, setIgnore] = useOpt(g, 'ignore', JD.ignore, '不看之神')
+  const shenList = useMemo(() => hunShenList(props.wasm), [props.wasm])
+  const ignoreSet = new Set(ignore.split('、').filter(Boolean))
+  const toggleShen = (n: string) => {
+    const s2 = new Set(ignoreSet)
+    if (s2.has(n)) s2.delete(n); else s2.add(n)
+    setIgnore(shenList.map(([x]) => x).filter((x) => s2.has(x)).join('、'))
+  }
   const nvGz = nvGzOf(nvYear)
   const m = props.monthLunar
   const [err, setErr] = useState<string | null>(null)
   const list = useMemo((): JiaquDay[] | null => {
     try {
       setErr(null)
-      return jiaquMonth(props.wasm, props.ear, m, { nvYear, wengGu, fuMu, naXu, useYue, xieji, zt, useXiong, zhiHua, aoTou, chiKou, hengTian })
+      return jiaquMonth(props.wasm, props.ear, m, { nvYear, wengGu, fuMu, naXu, useYue, xieji, zt, useXiong, zhiHua, aoTou, chiKou, hengTian, ignore })
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       console.error('jiaqu_days_json', e)
       setErr(msg)
       return null
     }
-  }, [props.wasm, props.ear, m, nvYear, wengGu, fuMu, naXu, useYue, zt, xieji, useXiong, zhiHua, aoTou, chiKou, hengTian])
+  }, [props.wasm, props.ear, m, nvYear, wengGu, fuMu, naXu, useYue, zt, xieji, useXiong, zhiHua, aoTou, chiKou, hengTian, ignore])
   return (
     <Card size="small" title={`婚嫁择吉（${props.monthLabel}）`} style={{ marginTop: 16 }}>
       <Flex gap={12} wrap align="center" style={{ marginBottom: 8 }}>
@@ -286,6 +295,23 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
       <Flex gap={12} wrap align="center">
         <span>协纪月表 <Radio.Group size="small" value={xieji} onChange={(e) => setXieji(e.target.value)} optionType="button"
           options={[{ label: '须宜嫁娶', value: 0 }, { label: '只避忌嫁娶', value: 1 }, { label: '不用', value: 2 }]} /></span>
+        {xieji !== 2 && shenList.length > 0 && (
+          <div style={{ flexBasis: '100%', fontSize: 12, lineHeight: 2 }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>协纪所看之神（点去即「不看」，按协纪推法重推婚事宜忌；全看即月表）：</Text>
+            {([true, false] as const).map((isYi) => (
+              <div key={String(isYi)}>
+                <Text style={{ fontSize: 12, color: isYi ? 'var(--ok-text)' : '#cf1322' }}>{isYi ? '宜神 ' : '忌神 '}</Text>
+                {shenList.filter(([, y]) => y === isYi).map(([n]) => (
+                  <Tag.CheckableTag key={n} checked={!ignoreSet.has(n)} onChange={() => toggleShen(n)}
+                    style={ignoreSet.has(n) ? { textDecoration: 'line-through', opacity: 0.6 } : undefined}>
+                    {n}
+                  </Tag.CheckableTag>
+                ))}
+              </div>
+            ))}
+            {ignoreSet.size > 0 && <Text type="warning" style={{ fontSize: 12 }}>{`已不看：${[...ignoreSet].join('、')}——此时所注已非协纪月表，乃按其推法略去诸神所得`}</Text>}
+          </div>
+        )}
         <details className="day-ji" style={{ flexBasis: '100%', fontSize: 12 }}>
           <summary>协纪月表怎样注嫁娶</summary>
           <div style={{ lineHeight: 1.7, color: 'var(--text-2)' }}>
@@ -319,7 +345,7 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
           <div style={{ flex: '1 1 280px' }}>
             {(() => {
               const i = list.findIndex((d) => d.jdn === props.selJdn)
-              return i >= 0 ? <JiaquDetail d={list[i]!} i={i} m={m} /> : <Text type="secondary">点月格中某日看其依据</Text>
+              return i >= 0 ? <JiaquDetail d={list[i]!} i={i} m={m} ignored={ignore} /> : <Text type="secondary">点月格中某日看其依据</Text>
             })()}
           </div>
         </Flex>
