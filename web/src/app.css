@@ -57,3 +57,26 @@ details.day-ji > summary { cursor: pointer; list-style: none; }
 details.day-ji > summary::-webkit-details-marker { display: none; }
 details.day-ji > summary::after { content: ' ▸'; color: rgba(0, 0, 0, 0.35); font-size: 10px; }
 details.day-ji[open] > summary::after { content: ' ▾'; }
+
+/* 婚嫁月格（ZeRiPage JiaquGrid） */
+.jq-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.jq-wk { text-align: center; font-size: 11px; color: rgba(0, 0, 0, 0.45); padding: 2px 0; }
+.jq-cell { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
+  min-height: 54px; border: 1px solid #f0f0f0; border-radius: 6px; background: #fafafa; cursor: pointer; font: inherit; padding: 2px; }
+.jq-cell:hover { border-color: #91caff; }
+.jq-d { font-weight: 600; font-size: 15px; line-height: 1.2; }
+.jq-l { font-size: 10px; color: rgba(0, 0, 0, 0.45); }
+.jq-v { font-size: 10px; line-height: 1.2; min-height: 12px; }
+.jq-ok { background: #f6ffed; border-color: #b7eb8f; }
+.jq-ok .jq-v { color: #389e0d; font-weight: 600; }
+.jq-zhi { background: #fffbe6; border-color: #ffe58f; }
+.jq-zhi .jq-v { color: #d48806; }
+.jq-no .jq-d { color: rgba(0, 0, 0, 0.55); }
+.jq-no .jq-v { color: rgba(0, 0, 0, 0.35); }
+.jq-dim { opacity: 0.35; }
+.jq-sel { outline: 2px solid #1677ff; outline-offset: -1px; }
+.jq-dot { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: #73d13d; }
+.jq-detail { border: 1px solid #f0f0f0; border-radius: 8px; padding: 8px 10px; line-height: 1.6; }
+.jq-r { font-size: 12px; padding-left: 8px; border-left: 2px solid #ffccc7; margin: 2px 0; }
+@media (max-width: 767px) { .jq-cell { min-height: 46px; } .jq-d { font-size: 13px; } }
+.gong-detail { border: 1px solid #91caff; background: #f0f7ff; border-radius: 8px; padding: 6px 10px; margin-bottom: 10px; line-height: 1.7; }

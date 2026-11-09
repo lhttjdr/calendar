@@ -8,7 +8,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { Notes, OptionsFold, useOpt, useOptGroup } from './fold'
 import type { LunarBackend } from './lunar-backend-types'
 import { CompassSpin, useCompassBar, type CompassSpinSource, type LocationProps } from './CompassBar'
-import { LiurenWheel, QimenWheel, type QimenGongMarks, type QimenFangGe, QizhengWheel, TaiyiWheel, XuankongGrid, XuankongWheel, YAO_SHORT, type XuankongWheelData, type QizhengWheelData } from './Wheels'
+import { LiurenWheel, QimenWheel, qimenMarks, type QimenGongMarks, type QimenFangGe, QizhengWheel, TaiyiWheel, XuankongGrid, XuankongWheel, YAO_SHORT, type XuankongWheelData, type QizhengWheelData } from './Wheels'
 import { useWorkerRpc } from './useWorkerRpc'
 import type { SkyRequest } from './skyWorker'
 import { DayanDemo } from './DayanDemo'
@@ -114,6 +114,15 @@ const QimenPanel = memo(function QimenPanel(props: { wasm: LunarBackend; ear: st
   }, [props.wasm, props.ear, props.jdUt, props.hourGz, props.dayGz, method, jiGong, shenMing, dingJu, source, anGan, ganMu, jiXing, kong, jia, jiaRule])
   /** 时辰内插值（示意）：下一时辰之盘与本时辰已过比例（按所选时刻之民用钟点，时辰起于奇数时） */
   const [interp, setInterp] = useState(false)
+  /** 盘⇄文字联动：所选之宫（点盘或点文字中的「某宫」） */
+  const [selGong, setSelGong] = useState<number | null>(null)
+  const pick = (gg: number | null | undefined) => gg != null && setSelGong(selGong === gg ? null : gg)
+  /** 文字项：带宫者可点，所选宫之项加底色 */
+  const gongItem = (gg: number | null | undefined, style: React.CSSProperties = {}) => ({
+    role: gg != null ? 'button' : undefined,
+    onClick: gg != null ? () => pick(gg) : undefined,
+    style: { marginRight: 8, cursor: gg != null ? 'pointer' : undefined, borderRadius: 3, padding: '0 2px', background: gg != null && gg === selGong ? '#bae0ff' : undefined, ...style },
+  })
   const next = useMemo(() => {
     if (!interp || method !== 0 || jia !== 0 || typeof props.wasm.qimen_json !== 'function') return undefined
     const t = new Date((props.jdUt - 2440587.5) * 86400000)
@@ -129,8 +138,28 @@ const QimenPanel = memo(function QimenPanel(props: { wasm: LunarBackend; ear: st
   }, [interp, props.wasm, props.ear, props.jdUt, props.hourGz, props.dayGz, method, jiGong, shenMing, dingJu, source, anGan, ganMu, jiXing, kong, jia, jiaRule])
   return (
     <Flex gap={16} wrap align="flex-start">
-      <CompassSpin spin={props.spin} style={{ flex: '1 1 320px', maxWidth: 440 }}>{d ? <QimenWheel d={d} turn={method === 0} next={next} /> : <Text type="secondary">无法布盘</Text>}</CompassSpin>
+      <CompassSpin spin={props.spin} style={{ flex: '1 1 320px', maxWidth: 440 }}>{d ? <QimenWheel d={d} turn={method === 0} next={next} hl={selGong != null ? [selGong] : undefined} onGong={pick} /> : <Text type="secondary">无法布盘</Text>}</CompassSpin>
       <div style={{ flex: '1 1 280px' }}>
+        {d && selGong != null && (() => {
+          const c = d.gong[selGong - 1]!
+          const inG = [
+            ...(c.keYing ?? []).map((k) => `${k.t}加${k.d}「${k.n}」`),
+            ...(d.geju ?? []).filter((x) => x.gong === selGong).map((x) => x.n),
+            ...(d.biWu ?? []).filter((x) => x.gong === selGong).map((x) => x.n),
+            ...(d.fangGe ?? []).filter((x) => x.gong === selGong).map((x) => `${x.n}${x.zhi}`),
+          ]
+          return (
+            <div className="gong-detail">
+              <Flex justify="space-between" align="center">
+                <Text strong>{`${'　坎坤震巽中乾兌艮離'[selGong]}${selGong}宫`}</Text>
+                <Button size="small" type="text" onClick={() => setSelGong(null)}>✕</Button>
+              </Flex>
+              <div style={{ fontSize: 13 }}>{[`地盘${c.di.join('')}`, c.tian.length ? `天盘${c.tian.join('')}` : '', c.xing.join(''), c.men ?? '', c.shen ?? '', c.anGan ? `暗干${c.anGan}` : ''].filter(Boolean).join(' · ')}</div>
+              {qimenMarks(c).length > 0 && <div style={{ fontSize: 12, color: '#a8071a' }}>{qimenMarks(c).join(' ')}</div>}
+              <div style={{ fontSize: 12 }}>{inG.length ? inG.join('、') : <Text type="secondary" style={{ fontSize: 12 }}>此宫无克应、格局</Text>}</div>
+            </div>
+          )
+        })()}
         {d && (
           <div style={{ marginBottom: 10, lineHeight: 1.8 }}>
             <div style={{ fontSize: 16 }}>{d.jia ?? d.ju}</div>
@@ -140,7 +169,7 @@ const QimenPanel = memo(function QimenPanel(props: { wasm: LunarBackend; ear: st
               <div style={{ fontSize: 12, marginTop: 4 }}>
                 <Text strong style={{ fontSize: 12 }}>十干克应（寶鑑）：</Text>
                 {d.gong.flatMap((c, i) => (c.keYing ?? []).map((k) => (
-                  <span key={`${i}${k.t}${k.d}`} title={k.text} style={{ marginRight: 8 }}>{`${i + 1}宫${k.t}加${k.d}「${k.n}」`}</span>
+                  <span key={`${i}${k.t}${k.d}`} title={k.text} {...gongItem(i + 1)}>{`${i + 1}宫${k.t}加${k.d}「${k.n}」`}</span>
                 )))}
               </div>
             )}
@@ -148,7 +177,7 @@ const QimenPanel = memo(function QimenPanel(props: { wasm: LunarBackend; ear: st
               <div style={{ fontSize: 12, marginTop: 4 }}>
                 <Text strong style={{ fontSize: 12 }}>格局（演义卷二）：</Text>
                 {d.geju.map((g, i) => (
-                  <span key={i} title={`${g.basis}${g.note ? '；' + g.note : ''}`} style={{ color: g.ji ? '#237804' : '#a8071a', marginRight: 8 }}>
+                  <span key={i} title={`${g.basis}${g.note ? '；' + g.note : ''}`} {...gongItem(g.gong, { color: g.ji ? '#237804' : '#a8071a' })}>
                     {`${g.n}${g.gong ? `（${g.gong}宫）` : ''}`}
                   </span>
                 ))}
@@ -158,7 +187,7 @@ const QimenPanel = memo(function QimenPanel(props: { wasm: LunarBackend; ear: st
               <div style={{ fontSize: 12, marginTop: 4 }}>
                 <Text strong style={{ fontSize: 12 }}>寄宫（演义卷三）：</Text>
                 {d.biWu.map((g, i) => (
-                  <span key={i} title={`${g.basis}${g.note ? '；' + g.note : ''}`} style={{ color: '#a8071a', marginRight: 8 }}>
+                  <span key={i} title={`${g.basis}${g.note ? '；' + g.note : ''}`} {...gongItem(g.gong, { color: '#a8071a' })}>
                     {`${g.n}·${(g.note ?? '').slice(0, 4)}（寄${g.gong ?? ''}宫）`}
                   </span>
                 ))}

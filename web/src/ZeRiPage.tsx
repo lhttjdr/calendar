@@ -148,8 +148,72 @@ type JiaquDay = {
 }
 const GZ_GAN = '甲乙丙丁戊己庚辛壬癸', GZ_ZHI = '子丑寅卯辰巳午未申酉戌亥'
 
+const WEEK = '日一二三四五六'
+const verdictOf = (d: JiaquDay) => d.verdict ?? (d.ok ? '可用' : '不可用')
+const verdictKind = (d: JiaquDay): 'ok' | 'zhi' | 'no' => (d.verdict === '經制化可用' ? 'zhi' : d.ok ? 'ok' : 'no')
+
+/** 婚嫁月格：可用日着色，点日即把全站所选日期移到该日（当日卡、顶栏随之），下方列出该日逐条依据 */
+function JiaquGrid(props: { list: JiaquDay[]; m: MonthLunar; selJdn: number; onPick: (jdn: number) => void; onlyOk: boolean }) {
+  const first = props.list[0]
+  if (!first) return null
+  // 与日历同以周一为首（JDN+1 模 7：0 为周日）
+  const lead = ((first.jdn + 1) % 7 + 6) % 7
+  const cells: (JiaquDay | null)[] = [...Array(lead).fill(null), ...props.list]
+  return (
+    <div className="jq-grid" role="grid" aria-label="婚嫁择吉月格">
+      {[...WEEK.slice(1), WEEK[0]].map((w) => <div key={w} className="jq-wk">{w}</div>)}
+      {cells.map((d, k) => {
+        if (!d) return <div key={`p${k}`} />
+        const i = k - lead
+        const kind = verdictKind(d)
+        const dim = props.onlyOk && kind === 'no'
+        return (
+          <button key={d.jdn} type="button" role="gridcell" aria-selected={d.jdn === props.selJdn}
+            className={`jq-cell jq-${kind}${d.jdn === props.selJdn ? ' jq-sel' : ''}${dim ? ' jq-dim' : ''}`}
+            title={`${i + 1}日 ${verdictOf(d)}${d.reasons.length ? `：${d.reasons.join('；')}` : ''}`}
+            onClick={() => props.onPick(d.jdn)}>
+            <span className="jq-d">{i + 1}</span>
+            <span className="jq-l">{`${props.m.days[i] === 1 ? `${props.m.leaps[i] ? '閏' : ''}${props.m.months[i]}月` : props.m.days[i]}`}</span>
+            <span className="jq-v">{kind === 'ok' ? '可用' : kind === 'zhi' ? '制化' : d.yi ? '宜·否' : ''}</span>
+            {(d.buJiang || (d.jiri?.length ?? 0) > 0) && <span className="jq-dot" title={[d.buJiang && '不將', d.jiri?.length && '类编吉日表'].filter(Boolean).join('、')} />}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/** 一日之依据：否决、制化、标注分组 */
+function JiaquDetail(props: { d: JiaquDay; i: number; m: MonthLunar }) {
+  const { d, i, m } = props
+  const kind = verdictKind(d)
+  const marks = [
+    d.yi ? '月表宜嫁娶' : d.ji ? '月表忌嫁娶' : '',
+    d.buJiang ? '不將（协纪歷例表）' : '',
+    d.jiang ? `类编法${d.jiang}` : '',
+    d.zhouTang ? `周堂值${d.zhouTang}` : '',
+    `女命${d.nvMingYue}`,
+    d.liuRen ? `小六壬${d.liuRen}` : '',
+    d.wuRi ?? '',
+  ].filter(Boolean)
+  return (
+    <div className="jq-detail">
+      <div style={{ fontSize: 15, marginBottom: 4 }}>
+        <Text strong type={kind === 'ok' ? 'success' : kind === 'zhi' ? 'warning' : 'secondary'}>{`${i + 1}日 ${verdictOf(d)}`}</Text>
+        <Text type="secondary" style={{ fontSize: 12 }}>{` · 农历${m.leaps[i] ? '閏' : ''}${m.months[i]}月${m.days[i]}日`}</Text>
+      </div>
+      {d.reasons.length > 0 && <div><Text type="danger" strong style={{ fontSize: 12 }}>否决 </Text>{d.reasons.map((r, k) => <div key={k} className="jq-r">{r}</div>)}</div>}
+      {d.jie && d.jie.length > 0 && <div><Text type="warning" strong style={{ fontSize: 12 }}>制化 </Text>{d.jie.map(([a, b], k) => <div key={k} className="jq-r">{`${a}（${b}）`}</div>)}</div>}
+      <div style={{ fontSize: 12, marginTop: 4 }}><Text type="secondary">标注 </Text>{marks.join(' · ')}</div>
+      {d.leibian.length > 0 && <div style={{ fontSize: 12 }}><Text type="secondary">类编凶神 </Text>{d.leibian.map(([a]) => a).join(' ')}</div>}
+      {d.jiri && d.jiri.length > 0 && <div style={{ fontSize: 12 }}><Text type="success">类编吉日表 </Text>{d.jiri.map(([a, b]) => (b ? `${a}（${b}）` : a)).join('、')}</div>}
+    </div>
+  )
+}
+
 /** 婚嫁择吉：所显示月份逐日判定（协纪为纲、类编历法通书大全卷七并列；见知识库 jiaqu） */
-function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthLunar; monthLabel: string }) {
+function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthLunar; monthLabel: string; selJdn: number; onPick: (jdn: number) => void }) {
+  const [view, setView] = useState<'grid' | 'list'>('grid')
   const [nvYear, setNvYear] = useState(2000)
   const [wengGu, setWengGu] = useState(true)
   const [fuMu, setFuMu] = useState(true)
@@ -204,7 +268,22 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
       </Flex>
       </OptionsFold>
       <div style={{ height: 8 }} />
-      {!list ? <Text type="secondary">{`无法判定${err ? `：${err}` : '（wasm 无此函数）'}`}</Text> : (
+      <Radio.Group size="small" value={view} onChange={(e) => setView(e.target.value)} optionType="button" style={{ marginBottom: 8 }}
+        options={[{ label: '月格', value: 'grid' }, { label: '逐日列表', value: 'list' }]} />
+      {!list ? <Text type="secondary">{`无法判定${err ? `：${err}` : '（wasm 无此函数）'}`}</Text> : view === 'grid' ? (
+        <Flex gap={16} wrap align="flex-start">
+          <div style={{ flex: '1 1 320px', maxWidth: 520 }}>
+            <JiaquGrid list={list} m={m} selJdn={props.selJdn} onPick={props.onPick} onlyOk={onlyOk} />
+            <Text type="secondary" style={{ fontSize: 11 }}>{`本月可用 ${list.filter((d) => d.ok).length} 日；绿为可用、黄为经制化可用、灰为不可用（「宜·否」：月表宜嫁娶而为他规则否决）；角上小点为不將或类编吉日表所列。点日看依据，全站所选日期随之移到该日。`}</Text>
+          </div>
+          <div style={{ flex: '1 1 280px' }}>
+            {(() => {
+              const i = list.findIndex((d) => d.jdn === props.selJdn)
+              return i >= 0 ? <JiaquDetail d={list[i]!} i={i} m={m} /> : <Text type="secondary">点月格中某日看其依据</Text>
+            })()}
+          </div>
+        </Flex>
+      ) : (
         <div style={{ fontSize: 12, lineHeight: 1.7 }}>
           {list.map((d, i) => (onlyOk && !d.ok ? null : (
             <div key={d.jdn} style={{ borderBottom: '1px solid #f0f0f0', padding: '2px 0' }}>
@@ -380,6 +459,8 @@ export function ZeRiPage(props: {
   declination: number | null
   monthLunar?: MonthLunar | null
   monthLabel?: string
+  /** 把全站所选日期移到某民用日（JDN） */
+  onPickJdn?: (jdn: number) => void
 }) {
   const { wasm, ear, jd } = props
   const { bar: compassBar, spin } = useCompassBar(props)
@@ -456,7 +537,7 @@ export function ZeRiPage(props: {
         </Flex>
       )}
       {wasm && ear != null && props.monthLunar && props.monthLabel && (
-        <JiaquPanel wasm={wasm} ear={ear} monthLunar={props.monthLunar} monthLabel={props.monthLabel} />
+        <JiaquPanel wasm={wasm} ear={ear} monthLunar={props.monthLunar} monthLabel={props.monthLabel} selJdn={Math.floor(jd + 0.5)} onPick={(n) => props.onPickJdn?.(n)} />
       )}
     </div>
   )

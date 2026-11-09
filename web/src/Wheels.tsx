@@ -185,7 +185,8 @@ export function qimenMarks(c: QimenGongMarks): string[] {
  * `next`：时辰内插值（示意，非原典）——下一时辰之盘与本时辰已过之比例 f（0—1）。转盘三组各由本时辰之宫数 k 向下一时辰之 k' 取最短路径按 f 转，
  * 到时辰交界恰与下一局重合；局变（节气、三元交界）时地盘亦变，仍有一跳。
  */
-export function QimenWheel({ d, turn, next }: { d: QimenWheelData; turn?: boolean; next?: { d: QimenWheelData; f: number } }) {
+/** `hl`：高亮之宫（与文字联动）；`onGong`：点宫回调（1—9） */
+export function QimenWheel({ d, turn, next, hl, onGong }: { d: QimenWheelData; turn?: boolean; next?: { d: QimenWheelData; f: number }; hl?: number[]; onGong?: (g: number) => void }) {
   const fang = (d.fangGe?.length ?? 0) > 0
   const R = fang ? [38, 58, 78, 98, 120, 142, 162, 180, 196, 212, 226, 236] : [40, 62, 84, 104, 128, 152, 174, 194, 212, 226, 236]
   const kShan = fang ? 9 : 8
@@ -239,6 +240,7 @@ export function QimenWheel({ d, turn, next }: { d: QimenWheelData; turn?: boolea
         return (
           <g key={g}>
             {hot && <path d={sector(R[0]!, R[7]!, deg - 22.5, deg + 22.5)} fill="#ffe7ba" opacity={0.45} />}
+            {hl?.includes(g) && <path d={sector(R[0]!, R[7]!, deg - 22.5, deg + 22.5)} fill="#bae0ff" opacity={0.6} stroke="#1677ff" strokeWidth={1.5} />}
             <T r={mid(0)} deg={deg} size={11} fill="#888">{`${GUA[g]}${g}`}</T>
             <T r={mid(1)} deg={deg} size={16}>{c.di.join('')}</T>
             {c.anGan && <T r={mid(2)} deg={deg} size={12} fill="#8c8c8c">{`暗${c.anGan}`}</T>}
@@ -276,7 +278,7 @@ export function QimenWheel({ d, turn, next }: { d: QimenWheelData; turn?: boolea
       </g>
         </>
       )}
-      <circle cx={C} cy={C} r={R[0]} fill={d.zhiFuGong === 5 || d.zhiShiGong === 5 ? '#fff7e6' : '#fff'} stroke="#999" />
+      <circle cx={C} cy={C} r={R[0]} fill={hl?.includes(5) ? '#bae0ff' : d.zhiFuGong === 5 || d.zhiShiGong === 5 ? '#fff7e6' : '#fff'} stroke={hl?.includes(5) ? '#1677ff' : '#999'} />
       <text x={C} y={C - 14} fontSize={10} fill="#888" textAnchor="middle">中5</text>
       <text x={C} y={C + 4} fontSize={15} textAnchor="middle">{d.gong[4]!.di.join('')}</text>
       <text x={C} y={C + 20} fontSize={9} textAnchor="middle" fill="#a8071a">{[d.gong[4]!.anGan ? `暗${d.gong[4]!.anGan}` : '', ...qimenMarks(d.gong[4]!)].filter(Boolean).join(' ')}</text>
@@ -294,6 +296,16 @@ export function QimenWheel({ d, turn, next }: { d: QimenWheelData; turn?: boolea
           </g>
         )
       })()}
+      {/* 点宫：透明点击层（在最上） */}
+      {onGong && (
+        <g style={{ cursor: 'pointer' }}>
+          {RING8.map((g) => {
+            const deg = scr(GONG_AZ[g]!)
+            return <path key={g} d={sector(R[0]!, R[7]!, deg - 22.5, deg + 22.5)} fill="transparent" pointerEvents="all" onClick={() => onGong(g)}><title>{`${GUA[g]}${g}宫`}</title></path>
+          })}
+          <circle cx={C} cy={C} r={R[0]} fill="transparent" pointerEvents="all" onClick={() => onGong(5)}><title>中5宫</title></circle>
+        </g>
+      )}
     </Frame>
   )
 }

@@ -930,6 +930,7 @@ function App() {
           declination={magneticDeclination}
           monthLunar={monthLunar}
           monthLabel={`${displayY}年${displayM}月`}
+          onPickJdn={(n) => { if (wasm) shiftSelected(n - Math.floor(wasm.gregorian_to_jd(displayY, displayM, displayD) + 1), 0) }}
         /></Suspense>
       </div>
     )
