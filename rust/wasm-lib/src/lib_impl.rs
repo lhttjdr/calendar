@@ -1221,7 +1221,7 @@ pub fn jiaqu_days_json(
             Jiang::Neither => "",
         };
         format!(
-            "{{\"jdn\":{},\"ok\":{},\"verdict\":{},\"jie\":{},\"yi\":{},\"ji\":{},\"jieHunYin\":{},\"naCai\":{},\"nvMingYue\":{},\"zhouTang\":{},\"baiHu\":{},\"naXu\":{},\"buJiang\":{},\"jiang\":{},\"leibian\":{},\"liuRen\":{},\"wuRi\":{},\"jiri\":{},\"reasons\":{},\"notes\":{}}}",
+            "{{\"jdn\":{},\"ok\":{},\"verdict\":{},\"jie\":{},\"yi\":{},\"ji\":{},\"jieHunYin\":{},\"naCai\":{},\"nvMingYue\":{},\"zhouTang\":{},\"baiHu\":{},\"naXu\":{},\"buJiang\":{},\"jiang\":{},\"leibian\":{},\"liuRen\":{},\"wuRi\":{},\"jiri\":{},\"reasons\":{},\"notes\":{},\"xj\":{}}}",
             jdn,
             r.usable(),
             json_str(match r.verdict {
@@ -1245,7 +1245,15 @@ pub fn jiaqu_days_json(
             opt(r.wu_ri),
             json_arr(r.leibian_jiri.iter().map(|(a, b)| format!("[{},{}]", json_str(a.name()), json_str(b)))),
             strs(&r.reasons),
-            strs(&r.notes)
+            strs(&r.notes),
+            {
+                // 协纪月表嫁娶宜忌之依据（卷十一宜神忌神、卷十等第、铺注）
+                let b = &r.xieji_basis;
+                format!(
+                    "{{\"yuebiao\":{},\"final\":{},\"yiShen\":{},\"jiShen\":{},\"dengDi\":{},\"puzhu\":{}}}",
+                    json_str(b.yuebiao), json_str(b.final_), strs(&b.yi_shen), strs(&b.ji_shen), json_str(&b.deng_di), strs(&b.puzhu)
+                )
+            }
         )
     });
     Ok(json_arr(out))

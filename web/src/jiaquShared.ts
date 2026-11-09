@@ -9,6 +9,8 @@ export type JiaquDay = {
   jdn: number; ok: boolean; verdict?: string; jie?: [string, string][]; yi: boolean; ji: boolean; jieHunYin: boolean; naCai: boolean; nvMingYue: string
   zhouTang: string | null; baiHu: string | null; naXu: string | null; buJiang: boolean; jiang: string
   leibian: [string, string][]; liuRen?: string; wuRi?: string | null; jiri?: [string, string][]; reasons: string[]; notes: string[]
+  /** 协纪月表嫁娶宜忌之依据：月表（铺注前）与铺注后之注、所值卷十一嫁娶宜神忌神、卷十等第、改注之铺注 */
+  xj?: { yuebiao: string; final: string; yiShen: string[]; jiShen: string[]; dengDi: string; puzhu: string[] }
 }
 
 /** 输入（女命生年、翁姑等）与规则；缺省与择日页同 */

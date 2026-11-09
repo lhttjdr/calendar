@@ -178,6 +178,39 @@ function JiaquGrid(props: { list: JiaquDay[]; m: MonthLunar; selJdn: number; onP
   )
 }
 
+/** 卷十宜忌等第表所论之主凶神 */
+const MAJOR_XIONG = ['平日', '收日', '閉日', '劫煞', '災煞', '月煞', '月刑', '月害', '月厭', '大時', '天吏', '月破', '四廢']
+/** 协纪月表嫁娶之注从何而来：卷十一宜神、忌神 → 卷十相併相抵与等第 → 铺注 */
+function XieJiBasisView({ xj }: { xj: NonNullable<JiaquDay['xj']> }) {
+  const mode = xj.dengDi.split('→')[1] ?? ''
+  const why = (() => {
+    if (xj.yuebiao === '諸事不宜') return '月表諸事不宜'
+    if (xj.yiShen.length && !xj.jiShen.length) return '有宜神、无忌神，注宜'
+    if (!xj.yiShen.length && xj.jiShen.length) return '有忌神、无宜神，注忌'
+    if (!xj.yiShen.length && !xj.jiShen.length) return '宜神忌神皆不值，两不注'
+    // 宜忌并值：主凶神按等第，次凶神按卷十「與德等併則不忌」
+    if (mode) {
+      const left = xj.dengDi.split('→')[0] ?? ''
+      const major = xj.jiShen.filter((n) => MAJOR_XIONG.includes(n))
+      const grade = left.replace('遇德', '')
+      const eff = { 從宜: '注宜', 相抵: '宜忌相抵，两不注', 從忌: '注忌', 皆忌: '宜事皆忌' }[mode] ?? mode
+      return `宜忌并值：主凶神${major.length ? `（${major.join('、')}）` : ''}等第「${grade}」${left.includes('遇德') ? '而遇德' : '、不遇德'}，${mode}——${eff}（卷十宜忌等第表）`
+    }
+    return xj.yuebiao === '宜' ? '宜忌并值：所值忌神为德、赦、願、六合等所解（卷十各条「併則不忌」）' : '宜忌并值：忌神不为所值之吉神所解，从忌'
+  })()
+  return (
+    <div style={{ fontSize: 12, margin: '4px 0', padding: '4px 8px', background: 'var(--bg-2)', borderRadius: 6 }}>
+      <div>
+        <Text strong style={{ fontSize: 12 }}>协纪月表 </Text>
+        {`嫁娶${xj.final === '宜' ? '宜' : xj.final === '忌' ? '忌' : xj.final === '諸事不宜' ? '（諸事不宜）' : '两不注'}`}
+        {xj.final !== xj.yuebiao && <Text type="warning" style={{ fontSize: 12 }}>{`（月表原${xj.yuebiao}，铺注${xj.puzhu.length ? `值${xj.puzhu.join('、')}` : ''}而改）`}</Text>}
+      </div>
+      <div><Text type="success" style={{ fontSize: 12 }}>宜神 </Text>{xj.yiShen.join(' ') || '—'}<Text type="danger" style={{ fontSize: 12, marginLeft: 8 }}>忌神 </Text>{xj.jiShen.join(' ') || '—'}</div>
+      <div style={{ color: 'var(--text-3)' }}>{`月表：${why}`}</div>
+    </div>
+  )
+}
+
 /** 一日之依据：否决、制化、标注分组 */
 function JiaquDetail(props: { d: JiaquDay; i: number; m: MonthLunar }) {
   const { d, i, m } = props
@@ -197,6 +230,7 @@ function JiaquDetail(props: { d: JiaquDay; i: number; m: MonthLunar }) {
         <Text strong type={kind === 'ok' ? 'success' : kind === 'zhi' ? 'warning' : 'secondary'}>{`${i + 1}日 ${verdictOf(d)}`}</Text>
         <Text type="secondary" style={{ fontSize: 12 }}>{` · 农历${m.leaps[i] ? '閏' : ''}${m.months[i]}月${m.days[i]}日`}</Text>
       </div>
+      {d.xj && <XieJiBasisView xj={d.xj} />}
       {d.reasons.length > 0 && <div><Text type="danger" strong style={{ fontSize: 12 }}>否决 </Text>{d.reasons.map((r, k) => <div key={k} className="jq-r">{r}</div>)}</div>}
       {d.jie && d.jie.length > 0 && <div><Text type="warning" strong style={{ fontSize: 12 }}>制化 </Text>{d.jie.map(([a, b], k) => <div key={k} className="jq-r">{`${a}（${b}）`}</div>)}</div>}
       <div style={{ fontSize: 12, marginTop: 4 }}><Text type="secondary">标注 </Text>{marks.join(' · ')}</div>
@@ -252,6 +286,16 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
       <Flex gap={12} wrap align="center">
         <span>协纪月表 <Radio.Group size="small" value={xieji} onChange={(e) => setXieji(e.target.value)} optionType="button"
           options={[{ label: '须宜嫁娶', value: 0 }, { label: '只避忌嫁娶', value: 1 }, { label: '不用', value: 2 }]} /></span>
+        <details className="day-ji" style={{ flexBasis: '100%', fontSize: 12 }}>
+          <summary>协纪月表怎样注嫁娶</summary>
+          <div style={{ lineHeight: 1.7, color: 'var(--text-2)' }}>
+            <div>1. <b>宜神</b>（卷十一「嫁娶」）：天德、月德、天德合、月德合、天赦、天願、三合、天喜、六合、不將。</div>
+            <div>2. <b>忌神</b>（同上）：月破、平日、收日、閉日、劫煞、災煞、月煞、月刑、月害、月厭、厭對、大時、天吏、四廢、四忌、四窮、五墓、往亡、八專、亥日（百忌日「亥不嫁娶」）。</div>
+            <div>3. <b>宜忌并值</b>：主凶神（平收閉日、劫災月煞、月刑、月害、月厭、大時、天吏）按卷十宜忌等第表，以所值最重之等第与遇德否定「從宜／相抵／從忌／皆忌」；厭對、八專等次凶神按卷十各条「與德等併則不忌」。月表 720 日皆据此推出并与影印本逐页核过。</div>
+            <div>4. <b>铺注</b>（卷十鋪註條例）：周堂值夫、值婦不注宜嫁娶；上朔、四離、四絕、晦日、無祿、月忌等止注数事，余事不注宜或注忌。</div>
+            <div>「须宜嫁娶」：注宜方可用（时宪书注宜之日）；「只避忌嫁娶」：两不注之日亦可；「不用」：不看协纪月表。每日所值之神与推得之由见月格点日之依据。</div>
+          </div>
+        </details>
         <span>嫁娶周堂 <Radio.Group size="small" value={zt} onChange={(e) => setZt(e.target.value)} optionType="button"
           options={[{ label: '协纪', value: 0 }, { label: '类编', value: 1 }, { label: '不用', value: 2 }]} /></span>
         <Checkbox checked={useYue} onChange={(e) => setUseYue(e.target.checked)}>女命行嫁月否决（类编；协纪奏准删除）</Checkbox>

@@ -8,7 +8,7 @@
 //!
 //! 只录规则，不录应验之说。
 
-use super::puzhu::{yiji_for_day, zhou_tang, PuzhuDay};
+use super::puzhu::{puzhu_names, yiji_for_day, yuebiao_base_for_day, zhou_tang, PuzhuDay};
 use super::zhiri::xiu_index;
 
 fn gz_index(name: &str) -> u8 {
@@ -486,9 +486,61 @@ pub enum XieJiYiJi {
     BuYong,
 }
 
+/// 协纪月表嫁娶宜忌之依据：月表由卷十一「嫁娶」宜神、忌神，经卷十相併相抵与宜忌等第表推出，再加卷十铺注
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct XieJiBasis {
+    /// 月表（铺注前）于嫁娶：「宜」「忌」「两不注」「諸事不宜」
+    pub yuebiao: &'static str,
+    /// 加铺注后（即时宪书所注）
+    pub final_: &'static str,
+    /// 当日所值之嫁娶宜神（卷十一：天德、月德、天德合、月德合、天赦、天願、三合、天喜、六合、不將）
+    pub yi_shen: Vec<String>,
+    /// 当日所值之嫁娶忌神（卷十一：月破、平日、收日、閉日、劫煞……八專、亥日）
+    pub ji_shen: Vec<String>,
+    /// 卷十宜忌等第表之用（月表 CSV「等第」：主凶神最重之等第→從宜／相抵／從忌／皆忌）
+    pub deng_di: String,
+    /// 铺注所值（铺注改动嫁娶之注时列出）
+    pub puzhu: Vec<String>,
+}
+
+fn jiaqu_status(d: &super::yiji::YueBiaoDay) -> &'static str {
+    match &d.yi {
+        None => "諸事不宜",
+        Some(v) if v.iter().any(|x| x == "嫁娶") => "宜",
+        _ if d.ji.iter().any(|x| x == "嫁娶") => "忌",
+        _ => "两不注",
+    }
+}
+
+/// 一日协纪嫁娶宜忌之依据
+pub fn xieji_basis(d: &PuzhuDay) -> XieJiBasis {
+    const GAN: &str = "甲乙丙丁戊己庚辛壬癸";
+    const ZHI: &str = "子丑寅卯辰巳午未申酉戌亥";
+    let base = yuebiao_base_for_day(d);
+    let fin = yiji_for_day(d);
+    let gz = d.input.day_gz as usize;
+    let mut names: Vec<String> = base.ji_shen.iter().chain(base.xiong_shen.iter()).cloned().collect();
+    names.push(format!("{}日", base.jian_chu));
+    names.push(format!("{}日", GAN.chars().nth(gz % 10).unwrap()));
+    names.push(format!("{}日", ZHI.chars().nth(gz % 12).unwrap()));
+    let (yi_s, ji_s) = super::yiji::shi_shen("嫁娶");
+    let pick = |list: &[&str]| -> Vec<String> { list.iter().filter(|n| names.iter().any(|x| x == *n)).map(|n| n.to_string()).collect() };
+    let (a, b) = (jiaqu_status(&base), jiaqu_status(&fin));
+    XieJiBasis {
+        yuebiao: a,
+        final_: b,
+        yi_shen: pick(&yi_s),
+        ji_shen: pick(&ji_s),
+        deng_di: base.deng_di.clone(),
+        puzhu: if a != b { puzhu_names(&d.input, d.shuo_gz) } else { Vec::new() },
+    }
+}
+
 /// 一日之判
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct JiaquDay {
+    /// 协纪月表嫁娶宜忌之依据
+    pub xieji_basis: XieJiBasis,
     pub jdn: i64,
     /// 三态：可用、经制化可用、不可用
     pub verdict: Verdict,
@@ -699,6 +751,7 @@ pub fn judge_day(d: &PuzhuDay, inp: &JiaquInput, o: &JiaquOptions) -> JiaquDay {
         Verdict::KeYong
     };
     JiaquDay {
+        xieji_basis: xieji_basis(d),
         jdn: d.jdn,
         verdict,
         xieji_yi,

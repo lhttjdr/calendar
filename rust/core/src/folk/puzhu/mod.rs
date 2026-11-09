@@ -313,16 +313,20 @@ fn zhi_yi(d: &mut YueBiaoDay, allowed: &[&str]) {
     }
 }
 
-/// 一日的宜忌：月表（交节之日按 [`jiao_jie_base`]）加铺注，即时宪书体例下的通书六十事宜忌。
-pub fn yiji_for_day(d: &PuzhuDay) -> YueBiaoDay {
+/// 一日铺注以前的月表（交节之日按 [`jiao_jie_base`] 取新旧两月之交）
+pub fn yuebiao_base_for_day(d: &PuzhuDay) -> YueBiaoDay {
     use super::yiji::yuebiao_day;
     let base = yuebiao_day(d.month_ord, d.input.day_gz);
     if d.jiao_jie && d.jiao_jie_hour.is_some_and(|h| h >= JIAO_JIE_EARLY_HOUR) {
-        let jj = jiao_jie_base(base, yuebiao_day((d.month_ord + 11) % 12, d.input.day_gz));
-        apply(&jj, &d.input, d.shuo_gz)
+        jiao_jie_base(base, yuebiao_day((d.month_ord + 11) % 12, d.input.day_gz))
     } else {
-        apply(base, &d.input, d.shuo_gz)
+        base.clone()
     }
+}
+
+/// 一日的宜忌：月表（交节之日按 [`jiao_jie_base`]）加铺注，即时宪书体例下的通书六十事宜忌。
+pub fn yiji_for_day(d: &PuzhuDay) -> YueBiaoDay {
+    apply(&yuebiao_base_for_day(d), &d.input, d.shuo_gz)
 }
 
 /// 时宪书底栏朱字所用之神（以乾隆三十年时宪书归纳，见 doc/folk/shensha.md「时宪书朱字」）：
@@ -615,6 +619,7 @@ mod tests {
             xiong_shen: vec![],
             yi: yi.map(|v| v.iter().map(|s| s.to_string()).collect()),
             ji: ji_.iter().map(|s| s.to_string()).collect(),
+            deng_di: String::new(),
         }
     }
 
