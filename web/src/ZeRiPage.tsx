@@ -7,6 +7,7 @@ import { LeftOutlined, RightOutlined } from '@ant-design/icons'
 import { useMemo, useState } from 'react'
 import type { LunarBackend } from './lunar-backend-types'
 import { useCompassBar } from './CompassBar'
+import { ensureLiShu, LISHU_FAMILY } from './Wheels'
 
 const { Text } = Typography
 
@@ -34,6 +35,7 @@ const GAN = new Set(['甲', '乙', '丙', '丁', '庚', '辛', '壬', '癸'])
 
 /** `rotate`：整盘顺时针旋转的角度（罗盘模式由设备朝向给出）；文字随盘转 */
 export function ShanWheel({ data, size = 560, rotate = 0 }: { data: NianShenData; size?: number; rotate?: number }) {
+  ensureLiShu()
   const c = size / 2
   // 内圈年干支，中圈二十四山，外圈诸神（沿半径向外书写，按弧长等距排开）
   const r0 = size * 0.17
@@ -43,7 +45,7 @@ export function ShanWheel({ data, size = 560, rotate = 0 }: { data: NianShenData
   const ang = (i: number) => ((180 + 15 * i) * Math.PI) / 180
   const pt = (r: number, a: number) => [c + r * Math.sin(a), c - r * Math.cos(a)] as const
   return (
-    <svg viewBox={`0 0 ${size} ${size}`} style={{ width: '100%', maxWidth: size, height: 'auto' }} role="img" aria-label="年神方位二十四山图">
+    <svg viewBox={`0 0 ${size} ${size}`} style={{ width: '100%', maxWidth: size, height: 'auto', fontFamily: LISHU_FAMILY }} role="img" aria-label="年神方位二十四山图">
       <g transform={`rotate(${rotate} ${c} ${c})`} style={{ transition: 'transform 120ms linear' }}>
       <circle cx={c} cy={c} r={r2} fill="var(--zr-bg, #fffdf7)" stroke="#999" />
       <circle cx={c} cy={c} r={r1} fill="none" stroke="#999" />

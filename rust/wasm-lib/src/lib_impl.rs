@@ -2791,7 +2791,24 @@ impl SkyEngine {
                 .collect::<Vec<_>>()
                 .join(",")
         );
-        format!("{{\"yao\":[{}],\"ming\":{},\"palaces\":[{}],\"xingMing\":{}}}", yao.join(","), c.ming, palaces.join(","), xm)
+        // 画盘用：二十八宿距星视黄经、十二宫宫首黄经（与分宫法同）
+        let mlon = frame.as_ref().map(|f| qz::mansion_longitudes(f, t));
+        let jie = match (o.gong, mlon.is_some()) {
+            (qz::GongRule::XiuDuXingZong, true) => Some(&qz::GONG_JIE_XINGZONG),
+            (qz::GongRule::XiuDuDaCheng, true) => Some(&qz::GONG_JIE_DACHENG),
+            _ => None,
+        };
+        let starts = qz::gong_starts(jie, mlon.as_ref());
+        let fmt_arr = |v: &[lunar_core::math::real::Real]| v.iter().map(|x| format!("{:.4}", x.as_f64())).collect::<Vec<_>>().join(",");
+        format!(
+            "{{\"yao\":[{}],\"ming\":{},\"palaces\":[{}],\"xingMing\":{},\"xiuLon\":{},\"gongStart\":[{}]}}",
+            yao.join(","),
+            c.ming,
+            palaces.join(","),
+            xm,
+            mlon.map(|m| format!("[{}]", fmt_arr(&m))).unwrap_or_else(|| "null".into()),
+            fmt_arr(&starts)
+        )
     }
 
     pub fn snapshot(&self, jd_tt: f64, delta_t_s: f64, lon_deg: f64, lat_deg: f64, height_m: f64, temperature_c: f64, pressure_kpa: f64, inversion_depth_m: f64, inversion_rise_k: f64, humidity: f64, city_nl: f64) -> String {
