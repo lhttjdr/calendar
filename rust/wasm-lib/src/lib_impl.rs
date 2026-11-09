@@ -590,7 +590,7 @@ pub fn ganzhi_from_jd_solar_wasm(
             arc
         }
     };
-    let opts = lunar_core::calendar::gan_zhi_options::preset_zi_ping_ba_zi();
+    let opts = lunar_core::calendar::gan_zhi_options::preset_jieqi_ganzhi();
     let opts = lunar_core::calendar::gan_zhi_options::GanzhiOptions {
         day_boundary: day_boundary_from_u8(day_boundary),
         solar_term_mode: solar_term_mode_from_u8(solar_term_mode),
@@ -699,7 +699,7 @@ pub fn nayin_of_ganzhi_name(name: &str) -> String {
 #[wasm_bindgen]
 pub fn paipan_wasm(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8) -> Result<String, JsValue> {
     use lunar_core::astronomy::aspects::solar_term_jds_for_year_cached;
-    use lunar_core::calendar::gan_zhi_options::{ganzhi_from_jd_solar, preset_zi_ping_ba_zi};
+    use lunar_core::calendar::gan_zhi_options::{ganzhi_from_jd_solar, preset_jieqi_ganzhi};
     use lunar_core::folk::{liuren, qimen, taiyi};
     const ZHI: [&str; 12] = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"];
     let vsop = vsop87_cached(vsop87_ear)?;
@@ -744,7 +744,7 @@ pub fn paipan_wasm(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8) -> Re
         taiyi::SHEN16[j.shi_ji]
     ));
     // 三元九运：干支年（立春分）
-    let (yi, _, _) = ganzhi_from_jd_solar(vsop.as_ref(), jd_ut, &preset_zi_ping_ba_zi());
+    let (yi, _, _) = ganzhi_from_jd_solar(vsop.as_ref(), jd_ut, &preset_jieqi_ganzhi());
     let year = if (gy - 4).rem_euclid(60) as u8 == yi { gy } else { gy - 1 };
     let (yuan, yun) = taiyi::san_yuan_jiu_yun(year, taiyi::JiuYun::Even20);
     let yuan = match yuan {
@@ -762,8 +762,8 @@ fn json_arr<I: IntoIterator<Item = String>>(it: I) -> String {
 
 /// 立春分年的年干支序（与年九星同）
 fn folk_year_gz(vsop: &Vsop87, jd: f64) -> u8 {
-    use lunar_core::calendar::gan_zhi_options::{ganzhi_from_jd_solar, preset_zi_ping_ba_zi};
-    ganzhi_from_jd_solar(vsop, jd, &preset_zi_ping_ba_zi()).0
+    use lunar_core::calendar::gan_zhi_options::{ganzhi_from_jd_solar, preset_jieqi_ganzhi};
+    ganzhi_from_jd_solar(vsop, jd, &preset_jieqi_ganzhi()).0
 }
 
 /// 择日页「年神方位」二十四山图：{"year":"乙酉","suiDe":"庚","suiDeHe":"乙","shan":[{"p":"子","gods":[{"n":"太歲","ji":false}]}…]}，
@@ -785,7 +785,7 @@ pub fn nian_shen_json(jd: f64, vsop87_ear: &str) -> Result<String, JsValue> {
     });
     let dgz = ((jd + 0.5).floor() as i64 + 49).rem_euclid(60) as u8;
     // 月厌、厌对与厌前厌后（类编「論隂陽不將日」以月厌为界分二十四山；月以节换，正月厌戌逆行）
-    let (_, mi, _) = lunar_core::calendar::gan_zhi_options::ganzhi_from_jd_solar(vsop.as_ref(), jd, &lunar_core::calendar::gan_zhi_options::preset_zi_ping_ba_zi());
+    let (_, mi, _) = lunar_core::calendar::gan_zhi_options::ganzhi_from_jd_solar(vsop.as_ref(), jd, &lunar_core::calendar::gan_zhi_options::preset_jieqi_ganzhi());
     let month_ord = ((mi % 12) as i32 - 2).rem_euclid(12) as u8;
     let yan = (10 - month_ord as i32).rem_euclid(12) as usize;
     const SHAN: [&str; 24] = ["子", "癸", "丑", "艮", "寅", "甲", "卯", "乙", "辰", "巽", "巳", "丙", "午", "丁", "未", "坤", "申", "庚", "酉", "辛", "戌", "乾", "亥", "壬"];
@@ -856,7 +856,7 @@ pub fn qimen_json(jd_ut: f64, vsop87_ear: &str, hour_gz: u8, method: u8, ji_gong
     // 格局（演义卷二）：日干支取页面日柱；年干支按立春；月朔干不给（月格不判）
     let year_gz = folk_year_gz(vsop.as_ref(), jd_ut);
     // 年月日家（doc/folk/qimen.md 第六节）：年、月依子平四柱（立春、交节）
-    let (_, month_gz, _) = lunar_core::calendar::gan_zhi_options::ganzhi_from_jd_solar(vsop.as_ref(), jd_ut, &lunar_core::calendar::gan_zhi_options::preset_zi_ping_ba_zi());
+    let (_, month_gz, _) = lunar_core::calendar::gan_zhi_options::ganzhi_from_jd_solar(vsop.as_ref(), jd_ut, &lunar_core::calendar::gan_zhi_options::preset_jieqi_ganzhi());
     let (gy, _, _) = lunar_core::calendar::gregorian::Gregorian::from_julian_day(real(jd_ut));
     let g_year = if (gy - 4).rem_euclid(60) as u8 == year_gz { gy } else { gy - 1 };
     let yr = if jia_rule == 1 { qimen::YueJiaRule::TongZong } else { qimen::YueJiaRule::YanYi };
@@ -1574,7 +1574,7 @@ pub fn liuren_json(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8, rule:
     let xia = [GAN[(gz % 10) as usize], ZHI[k.si_ke[0].shang as usize], ZHI[(gz % 12) as usize], ZHI[k.si_ke[2].shang as usize]];
     let si_ke = json_arr((0..4).map(|i| format!("{{\"xia\":{},\"shang\":{}}}", json_str(xia[i]), json_str(ZHI[k.si_ke[i].shang as usize]))));
     // 盘面标注：占年、月建依子平四柱（立春、交节）
-    let (nian_gz, yue_gz, _) = lunar_core::calendar::gan_zhi_options::ganzhi_from_jd_solar(vsop.as_ref(), jd_ut, &lunar_core::calendar::gan_zhi_options::preset_zi_ping_ba_zi());
+    let (nian_gz, yue_gz, _) = lunar_core::calendar::gan_zhi_options::ganzhi_from_jd_solar(vsop.as_ref(), jd_ut, &lunar_core::calendar::gan_zhi_options::preset_jieqi_ganzhi());
     let yue_jian = yue_gz % 12;
     let dr = if dun_rule == 1 { shen_sha::DunRule::WuZiDun } else { shen_sha::DunRule::XunDun };
     let pb = shen_sha::pan_biao(&k.pan, gz, dr, Some(yue_jian), mu);
@@ -1696,12 +1696,12 @@ pub fn liuren_json(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8, rule:
 #[wasm_bindgen]
 pub fn taiyi_json(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8, kind: u8, school: u8, dun: u8, opts: u32) -> Result<String, JsValue> {
     use lunar_core::astronomy::aspects::solar_term_jds_for_year_cached;
-    use lunar_core::calendar::gan_zhi_options::{ganzhi_from_jd_solar, preset_zi_ping_ba_zi};
+    use lunar_core::calendar::gan_zhi_options::{ganzhi_from_jd_solar, preset_jieqi_ganzhi};
     use lunar_core::folk::taiyi;
     let vsop = vsop87_cached(vsop87_ear)?;
     let jd_tt = jd_ut + lunar_core::astronomy::time::delta_t(real(jd_ut)).seconds().as_f64() / 86400.0;
     let (gy, _, _) = lunar_core::calendar::gregorian::Gregorian::from_julian_day(real(jd_ut));
-    let (yi, mi, _) = ganzhi_from_jd_solar(vsop.as_ref(), jd_ut, &preset_zi_ping_ba_zi());
+    let (yi, mi, _) = ganzhi_from_jd_solar(vsop.as_ref(), jd_ut, &preset_jieqi_ganzhi());
     let year = if (gy - 4).rem_euclid(60) as u8 == yi { gy } else { gy - 1 };
     let sch = if school == 1 { taiyi::JiNian::TaoJinGe } else { taiyi::JiNian::JinJing };
     let mut d = if dun == 1 { taiyi::Dun::Yin } else { taiyi::Dun::Yang };
@@ -1902,12 +1902,12 @@ fn nian_shen_text(year_gz: u8) -> String {
 /// 九星按立春换年、按节换月（《協紀辨方書》卷八、卷三十四），不随四柱预设变化。
 #[wasm_bindgen]
 pub fn folk_day_wasm(jd: f64, vsop87_ear: &str) -> Result<FolkDayResult, JsValue> {
-    use lunar_core::calendar::gan_zhi_options::{ganzhi_from_jd_solar, preset_zi_ping_ba_zi};
+    use lunar_core::calendar::gan_zhi_options::{ganzhi_from_jd_solar, preset_jieqi_ganzhi};
     use lunar_core::folk::{jiuxing, zhiri};
     let jdn = (jd + 0.5).floor() as i64;
     let xiu = zhiri::xiu_index(jdn);
     let vsop = vsop87_cached(vsop87_ear)?;
-    let (yi, mi, _) = ganzhi_from_jd_solar(vsop.as_ref(), jd, &preset_zi_ping_ba_zi());
+    let (yi, mi, _) = ganzhi_from_jd_solar(vsop.as_ref(), jd, &preset_jieqi_ganzhi());
     // 干支年：公元 Y 年对应干支序 (Y − 4) mod 60；JD 所在公历年或其前一年
     let (gy, _, _) = lunar_core::calendar::gregorian::Gregorian::from_julian_day(real(jd));
     let ganzhi_year = if (gy - 4).rem_euclid(60) as u8 == yi { gy } else { gy - 1 };
@@ -2033,12 +2033,12 @@ pub fn gengdian_wasm(jd: f64, latitude_deg: f64, longitude_deg: f64, method: u8,
 /// 某民用日的建除、日黄黑道、百忌（月建按节；交节日即属新月）。返回如「定日 · 天德（黄道） · 乙不栽植 未不服藥」。
 #[wasm_bindgen]
 pub fn jianchu_day_wasm(jd: f64, vsop87_ear: &str) -> Result<String, JsValue> {
-    use lunar_core::calendar::gan_zhi_options::{ganzhi_from_jd_solar, preset_zi_ping_ba_zi};
+    use lunar_core::calendar::gan_zhi_options::{ganzhi_from_jd_solar, preset_jieqi_ganzhi};
     use lunar_core::folk::jianchu as j;
     let vsop = vsop87_cached(vsop87_ear)?;
     let jdn = (jd + 0.5).floor();
     // 取该日（东八区）将尽之时判断月建，使交节当日全日属新月：北京该日 24 时 = JDN + 0.5 − 8/24（UT，TT 差一分余可略）
-    let (_, mi, _) = ganzhi_from_jd_solar(vsop.as_ref(), jdn + 0.5 - 8.0 / 24.0 - 1e-6, &preset_zi_ping_ba_zi());
+    let (_, mi, _) = ganzhi_from_jd_solar(vsop.as_ref(), jdn + 0.5 - 8.0 / 24.0 - 1e-6, &preset_jieqi_ganzhi());
     let gz = (jdn as i64 + 49).rem_euclid(60) as u8;
     let (dg, dz, mz) = (gz % 10, gz % 12, mi % 12);
     let shen = j::huang_hei(dz, mz);
@@ -2111,7 +2111,7 @@ pub fn qili_shen_day_json(jd: f64, vsop87_ear: &str, tian_de: u8, tian_huo: u8, 
     use lunar_core::folk::nianshen::{nian_shen_with, NianShenOptions};
     use lunar_core::folk::shensha::{shen_for_day_with, FuRiRule, HuangWuRule, MingFeiDuiRule, MingFeiRule, QiLiYi, ShenshaOptions};
     let vsop = vsop87_cached(vsop87_ear)?;
-    let (_, mi, _) = lunar_core::calendar::gan_zhi_options::ganzhi_from_jd_solar(vsop.as_ref(), jd, &lunar_core::calendar::gan_zhi_options::preset_zi_ping_ba_zi());
+    let (_, mi, _) = lunar_core::calendar::gan_zhi_options::ganzhi_from_jd_solar(vsop.as_ref(), jd, &lunar_core::calendar::gan_zhi_options::preset_jieqi_ganzhi());
     let month_ord = ((mi % 12) as i32 - 2).rem_euclid(12) as u8; // 寅月 = 0
     let dgz = ((jd + 0.5).floor() as i64 + 49).rem_euclid(60) as u8;
     let qly = |v: u8| if v == 1 { QiLiYi::LeiBian } else { QiLiYi::XieJi };
@@ -2150,7 +2150,7 @@ pub fn qili_shen_day_json(jd: f64, vsop87_ear: &str, tian_de: u8, tian_huo: u8, 
 pub fn dong_gong_day_json(jd: f64, vsop87_ear: &str) -> Result<String, JsValue> {
     use lunar_core::folk::dong_gong::{dong_gong_day, xieji_events};
     let vsop = vsop87_cached(vsop87_ear)?;
-    let (_, mi, _) = lunar_core::calendar::gan_zhi_options::ganzhi_from_jd_solar(vsop.as_ref(), jd, &lunar_core::calendar::gan_zhi_options::preset_zi_ping_ba_zi());
+    let (_, mi, _) = lunar_core::calendar::gan_zhi_options::ganzhi_from_jd_solar(vsop.as_ref(), jd, &lunar_core::calendar::gan_zhi_options::preset_jieqi_ganzhi());
     let month_zhi = (mi % 12) as u8;
     let dgz = ((jd + 0.5).floor() as i64 + 49).rem_euclid(60) as u8;
     let d = dong_gong_day(month_zhi, dgz);

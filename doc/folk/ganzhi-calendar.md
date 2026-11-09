@@ -6,7 +6,8 @@
 
 | 内容 | 位置 |
 |---|---|
-| 选项枚举与预设 | `rust/core/src/calendar/gan_zhi_options.rs`：`YearBoundary`、`MonthBoundary`、`LeapMonthHandling`、`DayBoundary`；`preset_zi_ping_ba_zi`、`preset_zi_ping_zi_chu`、`preset_purple_star`、`preset_lunar_month_ganzhi` |
+| 选项枚举与中性预设（历法域） | `rust/core/src/calendar/gan_zhi_options.rs`：`YearBoundary`、`MonthBoundary`、`LeapMonthHandling`、`DayBoundary`；`preset_jieqi_ganzhi`（节气干支历：立春、十二节、子正）、`preset_lunar_month_ganzhi`（农历月干支） |
+| 各派预设（民俗域） | `rust/core/src/folk/ganzhi_presets.rs`：`zi_ping_ba_zi`（即节气干支历）、`zi_ping_zi_chu`、`purple_star`。哪一派取哪一套属民俗知识，不放历法域（见 doc/architecture/three-domains.md「依赖方向」） |
 | 节气派计算 | `ganzhi_from_jd_solar`（立春换年、十二节换月） |
 | 农历派计算 | `ganzhi_from_jd_lunar`（正月初一换年、初一换月，闰月按选项） |
 | 五虎遁 | `month_gan_zhi_from_year_and_ord`（寅月月干 = 2Y+2，干支序 6g−5z） |
