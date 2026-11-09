@@ -165,6 +165,16 @@ export type QizhengWheelData = {
   yao: { n: string; gong: number; gongDeg: number; xiu: string | null; xiuDeg: number | null; retro: boolean }[]
   ming: number
   palaces: string[]
+  /** 星命（命主、身主、宫主、庙旺、强弱、限） */
+  xingMing?: XingMingData
+}
+
+export type XingMingData = {
+  mingLon: number; mingXiu: string | null; mingXiuDeg: number | null
+  mingGongZhu: string; mingDuZhu: string | null; mingZhu: string
+  shenGong: number; shenGongZhu: string; shenDuZhu: string | null; shenZhu: string
+  gongZhu: string[]; dignity: string[][]; strong: boolean[]; relation: string[]
+  tongXian: number; daXian: { gong: number; palace: string; from: number; to: number }[]
 }
 
 /** 十二次名，下标为地支序 */
@@ -190,7 +200,7 @@ export function QizhengWheel({ d }: { d: QizhengWheelData }) {
             <path d={sector(60, 205, deg - 15, deg + 15)} fill={ming ? '#fff7e6' : 'none'} stroke="#ddd" />
             <T r={74} deg={deg} size={16} fill="#666">{z}</T>
             <T r={92} deg={deg} size={11} fill="#999">{GONG_CI[i]}</T>
-            <T r={108} deg={deg} size={12} fill={ming ? '#ad4e00' : '#531dab'} weight={ming ? 700 : 400}>{d.palaces[i]}</T>
+            <T r={108} deg={deg} size={12} fill={ming ? '#ad4e00' : '#531dab'} weight={ming ? 700 : 400}>{`${d.palaces[i]}${d.xingMing && d.xingMing.shenGong === i ? '·身' : ''}`}</T>
             {here.map((y, k) => {
               // 宫内多曜：沿半径排开，每曜一行（名＋度）；过多则缩字
               const step = here.length > 5 ? 15 : 17

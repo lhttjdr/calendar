@@ -8,7 +8,7 @@ import { DATA_BASE } from './ephemerisUrls'
 
 type Engine = {
   skyCulture(): string
-  qizheng(jdTt: number, deltaTS: number, lon: number, lat: number, hourZhi: number, luoAsc: boolean, meanNode: boolean, ascendant: boolean): string
+  qizheng(jdTt: number, deltaTS: number, lon: number, lat: number, hourZhi: number, luoAsc: boolean, meanNode: boolean, ascendant: boolean, flags: number): string
   snapshot(jdTt: number, deltaTS: number, lon: number, lat: number, heightM: number, tempC: number, pressureKpa: number, invDepthM: number, invRiseK: number, humidity: number, cityNl: number): string
   systemForYear(year: number): string
 }
@@ -54,7 +54,7 @@ export type SkyRequest =
   | { id: number; type: 'deltaT'; jd: number }
   | { id: number; type: 'systemForYear'; year: number }
   /** 七政四余（排盘页）：jdUt 为 UT 儒略日，ΔT 由 Worker 估算 */
-  | { id: number; type: 'qizheng'; jdUt: number; lon: number; lat: number; hourZhi: number; luoAsc: boolean; meanNode: boolean; ascendant: boolean }
+  | { id: number; type: 'qizheng'; jdUt: number; lon: number; lat: number; hourZhi: number; luoAsc: boolean; meanNode: boolean; ascendant: boolean; flags: number }
 
 // Terrarium 高程瓦片（Mapzen/Tilezen，AWS Open Data）：像素值 → 米 = R·256 + G + B/256 − 32768。署名见 doc/astronomy/sky-view-3d.md
 const TILE_URL = (z: number, x: number, y: number) => `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${x}/${y}.png`
@@ -174,7 +174,7 @@ self.onmessage = async (ev: MessageEvent<SkyRequest>) => {
         break
       case 'qizheng': {
         const dt = wasm.deltaTEstimate(req.jdUt)[0]!
-        result = JSON.parse(engine.qizheng(req.jdUt + dt / 86400, dt, req.lon, req.lat, req.hourZhi, req.luoAsc, req.meanNode, req.ascendant))
+        result = JSON.parse(engine.qizheng(req.jdUt + dt / 86400, dt, req.lon, req.lat, req.hourZhi, req.luoAsc, req.meanNode, req.ascendant, req.flags))
         break
       }
       case 'systemForYear':

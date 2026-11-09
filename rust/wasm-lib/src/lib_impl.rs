@@ -2678,8 +2678,9 @@ impl SkyEngine {
     #[wasm_bindgen]
     /// 七政四余（排盘页，按需经星图 Worker 调用）：十一曜视黄经、中气分宫、黄道宿度（清代距星）、命宫与十二宫。
     /// `luo_asc` 罗睺为升交点（清初之法；缺省 false 即计都升交）；`mean_node` 平交点（缺省真交点）；
-    /// `ascendant` 命宫取上升点（缺省「卯上起命」）。见 doc/folk/qizheng.md。
-    pub fn qizheng(&self, jd_tt: f64, delta_t_s: f64, lon_deg: f64, lat_deg: f64, hour_zhi: u8, luo_asc: bool, mean_node: bool, ascendant: bool) -> String {
+    /// `ascendant` 命宫取上升点（缺省「卯上起命」）。`flags` 星命诸说（缺省 0）：位 0—1 分宫（0 中气、1 星宗宿度、2 大成宿度），
+    /// 位 2 命主用宫主、位 3 身主用宫主、位 4 庙旺依「廟樂旺」节、位 5 强弱依星宗、位 6 大限年依大成卷三例。见 doc/folk/qizheng.md。
+    pub fn qizheng(&self, jd_tt: f64, delta_t_s: f64, lon_deg: f64, lat_deg: f64, hour_zhi: u8, luo_asc: bool, mean_node: bool, ascendant: bool, flags: u32) -> String {
         use lunar_core::astronomy::apparent::ApparentPipelineOptions;
         use lunar_core::astronomy::sky_culture::chinese::MansionFrame;
         use lunar_core::astronomy::time::{TimePoint, TimeScale};
@@ -2695,6 +2696,12 @@ impl SkyEngine {
             luo_ji: if luo_asc { qz::LuoJi::LuoAscending } else { qz::LuoJi::JiAscending },
             node: if mean_node { qz::NodeKind::Mean } else { qz::NodeKind::True },
             ming: if ascendant { qz::MingRule::Ascendant } else { qz::MingRule::SunOnHour },
+            gong: match flags & 3 { 1 => qz::GongRule::XiuDuXingZong, 2 => qz::GongRule::XiuDuDaCheng, _ => qz::GongRule::ZhongQi },
+            ming_zhu: if flags & 4 != 0 { qz::MingZhuRule::GongZhu } else { qz::MingZhuRule::DuZhu },
+            shen_zhu: if flags & 8 != 0 { qz::ShenZhuRule::GongZhu } else { qz::ShenZhuRule::DuZhu },
+            miao_wang: if flags & 16 != 0 { qz::MiaoWangRule::Jie } else { qz::MiaoWangRule::Lun },
+            qiang_ruo: if flags & 32 != 0 { qz::QiangRuoRule::XingZong } else { qz::QiangRuoRule::DaCheng },
+            da_xian: if flags & 64 != 0 { qz::DaXianYears::DaChengLi } else { qz::DaXianYears::XingZong },
             ..Default::default()
         };
         let jd_ut1 = jd_tt - delta_t_s / 86400.0;
@@ -2718,7 +2725,34 @@ impl SkyEngine {
             })
             .collect();
         let palaces: Vec<String> = c.palaces.iter().map(|x| json_str(x)).collect();
-        format!("{{\"yao\":[{}],\"ming\":{},\"palaces\":[{}]}}", yao.join(","), c.ming, palaces.join(","))
+        let x = &c.xing_ming;
+        let nm = |i: usize| json_str(qz::YAO.get(i).copied().unwrap_or("?"));
+        let opt_nm = |o: Option<usize>| o.map(nm).unwrap_or_else(|| "null".into());
+        let strs = |v: &[&str]| format!("[{}]", v.iter().map(|t| json_str(t)).collect::<Vec<_>>().join(","));
+        let xm = format!(
+            "{{\"mingLon\":{:.4},\"mingXiu\":{},\"mingXiuDeg\":{},\"mingGongZhu\":{},\"mingDuZhu\":{},\"mingZhu\":{},\"shenGong\":{},\"shenGongZhu\":{},\"shenDuZhu\":{},\"shenZhu\":{},\"gongZhu\":[{}],\"dignity\":[{}],\"strong\":[{}],\"relation\":{},\"tongXian\":{:.2},\"daXian\":[{}]}}",
+            x.ming_lon.as_f64(),
+            x.ming_xiu.map(|(k, _)| json_str(qz::xiu_name(k))).unwrap_or_else(|| "null".into()),
+            x.ming_xiu.map(|(_, d)| format!("{:.4}", d.as_f64())).unwrap_or_else(|| "null".into()),
+            nm(x.ming_gong_zhu),
+            opt_nm(x.ming_du_zhu),
+            nm(x.ming_zhu),
+            x.shen_gong,
+            nm(x.shen_gong_zhu),
+            opt_nm(x.shen_du_zhu),
+            nm(x.shen_zhu),
+            x.gong_zhu.iter().map(|&i| nm(i)).collect::<Vec<_>>().join(","),
+            x.dignity.iter().map(|d| strs(d)).collect::<Vec<_>>().join(","),
+            x.strong.iter().map(|b| b.to_string()).collect::<Vec<_>>().join(","),
+            strs(&x.relation),
+            x.tong_xian.as_f64(),
+            x.da_xian
+                .iter()
+                .map(|d| format!("{{\"gong\":{},\"palace\":{},\"from\":{:.1},\"to\":{:.1}}}", d.gong, json_str(d.palace), d.from.as_f64(), d.to.as_f64()))
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+        format!("{{\"yao\":[{}],\"ming\":{},\"palaces\":[{}],\"xingMing\":{}}}", yao.join(","), c.ming, palaces.join(","), xm)
     }
 
     pub fn snapshot(&self, jd_tt: f64, delta_t_s: f64, lon_deg: f64, lat_deg: f64, height_m: f64, temperature_c: f64, pressure_kpa: f64, inversion_depth_m: f64, inversion_rise_k: f64, humidity: f64, city_nl: f64) -> String {

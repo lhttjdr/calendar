@@ -8,7 +8,7 @@ import { LeftOutlined, RightOutlined } from '@ant-design/icons'
 import { useEffect, useMemo, useState } from 'react'
 import type { LunarBackend } from './lunar-backend-types'
 import { useCompassBar, type LocationProps } from './CompassBar'
-import { LiurenWheel, QimenWheel, QizhengWheel, TaiyiWheel, type QizhengWheelData } from './Wheels'
+import { LiurenWheel, QimenWheel, QizhengWheel, TaiyiWheel, YAO_SHORT, type QizhengWheelData } from './Wheels'
 import { useWorkerRpc } from './useWorkerRpc'
 import type { SkyRequest } from './skyWorker'
 
@@ -438,21 +438,30 @@ function TaiyiPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; dayG
   )
 }
 
+function BitRadio(p: { label: string; o: { value: boolean; onChange: (v: boolean) => void }; a: string; b: string }) {
+  return <div>{p.label}：<Radio.Group size="small" value={p.o.value} onChange={(e) => p.o.onChange(e.target.value)} options={[{ label: p.a, value: false }, { label: p.b, value: true }]} /></div>
+}
+
 /** 七政四余：日月五星视黄经要五大行星历表，经星图 Worker（SkyEngine）按需算，切到本页签才加载 */
 function QizhengPanel(props: { jdUt: number; hourZhi: number; latitude: number; longitude: number; rotate: number }) {
   const call = useWorkerRpc<SkyRequest>(() => new Worker(new URL('./skyWorker.ts', import.meta.url), { type: 'module' }))
   const [luoAsc, setLuoAsc] = useState(false)
   const [meanNode, setMeanNode] = useState(false)
   const [ascendant, setAscendant] = useState(false)
+  /** 星命诸说（位义见 SkyEngine::qizheng）：分宫、命主、身主、庙旺、强弱、大限年 */
+  const [gongRule, setGongRule] = useState(0)
+  const [flagBits, setFlagBits] = useState(0)
+  const flags = gongRule | flagBits
+  const bit = (b: number) => ({ value: (flagBits & b) !== 0, onChange: (v: boolean) => setFlagBits(v ? flagBits | b : flagBits & ~b) })
   const [d, setD] = useState<QizhengWheelData | null>(null)
   const [err, setErr] = useState<string | null>(null)
   useEffect(() => {
     let live = true
-    call<QizhengWheelData>({ type: 'qizheng', jdUt: props.jdUt, lon: props.longitude, lat: props.latitude, hourZhi: props.hourZhi, luoAsc, meanNode, ascendant })
+    call<QizhengWheelData>({ type: 'qizheng', jdUt: props.jdUt, lon: props.longitude, lat: props.latitude, hourZhi: props.hourZhi, luoAsc, meanNode, ascendant, flags })
       .then((r) => { if (live) { setD(r); setErr(null) } })
       .catch((e: Error) => { if (live) setErr(e.message) })
     return () => { live = false }
-  }, [call, props.jdUt, props.longitude, props.latitude, props.hourZhi, luoAsc, meanNode, ascendant])
+  }, [call, props.jdUt, props.longitude, props.latitude, props.hourZhi, luoAsc, meanNode, ascendant, flags])
   return (
     <Flex gap={24} wrap align="flex-start">
       <div style={{ flex: '1 1 320px', maxWidth: 440, ...spinStyle(props.rotate) }}>
@@ -463,24 +472,62 @@ function QizhengPanel(props: { jdUt: number; hourZhi: number; latitude: number; 
           <div>罗计：<Radio.Group size="small" value={luoAsc} onChange={(e) => setLuoAsc(e.target.value)} options={[{ label: '计都升交（回回历、清中期后时宪书）', value: false }, { label: '罗睺升交（崇祯新法、清初）', value: true }]} /></div>
           <div>交点：<Radio.Group size="small" value={meanNode} onChange={(e) => setMeanNode(e.target.value)} options={[{ label: '真交点', value: false }, { label: '平交点', value: true }]} /></div>
           <div>命宫：<Radio.Group size="small" value={ascendant} onChange={(e) => setAscendant(e.target.value)} options={[{ label: '太阳宫加时、卯上起命', value: false }, { label: '东方上升点', value: true }]} /></div>
+          <div>分宫：<Radio.Group size="small" value={gongRule} onChange={(e) => setGongRule(e.target.value)} options={[{ label: '中气', value: 0 }, { label: '宿度（星宗）', value: 1 }, { label: '宿度（大成）', value: 2 }]} /></div>
+          <BitRadio label="命主" o={bit(4)} a="命度主（星命溯源）" b="命宫主" />
+          <BitRadio label="身主" o={bit(8)} a="身度主" b="身宫主（大成）" />
+          <BitRadio label="庙旺" o={bit(16)} a="星论（三辰通载）" b="廟樂旺节（五星）" />
+          <BitRadio label="强弱" o={bit(32)} a="大成" b="星宗" />
+          <BitRadio label="大限" o={bit(64)} a="星宗定行限度" b="大成卷三例" />
+          {d?.xingMing && (() => {
+            const x = d.xingMing
+            return (
+              <Text style={{ fontSize: 13 }}>
+                命度 {x.mingXiu != null && x.mingXiuDeg != null ? `${x.mingXiu}${x.mingXiuDeg.toFixed(1)}°` : `${x.mingLon.toFixed(1)}°`}；
+                命宫主 {x.mingGongZhu}，命度主 {x.mingDuZhu ?? '—'}，<b>命主 {x.mingZhu}</b>；
+                身宫 {ZHI[x.shenGong]}，身宫主 {x.shenGongZhu}，身度主 {x.shenDuZhu ?? '—'}，<b>身主 {x.shenZhu}</b>；
+                童限至 {x.tongXian.toFixed(0)} 岁
+              </Text>
+            )
+          })()}
           {d && (
             <table style={{ borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead><tr>{['曜', '宫', '入宫度', '宿度', ''].map((h) => <th key={h} style={{ textAlign: 'left', padding: '2px 8px', borderBottom: '1px solid #ddd' }}>{h}</th>)}</tr></thead>
+              <thead><tr>{['曜', '宫', '入宫度', '宿度', '', '庙旺', '对命主'].map((h) => <th key={h} style={{ textAlign: 'left', padding: '2px 8px', borderBottom: '1px solid #ddd' }}>{h}</th>)}</tr></thead>
               <tbody>
-                {d.yao.map((y) => (
+                {d.yao.map((y, k) => (
                   <tr key={y.n}>
                     <td style={{ padding: '2px 8px' }}>{y.n}</td>
                     <td style={{ padding: '2px 8px' }}>{ZHI[y.gong]}</td>
                     <td style={{ padding: '2px 8px' }}>{y.gongDeg.toFixed(2)}°</td>
                     <td style={{ padding: '2px 8px' }}>{y.xiu != null && y.xiuDeg != null ? `${y.xiu}${y.xiuDeg.toFixed(2)}°` : '—'}</td>
                     <td style={{ padding: '2px 8px', color: '#a8071a' }}>{y.retro ? '逆' : ''}</td>
+                    <td style={{ padding: '2px 8px' }}>{d.xingMing?.dignity[k]?.join('') ?? ''}</td>
+                    <td style={{ padding: '2px 8px' }}>{d.xingMing?.relation[k] ?? ''}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
+          {d?.xingMing && (
+            <table style={{ borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead><tr>{['宫', '十二宫', '宫主', '强弱', '大限'].map((h) => <th key={h} style={{ textAlign: 'left', padding: '2px 8px', borderBottom: '1px solid #ddd' }}>{h}</th>)}</tr></thead>
+              <tbody>
+                {[...Array(12).keys()].map((i) => (d.ming - i + 12) % 12).map((z) => {
+                  const dx = d.xingMing!.daXian.find((v) => v.gong === z)
+                  return (
+                    <tr key={z} style={z === d.ming ? { background: '#fff7e6' } : undefined}>
+                      <td style={{ padding: '2px 8px' }}>{ZHI[z]}</td>
+                      <td style={{ padding: '2px 8px' }}>{d.palaces[z]}{d.xingMing!.shenGong === z ? '·身' : ''}</td>
+                      <td style={{ padding: '2px 8px' }}>{YAO_SHORT[d.xingMing!.gongZhu[z]!] ?? d.xingMing!.gongZhu[z]}</td>
+                      <td style={{ padding: '2px 8px', color: d.xingMing!.strong[z] ? '#389e0d' : '#999' }}>{d.xingMing!.strong[z] ? '强' : '弱'}</td>
+                      <td style={{ padding: '2px 8px' }}>{dx ? `${dx.from.toFixed(0)}—${dx.to.toFixed(0)} 岁` : ''}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
           <Text type="secondary" style={{ fontSize: 12 }}>
-            视黄经（当日真春分点）；宫依中气分宫，黄经 0°—30° 为戌宫；宿度依清代二十八宿距星；紫炁依时宪书平行；命宫用所在地经纬度（上升点法）。
+            视黄经（当日真春分点）；宫依中气分宫，黄经 0°—30° 为戌宫；宿度依清代二十八宿距星；紫炁依时宪书平行；命宫用所在地经纬度（上升点法）。以所选时刻为生时；卯上起命法命度暂以太阳入宫度移至命宫（量天尺未得）。
           </Text>
         </Flex>
       </div>
