@@ -144,7 +144,7 @@ type MonthLunar = { jd0: number; months: number[]; days: number[]; leaps: number
 type JiaquDay = {
   jdn: number; ok: boolean; verdict?: string; jie?: [string, string][]; yi: boolean; ji: boolean; jieHunYin: boolean; naCai: boolean; nvMingYue: string
   zhouTang: string | null; baiHu: string | null; naXu: string | null; buJiang: boolean; jiang: string
-  leibian: [string, string][]; reasons: string[]; notes: string[]
+  leibian: [string, string][]; liuRen?: string; jiri?: [string, string][]; reasons: string[]; notes: string[]
 }
 const GZ_GAN = '甲乙丙丁戊己庚辛壬癸', GZ_ZHI = '子丑寅卯辰巳午未申酉戌亥'
 
@@ -161,14 +161,16 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
   const [onlyOk, setOnlyOk] = useState(false)
   const [zhiHua, setZhiHua] = useState(false)
   const [aoTou, setAoTou] = useState(false)
+  const [chiKou, setChiKou] = useState(0)
+  const [hengTian, setHengTian] = useState(false)
   const nvGz = (((nvYear - 4) % 60) + 60) % 60
   const m = props.monthLunar
   const list = useMemo((): JiaquDay[] | null => {
     if (typeof props.wasm.jiaqu_days_json !== 'function') return null
     try {
-      return JSON.parse(props.wasm.jiaqu_days_json(m.jd0, props.ear, Uint8Array.from(m.months), Uint8Array.from(m.days), Uint8Array.from(m.leaps), Uint8Array.from(m.dims), Int8Array.from(m.phases), nvGz, wengGu, fuMu, naXu, (useYue ? 1 : 0) | (zt === 1 ? 2 : zt === 2 ? 128 : 0) | (xieji === 1 ? 32 : xieji === 2 ? 64 : 0) | (useXiong ? 4 : 0) | (zhiHua ? 8 : 0) | (aoTou ? 16 : 0))) as JiaquDay[]
+      return JSON.parse(props.wasm.jiaqu_days_json(m.jd0, props.ear, Uint8Array.from(m.months), Uint8Array.from(m.days), Uint8Array.from(m.leaps), Uint8Array.from(m.dims), Int8Array.from(m.phases), nvGz, wengGu, fuMu, naXu, (useYue ? 1 : 0) | (zt === 1 ? 2 : zt === 2 ? 128 : 0) | (xieji === 1 ? 32 : xieji === 2 ? 64 : 0) | (useXiong ? 4 : 0) | (zhiHua ? 8 : 0) | (aoTou ? 16 : 0) | (chiKou === 1 ? 256 : chiKou === 2 ? 512 : 0) | (hengTian ? 1024 : 0))) as JiaquDay[]
     } catch { return null }
-  }, [props.wasm, props.ear, m, nvGz, wengGu, fuMu, naXu, useYue, zt, xieji, useXiong, zhiHua, aoTou])
+  }, [props.wasm, props.ear, m, nvGz, wengGu, fuMu, naXu, useYue, zt, xieji, useXiong, zhiHua, aoTou, chiKou, hengTian])
   return (
     <Card size="small" title={`婚嫁择吉（${props.monthLabel}）`} style={{ marginTop: 16 }}>
       <Flex gap={12} wrap align="center" style={{ marginBottom: 8 }}>
@@ -185,6 +187,9 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
         <Checkbox checked={useYue} onChange={(e) => setUseYue(e.target.checked)}>女命行嫁月否决（类编；协纪奏准删除）</Checkbox>
         <Checkbox checked={useXiong} onChange={(e) => setUseXiong(e.target.checked)}>类编嫁娶凶神否决</Checkbox>
         <Checkbox checked={aoTou} onChange={(e) => setAoTou(e.target.checked)}>白虎从鳌头（值门床堂路）</Checkbox>
+        <span>赤口 <Radio.Group size="small" value={chiKou} onChange={(e) => setChiKou(e.target.value)} optionType="button"
+          options={[{ label: '不用（协纪）', value: 0 }, { label: '类编（凡赤口）', value: 1 }, { label: '祛疑说（值寅巳酉戌）', value: 2 }]} /></span>
+        <Checkbox checked={hengTian} onChange={(e) => setHengTian(e.target.checked)}>橫天朱雀否决（鳌头：初一）</Checkbox>
         <Checkbox checked={zhiHua} onChange={(e) => setZhiHua(e.target.checked)}>用制化（周堂回避、白虎禳法；协纪不录）</Checkbox>
         <Checkbox checked={onlyOk} onChange={(e) => setOnlyOk(e.target.checked)}>只看可用之日</Checkbox>
       </Flex>
@@ -201,12 +206,14 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
               {d.reasons.length > 0 && <Text type="danger">{` · ${d.reasons.join('；')}`}</Text>}
               {d.jie && d.jie.length > 0 && <Text type="warning">{` · 制化：${d.jie.map(([a, b]) => `${a}（${b}）`).join('；')}`}</Text>}
               {d.leibian.length > 0 && <Text type="secondary">{` · 类编凶神：${d.leibian.map(([a]) => a).join(' ')}`}</Text>}
+              {d.liuRen ? <Text type="secondary">{` · 小六壬${d.liuRen}`}</Text> : null}
+              {d.jiri && d.jiri.length > 0 && <Text type="success">{` · 类编吉日表：${d.jiri.map(([a, b]) => (b ? `${a}（${b}）` : a)).join('、')}`}</Text>}
             </div>
           )))}
         </div>
       )}
       <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 8 }}>
-        可用与否全依上面所选的规则：每条规则可单独取舍，每日列出否决它的规则与出处。缺省选协纪诸项（月表加铺注须宜嫁娶、协纪嫁娶周堂），因协纪为清代官定；协纪于女命大利月诸说「奏准刪除」，故缺省只列不否决。《类编历法通书大全》卷七之女命行嫁月、周堂、嫁娶凶神表，鳌头之白虎，以及周堂回避、白虎禳法等制化，皆为可选。阴阳不将只作标注（协纪歷例表与类编法两家）。只算到规则给出的结果，不论吉凶应验。
+        可用与否全依上面所选的规则：每条规则可单独取舍，每日列出否决它的规则与出处。缺省选协纪诸项（月表加铺注须宜嫁娶、协纪嫁娶周堂），因协纪为清代官定；协纪于女命大利月诸说「奏准刪除」，故缺省只列不否决。《类编历法通书大全》卷七之女命行嫁月、周堂、嫁娶凶神表，鳌头之白虎与橫天朱雀，赤口（类编卷十五小六壬，协纪不立），以及周堂回避、白虎禳法等制化，皆为可选。阴阳不将只作标注（协纪歷例表与类编法两家）；类编卷七逐月求婚、下定、嫁娶吉日表所列之日亦只作标注。只算到规则给出的结果，不论吉凶应验。
       </Text>
     </Card>
   )

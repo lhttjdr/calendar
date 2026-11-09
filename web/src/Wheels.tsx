@@ -4,7 +4,8 @@
  * 每字字头朝外，绕圆心统一旋转（与择日二十四山图同），便于罗盘模式整盘转动。
  * 多层罗盘式：每类一环，不挤一层；方位盘外加二十四山与周天度数两环。
  */
-import { useRef, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
+import { nowJdUt, sunBoardAz, sunLonRa } from './timeClock'
 
 /**
  * 盘面字体：王漢宗中隸書繁（GPL v2），按盘面用字子集化为 public/fonts/lishu.woff2（scripts/dev/subset_lishu.sh）。
@@ -152,10 +153,15 @@ export type QimenGongMarks = {
   ganMu?: string[] | string | null; xingMu?: string[] | string | null; menMu?: boolean
   keYing?: { t: string; d: string; n: string; text: string }[]; ge?: string[]
 }
+/** 奇门方位格（演义卷二月将加时诸格），系于地盘支 */
+export type QimenFangGe = { n: string; zhi: string; gong: number; ji: boolean; basis: string; note: string | null }
 export type QimenWheelData = {
   zhiFu: string; zhiShi: string; zhiFuGong: number; zhiShiGong: number
   gong: ({ di: string[]; tian: string[]; xing: string[]; men: string | null; shen: string | null } & QimenGongMarks)[]
+  fangGe?: QimenFangGe[]
 }
+/** 方位格盘上简称：地私門作私門、貴人登天門作登天門 */
+const FANG_SHORT: Record<string, string> = { 地私門: '私門', 貴人登天門: '登天門' }
 
 const nonEmpty = (v: string[] | string | null | undefined) => (Array.isArray(v) ? v.length > 0 : !!v)
 /** 奇门逐宫标记简称：空（旬空）、馬（驿马）、迫（门迫）、刑（六仪击刑）、干墓、星墓、門墓 */
@@ -173,10 +179,20 @@ export function qimenMarks(c: QimenGongMarks): string[] {
 
 /**
  * 奇门八宫盘（多层罗盘式），自内而外：中五；宫卦与洛书数；地盘干；暗干；八门；九星；天盘干；八神；
- * 逐宫标记（空馬迫刑墓）；二十四山；周天度数。值符、值使之宫底色标出。
+ * 逐宫标记（空馬迫刑墓）；方位格（有则另起一环，按地盘十二支标天門地戸等，其山底色标出）；二十四山；周天度数。值符、值使之宫底色标出。
  */
-export function QimenWheel({ d, turn }: { d: QimenWheelData; turn?: boolean }) {
-  const R = [40, 62, 84, 104, 128, 152, 174, 194, 212, 226, 236]
+/**
+ * `next`：时辰内插值（示意，非原典）——下一时辰之盘与本时辰已过之比例 f（0—1）。转盘三组各由本时辰之宫数 k 向下一时辰之 k' 取最短路径按 f 转，
+ * 到时辰交界恰与下一局重合；局变（节气、三元交界）时地盘亦变，仍有一跳。
+ */
+export function QimenWheel({ d, turn, next }: { d: QimenWheelData; turn?: boolean; next?: { d: QimenWheelData; f: number } }) {
+  const fang = (d.fangGe?.length ?? 0) > 0
+  const R = fang ? [38, 58, 78, 98, 120, 142, 162, 180, 196, 212, 226, 236] : [40, 62, 84, 104, 128, 152, 174, 194, 212, 226, 236]
+  const kShan = fang ? 9 : 8
+  // 方位格按支归并：支 → 简称数组
+  const fangAt: Record<string, string[]> = {}
+  d.fangGe?.forEach((g) => { (fangAt[g.zhi] ??= []).push(FANG_SHORT[g.n] ?? g.n) })
+  const fangHot = Object.fromEntries(Object.keys(fangAt).map((z) => [z, '#d9f7be']))
   const mid = (k: number) => (R[k]! + R[k + 1]!) / 2
   // 转盘：九星（连天盘干）、八门、八神三组各绕八宫转。各组取其转过之宫数 k（天蓬离坎、休門离坎、直符离坎），
   // 组内按「本位」画（第 i 位画的是 k 宫之后那一宫的内容），整组转 45k°，时辰交界即见其转动；飞盘不转（k=0，原位重画）
@@ -187,12 +203,33 @@ export function QimenWheel({ d, turn }: { d: QimenWheelData; turn?: boolean }) {
     return g < 0 ? 0 : g
   }
   const kx = stepOf((c) => c.xing.includes('天蓬')), km = stepOf((c) => c.men === '休門'), ks = stepOf((c) => c.shen === '直符' || c.shen === '值符')
-  const ax = useSpin(45 * kx), am = useSpin(45 * km), as_ = useSpin(45 * ks)
+  // 插值：下一时辰同组之宫数，取最短步数（−3…+4），按 f 转过
+  const stepNext = (pred: (c: QimenWheelData['gong'][number]) => boolean, k: number) => {
+    if (!turn || !next) return 0
+    const g = RING8.findIndex((x) => pred(next.d.gong[x - 1]!))
+    if (g < 0) return 0
+    const dk = (((g - k) % 8) + 8) % 8
+    return dk > 4 ? dk - 8 : dk // −3…+4
+  }
+  const f = next ? Math.min(1, Math.max(0, next.f)) : 0
+  const ix = stepNext((c) => c.xing.includes('天蓬'), kx) * f
+  const im = stepNext((c) => c.men === '休門', km) * f
+  const is = stepNext((c) => c.shen === '直符' || c.shen === '值符', ks) * f
+  const ax = useSpin(45 * (kx + ix)), am = useSpin(45 * (km + im)), as_ = useSpin(45 * (ks + is))
   const cellAt = (i: number, k: number) => d.gong[RING8[(i + k) % 8]! - 1]!
   return (
     <Frame label="奇门遁甲八宫盘">
-      <DegreeRing r0={R[9]!} r1={R[10]!} />
-      <Shan24Ring r0={R[8]!} r1={R[9]!} />
+      <DegreeRing r0={R[kShan + 1]!} r1={R[kShan + 2]!} />
+      <Shan24Ring r0={R[kShan]!} r1={R[kShan + 1]!} hot={fang ? fangHot : undefined} />
+      {fang && (
+        <g>
+          <Ring r0={R[8]!} r1={R[9]!} n={12} offset={0} fill="#f6ffed" />
+          {Object.entries(fangAt).map(([z, ns]) => {
+            const txt = ns.join(' ')
+            return <T key={z} r={mid(8)} deg={scr(30 * ZHI.indexOf(z))} size={txt.length > 9 ? 8 : 9} fill="#237804" weight={600}>{txt}</T>
+          })}
+        </g>
+      )}
       {[7, 6, 5, 4, 3, 2, 1, 0].map((k) => <Ring key={k} r0={R[k]!} r1={R[k + 1]!} n={8} offset={0} fill={k % 2 ? '#fbf6ea' : '#fffdf7'} />)}
       {RING8.map((g) => {
         const deg = scr(GONG_AZ[g]!)
@@ -209,6 +246,8 @@ export function QimenWheel({ d, turn }: { d: QimenWheelData; turn?: boolean }) {
           </g>
         )
       })}
+      {turn && (
+        <>
       {/* 八门 */}
       <g style={spinG(am)}>
         {RING8.map((g, i) => {
@@ -235,10 +274,26 @@ export function QimenWheel({ d, turn }: { d: QimenWheelData; turn?: boolean }) {
           return c.shen ? <T key={g} r={mid(6)} deg={deg} size={14} fill="#531dab">{c.shen}</T> : null
         })}
       </g>
+        </>
+      )}
       <circle cx={C} cy={C} r={R[0]} fill={d.zhiFuGong === 5 || d.zhiShiGong === 5 ? '#fff7e6' : '#fff'} stroke="#999" />
       <text x={C} y={C - 14} fontSize={10} fill="#888" textAnchor="middle">中5</text>
       <text x={C} y={C + 4} fontSize={15} textAnchor="middle">{d.gong[4]!.di.join('')}</text>
       <text x={C} y={C + 20} fontSize={9} textAnchor="middle" fill="#a8071a">{[d.gong[4]!.anGan ? `暗${d.gong[4]!.anGan}` : '', ...qimenMarks(d.gong[4]!)].filter(Boolean).join(' ')}</text>
+      {/* 飞盘：星、门、神、天盘干按名追踪所在宫，换时沿洛书路径飞行（经五穿中心） */}
+      {!turn && (() => {
+        const at = (key: (c: QimenWheelData['gong'][number]) => string[]) =>
+          [1, 2, 3, 4, 5, 6, 7, 8, 9].flatMap((g) => key(d.gong[g - 1]!).map((n) => [n, g] as const))
+        const P = (k: number, cy: number) => (g: number): [number, number, number] => (g === 5 ? [C, C + cy, 0] : polar(mid(k), scr(GONG_AZ[g]!)))
+        return (
+          <g>
+            {at((c) => (c.men ? [c.men] : [])).map(([n, g]) => <Fly key={n} g={g} pos={P(3, -26)} size={g === 5 ? 9 : 15} fill="#0958d9">{n}</Fly>)}
+            {at((c) => c.xing).map(([n, g]) => <Fly key={n} g={g} pos={P(4, -34)} size={g === 5 ? 9 : 14} fill="#000">{n}</Fly>)}
+            {(() => { const seen: Record<string, number> = {}; return at((c) => c.tian).map(([n, g]) => { const k = `${n}#${(seen[n] = (seen[n] ?? 0) + 1)}`; return <Fly key={k} g={g} pos={P(5, 30)} size={g === 5 ? 10 : 16} fill="#a8071a">{n}</Fly> }) })()}
+            {at((c) => (c.shen ? [c.shen] : [])).map(([n, g]) => <Fly key={n} g={g} pos={P(6, 40)} size={g === 5 ? 9 : 14} fill="#531dab">{n}</Fly>)}
+          </g>
+        )
+      })()}
     </Frame>
   )
 }
@@ -263,12 +318,41 @@ export type LiurenExtra = {
  * 大六壬天地盘（多层），自内而外：地盘十二支（不动；占时底色，本命行年标注）；天盘支（三传红）；遁干；天盘神名；十二天将；
  * 三传与神煞（空、馬、丁、德、祿、刃、鬼）；二十四山；周天度数。天盘诸环为一组，随月将加时相对地盘转。
  */
-export function LiurenWheel({ pan, shi, sanChuan, label, tianJiang, extra }: { pan: string[]; shi: string; sanChuan: string[]; label: string; tianJiang?: string[]; extra?: LiurenExtra }) {
+/**
+ * `cont`：天盘连续转（月将加时之连续形）——月将（太阳所在之次）中太阳的实际位置对准太阳时角方位：
+ * 天盘本位上太阳之方位 = 30°×月将支序 −（太阳黄经在本次中之偏，次中点为 0；黄经增向即支逆向），转角 = 太阳盘上方位 − 之。
+ * 时辰正中、太阳居次中时与按时辰之「月将加时」重合；实时则每 250 ms 以当前时刻重算。月将以中气分次（缺省换将法）。
+ */
+export function LiurenWheel({ pan, shi, sanChuan, label, tianJiang, extra, cont }: { pan: string[]; shi: string; sanChuan: string[]; label: string; tianJiang?: string[]; extra?: LiurenExtra; cont?: { jdUt: number; lonDeg: number; live: boolean } }) {
   const R = [50, 84, 118, 136, 156, 178, 200, 216, 228]
   const mid = (k: number) => (R[k]! + R[k + 1]!) / 2
   // 天盘 = 地盘转 k 位（地盘子位上所临之天盘支序为 k）；天盘诸环按本位画，整组转 −30k°（月将加时），时辰交界时可见其转动
   const k = Math.max(0, ZHI.indexOf(pan[0] ?? '子'))
   const spin = useSpin(-30 * k)
+  const jiangIdx = ZHI.indexOf(pan[ZHI.indexOf(shi)] ?? '子') // 月将：天盘临占时之支
+  const contAngle = (jd: number) => {
+    const lam = sunLonRa(jd).lon
+    const off = ((((lam % 30) + 30) % 30) - 15) // 太阳在本次中之偏（次界在中气，即黄经 30° 之倍）
+    return sunBoardAz(jd, cont!.lonDeg) - (30 * jiangIdx - off)
+  }
+  const tianG = useRef<SVGGElement | null>(null)
+  const contStatic = useSpin(cont && !cont.live ? contAngle(cont.jdUt) : -30 * k)
+  useEffect(() => {
+    if (!cont?.live || !tianG.current) return
+    const el = tianG.current
+    let last = Number.NaN
+    const draw = () => {
+      let a = contAngle(nowJdUt())
+      if (!Number.isNaN(last)) a = last + (((((a - last) % 360) + 540) % 360) - 180) // 连续，不跨周倒转
+      last = a
+      el.style.transition = 'none'
+      el.style.transform = `rotate(${a.toFixed(3)}deg)`
+    }
+    draw()
+    const id = window.setInterval(draw, 250)
+    return () => window.clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cont?.live, cont?.lonDeg, jiangIdx])
   return (
     <Frame label="大六壬天地盘">
       <DegreeRing r0={R[7]!} r1={R[8]!} />
@@ -287,7 +371,7 @@ export function LiurenWheel({ pan, shi, sanChuan, label, tianJiang, extra }: { p
         )
       })}
       {/* 天盘：天盘支、遁干、神名、天将、三传与神煞 */}
-      <g style={spinG(spin)}>
+      <g ref={tianG} style={cont?.live ? { transformOrigin: `${C}px ${C}px` } : spinG(cont ? contStatic : spin)}>
         {[...ZHI].map((tian, j) => {
           const i = (j - k + 12) % 12 // 此天盘支所临之地盘位
           const deg = scr(30 * j)
@@ -336,6 +420,10 @@ export type TaiyiWheelData = {
   siShen?: TyGong; tianYi?: TyGong; diYi?: TyGong; zhiFu?: TyGong; wuFu?: TyGong; daYou?: TyGong; xiaoYou?: number | null
   junJi?: TyZhi; chenJi?: TyZhi; minJi?: TyZhi
   dingJiPos?: string | null; dingJiDa?: number | null; dingJiCan?: number | null; daYouTianMuPos?: string | null
+  /** 八门：下标为宫数（0、5 为 null），值为门名（taiyi::bamen） */
+  men?: (string | null)[]
+  /** 十精（taiyi::shijing）：十六神类、十二辰类给 pos，宫类给 gong */
+  shiJing?: { n: string; pos?: string; gong?: number; shu?: number; label: string }[]
 }
 
 /** 十六神名（与 POS16_AZ 同序，自子起；Rust taiyi::SHEN16） */
@@ -343,11 +431,16 @@ const SHEN16 = ['地主', '陽德', '和德', '呂申', '高叢', '太陽', '大
 
 /**
  * 太乙盘（多层），自内而外：中五（主客筭及居中五、絳宮、明堂、玉堂之神）；八宫（太乙所在底色）；主客与定计大将参将；
- * 宫中诸神（四神、天乙、地乙、直符、五福、大游、小游）；十六神位；十六神名；文昌、始击、计神、定计目、大游天目；
- * 君基、臣基、民基；周天度数。同格者沿弧并列。
+ * 宫中诸神（四神、天乙、地乙、直符、五福、大游、小游）；八门；十六神位；十六神名；文昌、始击、计神、定计目、大游天目；
+ * 君基、臣基、民基与十精之天皇、帝符、天时；周天度数。同格者沿弧并列。宫类十精（太尊、飞鸟、五行、三风等）列于面板。
  */
-export function TaiyiWheel({ d }: { d: TaiyiWheelData }) {
-  const R = [46, 80, 104, 128, 152, 172, 194, 214, 226, 236]
+/**
+ * `next`：时计插值（示意，非原典）——下一时辰之局与本时辰已过比例 f。只有文昌（十六神逐局进一位，遇重留则停）、计神（逆行一辰）
+ * 两者逐局各移一位，可沿外环向下一局之位滑去；太乙按洛书数移宫（坎一→坤二→震三跨盘）、始击与主客将由算数得，皆不插值。
+ * 太乙移宫时沿洛书路径飞行（经五穿中心）。
+ */
+export function TaiyiWheel({ d, next }: { d: TaiyiWheelData; next?: { d: TaiyiWheelData; f: number } }) {
+  const R = [46, 76, 98, 120, 140, 160, 178, 198, 216, 226, 236]
   const mid = (k: number) => (R[k]! + R[k + 1]!) / 2
   const byGong = (pairs: [number | null | undefined, string][]) => {
     const m = new Map<number, string[]>()
@@ -366,8 +459,18 @@ export function TaiyiWheel({ d }: { d: TaiyiWheelData }) {
     pairs.forEach(([p, t]) => { if (p) m.set(p, [...(m.get(p) ?? []), t]) })
     return m
   }
-  const mu = byPos([[d.tianMuPos, '文昌'], [d.shiJiPos, '始擊'], [d.jiShen, '計神'], [d.dingJiPos, '定目'], [d.daYouTianMuPos, '游目']])
-  const ji = byPos([[d.junJi?.zhi, '君基'], [d.chenJi?.zhi, '臣基'], [d.minJi?.zhi, '民基']])
+  // 插值时文昌、计神另画（沿环滑行），不入并列标注
+  const mu = byPos([[next ? null : d.tianMuPos, '文昌'], [d.shiJiPos, '始擊'], [next ? null : d.jiShen, '計神'], [d.dingJiPos, '定目'], [d.daYouTianMuPos, '游目']])
+  const az16 = (p: string | null | undefined) => POS16_AZ.find(([n]) => n === p)?.[1]
+  const slide = (p: string | null | undefined, q: string | null | undefined) => {
+    const a0 = az16(p)
+    if (a0 == null) return null
+    const a1 = az16(q) ?? a0
+    const dd = ((((a1 - a0) % 360) + 540) % 360) - 180
+    return a0 + dd * Math.min(1, Math.max(0, next!.f))
+  }
+  const ji = byPos([[d.junJi?.zhi, '君基'], [d.chenJi?.zhi, '臣基'], [d.minJi?.zhi, '民基'],
+    ...(d.shiJing ?? []).filter((x) => x.pos).map((x): [string, string] => [x.pos!, x.n])])
   // 居中五及絳宮（10）、明堂（11）、玉堂（12）者，列于中宫
   const center = [...jiang.entries(), ...shen.entries()].filter(([g]) => g === 5 || g > 9)
     .flatMap(([g, ts]) => ts.map((t) => `${t}${g === 5 ? '' : ['絳宮', '明堂', '玉堂'][g - 10]}`))
@@ -378,9 +481,9 @@ export function TaiyiWheel({ d }: { d: TaiyiWheelData }) {
   const sz = (ts: string[], base: number) => (ts.length > 2 ? base - 3 : ts.length > 1 ? base - 1 : base)
   return (
     <Frame label="太乙盘">
-      <DegreeRing r0={R[8]!} r1={R[9]!} />
-      {[7, 6, 5, 4, 3].map((k) => ring(k, true))}
-      {[2, 1, 0].map((k) => ring(k, false))}
+      <DegreeRing r0={R[9]!} r1={R[10]!} />
+      {[8, 7, 6, 5, 4].map((k) => ring(k, true))}
+      {[3, 2, 1, 0].map((k) => ring(k, false))}
       {[1, 8, 3, 4, 9, 2, 7, 6].map((g) => {
         const deg = scr(GONG_AZ[g]!)
         const js = jiang.get(g), ss = shen.get(g)
@@ -388,9 +491,9 @@ export function TaiyiWheel({ d }: { d: TaiyiWheelData }) {
           <g key={g}>
             {d.gong === g && <path d={sector(R[0]!, R[1]!, deg - 22.5, deg + 22.5)} fill="#fff1b8" />}
             <T r={mid(0) - 7} deg={deg} size={11} fill="#888">{`${GUA[g]}${g}`}</T>
-            {d.gong === g && <T r={mid(0) + 8} deg={deg} size={13} fill="#ad4e00" weight={700}>太乙</T>}
             {js && <T r={mid(1)} deg={deg} size={sz(js, 12)} fill="#0958d9">{lab(js)}</T>}
             {ss && <T r={mid(2)} deg={deg} size={sz(ss, 12)} fill="#531dab">{lab(ss)}</T>}
+            {d.men?.[g] && <T r={mid(3)} deg={deg} size={12} fill={['開門', '休門', '生門'].includes(d.men[g]!) ? '#237804' : '#8c8c8c'}>{d.men[g]!}</T>}
           </g>
         )
       })}
@@ -398,13 +501,24 @@ export function TaiyiWheel({ d }: { d: TaiyiWheelData }) {
         const m = mu.get(p), b = ji.get(p)
         return (
           <g key={p}>
-            <T r={mid(3)} deg={scr(az)} size={14} fill="#555">{p}</T>
-            <T r={mid(4)} deg={scr(az)} size={10} fill="#8c6d3f">{SHEN16[k]!}</T>
-            {m && <T r={mid(5)} deg={scr(az)} size={sz(m, 11)} fill="#a8071a" weight={600}>{lab(m)}</T>}
-            {b && <T r={mid(6)} deg={scr(az)} size={sz(b, 11)} fill="#389e0d">{lab(b)}</T>}
+            <T r={mid(4)} deg={scr(az)} size={14} fill="#555">{p}</T>
+            <T r={mid(5)} deg={scr(az)} size={10} fill="#8c6d3f">{SHEN16[k]!}</T>
+            {m && <T r={mid(6)} deg={scr(az)} size={sz(m, 11)} fill="#a8071a" weight={600}>{lab(m)}</T>}
+            {b && <T r={mid(7)} deg={scr(az)} size={sz(b, 11)} fill="#389e0d">{lab(b)}</T>}
           </g>
         )
       })}
+      {/* 太乙：移宫沿洛书路径飞行 */}
+      <Fly g={d.gong} pos={(g) => (g === 5 ? [C, C, 0] : polar(mid(0) + 8, scr(GONG_AZ[g]!)))} size={13} fill="#ad4e00">太乙</Fly>
+      {next && (() => {
+        const w = slide(d.tianMuPos, next.d.tianMuPos), j = slide(d.jiShen, next.d.jiShen)
+        return (
+          <g>
+            {w != null && <T r={mid(6) - 5} deg={scr(w)} size={11} fill="#a8071a" weight={700}>文昌</T>}
+            {j != null && <T r={mid(6) + 6} deg={scr(j)} size={11} fill="#a8071a" weight={700}>計神</T>}
+          </g>
+        )
+      })()}
       <circle cx={C} cy={C} r={R[0]} fill="#fff" stroke="#999" />
       <text x={C} y={C - 18} fontSize={10} textAnchor="middle" fill="#888">中五</text>
       {d.zhuSuan != null && <text x={C} y={C - 5} fontSize={10} textAnchor="middle" fill="#0958d9">{`主筭${d.zhuSuan} 客筭${d.keSuan}`}</text>}
@@ -452,7 +566,7 @@ const norm = (x: number) => ((x % 360) + 360) % 360
  * 七政四余盘（多层），自内而外：十二宫（支与十二次，宫界依分宫法之实际黄经）；人事十二宫；宫主（绿强灰弱）；宫位神煞（至多四名，全表见面板）；
  * 二十八宿（距星视黄经为界）；黄道（十一曜按视黄经落点，近者错层）；周天黄经刻度（命度以▲标）。
  */
-export function QizhengWheel({ d, turn }: { d: QizhengWheelData; turn?: { jdUt: number; lonDeg: number } }) {
+export function QizhengWheel({ d, turn }: { d: QizhengWheelData; turn?: { jdUt: number; lonDeg: number; live?: boolean } }) {
   // 环：0 支与次、1 人事宫、2 宫主、3 神煞（宫位类）、4 二十八宿、5 黄道、6 刻度
   const R = [44, 80, 104, 122, 150, 172, 214, 226]
   const mid = (k: number) => (R[k]! + R[k + 1]!) / 2
@@ -494,11 +608,28 @@ export function QizhengWheel({ d, turn }: { d: QizhengWheelData; turn?: { jdUt: 
     delta = norm(180 + ha - (315 - sun.lon))
   }
   const spin = useSpin(delta)
+  // 实时：天盘随时刻连续转（每 250 ms 以当前时刻重算太阳时角，直接写组 transform；一日一周，与时针同步）
+  const skyG = useRef<SVGGElement | null>(null)
+  const sunLonData = sun?.lon
+  const liveTurn = !!(turn && turn.live && sunLonData != null)
+  useEffect(() => {
+    if (!liveTurn || !skyG.current || sunLonData == null) return
+    const el = skyG.current
+    const draw = () => {
+      const dlt = norm(sunBoardAz(nowJdUt(), turn!.lonDeg) - (315 - sunLonData))
+      el.style.transition = 'none'
+      el.style.transform = `rotate(${dlt.toFixed(3)}deg)`
+    }
+    draw()
+    const id = window.setInterval(draw, 250)
+    return () => window.clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveTurn, sunLonData, turn?.lonDeg])
   return (
     <Frame label="七政四余盘">
       <DegreeRing r0={R[6]!} r1={R[7]!} />
       <circle cx={C} cy={C} r={R[6]} fill="#fffdf7" stroke="#999" />
-      <g style={spinG(spin, 600)}>
+      <g ref={skyG} style={liveTurn ? { transformOrigin: `${C}px ${C}px` } : spinG(spin, 600)}>
       {/* 二十八宿 */}
       <circle cx={C} cy={C} r={R[5]} fill="#fbf6ea" stroke="#999" />
       {d.xiuLon && d.xiuLon.map((a, k) => {
@@ -583,6 +714,110 @@ const GUA_SYM: Record<number, string> = { 1: '☵', 8: '☶', 3: '☳', 4: '☴'
  * 中宫（天池）；八宫飞星（卦名、山星蓝居左、向星红居右、运星、流年紫白）；后天八卦与洛书数；三元龙；
  * 二十四山（阳红阴黑，坐蓝底、向红底）；周天 360° 刻度。坐向以一线贯天池（天心十道之意）。
  */
+/** 极坐标点（屏幕角）及该处字的旋转角 */
+const polar = (r: number, deg: number): [number, number, number] => { const [x, y] = pt(r, deg); return [x, y, deg] }
+/** 洛书飞行之序：一二三四五六七八九，九后复一（五居中） */
+const LUO_NEXT = (g: number, dir: 1 | -1) => ((g - 1 + dir + 9) % 9) + 1
+
+/**
+ * 飞宫动画：一星从旧宫飞到新宫，沿洛书顺序逐宫经过（经五则穿过中心），取步数少的一向；
+ * 每段约 220 ms，整段至多约 1.5 s。位置与字的旋转角逐帧插值，直接写 transform（不经 React 重绘）。
+ */
+function Fly({ g, pos, children, size, fill }: { g: number; pos: (g: number) => [number, number, number]; children: ReactNode; size: number; fill: string }) {
+  const ref = useRef<SVGGElement | null>(null)
+  const prev = useRef<number | null>(null)
+  const posRef = useRef(pos)
+  posRef.current = pos
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const put = ([x, y, r]: [number, number, number]) => el.setAttribute('transform', `translate(${x.toFixed(2)} ${y.toFixed(2)}) rotate(${r.toFixed(2)})`)
+    const from = prev.current
+    prev.current = g
+    if (from == null || from === g) { put(posRef.current(g)); return }
+    const fwd = (((g - from) % 9) + 9) % 9
+    const dir: 1 | -1 = fwd <= 4 ? 1 : -1
+    const steps = dir === 1 ? fwd : 9 - fwd
+    const way: number[] = [from]
+    for (let k = 0, cur = from; k < steps; k++) { cur = LUO_NEXT(cur, dir); way.push(cur) }
+    const pts = way.map((w) => posRef.current(w))
+    const segMs = Math.min(220, 1500 / steps)
+    const t0 = performance.now()
+    let raf = 0
+    const tick = (now: number) => {
+      const u = Math.min(1, (now - t0) / (segMs * steps))
+      const e = u < 0.5 ? 2 * u * u : 1 - 2 * (1 - u) * (1 - u) // 缓入缓出
+      const x = e * steps, i = Math.min(steps - 1, Math.floor(x)), f = x - i
+      const [ax, ay, ar] = pts[i]!, [bx, by, br] = pts[i + 1]!
+      const dr = ((((br - ar) % 360) + 540) % 360) - 180
+      put([ax + (bx - ax) * f, ay + (by - ay) * f, ar + dr * f])
+      if (u < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [g])
+  return (
+    <g ref={ref}>
+      <text x={0} y={0} fontSize={size} fill={fill} textAnchor="middle" dominantBaseline="central">{children}</text>
+    </g>
+  )
+}
+
+/** 一盘九星（洛书九宫，下标 = 宫 − 1）：按星数追踪所在宫，各星独立飞行；中五字号可另设 */
+function FlyStars({ pan, pos, size, centerSize, fill, prefix = '' }: { pan: number[]; pos: (g: number) => [number, number, number]; size: number; centerSize: number; fill: string; prefix?: string }) {
+  return (
+    <g>
+      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => {
+        const idx = pan.indexOf(n)
+        if (idx < 0) return null
+        const g = idx + 1
+        return <Fly key={n} g={g} pos={pos} size={g === 5 ? centerSize : size} fill={fill}>{`${prefix}${CN_NUM[n]}`}</Fly>
+      })}
+    </g>
+  )
+}
+
+/** 九宫格（南上）各宫之行列：巽四 離九 坤二／震三 中五 兌七／艮八 坎一 乾六 */
+const GRID_RC: Record<number, [number, number]> = { 4: [0, 0], 9: [0, 1], 2: [0, 2], 3: [1, 0], 5: [1, 1], 7: [1, 2], 8: [2, 0], 1: [2, 1], 6: [2, 2] }
+
+/**
+ * 玄空宅盘九宫格式（书中方格之式，南上）：每宫左上卦名、山星（蓝）居左、向星（红）居右、其下运星、角注流年与逐宫标记；
+ * 与圆盘同数据，诸星亦沿洛书路径飞行（方格上即九宫飞星图之路）。随罗盘整盘转时可覆于房屋平面。
+ */
+export function XuankongGrid({ d }: { d: XuankongWheelData }) {
+  const S = 500, M = 30, W = (S - 2 * M) / 3
+  const cx = (g: number) => M + W * GRID_RC[g]![1] + W / 2
+  const cy = (g: number) => M + W * GRID_RC[g]![0] + W / 2
+  const cnt = new Map<string, number>()
+  d.gongMarks?.forEach((ms) => ms.forEach((m) => cnt.set(m.n, (cnt.get(m.n) ?? 0) + 1)))
+  const marksOf = (g: number) => (d.gongMarks?.[g - 1] ?? []).filter((m) => (cnt.get(m.n) ?? 0) < 8).map((m) => XK_SHORT[m.n] ?? m.n)
+  ensureLiShu()
+  return (
+    <svg viewBox={`0 0 ${S} ${S}`} style={{ width: '100%', maxWidth: S, height: 'auto', fontFamily: LISHU_FAMILY }} role="img" aria-label="玄空飞星宅盘（九宫格）">
+      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((g) => {
+        const x = M + W * GRID_RC[g]![1], y = M + W * GRID_RC[g]![0]
+        const zheng = d.zhengShen?.includes(g), ling = d.lingShen?.includes(g)
+        const mk = marksOf(g)
+        return (
+          <g key={g}>
+            <rect x={x + 1} y={y + 1} width={W - 2} height={W - 2} fill={zheng ? '#f6ffed' : ling ? '#fff1f0' : '#fffdf7'} stroke="#999" />
+            <text x={x + 8} y={y + 18} fontSize={13} fill="#5b4a2e">{`${GUA_SYM[g] ?? ''}${GUA[g]}${CN_NUM[g]}`}</text>
+            {mk.length > 0 && <text x={x + W - 6} y={y + W - 8} fontSize={10} fill="#a8071a" textAnchor="end">{mk.join(' ')}</text>}
+          </g>
+        )
+      })}
+      {[['南', S / 2, 18], ['北', S / 2, S - 8], ['東', 12, S / 2], ['西', S - 12, S / 2]].map(([t, x, y]) => (
+        <text key={t as string} x={x as number} y={y as number} fontSize={12} fill={t === '北' ? '#a8071a' : '#999'} textAnchor="middle" dominantBaseline="central">{t}</text>
+      ))}
+      <text x={S / 2} y={S - 20} fontSize={10} fill="#888" textAnchor="middle">{`${d.zuo}山${d.xiang}向`}</text>
+      <FlyStars pan={d.shanPan} pos={(g) => [cx(g) - W * 0.2, cy(g) - W * 0.05, 0]} size={30} centerSize={30} fill="#0958d9" />
+      <FlyStars pan={d.xiangPan} pos={(g) => [cx(g) + W * 0.2, cy(g) - W * 0.05, 0]} size={30} centerSize={30} fill="#a8071a" />
+      <FlyStars pan={d.yunPan} pos={(g) => [cx(g), cy(g) + W * 0.27, 0]} size={20} centerSize={20} fill="#000" />
+      <FlyStars pan={d.yearPan} pos={(g) => [cx(g) + W * 0.36, cy(g) - W * 0.38, 0]} size={11} centerSize={11} fill="#531dab" prefix="年" />
+    </svg>
+  )
+}
+
 /** 玄空逐宫标记简称（全名与注见面板） */
 const XK_SHORT: Record<string, string> = { 正神: '正', 零神: '零', 正城門: '城', 副城門: '副城', 雙星到向: '雙向', 雙星到坐: '雙坐', 山星入囚: '山囚', 向星入囚: '向囚' }
 /** 兼向分段之色：下卦绿、替卦橙、小空亡浅红、大空亡红 */
@@ -590,11 +825,20 @@ const DUAN_FILL: Record<string, string> = { 下卦: '#95de64', 替卦: '#ffc069'
 
 export function XuankongWheel({ d }: { d: XuankongWheelData }) {
   const zuoI = SHAN24.indexOf(d.zuo), xiangI = SHAN24.indexOf(d.xiang)
-  const R = { tian: 40, gong: 124, mark: 146, gua: 164, yuan: 180, shan: 204, duan: 211, du: 224 }
+  // 外加人盘中针（各山较正针逆时针半山）、天盘缝针（顺时针半山）两环（协纪卷二、卷三十三）
+  const R = { tian: 36, gong: 112, mark: 132, gua: 148, yuan: 162, shan: 184, duan: 190, ren: 205, tianPan: 220, du: 232 }
   const ring = (r: number, fill = 'none') => <circle cx={C} cy={C} r={r} fill={fill} stroke="#999" />
   // 坐向线：按山排盘取山之中线；罗盘测向时取实测（中线 + 偏）
   const zuoAz = 15 * zuoI + (d.pian ?? 0)
-  const [zx, zy] = pt(R.shan, scr(zuoAz)), [xx, xy] = pt(R.shan, scr(zuoAz + 180))
+  const [zx, zy] = pt(R.tianPan, scr(zuoAz)), [xx, xy] = pt(R.tianPan, scr(zuoAz + 180))
+  // 坐向线在中针、缝针上所落之山（恰在山界上则不标）
+  const onLine = (off: number) => {
+    const m = (((zuoAz - off) % 15) + 15) % 15
+    if (Math.abs(m - 7.5) < 1e-6) return [-1, -1]
+    const i = ((Math.round((zuoAz - off) / 15) % 24) + 24) % 24
+    return [i, (i + 12) % 24]
+  }
+  const zhongHit = onLine(-7.5), fengHit = onLine(7.5)
   // 遍及八宫以上之标记（全盘格）不逐宫标，列于面板
   const cnt = new Map<string, number>()
   d.gongMarks?.forEach((ms) => ms.forEach((m) => cnt.set(m.n, (cnt.get(m.n) ?? 0) + 1)))
@@ -606,6 +850,25 @@ export function XuankongWheel({ d }: { d: XuankongWheelData }) {
         const len = a % 15 === 0 ? 9 : a % 5 === 0 ? 6 : 3
         const [x0, y0] = pt(R.du, scr(a)), [x1, y1] = pt(R.du - len, scr(a))
         return <line key={a} x1={x0} y1={y0} x2={x1} y2={y1} stroke="#8c6d3f" strokeWidth={a % 15 === 0 ? 1 : 0.5} />
+      })}
+      {ring(R.tianPan, '#f3f9f9')}
+      {ring(R.ren, '#fbf6ea')}
+      {/* 人盘中针（子在正针壬子之间，格龙）、天盘缝针（子在子癸之缝，消砂纳水） */}
+      {SHAN24.map((s, i) => {
+        const yang = SHAN_YANG.has(s)
+        const zh = zhongHit.includes(i), fe = fengHit.includes(i)
+        return (
+          <g key={`zf-${s}`}>
+            <path d={sector(R.duan, R.ren, scr(15 * i - 15), scr(15 * i))} fill={zh ? (i === zhongHit[0] ? '#d6e4ff' : '#ffd8d6') : 'none'} stroke="#e3d9c3">
+              <title>{`人盘中针 ${s}：${(15 * i - 15 + 360) % 360}°—${15 * i}°`}</title>
+            </path>
+            <path d={sector(R.ren, R.tianPan, scr(15 * i), scr(15 * i + 15))} fill={fe ? (i === fengHit[0] ? '#d6e4ff' : '#ffd8d6') : 'none'} stroke="#cfe3e3">
+              <title>{`天盘缝针 ${s}：${15 * i}°—${15 * i + 15}°`}</title>
+            </path>
+            <T r={(R.duan + R.ren) / 2} deg={scr(15 * i - 7.5)} size={10} fill={yang ? '#a8071a' : '#5b4a2e'} weight={zh ? 700 : 400}>{s}</T>
+            <T r={(R.ren + R.tianPan) / 2} deg={scr(15 * i + 7.5)} size={10} fill={yang ? '#a8071a' : '#08595e'} weight={fe ? 700 : 400}>{s}</T>
+          </g>
+        )
       })}
       {ring(R.duan, '#fffdf7')}
       {/* 兼向分段（坐、向两山）：下卦、替卦、空亡 */}
@@ -642,11 +905,7 @@ export function XuankongWheel({ d }: { d: XuankongWheelData }) {
             <path d={sector(R.gong, R.mark, deg - 22.5, deg + 22.5)} fill="none" stroke="#ccc" />
             <path d={sector(R.mark, R.gua, deg - 22.5, deg + 22.5)} fill="none" stroke="#bbb" />
             <T r={(R.mark + R.gua) / 2} deg={deg} size={12} fill="#5b4a2e">{`${GUA_SYM[g]} ${GUA[g]}${CN_NUM[g]}`}</T>
-            <T r={54} deg={deg} size={10} fill="#999">{GUA[g]!}</T>
-            <T r={80} deg={deg - 10} size={22} fill="#0958d9">{CN_NUM[d.shanPan[g - 1]!]}</T>
-            <T r={80} deg={deg + 10} size={22} fill="#a8071a">{CN_NUM[d.xiangPan[g - 1]!]}</T>
-            <T r={102} deg={deg} size={16}>{CN_NUM[d.yunPan[g - 1]!]}</T>
-            <T r={117} deg={deg} size={9} fill="#531dab">{`年${CN_NUM[d.yearPan[g - 1]!]}`}</T>
+            <T r={50} deg={deg} size={10} fill="#999">{GUA[g]!}</T>
             {mk.length > 0 && <T r={(R.gong + R.mark) / 2} deg={deg} size={mk.join('').length > 6 ? 8 : 10} fill="#a8071a" weight={600}>{mk.join(' ')}</T>}
           </g>
         )
@@ -654,10 +913,12 @@ export function XuankongWheel({ d }: { d: XuankongWheelData }) {
       {/* 坐向线 */}
       <line x1={zx} y1={zy} x2={xx} y2={xy} stroke="#a8071a" strokeWidth={1} strokeDasharray="4 3" opacity={0.6} />
       {ring(R.tian, '#fff')}
-      <text x={C - 11} y={C - 3} fontSize={16} textAnchor="middle" fill="#0958d9">{CN_NUM[d.shanPan[4]!]}</text>
-      <text x={C + 11} y={C - 3} fontSize={16} textAnchor="middle" fill="#a8071a">{CN_NUM[d.xiangPan[4]!]}</text>
-      <text x={C} y={C + 15} fontSize={13} textAnchor="middle">{CN_NUM[d.yunPan[4]!]}</text>
-      <text x={C} y={C + 28} fontSize={8} textAnchor="middle" fill="#a8071a">{marksOf(5).join(' ') || `年${CN_NUM[d.yearPan[4]!]}`}</text>
+      <text x={C} y={C + 30} fontSize={8} textAnchor="middle" fill="#a8071a">{marksOf(5).join(' ')}</text>
+      {/* 飞星：按星数追踪所在宫，换运、换坐向、换年时各星沿洛书飞行路径飞至新宫 */}
+      <FlyStars pan={d.shanPan} pos={(g) => (g === 5 ? [C - 11, C - 3, 0] : polar(72, scr(GONG_AZ[g]!) - 10))} size={20} centerSize={16} fill="#0958d9" />
+      <FlyStars pan={d.xiangPan} pos={(g) => (g === 5 ? [C + 11, C - 3, 0] : polar(72, scr(GONG_AZ[g]!) + 10))} size={20} centerSize={16} fill="#a8071a" />
+      <FlyStars pan={d.yunPan} pos={(g) => (g === 5 ? [C, C + 15, 0] : polar(92, scr(GONG_AZ[g]!)))} size={15} centerSize={13} fill="#000" />
+      <FlyStars pan={d.yearPan} pos={(g) => (g === 5 ? [C, C + 24, 0] : polar(105, scr(GONG_AZ[g]!)))} size={9} centerSize={8} fill="#531dab" prefix="年" />
     </Frame>
   )
 }
