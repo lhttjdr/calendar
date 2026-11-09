@@ -146,6 +146,47 @@ impl AncientConfig {
     }
 }
 
+/// 古六历七套参数（夏历分冬至、雨水两版），按（名称，配置）列出，供逐历比较。
+pub fn guliuli_all() -> Vec<(&'static str, AncientConfig)> {
+    vec![
+        ("黄帝", AncientConfig::guliuli_huangdi()),
+        ("颛顼", AncientConfig::guliuli_zhuanxu()),
+        ("夏（冬至版）", AncientConfig::guliuli_xia1()),
+        ("夏（雨水版）", AncientConfig::guliuli_xia2()),
+        ("殷", AncientConfig::guliuli_yin()),
+        ("周", AncientConfig::guliuli_zhou()),
+        ("鲁", AncientConfig::guliuli_lu()),
+    ]
+}
+
+/// 第 k 个平朔（自合朔历元起，k 可为负）的时刻 JD（分数，日界为当地夜半）。
+pub fn mean_new_moon(config: &AncientConfig, k: i64) -> DayFraction {
+    &config.jd_epoch + BigRational::from_integer(BigInt::from(k)) * &config.lunar
+}
+
+/// 平朔日（儒略日数 JDN）：平朔时刻所在之日。
+pub fn mean_new_moon_day(config: &AncientConfig, k: i64) -> i64 {
+    jd_to_day_index(&mean_new_moon(config, k))
+}
+
+/// 朔日最接近 `day`（JDN）的平朔：返回 (序号 k, 朔日 JDN)。距离相等时取早者。
+pub fn nearest_mean_new_moon(config: &AncientConfig, day: i64) -> (i64, i64) {
+    let x = (BigRational::from_integer(BigInt::from(day)) - &config.jd_epoch) / &config.lunar;
+    let k0 = floor_ratio_to_i64(&x);
+    (k0 - 1..=k0 + 2)
+        .map(|k| (k, mean_new_moon_day(config, k)))
+        .min_by_key(|&(_, d)| ((d - day).abs(), d))
+        .expect("非空")
+}
+
+/// 两历平朔的固定相差：a 历任一平朔减去 b 历最近平朔的时刻差（日，取 (−朔策/2, 朔策/2]）。四分术朔策相同，相差永不变；
+/// 相差为 n + f（0 ≤ f < 1）时，两历朔日之差只取 n 或 n + 1，其中 n + 1 的比例为 f。
+pub fn mean_new_moon_offset(a: &AncientConfig, b: &AncientConfig) -> DayFraction {
+    let d = &a.jd_epoch - &b.jd_epoch;
+    let q = floor_ratio_to_i64(&(&d / &b.lunar + BigRational::new(BigInt::from(1), BigInt::from(2))));
+    d - BigRational::from_integer(BigInt::from(q)) * &b.lunar
+}
+
 /// 日界：JD 取整为「日」的规则。平朔/平气时间戳 → 当日 0h 的 JD 整数部分。
 /// 约定：floor(JD + 0.5) 为「第几天」的序号。
 #[inline]
@@ -385,6 +426,27 @@ mod tests {
             for m in &months {
                 assert!(m.days == 29 || m.days == 30);
             }
+        }
+    }
+
+    #[test]
+    fn nearest_mean_new_moon_and_offset() {
+        let all = guliuli_all();
+        let (_, yin) = &all[4];
+        // 殷历合朔历元本身为平朔，朔日即历元之日
+        let d0 = jd_to_day_index(&yin.jd_epoch);
+        assert_eq!(nearest_mean_new_moon(yin, d0).1, d0);
+        assert_eq!(nearest_mean_new_moon(yin, d0 + 14).1, d0);
+        // 鲁历比殷历早 1/19 朔策以外的整数朔：相差即「闰余一」
+        for (_, c) in &all {
+            let off = mean_new_moon_offset(c, yin);
+            let half = &yin.lunar / BigRational::from_integer(BigInt::from(2));
+            assert!(off <= half && off > -half);
+            // 任取一平朔，减去殷历最近平朔，时刻差等于 off
+            let m = mean_new_moon(c, 1234);
+            let (k, _) = nearest_mean_new_moon(yin, jd_to_day_index(&m));
+            let diff = &m - mean_new_moon(yin, k);
+            assert!((&diff - &off).abs() < BigRational::from_integer(BigInt::from(1)), "相差应一致");
         }
     }
 }
