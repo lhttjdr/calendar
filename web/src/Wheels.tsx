@@ -218,3 +218,76 @@ export function QizhengWheel({ d }: { d: QizhengWheelData }) {
     </Frame>
   )
 }
+
+const SHAN24 = ['子', '癸', '丑', '艮', '寅', '甲', '卯', '乙', '辰', '巽', '巳', '丙', '午', '丁', '未', '坤', '申', '庚', '酉', '辛', '戌', '乾', '亥', '壬']
+const CN_NUM = '〇一二三四五六七八九'
+
+export type XuankongWheelData = { zuo: string; xiang: string; yunPan: number[]; shanPan: number[]; xiangPan: number[]; yearPan: number[] }
+
+/** 二十四山阴阳：甲庚丙壬、乾坤艮巽、寅申巳亥为阳，子午卯酉、乙辛丁癸、辰戌丑未为阴（与 Rust xuankong::is_yang 同） */
+const SHAN_YANG = new Set(['甲', '庚', '丙', '壬', '乾', '坤', '艮', '巽', '寅', '申', '巳', '亥'])
+/** 三元龙：每卦三山，左为地元、中为天元、右为人元（子午卯酉乾坤艮巽天元，壬丙甲庚辰戌丑未地元，癸丁乙辛寅申巳亥人元） */
+const YUAN_LONG = (i: number) => ['天', '人', '地'][i % 3]!
+const GUA_SYM: Record<number, string> = { 1: '☵', 8: '☶', 3: '☳', 4: '☴', 9: '☲', 2: '☷', 7: '☱', 6: '☰' }
+
+/**
+ * 玄空飞星宅盘（多层罗盘式），自内而外：
+ * 中宫（天池）；八宫飞星（卦名、山星蓝居左、向星红居右、运星、流年紫白）；后天八卦与洛书数；三元龙；
+ * 二十四山（阳红阴黑，坐蓝底、向红底）；周天 360° 刻度。坐向以一线贯天池（天心十道之意）。
+ */
+export function XuankongWheel({ d }: { d: XuankongWheelData }) {
+  const zuoI = SHAN24.indexOf(d.zuo), xiangI = SHAN24.indexOf(d.xiang)
+  const R = { tian: 40, gong: 128, gua: 148, yuan: 166, shan: 190, du: 210 }
+  const ring = (r: number, fill = 'none') => <circle cx={C} cy={C} r={r} fill={fill} stroke="#999" />
+  const [zx, zy] = pt(R.shan, scr(15 * zuoI)), [xx, xy] = pt(R.shan, scr(15 * xiangI))
+  return (
+    <Frame label="玄空飞星宅盘">
+      {ring(R.du, '#f5ecd7')}
+      {ring(R.shan, '#fffdf7')}
+      {ring(R.yuan, '#fbf6ea')}
+      {ring(R.gua, '#fffdf7')}
+      {ring(R.gong, '#fffdf7')}
+      {/* 周天刻度：每 1° 短刻、5° 中刻、15° 长刻（与二十四山界对齐） */}
+      {Array.from({ length: 360 }, (_, a) => {
+        const len = a % 15 === 0 ? 9 : a % 5 === 0 ? 6 : 3
+        const [x0, y0] = pt(R.du, scr(a)), [x1, y1] = pt(R.du - len, scr(a))
+        return <line key={a} x1={x0} y1={y0} x2={x1} y2={y1} stroke="#8c6d3f" strokeWidth={a % 15 === 0 ? 1 : 0.5} />
+      })}
+      {SHAN24.map((s, i) => {
+        const deg = scr(15 * i)
+        const zuo = i === zuoI, xiang = i === xiangI
+        const yang = SHAN_YANG.has(s)
+        return (
+          <g key={s}>
+            <path d={sector(R.yuan, R.shan, deg - 7.5, deg + 7.5)} fill={zuo ? '#d6e4ff' : xiang ? '#ffd8d6' : 'none'} stroke="#ccc" />
+            <path d={sector(R.gua, R.yuan, deg - 7.5, deg + 7.5)} fill="none" stroke="#e3d9c3" />
+            <T r={(R.yuan + R.shan) / 2} deg={deg} size={15} fill={yang ? '#a8071a' : '#222'} weight={zuo || xiang ? 700 : 500}>{s}</T>
+            <T r={(R.gua + R.yuan) / 2} deg={deg} size={9} fill="#8c6d3f">{YUAN_LONG(i)}</T>
+          </g>
+        )
+      })}
+      {[1, 8, 3, 4, 9, 2, 7, 6].map((g) => {
+        const deg = scr(GONG_AZ[g]!)
+        return (
+          <g key={g}>
+            <path d={sector(R.tian, R.gong, deg - 22.5, deg + 22.5)} fill="none" stroke="#ccc" />
+            <path d={sector(R.gong, R.gua, deg - 22.5, deg + 22.5)} fill="none" stroke="#bbb" />
+            <T r={(R.gong + R.gua) / 2} deg={deg} size={12} fill="#5b4a2e">{`${GUA_SYM[g]} ${GUA[g]}${CN_NUM[g]}`}</T>
+            <T r={56} deg={deg} size={10} fill="#999">{GUA[g]!}</T>
+            <T r={82} deg={deg - 10} size={22} fill="#0958d9">{CN_NUM[d.shanPan[g - 1]!]}</T>
+            <T r={82} deg={deg + 10} size={22} fill="#a8071a">{CN_NUM[d.xiangPan[g - 1]!]}</T>
+            <T r={104} deg={deg} size={16}>{CN_NUM[d.yunPan[g - 1]!]}</T>
+            <T r={120} deg={deg} size={9} fill="#531dab">{`年${CN_NUM[d.yearPan[g - 1]!]}`}</T>
+          </g>
+        )
+      })}
+      {/* 坐向线 */}
+      <line x1={zx} y1={zy} x2={xx} y2={xy} stroke="#a8071a" strokeWidth={1} strokeDasharray="4 3" opacity={0.6} />
+      {ring(R.tian, '#fff')}
+      <text x={C - 11} y={C - 3} fontSize={16} textAnchor="middle" fill="#0958d9">{CN_NUM[d.shanPan[4]!]}</text>
+      <text x={C + 11} y={C - 3} fontSize={16} textAnchor="middle" fill="#a8071a">{CN_NUM[d.xiangPan[4]!]}</text>
+      <text x={C} y={C + 15} fontSize={13} textAnchor="middle">{CN_NUM[d.yunPan[4]!]}</text>
+      <text x={C} y={C + 28} fontSize={8} textAnchor="middle" fill="#531dab">{`年${CN_NUM[d.yearPan[4]!]}`}</text>
+    </Frame>
+  )
+}

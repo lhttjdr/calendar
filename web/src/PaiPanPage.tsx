@@ -8,7 +8,7 @@ import { LeftOutlined, RightOutlined } from '@ant-design/icons'
 import { useEffect, useMemo, useState } from 'react'
 import type { LunarBackend } from './lunar-backend-types'
 import { useCompassBar, type LocationProps } from './CompassBar'
-import { LiurenWheel, QimenWheel, QizhengWheel, TaiyiWheel, YAO_SHORT, type QizhengWheelData } from './Wheels'
+import { LiurenWheel, QimenWheel, QizhengWheel, TaiyiWheel, XuankongWheel, YAO_SHORT, type QizhengWheelData } from './Wheels'
 import { useWorkerRpc } from './useWorkerRpc'
 import type { SkyRequest } from './skyWorker'
 
@@ -16,7 +16,7 @@ const { Text } = Typography
 
 const ZHI = '子丑寅卯辰巳午未申酉戌亥'
 
-/** 罗盘模式：方位盘（九宫、天地盘、十六神盘）整盘旋转至实地方位；紫微命盘不对应实地方位，不转 */
+/** 罗盘模式：方位盘（九宫、天地盘、十六神盘、宅盘、七政十二宫）整盘旋转至实地方位；紫微命盘不对应实地方位，不转 */
 const spinStyle = (deg: number) => (deg === 0 ? {} : { transform: `rotate(${deg}deg)`, transition: 'transform 120ms linear' })
 
 type LiurenData = { jiang: string; shi: string; pan: string[]; siKe: { xia: string; shang: string }[]; sanChuan: string[]; fa: string; tianJiang?: string[]; gui?: string; shun?: boolean; zhou?: boolean }
@@ -270,7 +270,6 @@ type XkData = {
   yunPan: number[]; shanPan: number[]; xiangPan: number[]; geju: { n: string; note: string }[]; chengMen: [number, boolean, boolean][]; yearPan: number[]
 }
 const XK_SHAN = ['子', '癸', '丑', '艮', '寅', '甲', '卯', '乙', '辰', '巽', '巳', '丙', '午', '丁', '未', '坤', '申', '庚', '酉', '辛', '戌', '乾', '亥', '壬']
-const XK_GRID: [number, string][][] = [[[4, '巽'], [9, '離'], [2, '坤']], [[3, '震'], [5, '中'], [7, '兌']], [[8, '艮'], [1, '坎'], [6, '乾']]]
 const CN_NUM = '〇一二三四五六七八九'
 
 /** 玄空飞星：运盘、山盘、向盘（洛书九宫，南上）；坐向可选，或以罗盘测（手机顶端朝向首，坐即其背） */
@@ -286,25 +285,13 @@ function XuankongPanel(props: { wasm: LunarBackend; ganzhiYear: number; heading:
     if (typeof props.wasm.xuankong_json !== 'function') return null
     try { return JSON.parse(props.wasm.xuankong_json(props.ganzhiYear, zuo, ti, az)) as XkData } catch { return null }
   }, [props.wasm, props.ganzhiYear, zuo, ti, az])
-  const s = 116
   return (
     <Flex gap={16} wrap align="flex-start">
-      <div style={{ flex: '1 1 320px', maxWidth: 380, ...spinStyle(props.rotate) }}>
+      <div style={{ flex: '1 1 320px', maxWidth: 440, ...spinStyle(props.rotate) }}>
         {d && (
-          <svg viewBox={`0 0 ${s * 3} ${s * 3}`} style={{ width: '100%' }} role="img" aria-label="玄空飞星宅盘">
-            {XK_GRID.flatMap((row, ry) => row.map(([g, gua], rx) => (
-              <g key={g}>
-                <rect x={rx * s + 1} y={ry * s + 1} width={s - 2} height={s - 2} fill="#fffdf7" stroke="#999" />
-                <text x={rx * s + 8} y={ry * s + 16} fontSize={11} fill="#888">{gua}</text>
-                <text x={rx * s + s * 0.3} y={ry * s + s * 0.45} fontSize={24} textAnchor="middle" fill="#0958d9">{CN_NUM[d.shanPan[g - 1]!]}</text>
-                <text x={rx * s + s * 0.7} y={ry * s + s * 0.45} fontSize={24} textAnchor="middle" fill="#a8071a">{CN_NUM[d.xiangPan[g - 1]!]}</text>
-                <text x={rx * s + s * 0.5} y={ry * s + s * 0.82} fontSize={18} textAnchor="middle">{CN_NUM[d.yunPan[g - 1]!]}</text>
-                <text x={rx * s + s - 6} y={ry * s + s - 6} fontSize={10} textAnchor="end" fill="#999">{`年${CN_NUM[d.yearPan[g - 1]!]}`}</text>
-              </g>
-            )))}
-          </svg>
+          <XuankongWheel d={d} />
         )}
-        <Text type="secondary" style={{ fontSize: 11 }}>每宫左上蓝字山星、右上红字向星、下为运星、角注流年紫白；南上北下，开罗盘则随设备转至实地方位</Text>
+        <Text type="secondary" style={{ fontSize: 11 }}>罗盘式，自内而外：中宫；八宫飞星（蓝山星居左、红向星居右，其外运星、流年紫白）；后天八卦与洛书数；三元龙（天人地）；二十四山（红阳黑阴，蓝底坐、红底向）；周天度数。虚线为坐向。南上北下，开罗盘则随设备转至实地方位</Text>
       </div>
       <div style={{ flex: '1 1 280px' }}>
         <Flex vertical gap={6}>
