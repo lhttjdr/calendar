@@ -335,7 +335,8 @@ export type LiurenExtra = {
  * 天盘本位上太阳之方位 = 30°×月将支序 −（太阳黄经在本次中之偏，次中点为 0；黄经增向即支逆向），转角 = 太阳盘上方位 − 之。
  * 时辰正中、太阳居次中时与按时辰之「月将加时」重合；实时则每 250 ms 以当前时刻重算。月将以中气分次（缺省换将法）。
  */
-export function LiurenWheel({ pan, shi, sanChuan, label, tianJiang, extra, cont }: { pan: string[]; shi: string; sanChuan: string[]; label: string; tianJiang?: string[]; extra?: LiurenExtra; cont?: { jdUt: number; lonDeg: number; live: boolean } }) {
+/** `hl`：高亮之天盘支（与文字中三传、四课联动，随天盘转） */
+export function LiurenWheel({ pan, shi, sanChuan, label, tianJiang, extra, cont, hl }: { pan: string[]; shi: string; sanChuan: string[]; label: string; tianJiang?: string[]; extra?: LiurenExtra; cont?: { jdUt: number; lonDeg: number; live: boolean }; hl?: string | null }) {
   const R = [50, 84, 118, 136, 156, 178, 200, 216, 228]
   const mid = (k: number) => (R[k]! + R[k + 1]!) / 2
   // 天盘 = 地盘转 k 位（地盘子位上所临之天盘支序为 k）；天盘诸环按本位画，整组转 −30k°（月将加时），时辰交界时可见其转动
@@ -393,6 +394,7 @@ export function LiurenWheel({ pan, shi, sanChuan, label, tianJiang, extra, cont 
           const marks = [...(ci >= 0 ? [['初', '中', '末'][ci]!] : []), ...(extra?.tianMarks?.[tian] ?? [])]
           return (
             <g key={tian}>
+              {tian === hl && <path d={sector(R[1]!, R[6]!, deg - 15, deg + 15)} fill="#bae0ff" opacity={0.7} stroke="#1677ff" strokeWidth={1.5} />}
               <T r={mid(1)} deg={deg} size={24} fill={ci >= 0 ? '#a8071a' : '#000'} weight={ci >= 0 ? 700 : 500}>{tian}</T>
               {dg && <T r={mid(2)} deg={deg} size={12} fill="#0958d9">{dg}</T>}
               <T r={mid(3)} deg={deg} size={11} fill="#8c6d3f">{JIANG_NAME[tian] ?? ''}</T>

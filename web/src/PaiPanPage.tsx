@@ -282,8 +282,13 @@ type ZiweiData = {
 }
 const MAIN14 = new Set(['紫微', '天機', '太陽', '武曲', '天同', '廉貞', '天府', '太陰', '貪狼', '巨門', '天相', '天梁', '七殺', '破軍'])
 
-function ZiweiBoard({ d }: { d: ZiweiData }) {
+/** 三方四正：本宫、对宫、三合两宫 */
+const sanFang = (z: number) => [z, (z + 6) % 12, (z + 4) % 12, (z + 8) % 12]
+
+/** `sel`：所选之宫（地支序）；其三方四正淡蓝。点宫回调 `onSel` */
+function ZiweiBoard({ d, sel, onSel }: { d: ZiweiData; sel?: number | null; onSel?: (z: number) => void }) {
   const s = 120
+  const sf = sel != null ? sanFang(sel) : []
   const hua = new Map(d.siHua.map(([h, st]) => [st, h.replace('化', '')]))
   return (
     <svg viewBox={`0 0 ${s * 4} ${s * 4}`} style={{ width: '100%', maxWidth: 520 }} role="img" aria-label="紫微斗数命盘">
@@ -296,8 +301,9 @@ function ZiweiBoard({ d }: { d: ZiweiData }) {
         const x = cx * s, y = cy * s
         const isMing = zi === d.ming, isShen = zi === d.shen
         return (
-          <g key={z}>
-            <rect x={x + 1} y={y + 1} width={s - 2} height={s - 2} fill={isMing ? '#fff1b8' : '#fffdf7'} stroke="#999" />
+          <g key={z} onClick={onSel ? () => onSel(zi) : undefined} style={onSel ? { cursor: 'pointer' } : undefined}>
+            <title>{`${d.palaces[zi]}宫（${z}）：点看三方四正`}</title>
+            <rect x={x + 1} y={y + 1} width={s - 2} height={s - 2} fill={zi === sel ? '#bae0ff' : sf.includes(zi) ? '#e6f4ff' : isMing ? '#fff1b8' : '#fffdf7'} stroke={zi === sel ? '#1677ff' : '#999'} strokeWidth={zi === sel ? 2 : 1} />
             {main.map((n, i) => (
               <text key={n} x={x + 8} y={y + 18 + i * 17} fontSize={15} fontWeight={600} fill="#a8071a">
                 {n}{mw.get(n) ? <tspan fontSize={10} fill="#888">{mw.get(n)}</tspan> : null}{hua.get(n) ? <tspan fontSize={11} fill="#0958d9">{` ${hua.get(n)}`}</tspan> : null}
@@ -352,10 +358,31 @@ const ZiweiPanel = memo(function ZiweiPanel(props: { wasm: LunarBackend; lunar: 
     } catch { return null }
   }, [props.wasm, lunar.yearGz, lunar.month, lunar.leap, lunar.day, props.hourZhi, male, leap, xin, bingDing, siHua, cs, school, o18, xieBen, liuYear])
   const G = '甲乙丙丁戊己庚辛壬癸', Z = '子丑寅卯辰巳午未申酉戌亥'
+  /** 盘⇄文字：所选之宫（地支序） */
+  const [sel, setSel] = useState<number | null>(null)
   return (
     <Flex gap={16} wrap align="flex-start">
-      <div style={{ flex: '1 1 360px', maxWidth: 540 }}>{d ? <ZiweiBoard d={d} /> : <Text type="secondary">无法起盘</Text>}</div>
+      <div style={{ flex: '1 1 360px', maxWidth: 540 }}>{d ? <ZiweiBoard d={d} sel={sel} onSel={(z) => setSel(sel === z ? null : z)} /> : <Text type="secondary">无法起盘</Text>}</div>
       <div style={{ flex: '1 1 260px' }}>
+        {d && sel != null && (() => {
+          const hua = new Map(d.siHua.map(([h, st]) => [st, h]))
+          const starsAt = (z: number) => d.stars.filter(([, k]) => k === z).map(([n, , b]) => `${n}${b ? `（${b}）` : ''}${hua.get(n) ? `·${hua.get(n)}` : ''}`)
+          const dx = d.daXian.find(([, , k]) => k === sel)
+          return (
+            <div className="gong-detail">
+              <Flex justify="space-between" align="center">
+                <Text strong>{`${d.palaces[sel]}宫 · ${d.gan[sel] ?? ''}${Z[sel]}${sel === d.shen ? ' · 身宫' : ''}`}</Text>
+                <Button size="small" type="text" onClick={() => setSel(null)}>✕</Button>
+              </Flex>
+              <div style={{ fontSize: 13 }}>{starsAt(sel).join('、') || '空宫'}</div>
+              {dx && <div style={{ fontSize: 12 }}>{`大限 ${dx[0]}—${dx[1]} 岁`}</div>}
+              <div style={{ fontSize: 12, marginTop: 4 }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>三方四正 </Text>
+                {sanFang(sel).slice(1).map((z) => <div key={z}>{`${d.palaces[z]}（${Z[z]}）：${starsAt(z).filter((x) => MAIN14.has(x.replace(/[（·].*$/, ''))).join('、') || '无主星'}`}</div>)}
+              </div>
+            </div>
+          )
+        })()}
         <div style={{ marginBottom: 8 }}>
           {`生于${G[lunar.yearGz % 10]}${Z[lunar.yearGz % 12]}年 ${lunar.leap ? '閏' : ''}${lunar.month}月${lunar.day}日 ${Z[props.hourZhi]}时`}
           <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>以日历所选时刻为生时；年以农历正月初一换</Text>
@@ -644,10 +671,16 @@ const LiurenPanel = memo(function LiurenPanel(props: { wasm: LunarBackend; ear: 
     if (typeof props.wasm.liuren_json !== 'function') return null
     try { return JSON.parse(props.wasm.liuren_json(props.jdUt, props.ear, props.dayGz, props.hourZhi, rule === 1 ? 1 : 0, guiRule, zhou, dunRule, benMingGz, male, chuYu, muRule, yaoRule, sheHai, props.latitude, props.longitude, wangRule, lm, ld, jiangOverride, peiGz)) as LiurenData } catch { return null }
   }, [props.wasm, props.ear, props.jdUt, props.dayGz, props.hourZhi, rule, guiRule, zhou, dunRule, benMingGz, male, chuYu, muRule, yaoRule, sheHai, props.latitude, props.longitude, wangRule, lm, ld, jiangOverride, peiGz])
+  /** 盘⇄文字：所选天盘支（点三传、四课上神） */
+  const [hlZhi, setHlZhi] = useState<string | null>(null)
+  const zhiBtn = (z: string, extra: React.CSSProperties = {}) => (
+    <span role="button" title="点看其在天盘之位" onClick={() => setHlZhi(hlZhi === z ? null : z)}
+      style={{ cursor: 'pointer', borderRadius: 3, padding: '0 2px', background: hlZhi === z ? '#bae0ff' : undefined, ...extra }}>{z}</span>
+  )
   if (!d) return <Text type="secondary">无法起课</Text>
   return (
     <Flex gap={16} wrap align="flex-start">
-      <CompassSpin spin={props.spin} style={{ flex: '1 1 300px', maxWidth: 380 }}><LiurenWheel pan={d.pan} shi={d.shi} sanChuan={d.sanChuan} tianJiang={d.tianJiang} label={`${d.jiang}將加${d.shi}時`} extra={liurenExtra(d)} cont={contTurn ? { jdUt: props.jdUt, lonDeg: props.longitude, live: !!props.live } : undefined} /></CompassSpin>
+      <CompassSpin spin={props.spin} style={{ flex: '1 1 300px', maxWidth: 380 }}><LiurenWheel pan={d.pan} shi={d.shi} sanChuan={d.sanChuan} tianJiang={d.tianJiang} label={`${d.jiang}將加${d.shi}時`} extra={liurenExtra(d)} cont={contTurn ? { jdUt: props.jdUt, lonDeg: props.longitude, live: !!props.live } : undefined} hl={hlZhi} /></CompassSpin>
       <div style={{ flex: '1 1 260px' }}>
         <label style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
           <input type="checkbox" checked={contTurn} onChange={(e) => setContTurn(e.target.checked)} /> 天盘连续转（月将加时之连续形：月将中太阳之位对准真太阳时角；时辰正中与按时辰之盘重合；实时则随时刻缓转）
@@ -658,7 +691,7 @@ const LiurenPanel = memo(function LiurenPanel(props: { wasm: LunarBackend; ear: 
           <Flex gap={4} style={{ marginTop: 4 }}>
             {[...d.siKe].reverse().map((k, i) => (
               <div key={i} style={{ border: '1px solid #ccc', padding: '2px 8px', textAlign: 'center', fontSize: 16 }}>
-                <div>{k.shang}</div>
+                <div>{zhiBtn(k.shang)}</div>
                 <div style={{ color: '#888' }}>{k.xia}</div>
               </div>
             ))}
@@ -667,7 +700,7 @@ const LiurenPanel = memo(function LiurenPanel(props: { wasm: LunarBackend; ear: 
         </div>
         <div>
           <Text strong>三传</Text>（{d.fa}）
-          <div style={{ fontSize: 18, letterSpacing: 6 }}>{d.sanChuan.join(' ')}</div>
+          <div style={{ fontSize: 18, letterSpacing: 6 }}>{d.sanChuan.map((z, i) => <span key={i}>{zhiBtn(z)}{' '}</span>)}</div>
           {d.sanChuanDun && <div style={{ fontSize: 12, color: '#0958d9' }}>{`遁干：${d.sanChuanDun.map((g) => g ?? '空').join(' ')}`}</div>}
           <Text type="secondary" style={{ fontSize: 11 }}>初传、中传、末传。据《六壬大全》卷一九法、卷五订讹</Text>
         </div>
