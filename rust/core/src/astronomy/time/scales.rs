@@ -4,7 +4,8 @@ use crate::astronomy::constant::{J2000, JULIAN_MILLENNIUM};
 use crate::math::real::{real_const, from_i32, Real, RealOps};
 use crate::quantity::duration::Duration;
 
-/// 时标：TT、TDB 等；换算至 UTC/UT1 需 TimeScaleContext（暂未实现）。
+/// 时标。相互换算见 [`TimePoint::to_scale`]：UTC 按内建闰秒表（1972 年前以 UT1 近似），UT1 = TT − ΔT（模型 ΔT，见
+/// [`delta_t`]）；不另设上下文对象，需用别的 ΔT 的场合（史料检验、日月食）由调用方显式传入 ΔT。
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum TimeScale {
     TT,
@@ -164,44 +165,34 @@ impl TimePoint {
         jd_tdb - delta_sec / SECONDS_PER_DAY
     }
 
-    /// 换算到目标时标。
+    /// 换算到目标时标：一律经 TT 中转，任意两时标之间皆可换。
+    /// - TAI = TT − 32.184 s；GPST = TAI − 19 s；TDB 按周期项近似（见 [`Self::tt_to_tdb`]）。
+    /// - UTC：1972 年起按内建闰秒表（[`LEAP_SECONDS_TABLE`]，至 2017-01-01 的 37 s，此后沿用）；此前以 UT1 近似。
+    /// - UT1 = TT − ΔT，ΔT 取模型（[`delta_t`]：Morrison–Stephenson 2021 并按缺省月历表配套），不读 IERS 实测 UT1−UTC
+    ///   （近代实测与模型之差在 1 s 内，见 doc/astronomy/time-and-timescales.md「换算现状」）。
     pub fn to_scale(self, target: TimeScale) -> TimePoint {
         if self.scale == target {
             return self;
         }
-        let jd_f64 = self.jd;
-        let result_f64 = match (self.scale, target) {
-            (TimeScale::TT, TimeScale::TDB) => Self::tt_to_tdb(jd_f64),
-            (TimeScale::TDB, TimeScale::TT) => Self::tdb_to_tt(jd_f64),
-            (TimeScale::TT, TimeScale::TAI) => jd_f64 - tt_tai_offset_days(),
-            (TimeScale::TAI, TimeScale::TT) => jd_f64 + tt_tai_offset_days(),
-            (TimeScale::TAI, TimeScale::UTC) => tai_to_utc_jd(jd_f64),
-            (TimeScale::UTC, TimeScale::TAI) => utc_to_tai_jd(jd_f64),
-            (TimeScale::TT, TimeScale::UTC) => tai_to_utc_jd(jd_f64 - tt_tai_offset_days()),
-            (TimeScale::UTC, TimeScale::TT) => utc_to_tai_jd(jd_f64) + tt_tai_offset_days(),
-            (TimeScale::TDB, TimeScale::UTC) => {
-                let jd_tt = Self::tdb_to_tt(jd_f64);
-                tai_to_utc_jd(jd_tt - tt_tai_offset_days())
-            }
-            (TimeScale::UTC, TimeScale::TDB) => {
-                let jd_tt = utc_to_tai_jd(jd_f64) + tt_tai_offset_days();
-                Self::tt_to_tdb(jd_tt)
-            }
-            (TimeScale::TT, TimeScale::UT1) => jd_f64 - delta_t(jd_f64).seconds() / SECONDS_PER_DAY,
-            (TimeScale::UT1, TimeScale::TT) => ut1_to_tt_jd(jd_f64),
-            (TimeScale::TAI, TimeScale::GPST) => jd_f64 - real_const(19.0) / SECONDS_PER_DAY,
-            (TimeScale::GPST, TimeScale::TAI) => jd_f64 + real_const(19.0) / SECONDS_PER_DAY,
-            (TimeScale::TT, TimeScale::GPST) => {
-                let tai = jd_f64 - tt_tai_offset_days();
-                tai - real_const(19.0) / SECONDS_PER_DAY
-            }
-            (TimeScale::GPST, TimeScale::TT) => {
-                let tai = jd_f64 + real_const(19.0) / SECONDS_PER_DAY;
-                tai + tt_tai_offset_days()
-            }
-            _ => jd_f64,
+        let gps_tai = real_const(19.0) / SECONDS_PER_DAY;
+        let jd = self.jd;
+        let tt = match self.scale {
+            TimeScale::TT => jd,
+            TimeScale::TAI => jd + tt_tai_offset_days(),
+            TimeScale::TDB => Self::tdb_to_tt(jd),
+            TimeScale::UTC => utc_to_tai_jd(jd) + tt_tai_offset_days(),
+            TimeScale::UT1 => ut1_to_tt_jd(jd),
+            TimeScale::GPST => jd + gps_tai + tt_tai_offset_days(),
         };
-        TimePoint::new(target, result_f64)
+        let out = match target {
+            TimeScale::TT => tt,
+            TimeScale::TAI => tt - tt_tai_offset_days(),
+            TimeScale::TDB => Self::tt_to_tdb(tt),
+            TimeScale::UTC => tai_to_utc_jd(tt - tt_tai_offset_days()),
+            TimeScale::UT1 => tt - delta_t(tt).seconds() / SECONDS_PER_DAY,
+            TimeScale::GPST => tt - tt_tai_offset_days() - gps_tai,
+        };
+        TimePoint::new(target, out)
     }
 
     /// 返回 TDB 儒略日（历表约定）
@@ -348,8 +339,12 @@ fn delta_t_eval(y: Real) -> Real {
 /// JD(UT1) → JD(TT)：jd_ut1 + ΔT/86400
 #[inline]
 pub fn ut1_to_tt_jd(jd_ut1: Real) -> Real {
-    let jd_tt_approx = jd_ut1 + 69.0 / SECONDS_PER_DAY; // 近似 ΔT 用于求 ΔT
-    jd_ut1 + delta_t(jd_tt_approx).seconds() / SECONDS_PER_DAY
+    // ΔT 以 TT 为自变量：先取近似 TT 求 ΔT，再迭代一次（古代 ΔT 达数小时，单次近似差约 10⁻⁴ s）
+    let mut jd_tt = jd_ut1 + 69.0 / SECONDS_PER_DAY;
+    for _ in 0..2 {
+        jd_tt = jd_ut1 + delta_t(jd_tt).seconds() / SECONDS_PER_DAY;
+    }
+    jd_tt
 }
 
 // -----------------------------------------------------------------------------
@@ -427,6 +422,30 @@ mod tests_leap_seconds {
         let jd_tai = utc_to_tai_jd(jd_utc);
         let back = tai_to_utc_jd(jd_tai);
         assert!(jd_utc.is_near(back, 1e-9));
+    }
+
+    /// 任意两时标往返一致，且经 TT 中转与直接关系相符（UTC↔UT1、TDB↔UT1、GPST↔UTC 等旧实现缺省返回原值的组合）。
+    #[test]
+    fn all_scale_pairs_roundtrip() {
+        use TimeScale::*;
+        let all = [TT, TAI, TDB, UTC, UT1, GPST];
+        for jd in [real_const(2457754.5 + 0.3), real_const(2400000.5), real_const(1721425.5)] {
+            for &a in &all {
+                for &b in &all {
+                    let t = TimePoint::new(a, jd);
+                    let back = t.to_scale(b).to_scale(a);
+                    assert!((back.jd - jd).abs().as_f64() * 86400.0 < 1e-3, "{a:?}→{b:?}→{a:?} 差 {} s", (back.jd - jd).as_f64() * 86400.0);
+                }
+            }
+        }
+        // 2017 年后：UTC − UT1 = ΔT − 69.184 s；GPST − UTC = 18 s
+        let utc = TimePoint::new(UTC, real_const(2460000.5));
+        let ut1 = utc.to_scale(UT1);
+        let tt = utc.to_scale(TT).jd;
+        let want = (69.184 - delta_t(tt).seconds().as_f64()) / 86400.0;
+        assert!(((ut1.jd - utc.jd).as_f64() - want).abs() * 86400.0 < 1e-3);
+        let gps = utc.to_scale(GPST);
+        assert!(((gps.jd - utc.jd).as_f64() * 86400.0 - 18.0).abs() < 1e-3);
     }
 
     #[test]

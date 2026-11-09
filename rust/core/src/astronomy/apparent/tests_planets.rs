@@ -453,8 +453,8 @@ const SKYFIELD_MAG: [(f64, Planet, f64, f64); 28] = [
 ];
 
 /// 星等几何（r、Δ、相位角、土星/天王星直下点纬度）与公式整体对照 Skyfield（真太阳几何值）。两者公式同源（Ap_Mag V3）；
-/// 差别：天王星本仓库按论文式 13 换算行星面图纬度（Skyfield 未换算，差约 1e-4 星等）；火星本仓库计季节修正 L(Ls)（Skyfield
-/// 不计，比较前扣除）；光行时与位置的细小差异。容差 0.002。
+/// 差别：天王星本仓库按论文式 13 换算行星面图纬度（Skyfield 未换算，差约 1e-4 星等）；火星本仓库计季节修正 L(Ls) 与自转修正
+/// L(λe)（Skyfield 不计，比较前扣除）；光行时与位置的细小差异。容差 0.002。
 #[test]
 fn planet_magnitude_vs_skyfield() {
     let Some(bsp) = crate::test_util::de406_bsp_path_if_exists() else {
@@ -464,12 +464,14 @@ fn planet_magnitude_vs_skyfield() {
     let kernel = De406Kernel::open(&bsp).unwrap();
     let mut failures = vec![];
     let mut tab = crate::test_util::CheckTable::new("planet_magnitude_vs_skyfield", &["行星", "历元(TT)", "Skyfield（真太阳）", "Skyfield 原值（太阳取质心）", "本实现", "差"]);
-    tab.meta("行星视星等对 Skyfield（DE406，scripts/ephemeris/skyfield_planet_magnitude.py）逐点；火星已扣除 Skyfield 未计的季节修正 L(Ls)");
+    tab.meta("行星视星等对 Skyfield（DE406，scripts/ephemeris/skyfield_planet_magnitude.py）逐点；火星已扣除 Skyfield 未计的季节修正 L(Ls) 与自转修正 L(λe)");
     for (jd, p, sf_barycentric, expect) in SKYFIELD_MAG {
         let t = TimePoint::new(TimeScale::TT, real(jd));
-        // Skyfield 不计火星季节修正 L(Ls)，比较前从本仓库结果中扣除
+        // Skyfield 不计火星季节修正 L(Ls) 与自转修正 L(λe)，比较前从本仓库结果中扣除
         let ls_corr = if p == Planet::Mars {
-            mars_orbital_correction(planet_magnitude_geometry(&kernel, p, t).helio_ecl_long_deg).as_f64()
+            let g = planet_magnitude_geometry(&kernel, p, t);
+            let (o, s) = g.mars_sub_longitudes_deg.unwrap();
+            mars_orbital_correction(g.helio_ecl_long_deg).as_f64() + mars_rotation_correction(mars_effective_central_meridian_deg(o, s)).as_f64()
         } else {
             0.0
         };

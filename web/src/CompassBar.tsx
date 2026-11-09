@@ -104,8 +104,15 @@ export function useCompassBar(p: LocationProps): { rotate: number; bar: ReactNod
           ? <Text type="warning" style={{ fontSize: 12 }}>{`请将手机放平（倾斜 ${compass.tilt | 0}°）`}</Text>
           : <Text type="success" style={{ fontSize: 12 }}>已水平</Text>
       )}
-      {compass.active && compass.accuracy != null && (compass.accuracy < 0 || compass.accuracy > 15) && (
-        <Text type="warning" style={{ fontSize: 12 }}>罗盘精度低，请远离金属并将手机画「8」字校准</Text>
+      {compass.active && compass.source === 'ios' && compass.accuracy != null && (
+        compass.accuracy < 0
+          ? <Text type="warning" style={{ fontSize: 12 }}>罗盘未校准，请远离金属并将手机画「8」字校准</Text>
+          : compass.accuracy > 15
+            ? <Text type="warning" style={{ fontSize: 12 }}>{`罗盘精度低（±${Math.round(compass.accuracy)}°），请远离金属并将手机画「8」字校准`}</Text>
+            : <Text type="secondary" style={{ fontSize: 12 }}>{`罗盘精度 ±${Math.round(compass.accuracy)}°`}</Text>
+      )}
+      {compass.active && compass.source === 'absolute' && (
+        <Text type="secondary" style={{ fontSize: 12 }}>此浏览器不报罗盘精度；读数不稳或与实地不符时，请远离金属并将手机画「8」字校准</Text>
       )}
       {compass.error && <Text type="danger" style={{ fontSize: 12 }}>{compass.error}</Text>}
     </Flex>

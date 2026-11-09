@@ -44,4 +44,9 @@ f64、double-double（twofloat）两种构建皆通过（`cargo test -p lunar-co
 
 - 只含主磁场；地壳磁异常（局部可达数度）与磁暴等外源变化不计。
 - 有效期外（2030 年后）须换用下一版 WMM。
-- 手机指南针本身的校准误差常达数度，远大于模型误差；网页应提示用户校准。
+- 手机指南针本身的校准误差常达数度，远大于模型误差。网页罗盘（2026-11-09 起）已加校准提示：
+  iOS 依 `webkitCompassAccuracy`（负值为未校准，大于 15° 为精度低）提示远离金属、画「8」字校准，否则显示精度 ±n°；Android 的绝对方向
+  事件无精度字段（W3C DeviceOrientation 规范未定义），校准状态不可得，常驻「8 字校准」提示。实现见
+  [web-folk-pages.md](../engineering/web-folk-pages.md)「校准提示」。
+- 未做：依读数抖动等启发式判断干扰（用户转动手机时会误报）；用磁倾角、总强度与手机磁力计原始值比对检出局部磁干扰（浏览器 Generic
+  Sensor API 的 `Magnetometer` 只在少数浏览器、须开实验旗标才可用）。

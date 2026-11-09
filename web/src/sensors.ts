@@ -8,6 +8,8 @@
  * - 屏幕横竖旋转时加 `screen.orientation.angle`。
  * 罗盘须手机平放：此时顶端所指之方位即读数；立起时 alpha 所表不再是平面朝向，故另报倾角（beta 前后、gamma 左右），
  * 倾角过大时界面提示放平。iOS 的 webkitCompassHeading 已作倾斜补偿，仍以平放为准。
+ * 校准：iOS 另给 `webkitCompassAccuracy`（度，负值为未校准）；Android 的绝对方向事件无精度字段（W3C DeviceOrientation 规范
+ * 未定义），校准状态不可得，故界面对两者分别给「精度低」与常驻「8 字校准」提示。
  * 所得为磁北方位；真北 = 磁北方位 + 磁偏角（东偏为正），磁偏角由 WMM 按所在经纬度求（见 doc/astronomy/geomag.md）。
  * 浏览器只在安全上下文（https 或 localhost）提供这些接口。
  */
@@ -68,6 +70,11 @@ export function useCompassHeading() {
   const [tilt, setTilt] = useState<number | null>(null)
   /** iOS 报告的读数精度（度，越小越好；负为未校准） */
   const [accuracy, setAccuracy] = useState<number | null>(null)
+  /**
+   * 读数来源：'ios'（webkitCompassHeading，带 webkitCompassAccuracy）、'absolute'（Android 等的 deviceorientationabsolute，
+   * W3C 规范无精度字段，浏览器不报校准状态）。后者精度不可得，界面常驻「8 字校准」提示。
+   */
+  const [source, setSource] = useState<'ios' | 'absolute' | null>(null)
   const smooth = useRef<{ x: number; y: number } | null>(null)
   const cleanup = useRef<(() => void) | null>(null)
   /** 最新平滑读数（不经 React 状态；转盘由 requestAnimationFrame 直接读此，免得每个读数都重绘整页） */
@@ -101,6 +108,7 @@ export function useCompassHeading() {
     setHeading(null)
     setTilt(null)
     setAccuracy(null)
+    setSource(null)
   }, [])
 
   const start = useCallback(async () => {
@@ -126,8 +134,10 @@ export function useCompassHeading() {
       if (ev.beta != null && ev.gamma != null) setTilt(Math.max(Math.abs(ev.beta), Math.abs(ev.gamma)))
       if (typeof ev.webkitCompassAccuracy === 'number') setAccuracy(ev.webkitCompassAccuracy)
       if (typeof ev.webkitCompassHeading === 'number' && !Number.isNaN(ev.webkitCompassHeading)) {
+        setSource('ios')
         onReading(ev.webkitCompassHeading + screenAngle())
       } else if (ev.absolute && ev.alpha != null) {
+        setSource('absolute')
         onReading(360 - ev.alpha + screenAngle())
       }
     }
@@ -142,5 +152,5 @@ export function useCompassHeading() {
   }, [onReading])
 
   useEffect(() => () => cleanup.current?.(), [])
-  return { heading, headingRef, active, error, tilt, accuracy, start, stop }
+  return { heading, headingRef, active, error, tilt, accuracy, source, start, stop }
 }

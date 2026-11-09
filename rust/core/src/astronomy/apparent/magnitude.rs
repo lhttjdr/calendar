@@ -11,12 +11,13 @@
 //!
 //! 火星（式 6、7）的自转修正 L(λe) 与季节修正 L(Ls) 取作者程序的两张表（Mallama 2007, *Icarus* 192, 404，表 6、表 8，
 //! 10° 间隔）以 Stirling 四阶插值。作者程序的差分循环只算到 δ(2)，四阶差分用到未赋值的 δ(3)（注释原意为 range(4)），
-//! 此处按完整的 Stirling 公式实现，与官方输出之差见测试。由历表算星等时只能给出 L(Ls)（需日心黄经）；L(λe) 需火星直下点
-//! 经度（IAU 火星自转模型），尚未接入，记为 0（幅度约 ±0.06 星等）。
+//! 此处按完整的 Stirling 公式实现，与官方输出之差见测试。由历表算星等时，L(Ls) 取日心黄经；L(λe) 的观测者、太阳直下点
+//! 西经由 IAU 火星自转模型（WGCCRE 2015，[`mars_orientation_wgccre2015`]）在光行时修正后的时刻求得（幅度约 ±0.06 星等）。
 //!
 //! 已知省略：土星、天王星自转轴取 IAU J2000 值（固定），未计极轴的长期变化（土星约 −0.036°/cy，到前 200 年约 0.8°，
 //! 对土星星等影响 ≤ 0.02）。
 
+use super::iau_rotation::mars_orientation_wgccre2015;
 use crate::astronomy::pipeline::{Body, EphemerisProvider, FrameMapper, Fk5ToIcrsBias, LightTimeCorrector, Planet, TransformGraph};
 use crate::astronomy::time::{TimePoint, TimeScale};
 use crate::math::real::{real, Real, RealOps};
@@ -277,8 +278,17 @@ fn angle_deg(a: [Real; 3], b: [Real; 3]) -> Real {
     rad_to_deg(norm(cr).atan2(dot))
 }
 
+/// 火星直下点西经 (观测者, 太阳)（度，行星面图西经，WGCCRE 2015 自转模型）。`emission`：光离开火星的时刻；
+/// `obs_to_mars`、`obs_to_sun`：同一原点（观测者）下火星（发光时刻）与太阳的 ICRS 位置（单位任意，只取方向）。
+pub fn mars_sub_longitudes_deg(emission: TimePoint, obs_to_mars: [Real; 3], obs_to_sun: [Real; 3]) -> (Real, Real) {
+    let o = mars_orientation_wgccre2015(emission.jd_tdb());
+    let to_obs = [-obs_to_mars[0], -obs_to_mars[1], -obs_to_mars[2]];
+    let to_sun = [obs_to_sun[0] - obs_to_mars[0], obs_to_sun[1] - obs_to_mars[1], obs_to_sun[2] - obs_to_mars[2]];
+    (o.sub_point_west_longitude_deg(to_obs), o.sub_point_west_longitude_deg(to_sun))
+}
+
 /// 由历表算地心观测的星等几何量：行星取光行时修正后的地心位置（ICRS），太阳取地心几何位置（太阳在光行时 τ 内的移动
-/// 对 r、α 的影响可忽略）。火星直下点经度未计（[`MagnitudeGeometry::mars_sub_longitudes_deg`] 为 None）。
+/// 对 r、α 的影响可忽略）。火星另算观测者、太阳直下点西经（[`mars_sub_longitudes_deg`]）。
 pub fn planet_magnitude_geometry<P: EphemerisProvider>(eph: &P, planet: Planet, t: TimePoint) -> MagnitudeGeometry {
     let t_tt = t.to_scale(TimeScale::TT);
     let graph = TransformGraph::default_graph()
@@ -308,6 +318,9 @@ pub fn planet_magnitude_geometry<P: EphemerisProvider>(eph: &P, planet: Planet, 
     let (ce, se) = (eps0.cos(), eps0.sin());
     let y_ecl = sun_to_planet[1] * ce + sun_to_planet[2] * se;
     let helio_long = rad_to_deg(y_ecl.atan2(sun_to_planet[0]).wrap_to_2pi());
+    // 火星直下点：以 t 时地心为原点，火星(tr) = obs_to_planet、太阳(t) = obs_to_sun；太阳相对质心在光行时内只移十余 km，
+    // 故火星(tr) → 太阳(tr − r/c) 即 −sun_to_planet，地球的移动已在两向量中消去。
+    let mars_sub = (planet == Planet::Mars).then(|| mars_sub_longitudes_deg(tr, obs_to_planet, obs_to_sun));
     MagnitudeGeometry {
         r_au: norm(sun_to_planet),
         delta_au: norm(obs_to_planet),
@@ -316,7 +329,7 @@ pub fn planet_magnitude_geometry<P: EphemerisProvider>(eph: &P, planet: Planet, 
         observer_sub_lat_deg: obs_lat,
         year: real(2000.0) + (t_tt.jd - real(2451545.0)) / real(365.25),
         helio_ecl_long_deg: helio_long,
-        mars_sub_longitudes_deg: None,
+        mars_sub_longitudes_deg: mars_sub,
     }
 }
 
@@ -440,6 +453,131 @@ mod tests {
         }
         tab.write();
         assert_eq!(n, 27, "官方测试应有 27 例，解析到 {n}");
+        assert!(failures.is_empty(), "{failures:?}");
+    }
+
+    /// 火星直下点西经（WGCCRE 2015 自转模型 + DE406）对作者测试数据所载 HORIZONS 值（Ob-lon、Sl-lon，印到 0.01°）逐例，并以
+    /// 本仓库几何量全算星等对作者预算星等。用例：V3 输入的火星三例（两例地心、一例在木星看火星）与 V1 的 2004-01-30 一例。
+    /// 日期为 UT 0h（HORIZONS 的 UT 即 UTC）。在木星看的一例，观测者取木星中心，光行时自行迭代。
+    #[test]
+    fn mars_sub_longitudes_vs_horizons_in_ap_mag_data() {
+        use crate::astronomy::ephemeris::De406Kernel;
+        let Some(bsp) = crate::test_util::de406_bsp_path_if_exists() else {
+            println!("skipped: 无 DE406 BSP");
+            return;
+        };
+        let eph = De406Kernel::open(&bsp).unwrap();
+        let root = crate::repo::repo_root().join("vendor/planetary_magnitudes");
+        let mut rows: Vec<(String, bool, [f64; 4], f64)> = vec![];
+        for (file, _) in [("Ap_Mag_Current_Version/Ap_Mag_Input_V3.txt", 0), ("Ap_Mag_Version_1/HORIZONS_plus_new_magnitudes.txt", 1)] {
+            let Ok(text) = std::fs::read_to_string(root.join(file)) else { continue };
+            let mut in_mars = false;
+            let mut from_jupiter = false;
+            for line in text.lines().map(|l| l.trim_end_matches('\r')) {
+                let tl = line.trim();
+                if tl == "MARS" {
+                    in_mars = true;
+                    continue;
+                }
+                if tl == "." {
+                    in_mars = false;
+                }
+                if !in_mars {
+                    continue;
+                }
+                if tl.contains("Jupiter") {
+                    from_jupiter = true;
+                }
+                let t: Vec<&str> = tl.split_whitespace().collect();
+                if t.len() < 18 || !t[0].contains('-') || !t[0].chars().next().unwrap().is_ascii_digit() {
+                    continue;
+                }
+                if rows.iter().any(|r| r.0 == t[0]) {
+                    continue;
+                }
+                let f = |i: usize| t[i].parse::<f64>().unwrap();
+                rows.push((t[0].to_string(), from_jupiter, [f(4), f(5), f(6), f(7)], f(17)));
+                from_jupiter = false;
+            }
+        }
+        assert_eq!(rows.len(), 4, "应有火星 4 例：{rows:?}");
+        let mut tab = crate::test_util::CheckTable::new(
+            "mars_sub_longitudes_vs_horizons",
+            &["日期(UT 0h)", "观测者", "HORIZONS 观测者西经°", "本实现°", "观测者差°", "HORIZONS 太阳西经°", "本实现太阳西经°", "太阳差°", "L(λe)", "作者预算星等", "本实现全算", "星等差"],
+        );
+        tab.meta("火星直下点西经：WGCCRE 2015 自转模型 + DE406，对 Ap_Mag 测试数据所载 HORIZONS 值（vendor/planetary_magnitudes/）逐例；全算星等的几何量全部取自本仓库");
+        let mut failures = vec![];
+        let wrap = |x: f64| (x + 540.0).rem_euclid(360.0) - 180.0;
+        for (date, from_jup, hz, expect_mag) in rows {
+            let p: Vec<&str> = date.split('-').collect();
+            let jd_utc = crate::calendar::gregorian::civil_to_julian_day(p[0].parse().unwrap(), month(p[1]) as i32 + 1, p[2].parse().unwrap());
+            let t = TimePoint::new(TimeScale::UTC, jd_utc).to_scale(TimeScale::TT);
+            let (geo, sub) = if !from_jup {
+                let g = planet_magnitude_geometry(&eph, Planet::Mars, t);
+                (g, g.mars_sub_longitudes_deg.unwrap())
+            } else {
+                // 日心位置（AU，ICRS）：地心 − 地心太阳；太阳相对质心的移动在光行时内可略
+                let graph = TransformGraph::default_graph()
+                    .with_fk5_to_icrs_mapper(|s, jd_tt| Fk5ToIcrsBias.apply(s, TimePoint::new(TimeScale::TT, jd_tt)));
+                let geo_au = |b: Body, tp: TimePoint| -> [Real; 3] {
+                    let st = eph.compute_state(b, tp.to_scale(eph.evaluation_time_scale()));
+                    let m = graph.transform_to(st, ReferenceFrame::ICRS, tp.jd).position.to_meters();
+                    let au = crate::astronomy::constant::AU_METERS;
+                    [m[0] / au, m[1] / au, m[2] / au]
+                };
+                let helio = |b: Body, tp: TimePoint| {
+                    let (x, s) = (geo_au(b, tp), geo_au(Body::Sun, tp));
+                    [x[0] - s[0], x[1] - s[1], x[2] - s[2]]
+                };
+                let jup = helio(Body::Planet(Planet::Jupiter), t);
+                let mut tr = t;
+                let mut mars = helio(Body::Planet(Planet::Mars), tr);
+                for _ in 0..4 {
+                    let d = [mars[0] - jup[0], mars[1] - jup[1], mars[2] - jup[2]];
+                    tr = TimePoint::new(TimeScale::TT, t.jd - norm(d) / crate::astronomy::constant::light_speed_au_per_day());
+                    mars = helio(Body::Planet(Planet::Mars), tr);
+                }
+                let obs_to_mars = [mars[0] - jup[0], mars[1] - jup[1], mars[2] - jup[2]];
+                let obs_to_sun = [-jup[0], -jup[1], -jup[2]];
+                let sub = mars_sub_longitudes_deg(tr, obs_to_mars, obs_to_sun);
+                let eps0 = crate::astronomy::frame::precession::mean_obliquity(0.0).rad();
+                let y_ecl = mars[1] * eps0.cos() + mars[2] * eps0.sin();
+                let g = MagnitudeGeometry {
+                    r_au: norm(mars),
+                    delta_au: norm(obs_to_mars),
+                    phase_deg: angle_deg(mars, obs_to_mars),
+                    sun_sub_lat_deg: real(0.0),
+                    observer_sub_lat_deg: real(0.0),
+                    year: real(2018.0),
+                    helio_ecl_long_deg: rad_to_deg(y_ecl.atan2(mars[0]).wrap_to_2pi()),
+                    mars_sub_longitudes_deg: Some(sub),
+                };
+                (g, sub)
+            };
+            let (o, s) = (sub.0.as_f64(), sub.1.as_f64());
+            let (d_o, d_s) = (wrap(o - hz[0]), wrap(s - hz[2]));
+            let l1 = mars_rotation_correction(mars_effective_central_meridian_deg(sub.0, sub.1)).as_f64();
+            let mag = planet_magnitude_v(MagnitudePlanet::Mars, &geo, true).unwrap().as_f64();
+            println!("{date} {}: 观测者 {o:.3} vs {}（{d_o:+.3}），太阳 {s:.3} vs {}（{d_s:+.3}），L1 {l1:+.4}，星等 {mag:.4} vs {expect_mag}", if from_jup { "木星" } else { "地心" }, hz[0], hz[2]);
+            tab.row(vec![
+                date.clone(),
+                (if from_jup { "木星" } else { "地心" }).into(),
+                format!("{:.2}", hz[0]),
+                format!("{o:.3}"),
+                format!("{d_o:+.3}"),
+                format!("{:.2}", hz[2]),
+                format!("{s:.3}"),
+                format!("{d_s:+.3}"),
+                format!("{l1:+.4}"),
+                format!("{expect_mag}"),
+                format!("{mag:.4}"),
+                format!("{:+.4}", mag - expect_mag),
+            ]);
+            if d_o.abs() > 0.02 || d_s.abs() > 0.02 || (mag - expect_mag).abs() > 0.001 {
+                failures.push(format!("{date}: 观测者差 {d_o:+.3}°，太阳差 {d_s:+.3}°，星等差 {:+.4}", mag - expect_mag));
+            }
+        }
+        tab.write();
         assert!(failures.is_empty(), "{failures:?}");
     }
 

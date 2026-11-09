@@ -144,6 +144,6 @@ doc/astronomy/celestial-phenomena.md 第九节「极值时刻的数值问题」�
 
 **历史审计**：原实现中 astronomy 下使用 Decimal、元组处的排查，建议有物理概念的改为物理量（`PlaneAngle`、`Length`、`Duration`、`Position`、`Velocity` 等）。
 
-- **建议改为物理量**：大气折射角度入参/返回、章动 (Δψ, Δε)、坐标点各字段、光行时 initialDistance、合朔/节气中的 prevSunDist/prevMoonDist、TimeScaleContext.deltaT 返回值等。
+- **建议改为物理量**：大气折射角度入参/返回、章动 (Δψ, Δε)、坐标点各字段、光行时 initialDistance、合朔/节气中的 prevSunDist/prevMoonDist、TimeScaleContext.deltaT 返回值等（TimeScaleContext 为 Rust 重写前旧实现（Decimal 版）之名，Rust 无此类型：ΔT 由 `time::delta_t` 返回 `Duration`，时标换算在 `TimePoint::to_scale`，见 [time-and-timescales.md](../astronomy/time-and-timescales.md)「换算现状」）。
 - **可保留或轻量改进**：时间与归一化时间、历表/级数内部、矩阵/向量运算、无量纲或约定单位、容差/配置。
 - **Rust core 部分**：角度/长度/角速度/时间等可用 `PlaneAngle`/`Length`/`AngularRate`/`Duration` 替代的裸 f64，多数已在实施顺序中完成（大气折射、定气定朔容差、常量角速度、delta_t、fundamental_arguments、sun_position_icrs 等已做）。

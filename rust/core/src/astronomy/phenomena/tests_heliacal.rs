@@ -491,3 +491,79 @@ fn heliacal_brackets_conjunctions() {
     tab.write();
 }
 
+
+/// 火星星等取样：L(λe) 按「去自转」中央经度在扫描时刻补算，与直接逐时刻全算之差应在插值误差内（L1 为 10° 间隔表，
+/// 中央经度插值误差 < 0.1° 即星等 < 0.001）；若把 L(λe) 也按 1 日取样插值，会因混叠差到该项幅度（±0.06 星等）。
+#[test]
+fn mars_magnitude_track_keeps_rotation_term() {
+    let Some(bsp) = crate::test_util::de406_bsp_path_if_exists() else {
+        println!("skipped: 无 DE406 BSP");
+        return;
+    };
+    let k = crate::astronomy::ephemeris::De406Kernel::open(&bsp).unwrap();
+    let (j0, j1) = (2460000.5, 2460020.5);
+    let target = PreparedTarget::new(&k, &HeliacalTarget::Planet(Planet::Mars), real(j0), real(j1));
+    let mut worst: f64 = 0.0;
+    for i in 0..97 {
+        let jd = j0 + 0.2071 * i as f64;
+        let direct = crate::astronomy::apparent::planet_magnitude(&k, Planet::Mars, TimePoint::new(TimeScale::TT, real(jd))).unwrap().as_f64();
+        let got = target.mag_at(real(jd)).unwrap().as_f64();
+        worst = worst.max((got - direct).abs());
+    }
+    println!("火星星等取样插值与直接全算之差至多 {worst:.5}");
+    assert!(worst < 0.001, "{worst}");
+}
+
+/// 行星眩光源：2023-03-01 昏，金星（−4.0 等）与木星（−2.1 等）相距约 0.9°（北京，次日合最近约 0.5°）。木星处背景计入金星眩光（Schaefer 1991
+/// 式 1、3，公式本身由 `glare_galilean_satellites_schaefer1991` 检验）后，背景增量应等于按角距、消光独立算得的眩光；
+/// 火星距金星约 70°，眩光（∝ θ⁻²）可略。
+#[test]
+fn planet_glare_venus_jupiter_2023() {
+    let _ = try_init_full_nutation_from_repo();
+    let Some(bsp) = crate::test_util::de406_bsp_path_if_exists() else {
+        println!("skipped: 无 DE406 BSP");
+        return;
+    };
+    let k = crate::astronomy::ephemeris::De406Kernel::open(&bsp).unwrap();
+    let (j0, j1) = (2460000.5, 2460010.5);
+    let plain = GeocentricTracks::new(&k, real(j0), real(j1), true, &ApparentPipelineOptions::default());
+    let glare = GeocentricTracks::new(&k, real(j0), real(j1), true, &ApparentPipelineOptions::default()).with_planet_glare(&k, real(j0), real(j1));
+    let obs = observer(116.39, 39.91, 50.0);
+    let dt = Duration::in_seconds(real(69.2));
+    let gast = crate::astronomy::time::earth_rotation::gast;
+    let mut tab = crate::test_util::CheckTable::new("heliacal_planet_glare_venus_2023", &["目标", "时刻(TT)", "与金星角距°", "背景 nL（不计）", "金星眩光 nL", "极限星等（不计）", "极限星等（计）", "差"]);
+    tab.meta("行星作眩光源：2023-03-01 昏金星合木星（北京，DE406，缺省模型）；金星眩光按 Schaefer 1991 式 1 + 式 3");
+    for p in [Planet::Jupiter, Planet::Mars] {
+        let target = PreparedTarget::new(&k, &HeliacalTarget::Planet(p), real(j0), real(j1));
+        for hour in [10.9, 11.2, 11.5] {
+            let t0 = real(2460004.5 + hour / 24.0);
+            let g = gast(t0 - dt.seconds() / real(86400.0), t0);
+            let (Some(s0), Some(s1)) = (
+                HeliacalSky::new(&plain, obs, dt, HeliacalOptions::default()).sample(&target, t0, g),
+                HeliacalSky::new(&glare, obs, dt, HeliacalOptions::default()).sample(&target, t0, g),
+            ) else {
+                continue;
+            };
+            let geo = |b: Body| {
+                let m = crate::astronomy::apparent::body_apparent_equatorial(&k, b, TimePoint::new(TimeScale::TT, t0), &ApparentPipelineOptions::default()).to_meters();
+                let n = (m[0] * m[0] + m[1] * m[1] + m[2] * m[2]).sqrt();
+                [(m[0] / n).as_f64(), (m[1] / n).as_f64(), (m[2] / n).as_f64()]
+            };
+            let (u, v) = (geo(Body::Planet(p)), geo(Body::Planet(Planet::Venus)));
+            let sep = (u[0] * v[0] + u[1] * v[1] + u[2] * v[2]).clamp(-1.0, 1.0).acos().to_degrees();
+            let (a, b) = (s0.lim.as_f64(), s1.lim.as_f64());
+            let added = (s1.sky_nl - s0.sky_nl).as_f64();
+            println!("{p:?} {hour}h：角距 {sep:.3}°，背景 {:.0} nL，金星眩光 {added:.1} nL，极限星等 {a:.3} → {b:.3}", s0.sky_nl.as_f64());
+            tab.row(vec![format!("{p:?}"), crate::test_util::jd_to_calendar(t0.as_f64()), format!("{sep:.3}"), format!("{:.0}", s0.sky_nl.as_f64()), format!("{added:.1}"), format!("{a:.3}"), format!("{b:.3}"), format!("{:+.4}", b - a)]);
+            if p == Planet::Jupiter {
+                // 独立估算：只计眼内散射主项，消光取 0（上界）与 1 等（下界）之间
+                let hi = 4.63e7 * 10f64.powf(-0.4 * (-4.0 + 16.57)) / (sep * sep) * 1.2;
+                assert!(added > 0.0 && added < hi, "金星眩光 {added} nL 不在 (0, {hi})");
+                assert!(b < a);
+            } else {
+                assert!(added < 1.0 && (b - a).abs() < 0.001, "火星处金星眩光 {added} nL");
+            }
+        }
+    }
+    tab.write();
+}

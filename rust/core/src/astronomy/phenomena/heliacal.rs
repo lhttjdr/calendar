@@ -17,7 +17,8 @@
 //! 自转角速率外推。
 
 use crate::astronomy::apparent::{
-    body_apparent_equatorial, horizontal, planet_magnitude, right_ascension_declination, star_apparent_equatorial, topocentric,
+    body_apparent_equatorial, horizontal, mars_effective_central_meridian_deg, mars_rotation_correction, planet_magnitude, planet_magnitude_geometry,
+    planet_magnitude_v, right_ascension_declination, MagnitudePlanet, MagnitudeGeometry, MARS_ROTATION_DEG_PER_DAY, star_apparent_equatorial, topocentric,
     ApparentPipelineOptions,
 };
 use crate::astronomy::correction::{refraction_from_geometric, Atmosphere, RefractionModel};
@@ -33,7 +34,7 @@ use crate::quantity::epoch::Epoch;
 use crate::quantity::position::Position;
 use crate::quantity::reference_frame::ReferenceFrame;
 
-use super::track::{MagTrack, Track};
+use super::track::{Grid, MagTrack, Track};
 use super::visibility::{glare_nl, limiting_magnitude, moon_magnitude, sky_brightness_nl, Eye, SkyConditions, SkyGeometry};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -89,6 +90,10 @@ pub struct HeliacalOptions {
     /// 是否计月亮的眼内散射眩光（Schaefer 1991 式 3；大气散射晕已在月光模型中，不重复计）。原文以 161 次月旁观测检验，
     /// 误差约 0.35 等。月亮按位于月心的点源处理，角距下限取月面视半径 0.26°。
     pub include_moon_glare: bool,
+    /// 是否计行星作眩光源（Schaefer 1991 式 1 大气散射晕 + 式 3 眼内散射，点源），如金星旁的暗星。眩光源须先由
+    /// [`GeocentricTracks::with_planet_glare`] 加入取样（[`heliacal_events`] 在此项为真时自动加入）；目标本身不计。
+    /// 行星不在天空亮度模型中，故两项都计；角距下限取 1′（式 3 要求角距大于眼的分辨角）。
+    pub include_planet_glare: bool,
     /// 天体视高度用的折射模型，大气取观测者海拔的标准状态。
     pub refraction: RefractionModel,
 }
@@ -103,6 +108,7 @@ impl Default for HeliacalOptions {
             twilight_limit_deg: real(-18.0),
             include_moon: true,
             include_moon_glare: true,
+            include_planet_glare: true,
             refraction: RefractionModel::RayTrace,
         }
     }
@@ -136,14 +142,25 @@ pub enum HeliacalTarget {
 pub struct GeocentricTracks {
     sun: Track,
     moon: Option<Track>,
+    /// 作眩光源的行星（[`Self::with_planet_glare`]）
+    glare_planets: Vec<(Planet, PreparedTarget)>,
 }
+
+/// 作眩光源的行星：水、金、火、木、土（天王星、海王星最亮约 5.3、7.7 等，眩光可略）。
+pub const GLARE_PLANETS: [Planet; 5] = [Planet::Mercury, Planet::Venus, Planet::Mars, Planet::Jupiter, Planet::Saturn];
 
 impl GeocentricTracks {
     /// [jd_start, jd_end]（TT）。`with_moon` 为假时不取月（不计月光，或提供者不含月）。
     pub fn new<P: EphemerisProvider>(eph: &P, jd_start: Real, jd_end: Real, with_moon: bool, opts: &ApparentPipelineOptions) -> Self {
         let (t0, t1) = (jd_start - real(2.0), jd_end + real(2.0));
         let body = |b: Body| Track::build(t0, t1, |t| body_apparent_equatorial(eph, b, TimePoint::new(TimeScale::TT, t), opts).to_meters());
-        Self { sun: body(Body::Sun), moon: with_moon.then(|| body(Body::Moon)) }
+        Self { sun: body(Body::Sun), moon: with_moon.then(|| body(Body::Moon)), glare_planets: Vec::new() }
+    }
+
+    /// 加入行星眩光源（[`GLARE_PLANETS`]）的位置与星等取样，区间同 [`Self::new`]。
+    pub fn with_planet_glare<P: EphemerisProvider>(mut self, eph: &P, jd_start: Real, jd_end: Real) -> Self {
+        self.glare_planets = GLARE_PLANETS.iter().map(|&p| (p, PreparedTarget::new(eph, &HeliacalTarget::Planet(p), jd_start, jd_end))).collect();
+        self
     }
 }
 
@@ -161,13 +178,15 @@ fn horizon_vec(az_deg: Real, alt_deg: Real) -> [Real; 3] {
 }
 
 #[derive(Clone, Copy)]
-struct Sample {
+pub(crate) struct Sample {
     jd_tt: Real,
     alt: Real,
     sun_alt: Real,
     daz: Real,
     mag: Real,
-    lim: Real,
+    pub(crate) lim: Real,
+    /// 目标处背景亮度（nL，含眩光）
+    pub(crate) sky_nl: Real,
 }
 
 impl Sample {
@@ -180,7 +199,28 @@ impl Sample {
 pub struct PreparedTarget {
     pos: Track,
     mag: MagTrack,
+    /// 火星：有效中央经度减去 Ẇ(t − J2000) 后的 (cos, sin)。火星自转修正 L(λe) 随中央经度一日转约 351°，按 1 日取样插值
+    /// 会混叠，故火星的 `mag` 不含此项，扫描时按此「去自转」的经度在该时刻补算。
+    mars_cm: Option<Grid<[Real; 2]>>,
     bv: Real,
+    /// 目标为行星时为该行星（作眩光源时排除自身）
+    planet: Option<Planet>,
+}
+
+impl PreparedTarget {
+    pub(crate) fn mag_at(&self, jd_tt: Real) -> Option<Real> {
+        let base = self.mag.mag_at(jd_tt)?;
+        let Some(cm) = &self.mars_cm else { return Some(base) };
+        let (i, w) = cm.locate(jd_tt);
+        let (mut c, mut s) = (real(0.0), real(0.0));
+        for (j, wj) in w.iter().enumerate() {
+            c = c + *wj * cm.pts[i + j][0];
+            s = s + *wj * cm.pts[i + j][1];
+        }
+        let e = s.atan2(c) * real(180.0 / core::f64::consts::PI) + real(MARS_ROTATION_DEG_PER_DAY) * (jd_tt - real(2451545.0));
+        let e = real(e.as_f64().rem_euclid(360.0));
+        Some(base + mars_rotation_correction(e))
+    }
 }
 
 impl PreparedTarget {
@@ -190,20 +230,41 @@ impl PreparedTarget {
         let po = ApparentPipelineOptions::default();
         let tp = |t: Real| TimePoint::new(TimeScale::TT, t);
         match *target {
+            HeliacalTarget::Planet(Planet::Mars) => Self {
+                pos: Track::build(t0, t1, |t| body_apparent_equatorial(eph, Body::Planet(Planet::Mars), tp(t), &po).to_meters()),
+                mag: MagTrack::build(t0, t1, |t| {
+                    let g = planet_magnitude_geometry(eph, Planet::Mars, tp(t));
+                    planet_magnitude_v(MagnitudePlanet::Mars, &MagnitudeGeometry { mars_sub_longitudes_deg: None, ..g }, true)
+                }),
+                mars_cm: Some(Grid::build(t0, t1, |t| {
+                    let (o, s) = planet_magnitude_geometry(eph, Planet::Mars, tp(t)).mars_sub_longitudes_deg.unwrap_or((real(0.0), real(0.0)));
+                    let e = mars_effective_central_meridian_deg(o, s) - real(MARS_ROTATION_DEG_PER_DAY) * (t - real(2451545.0));
+                    let r = PlaneAngle::from_deg(e).rad();
+                    [r.cos(), r.sin()]
+                })),
+                bv: planet_color_bv(Planet::Mars),
+                planet: Some(Planet::Mars),
+            },
             HeliacalTarget::Planet(p) => Self {
                 pos: Track::build(t0, t1, |t| body_apparent_equatorial(eph, Body::Planet(p), tp(t), &po).to_meters()),
                 mag: MagTrack::build(t0, t1, |t| planet_magnitude(eph, p, tp(t))),
+                mars_cm: None,
                 bv: planet_color_bv(p),
+                planet: Some(p),
             },
             HeliacalTarget::PlanetFixedMagnitude(p, m) => Self {
                 pos: Track::build(t0, t1, |t| body_apparent_equatorial(eph, Body::Planet(p), tp(t), &po).to_meters()),
                 mag: MagTrack::build(t0, t1, |_| Some(m)),
+                mars_cm: None,
                 bv: planet_color_bv(p),
+                planet: Some(p),
             },
             HeliacalTarget::Star(s) => Self {
                 pos: Track::build(t0, t1, |t| star_apparent_equatorial(eph, &s, tp(t), &po).to_meters()),
                 mag: MagTrack::build(t0, t1, |_| Some(s.vmag)),
+                mars_cm: None,
                 bv: s.bv.unwrap_or(real(0.5)),
+                planet: None,
             },
         }
     }
@@ -239,21 +300,26 @@ impl<'a> HeliacalSky<'a> {
         (h.azimuth.rad() * d, h.altitude.rad() * d)
     }
 
+    /// 视高度（含折射，大气取观测者海拔的标准状态）与方位角（度）。
+    fn horiz_refracted(&self, geo: [Real; 3], jd_tt: Real, g: PlaneAngle) -> (Real, Real) {
+        let (az, alt) = self.horiz(geo, jd_tt, g);
+        let refr = refraction_from_geometric(PlaneAngle::from_deg(alt), self.opts.refraction, &Atmosphere::standard_at_height(self.observer.height)).rad() * real(180.0 / core::f64::consts::PI);
+        (az, alt + refr)
+    }
+
     /// 某时刻：太阳在晨昏蒙影时段、天体在最低高度之上且星等有定义时返回该时刻的可见性；否则 None。`g` 为该时刻 GAST。
-    fn sample(&self, tg: &PreparedTarget, jd_tt: Real, g: PlaneAngle) -> Option<Sample> {
+    pub(crate) fn sample(&self, tg: &PreparedTarget, jd_tt: Real, g: PlaneAngle) -> Option<Sample> {
         let s_geo = self.tracks.sun.at(jd_tt);
         let (s_az, s_alt) = self.horiz(s_geo, jd_tt, g);
         if s_alt >= real(-50.0 / 60.0) || s_alt < self.opts.twilight_limit_deg {
             return None;
         }
         let p_geo = tg.pos.at(jd_tt);
-        let (p_az, p_alt_geom) = self.horiz(p_geo, jd_tt, g);
-        let refr = refraction_from_geometric(PlaneAngle::from_deg(p_alt_geom), self.opts.refraction, &Atmosphere::standard_at_height(self.observer.height)).rad() * real(180.0 / core::f64::consts::PI);
-        let p_alt = p_alt_geom + refr;
+        let (p_az, p_alt) = self.horiz_refracted(p_geo, jd_tt, g);
         if p_alt <= self.opts.min_altitude_deg {
             return None;
         }
-        let mag = tg.mag.mag_at(jd_tt)?;
+        let mag = tg.mag_at(jd_tt)?;
         let p_vec = horizon_vec(p_az, p_alt);
         let moon = if self.opts.include_moon { self.tracks.moon.as_ref() } else { None }.and_then(|m| {
             let m_geo = m.at(jd_tt);
@@ -290,8 +356,24 @@ impl<'a> HeliacalSky<'a> {
                 sky = sky + glare_nl(m_moon, rho.max(real(0.26)), kx).eye;
             }
         }
+        if self.opts.include_planet_glare {
+            for (gp, src) in &self.tracks.glare_planets {
+                if tg.planet == Some(*gp) {
+                    continue;
+                }
+                let (g_az, g_alt) = self.horiz_refracted(src.pos.at(jd_tt), jd_tt, g);
+                let Some(m_src) = src.mag_at(jd_tt) else { continue };
+                if g_alt <= real(0.0) {
+                    continue;
+                }
+                let rho = angle_deg(p_vec, horizon_vec(g_az, g_alt));
+                let kx = k * super::visibility::air_mass((real(90.0) - g_alt) * real(core::f64::consts::PI / 180.0));
+                let gl = glare_nl(m_src, rho.max(real(1.0 / 60.0)), kx);
+                sky = sky + gl.atmospheric + gl.eye;
+            }
+        }
         let r = limiting_magnitude(sky, dm, tg.bv, &self.opts.eye);
-        Some(Sample { jd_tt, alt: p_alt, sun_alt: s_alt, daz, mag, lim: r.limiting_magnitude })
+        Some(Sample { jd_tt, alt: p_alt, sun_alt: s_alt, daz, mag, lim: r.limiting_magnitude, sky_nl: sky })
     }
 
     /// [t0, t1]（TT）内可见裕度（极限星等 − 星等）最大的取样；无任何满足条件的取样返回 None。
@@ -394,7 +476,10 @@ pub fn heliacal_events<P: EphemerisProvider>(
     jd_end: Real,
     options: &HeliacalOptions,
 ) -> Vec<HeliacalEvent> {
-    let tracks = GeocentricTracks::new(eph, jd_start, jd_end, options.include_moon, &ApparentPipelineOptions::default());
+    let mut tracks = GeocentricTracks::new(eph, jd_start, jd_end, options.include_moon, &ApparentPipelineOptions::default());
+    if options.include_planet_glare {
+        tracks = tracks.with_planet_glare(eph, jd_start, jd_end);
+    }
     let prepared = PreparedTarget::new(eph, target, jd_start, jd_end);
     HeliacalSky::new(&tracks, *observer, delta_t, options.clone()).events(&prepared, jd_start, jd_end)
 }

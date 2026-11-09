@@ -23,6 +23,7 @@ TESTS=(
   occultations_vs_skyfield
   telescope_model_vs_schaefer1992
   matches_ap_mag_v3_official_test_data
+  mars_sub_longitudes_vs_horizons_in_ap_mag_data
   planet_magnitude_vs_skyfield
   star_apparent_vs_skyfield
   star_deflection_near_sun_vs_skyfield
@@ -43,6 +44,7 @@ TESTS=(
   schaefer1987_table7_venus_yucatan
   schaefer2000_sirius_egypt
   heliacal_brackets_conjunctions
+  planet_glare_venus_jupiter_2023
   widths_vs_yuanshi_table
   winter_solstice_lodge_positions_vs_yuanshi
   qing_determinatives_vs_pannai_table_9_1_4

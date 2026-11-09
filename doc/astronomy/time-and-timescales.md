@@ -96,7 +96,7 @@ $$t = \frac{T - T_0}{\Delta T_{\mathrm{ref}}}$$
 
 ### 本实现中的闰秒表
 
-- 程序内建 **IERS 闰秒表**（与 Bulletin C 一致）：(MJD_UTC, TAI−UTC)，从 1972-01-01（+10）至 2017-01-01（+37）。更晚日期沿用当前累计值；若 IERS 宣布新闰秒，需更新该表（如 `rust/core/src/astronomy/time.rs` 中的 `LEAP_SECONDS_TABLE`）。
+- 程序内建 **IERS 闰秒表**（与 Bulletin C 一致）：(MJD_UTC, TAI−UTC)，从 1972-01-01（+10）至 2017-01-01（+37）。更晚日期沿用当前累计值；若 IERS 宣布新闰秒，需更新该表（`rust/core/src/astronomy/time/scales.rs` 中的 `LEAP_SECONDS_TABLE`）。
 
 ### 争议与未来（取消闰秒）
 
@@ -167,5 +167,27 @@ $$t = \frac{T - T_0}{\Delta T_{\mathrm{ref}}}$$
   （UTC ≈ TT − ΔT，`scales::UTC_LEAP_SECOND_START_JD`；2026-11-06 前此处误为只减 32.184 s，见 model-pairing.md 第七节）。
 - **闰秒**：TAI↔UTC 使用内建 IERS 闰秒表；若 IERS 发布新闰秒，需更新表中最后一笔之后的条目。
 - **GPST**：需要时可经 TT→TAI→GPST（GPST = TAI − 19 s）换算。
+
+### 换算现状（2026-11-09 核查）
+
+`TimePoint::to_scale`（`rust/core/src/astronomy/time/scales.rs`）一律经 TT 中转，TT、TAI、TDB、UTC、UT1、GPST 任意两者皆可换：
+
+| 时标 | 与 TT 的关系 |
+|---|---|
+| TAI | TT − 32.184 s |
+| GPST | TAI − 19 s |
+| TDB | 周期项近似（见上「实用近似」） |
+| UTC | 1972 年起按内建闰秒表（TAI − UTC，至 2017-01-01 为 37 s，此后沿用）；此前以 UT1 近似 |
+| UT1 | TT − ΔT，ΔT 取模型（`delta_t`：MS2021 并按缺省月历表配套，见上「ΔT」）；UT1 → TT 以 ΔT(TT) 迭代两次 |
+
+- 原代码注释称「换算至 UTC/UT1 需 TimeScaleContext（暂未实现）」，与实情不符：UTC、UT1 的换算早已在 `to_scale` 内实现，
+  另无名为 TimeScaleContext 的类型（project-and-implementation.md §11.6 的「TimeScaleContext.deltaT」是 Rust 重写前旧实现的名字，注释系重写时随手留下）。核查时发现旧 `to_scale` 只列了
+  部分组合，UTC↔UT1、TDB↔UT1、TAI↔UT1、GPST↔UTC、GPST↔UT1、TDB↔TAI、TDB↔GPST 落入缺省分支而原样返回儒略日（差可达 ΔT 或
+  数十秒）；仓库内现有调用只用 TT 起止的组合，未受影响。现改为经 TT 中转，测试 `scales::tests_leap_seconds::all_scale_pairs_roundtrip`
+  验三个历元（2017 年、1858 年、公元 1 年）× 36 组往返差 < 1 ms，及 2023 年 UTC − UT1 = ΔT − 69.184 s、GPST − UTC = 18 s。
+- 不另设上下文对象的理由：全局 ΔT 已随月历表配套（`time_scale_delta_t`）；需要别的 ΔT 的场合——史书天象检验（ΔT 及其 σ）、
+  日月食、月掩星、伏见——各函数都显式收 ΔT 参数，由调用方给定。
+- 限制：UT1 用模型 ΔT，不读 IERS 实测 UT1 − UTC（近代模型与实测之差在 1 s 内，对历书民用时刻无影响；精密现代观测需另行换算）；
+  闰秒表须随 IERS Bulletin C 更新。
 
 **参考文献**：`doc/references/sunMoon_simp.pdf`；IAU SOFA；IERS Conventions。

@@ -9,7 +9,7 @@ pub(crate) const TRACK_STEP: f64 = 1.0;
 /// 四点 Lagrange 插值的等距序列。
 pub(crate) struct Grid<T> {
     t0: Real,
-    pts: Vec<T>,
+    pub(crate) pts: Vec<T>,
 }
 
 fn grid_times(t0: Real, t1: Real) -> (Real, usize) {

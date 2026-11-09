@@ -1,6 +1,7 @@
 //! 视位置：光行时、岁差、章动与太阳/月球视黄经；视赤道位置（含距离）、站心视位置与地平坐标；行星地心视位置与视星等；恒星视位置。
 
 mod equatorial;
+mod iau_rotation;
 mod longitude;
 mod magnitude;
 mod planets;
@@ -8,6 +9,7 @@ mod solar_time;
 mod star;
 mod topocentric;
 pub use equatorial::*;
+pub use iau_rotation::*;
 pub use longitude::*;
 pub use magnitude::*;
 pub use planets::*;
