@@ -31,13 +31,34 @@ const pt = (r: number, deg: number) => {
   return [C + r * Math.sin(a), C - r * Math.cos(a)] as const
 }
 
-/** 字头朝外的文字（tangential 书写），可多行沿半径向内排 */
+/**
+ * 字头朝外的文字，沿圆弧排（罗盘刻法）：多字各占弧上一位、各依其位旋转，顺时针读；
+ * 字距按字号与半径折成角度，空格计半字。非字符串内容（如数字表达式）照单一位置排。
+ */
 function T(p: { r: number; deg: number; children: ReactNode; size?: number; fill?: string; weight?: number }) {
-  const [x, y] = pt(p.r, p.deg)
+  const size = p.size ?? 14
+  const common = { fontSize: size, fill: p.fill ?? '#000', fontWeight: p.weight ?? 400, textAnchor: 'middle' as const, dominantBaseline: 'central' as const }
+  const text = typeof p.children === 'string' ? p.children : typeof p.children === 'number' ? String(p.children) : null
+  const chars = text != null ? Array.from(text) : null
+  if (!chars || chars.length <= 1) {
+    const [x, y] = pt(p.r, p.deg)
+    return <text x={x} y={y} {...common} transform={`rotate(${p.deg} ${x} ${y})`}>{p.children}</text>
+  }
+  // 每字所占弧长：汉字一字宽，空格半字，ASCII（数字、°）约六成
+  const w = chars.map((c) => (c === ' ' ? 0.5 : c.charCodeAt(0) < 0x2e80 ? 0.6 : 1) * size * 1.02)
+  const total = w.reduce((a, b) => a + b, 0)
+  const toDeg = 180 / Math.PI / p.r
+  let acc = -total / 2
   return (
-    <text x={x} y={y} fontSize={p.size ?? 14} fill={p.fill ?? '#000'} fontWeight={p.weight ?? 400} textAnchor="middle" dominantBaseline="central" transform={`rotate(${p.deg} ${x} ${y})`}>
-      {p.children}
-    </text>
+    <g>
+      {chars.map((c, k) => {
+        const d = p.deg + (acc + w[k]! / 2) * toDeg
+        acc += w[k]!
+        if (c === ' ') return null
+        const [x, y] = pt(p.r, d)
+        return <text key={k} x={x} y={y} {...common} transform={`rotate(${d} ${x} ${y})`}>{c}</text>
+      })}
+    </g>
   )
 }
 
