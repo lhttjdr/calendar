@@ -8,7 +8,7 @@
 
 | 工作流 | 拉取 | 用途 |
 |---|---|---|
-| pages | 编进 WASM 的 CSV（`include_str!`：年号、改元、主表分期、平气、民俗月表与月家神煞等）与前端拉取的表 | 指针编进 WASM 不报错、只会让线上数据静默失效，故另有一步逐个检查不是指针 |
+| pages | `data/**/*.csv`（编进 WASM 的 CSV 与前端拉取的表皆在其中，共数十 MB） | 指针编进 WASM 不报错，只会让线上数据静默失效或运行时 panic，故另有一步检查：清单自源码所有 `include_str!("…csv")` 自动取得，再加运行时取用的星表、都城、改元表，逐个检查存在且不是指针。2026-11-09 前 pages 只拉手列的九个 CSV，新嵌入的类编吉日表 `leibian_jiaqu_jiri.csv`、董公三表未列入，编进的是指针文本，线上婚嫁择吉解析时 panic（`RuntimeError: unreachable`），面板显示「无法判定」；本地构建有真文件而不现，以下载 Pages 产物本地复现定位 |
 | coverage | `data/**/*.csv`、`data/**/*.txt`、`vendor/calendar/**/*.csv`；DE406 BSP（301 MB）见下 | 测试读取的表 |
 
 **DE406 BSP**：VSOP87、ELPMPP02、行星视位置、近距、行星现象等对 DE406 的精度测试要用。以其 LFS oid 为键存 `actions/cache`（restore/save 分开，拉到后立即存，不等作业成功），只在缓存未中时消耗一次 LFS 流量（GitHub 缓存 7 日未用即逐出，coverage 每次推送都跑，正常不会逐出）。

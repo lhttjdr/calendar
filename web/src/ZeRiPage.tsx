@@ -165,11 +165,18 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
   const [hengTian, setHengTian] = useState(false)
   const nvGz = (((nvYear - 4) % 60) + 60) % 60
   const m = props.monthLunar
+  const [err, setErr] = useState<string | null>(null)
   const list = useMemo((): JiaquDay[] | null => {
     if (typeof props.wasm.jiaqu_days_json !== 'function') return null
     try {
+      setErr(null)
       return JSON.parse(props.wasm.jiaqu_days_json(m.jd0, props.ear, Uint8Array.from(m.months), Uint8Array.from(m.days), Uint8Array.from(m.leaps), Uint8Array.from(m.dims), Int8Array.from(m.phases), nvGz, wengGu, fuMu, naXu, (useYue ? 1 : 0) | (zt === 1 ? 2 : zt === 2 ? 128 : 0) | (xieji === 1 ? 32 : xieji === 2 ? 64 : 0) | (useXiong ? 4 : 0) | (zhiHua ? 8 : 0) | (aoTou ? 16 : 0) | (chiKou === 1 ? 256 : chiKou === 2 ? 512 : 0) | (hengTian ? 1024 : 0))) as JiaquDay[]
-    } catch { return null }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error('jiaqu_days_json', e)
+      setErr(msg)
+      return null
+    }
   }, [props.wasm, props.ear, m, nvGz, wengGu, fuMu, naXu, useYue, zt, xieji, useXiong, zhiHua, aoTou, chiKou, hengTian])
   return (
     <Card size="small" title={`婚嫁择吉（${props.monthLabel}）`} style={{ marginTop: 16 }}>
@@ -193,7 +200,7 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
         <Checkbox checked={zhiHua} onChange={(e) => setZhiHua(e.target.checked)}>用制化（周堂回避、白虎禳法；协纪不录）</Checkbox>
         <Checkbox checked={onlyOk} onChange={(e) => setOnlyOk(e.target.checked)}>只看可用之日</Checkbox>
       </Flex>
-      {!list ? <Text type="secondary">无法判定</Text> : (
+      {!list ? <Text type="secondary">{`无法判定${err ? `：${err}` : '（wasm 无此函数）'}`}</Text> : (
         <div style={{ fontSize: 12, lineHeight: 1.7 }}>
           {list.map((d, i) => (onlyOk && !d.ok ? null : (
             <div key={d.jdn} style={{ borderBottom: '1px solid #f0f0f0', padding: '2px 0' }}>
