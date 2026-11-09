@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, createContext, useContext, lazy, Suspense } from 'react'
-import { Button, Card, Select, Radio, Checkbox, Space, Flex, Typography, Tag, Spin, Alert, Modal, Tabs, InputNumber } from 'antd'
-import { LeftOutlined, RightOutlined, CalendarOutlined, SettingOutlined, EyeOutlined } from '@ant-design/icons'
+import { Button, Card, Select, Radio, Checkbox, Flex, Typography, Tag, Spin, Alert, Modal, InputNumber } from 'antd'
+import { SettingOutlined, EyeOutlined } from '@ant-design/icons'
 import { getCurrentPosition } from './sensors'
 import { AppHeader, useIsNarrow, type ViewKey } from './AppHeader'
 import { parseHash, buildHash } from './urlState'
@@ -127,7 +127,8 @@ const DEFAULT_DAY_INFO_LAYERS: Record<DayInfoLayerKey, boolean> = {
   calendar_regimeCalendars: true,
   calendar_ganzhi: true,
   folk_jishi: true,
-  repoStatus: true,
+  // 历表加载状态属工程信息，缺省不显示（「显示图层」可开）
+  repoStatus: false,
 }
 
 function getStoredDayInfoLayers(): Record<DayInfoLayerKey, boolean> {
@@ -540,15 +541,6 @@ function App() {
     try { localStorage.setItem(CALENDAR_MODE_STORAGE_KEY, next) } catch {}
   }
 
-  const handleYearChange = (y: number) => {
-    setYear(y)
-    setSelectedDate((prev) => ({
-      year: y,
-      month: prev.month,
-      day: clampCivilDay(y, prev.month, prev.day),
-    }))
-    setIsLiveMode(false)
-  }
   const prev = () => {
     const [newYear, newMonth] = month === 1 ? [year - 1, 12] : [year, month - 1]
     setYear(newYear)
@@ -810,16 +802,6 @@ function App() {
   const nayinOf = (name: string | null | undefined) =>
     wasm && name && typeof wasm.nayin_of_ganzhi_name === 'function' ? wasm.nayin_of_ganzhi_name(name) : ''
 
-  const yearOptions = useMemo(() => {
-    const start = -2000
-    const end = Math.max(2100, today.year + 50)
-    return Array.from({ length: end - start + 1 }, (_, i) => {
-      const y = start + i
-      // y 是天文年号：0 为公元前 1 年，-1 为公元前 2 年
-      const label = y <= 0 ? `公元前${1 - y}年` : `${y}年`
-      return { label, value: y }
-    })
-  }, [today.year])
   const timeZoneOptions = useMemo(() => getTimeZoneOptions(), [])
   const weekStartOptions = WEEKDAY_NAMES.map((name, idx) => ({ label: `周${name}`, value: idx }))
   const ganzhiPresetOptions = [
@@ -1192,8 +1174,25 @@ function App() {
                     </div>
                   )}
                   {folkDay?.shensha && (
-                    <div style={{ fontSize: 11, lineHeight: 1.5, color: 'rgba(0,0,0,0.65)' }}>
-                      {folkDay.shensha.split('\n').filter((l) => l.startsWith('時憲書宜') || l.startsWith('忌：')).map((l) => <div key={l}>{l.replace(/^時憲書宜/, '宜')}</div>)}
+                    <div style={{ fontSize: 12, lineHeight: 1.5 }}>
+                      {(() => {
+                        // 宜在前、照录；忌事多，收成一行可展开
+                        const ls = folkDay.shensha.split('\n')
+                        const yi = ls.find((l) => l.startsWith('時憲書宜'))?.replace(/^時憲書宜[：:]?/, '') ?? ''
+                        const ji = ls.find((l) => l.startsWith('忌：'))?.replace(/^忌：/, '') ?? ''
+                        const jiN = ji.trim() ? ji.trim().split(/\s+/).length : 0
+                        return (
+                          <>
+                            <div><span style={{ color: '#237804', fontWeight: 600 }}>宜</span> {yi.trim() || '—'}</div>
+                            {jiN > 0 && (
+                              <details className="day-ji">
+                                <summary><span style={{ color: '#a8071a', fontWeight: 600 }}>忌</span> {`${jiN} 事`}</summary>
+                                <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.65)' }}>{ji}</div>
+                              </details>
+                            )}
+                          </>
+                        )
+                      })()}
                       <Button type="link" size="small" style={{ padding: 0, height: 'auto', fontSize: 11 }} onClick={() => setView('zeri')}>
                         神煞、年神方位详见「择日」 · 奇门六壬太乙见「排盘」
                       </Button>
@@ -1203,9 +1202,12 @@ function App() {
                     <div style={{ fontSize: 12, lineHeight: 1.5 }}>{folkDay.zajie}</div>
                   )}
                   {folkDay?.geng && (
-                    <div style={{ fontSize: 11, lineHeight: 1.5, color: 'rgba(0,0,0,0.6)' }}>
-                      {`更点（${gengdianMethod === 1 ? '元授时法' : '清台官法'}，当地真太阳时）：${folkDay.geng}`}
-                    </div>
+                    <details className="day-ji">
+                      <summary style={{ fontSize: 12 }}>更点</summary>
+                      <div style={{ fontSize: 11, lineHeight: 1.5, color: 'rgba(0,0,0,0.6)' }}>
+                        {`${gengdianMethod === 1 ? '元授时法' : '清台官法'}，当地真太阳时：${folkDay.geng}`}
+                      </div>
+                    </details>
                   )}
                 </div>
                 )}
@@ -1306,113 +1308,17 @@ function App() {
           {/* 右侧：日期时间 / 时区与语言 选项卡 + 选项 */}
           <Flex vertical gap={16} style={{ width: narrow ? '100%' : 260, flexShrink: 0 }}>
             <Card size="small" style={{ width: '100%' }}>
-              <Tabs
-                size="small"
-                items={[
-                  {
-                    key: 'datetime',
-                    label: '日期与时间',
-                    children: (
-                      <Space direction="vertical" style={{ width: '100%' }}>
-                        <div>
-                          <Text type="secondary" style={{ fontSize: 12 }}>年</Text>
-                          <Select value={year} onChange={handleYearChange} options={yearOptions} showSearch optionFilterProp="label" filterOption={(input, opt) => (opt?.label ?? '').toString().includes(input)} style={{ width: '100%', marginTop: 4 }} />
-                        </div>
-                        <div>
-                          <Text type="secondary" style={{ fontSize: 12 }}>月</Text>
-                          <Space.Compact style={{ width: '100%', marginTop: 4 }}>
-                            <Button icon={<LeftOutlined />} onClick={prev} />
-                            <Button style={{ flex: 1 }}>{month}月</Button>
-                            <Button icon={<RightOutlined />} onClick={next} />
-                          </Space.Compact>
-                        </div>
-                        <div>
-                          <Text type="secondary" style={{ fontSize: 12 }}>日</Text>
-                          <Select
-                            value={selectedDate.day}
-                            onChange={(d) => {
-                              setSelectedDate((prev) => ({ ...prev, day: d }))
-                              setIsLiveMode(false)
-                            }}
-                            options={monthDays.map((d) => ({ label: `${d}日`, value: d }))}
-                            style={{ width: '100%', marginTop: 4 }}
-                          />
-                        </div>
-                        <div>
-                          <Text type="secondary" style={{ fontSize: 12 }}>时分秒</Text>
-                          <Flex gap={6} style={{ marginTop: 4 }}>
-                            <Select
-                              size="small"
-                              value={selectedTime.hour}
-                              onChange={(h) => {
-                                setSelectedTime((t) => ({ ...t, hour: h }))
-                                setIsLiveMode(false)
-                              }}
-                              options={Array.from({ length: 24 }, (_, i) => ({ label: i.toString().padStart(2, '0'), value: i }))}
-                              style={{ flex: 1, minWidth: 0, fontSize: 12 }}
-                              getPopupContainer={(n) => n.parentElement ?? document.body}
-                            />
-                            <Select
-                              size="small"
-                              value={selectedTime.minute}
-                              onChange={(m) => {
-                                setSelectedTime((t) => ({ ...t, minute: m }))
-                                setIsLiveMode(false)
-                              }}
-                              options={Array.from({ length: 60 }, (_, i) => ({ label: i.toString().padStart(2, '0'), value: i }))}
-                              style={{ flex: 1, minWidth: 0, fontSize: 12 }}
-                              getPopupContainer={(n) => n.parentElement ?? document.body}
-                            />
-                            <Select
-                              size="small"
-                              value={selectedTime.second}
-                              onChange={(s) => {
-                                setSelectedTime((t) => ({ ...t, second: s }))
-                                setIsLiveMode(false)
-                              }}
-                              options={Array.from({ length: 60 }, (_, i) => ({ label: i.toString().padStart(2, '0'), value: i }))}
-                              style={{ flex: 1, minWidth: 0, fontSize: 12 }}
-                              getPopupContainer={(n) => n.parentElement ?? document.body}
-                            />
-                          </Flex>
-                        </div>
-                        {isLiveMode ? null : (
-                          <Button type="primary" icon={<CalendarOutlined />} onClick={() => { setIsLiveMode(true); goToday() }} block>返回实时</Button>
-                        )}
-                      </Space>
-                    ),
-                  },
-                  {
-                    key: 'locale',
-                    label: '时区与语言',
-                    children: (
-                      <Space direction="vertical" style={{ width: '100%' }}>
-                        <div>
-                          <Text type="secondary" style={{ fontSize: 12 }}>时区</Text>
-                          <Select
-                            value={timeZone}
-                            onChange={setTimeZone}
-                            options={timeZoneOptions}
-                            style={{ width: '100%', marginTop: 4 }}
-                            showSearch
-                            optionFilterProp="label"
-                            placeholder="选择时区"
-                          />
-                        </div>
-                        <div>
-                          <Text type="secondary" style={{ fontSize: 12 }}>语言</Text>
-                          <Select
-                            value="zh-CN"
-                            options={[{ label: '简体中文', value: 'zh-CN' }]}
-                            style={{ width: '100%', marginTop: 4 }}
-                            disabled
-                          />
-                        </div>
-                      </Space>
-                    ),
-                  },
-                ]}
+              <Text type="secondary" style={{ fontSize: 12 }}>时区</Text>
+              <Select
+                value={timeZone}
+                onChange={setTimeZone}
+                options={timeZoneOptions}
+                style={{ width: '100%', marginTop: 4 }}
+                showSearch
+                optionFilterProp="label"
+                placeholder="选择时区"
               />
+              <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 6 }}>日期、时刻在顶栏改（点日期弹出选择）</Text>
             </Card>
             <Button
               type="text"
