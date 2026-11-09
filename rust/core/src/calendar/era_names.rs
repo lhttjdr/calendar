@@ -214,6 +214,50 @@ impl EraNames {
     }
 }
 
+/// 敦煌纪年（第 3 层，依附第 2 层的敦煌朔日表与年号表）。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DunhuangYearName {
+    /// 「吐蕃」或「归义军」。
+    pub period: &'static str,
+    /// 岁干支（如「戊子」）。
+    pub ganzhi: &'static str,
+    /// 通行写法：吐蕃时期为地支纪年（如「子年」）；归义军时期为所奉中原年号（年号表主线年末年号，如「大中十二年」）。
+    pub label: String,
+    /// 本岁出土历日的原书定名（邓文宽 1996）：归义军各件多照原件历首，与中原年号不同者即敦煌书旧号（如「後梁貞明八年」，
+    /// 中原已改龙德二年）；吐蕃各件为邓氏按干支拟题。无出土历日为空。
+    pub documents: Vec<String>,
+}
+
+/// 敦煌某农历年的纪年。吐蕃时期（786—847）当地文书不用唐年号，以地支（或干支）纪年，称「子年」「丑年」；
+/// 归义军时期（848—1036）奉中原正朔，用中原年号，但改元消息传到沙州常迟，历日与文书多有延用旧号者，
+/// 故另列出土历日自身的定名。不在敦煌政权年限内为 None。
+pub fn dunhuang_year_name(
+    lunar_year: i32,
+    era_names: &EraNames,
+    dh: Option<&super::dunhuang::DunhuangCalendar>,
+) -> Option<DunhuangYearName> {
+    use super::dunhuang::{DUNHUANG_GUIYIJUN_FIRST_YEAR, DUNHUANG_LAST_YEAR, DUNHUANG_TUBO_FIRST_YEAR};
+    if !(DUNHUANG_TUBO_FIRST_YEAR..=DUNHUANG_LAST_YEAR).contains(&lunar_year) {
+        return None;
+    }
+    let ganzhi = super::gan_zhi::GAN_ZHI_60[(lunar_year - 4).rem_euclid(60) as usize];
+    let documents = dh.map(|d| d.document_titles(lunar_year).into_iter().map(str::to_string).collect()).unwrap_or_default();
+    let (period, label) = if lunar_year < DUNHUANG_GUIYIJUN_FIRST_YEAR {
+        ("吐蕃", format!("{}年", ganzhi.chars().nth(1).unwrap()))
+    } else {
+        let label = era_names
+            .get_primary(lunar_year)
+            .map(|e| {
+                // 只写年号（主线表交接年的政权栏取年初政权，如 923 年记「后梁·同光」，不宜连写）
+                let head = if e.era_name_simp.is_empty() { &e.regime_simp } else { &e.era_name_simp };
+                format!("{head}{}", e.era_year.map(year_to_cn).unwrap_or_default())
+            })
+            .unwrap_or_default();
+        ("归义军", label)
+    };
+    Some(DunhuangYearName { period, ganzhi, label, documents })
+}
+
 /// 取一个可能为空的字段，空串返回 None，非空按 `T::from_str` 解析（解析失败也返回 None，不报错——
 /// 数据本身的格式错误应该在生成 era_names_merged.csv 时就发现，这里容错即可）。
 fn parse_opt_u32(field: Option<&str>) -> Option<u32> {

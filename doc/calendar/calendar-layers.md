@@ -8,9 +8,9 @@
 | 层 | 内容 | 文件 |
 |----|------|------|
 | 1 独立基础层（不依赖天文） | JD↔儒略历/格里高利历；各朝代古历分数推步（平朔平气，仅作验证）；干支纯循环命名；历法换算选项 | `gregorian.rs`、`ancient_restore.rs`、`push_calendar.rs`、`daming_li.rs`、`gan_zhi.rs`、`options.rs` |
-| 2 聚合/实算层（依赖天文的朔、气） | 现算或查表得到某历法某农历年的岁数据（朔+中气） | `chinese_lunar.rs`（现算真朔真气）、`historical.rs`（查历史朔日表）；干支历"节气派"（`gan_zhi_options.rs` 一支） |
+| 2 聚合/实算层（依赖天文的朔、气） | 现算或查表得到某历法某农历年的岁数据（朔+中气） | `chinese_lunar.rs`（现算真朔真气）、`historical.rs`（查历史朔日表）、`dunhuang.rs`（敦煌出土历日有据之月）；干支历"节气派"（`gan_zhi_options.rs` 一支） |
 | 3 派生层（依赖第 2 层产出） | 政权·帝王·年号纪年；干支历"农历派" | `era_names.rs`、`era_gaiyuan.rs`、`month_labels.rs`；干支历"农历派"（`gan_zhi_options.rs` 另一支） |
-| 4 仲裁/路由层 | 某农历年该用哪种历法实现；实历覆盖范围内是否优先用实历 | `lifa.rs`（`LifaRegistry`）；`convert.rs`（"优先实历、缺省退回定气定朔"判断，见下方「已知问题」） |
+| 4 仲裁/路由层 | 某农历年该用哪种历法实现；实历覆盖范围内是否优先用实历；敦煌有据之月与主表逐月取舍 | `lifa.rs`（`LifaRegistry`、`resolve_dunhuang_day`）；`convert.rs`（"优先实历、缺省退回定气定朔"判断，见下方「已知问题」） |
 | 契约层（不计入四层） | `CalendarSystem` trait，JD↔各历法日期互转的通用接口，被第 1/2 层各历法系统实现 | `system.rs` |
 
 ---
@@ -44,6 +44,8 @@
 
 **对应数据**：
 - 朔日表：`vendor/calendar/chinese_calendar/实历朔日表.csv` — 主表每月朔的儒略历/格里高利历日期（按各朝颁历推步得出）。
+- 敦煌朔日表：`data/calendar/敦煌朔日表.csv` — 吐蕃、归义军时期敦煌出土具注历日有据之月（邓文宽 1996 附录一，第 1 级证据）；`dunhuang.rs` 只供有据之月，
+  无据之月退回主表还是不给由第 4 层 `lifa::DunhuangFallback` 选，见 [dunhuang-calendar.md](dunhuang-calendar.md)。
 
 ---
 
@@ -67,6 +69,9 @@
 
 **包含**：
 - **`lifa.rs`（`LifaRegistry`）**：解析历法总表，按时代/政权判断某个历史时期该用哪部历法。
+- **敦煌历**（`lifa::dunhuang_months`、`resolve_dunhuang_day`、`resolve_dunhuang_month`）：逐月选有据之月（第 2 层 `DunhuangCalendar`）或主表之月
+  （第 2 层 `HistoricalCalendar`），选项 `DunhuangFallback`；只挪动无据之月的月首使月长合 29、30 日，不推算朔日。纪年（吐蕃地支、归义军奉中原年号）
+  在第 3 层 `era_names::dunhuang_year_name`。见 [dunhuang-calendar.md](dunhuang-calendar.md)。
 - **`convert.rs`**：对外的"公历↔农历"换算入口，内含"实历覆盖范围内优先用实历（查 `historical.rs`），缺省退回定气定朔现算（`chinese_lunar.rs`）"的判断。
 
 ### 已知问题（写本文档时定位到，尚未修复）

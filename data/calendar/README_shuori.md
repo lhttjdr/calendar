@@ -286,6 +286,28 @@ in_month（日干支在该历所记之月）、jdn、julian、position（原文�
 《廿史朔闰表》（复原），与主表逐格全合；敦煌曆一栏为出土历日（当地自造之历）。`scripts/calendar_data/check_dunhuang_comparison.py`
 自校（月大小与相邻朔差全合）并写 `dunhuang_vs_main.csv`（敦煌有据之月与主表逐月日差），汇入 `doc/calendar/main-table-checks.md` 第三节。
 
+## 敦煌朔日表（`敦煌朔日表.csv`）
+
+「敦煌」政权（吐蕃、归义军时期当地自造之历）有据之月，供 `rust/core/src/calendar/dunhuang.rs` 读入（wasm 内嵌），由
+`scripts/calendar_data/build_dunhuang_shuori.py` 自 `敦煌历日_比较表.csv` 生成：敦煌曆一栏有朔之格 254 月（原件 144、原书括号推算 110），
+808—994 年；450、451 年北魏历日不入（属北魏推步政权）。出土历日是实物，属资料可靠性第 1 级；括号格是原书据该件残历条件推得。
+无据之月怎样补（退回主表 / 只认有据）在第 4 层 `lifa::DunhuangFallback`，规则、纪年与逐条检验见 `doc/calendar/dunhuang-calendar.md`。
+`#` 起首为注释行。前 8 列与 `推步政权朔日表.csv` 同式：
+
+| 列名 | 含义 |
+|------|------|
+| regime | 敦煌 |
+| calendar | 吐蕃时期敦煌历 / 归义军时期敦煌历 |
+| gregorian_year, gregorian_month, gregorian_day | 朔日（民用历：儒略历）。比较表只有干支，取同行中原曆朔（即主表）前后 3 日内同干支之日 |
+| lunar_year, lunar_month, is_leap | 敦煌历自身的岁、月（建寅）、闰否（比较表「敦煌月序」有字者从之；926 年「上年閏十二月」行为敦煌 926 年正月） |
+| 朔干支 | 原书敦煌朔 |
+| 朔依据 | 原件 / 推算（原书括号格） |
+| 月日数, 大小依据 | 30 / 29 / 空（原书「?」）；原件 / 推算 |
+| 文书, 文书纪年, 文书岁, 书页 | 文书编号、原书定名（归义军各件多照原件历首，吐蕃各件为拟题）、该件历日本岁（「表列次年正月」行记前一岁）、比较表书页；一月见于两件者以「；」并列 |
+
+检验产物：`dunhuang_shuori_check.csv`（比较表每格换算重现，`rust/core/examples/dunhuang_check.rs`）、`dunhuang_years.csv`（各岁纪年与闰月，同上）、
+`dunhuang_fallback_check.csv`（原件之月与主表、实际合朔比较，`scripts/phenomena/dunhuang_fallback_check.py`）。
+
 ## 平气参数表 `pingqi_lifa.csv`
 
 按当时行用历推算平气的参数（`rust/core/src/calendar/pingqi.rs` 以 `include_str!` 读入）。每部历一行：

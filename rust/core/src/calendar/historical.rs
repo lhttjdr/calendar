@@ -92,6 +92,22 @@ impl HistoricalCalendar {
             .map(|&(y, m, d, _, _)| (y, m, d))
     }
 
+    /// 朔日 JDN 落在 `[from_jdn, to_jdn]` 内的主表各月：(朔日 JDN, 农历年, 月, 闰否)，按朔日先后。
+    /// 供第 4 层把地方历表与主表按月拼合（如 [crate::calendar::lifa::resolve_dunhuang_day]）。
+    pub fn months_in_jdn_range(&self, from_jdn: i64, to_jdn: i64) -> Vec<(i64, i32, u8, bool)> {
+        let (y0, _, _) = super::gregorian::civil_from_jdn(from_jdn);
+        let (y1, _, _) = super::gregorian::civil_from_jdn(to_jdn);
+        let mut out: Vec<(i64, i32, u8, bool)> = self
+            .by_year
+            .range(y0 - 1..=y1 + 1)
+            .flat_map(|(&ly, v)| v.iter().map(move |&(y, m, d, lm, leap)| (super::gregorian::civil_to_jdn(y, m, d), ly, lm, leap == 1)))
+            .filter(|&(j, ..)| (from_jdn..=to_jdn).contains(&j))
+            .collect();
+        out.sort();
+        out.dedup();
+        out
+    }
+
     /// 用实历表为指定农历年生成 [ChineseLunarYearData]。
     ///
     /// 岁 = 去年十一月朔～今年十二月朔（与算历一致：含冬至之月为十一月）。朔日 JD 取该日 0h UT；表中日期为民用历
