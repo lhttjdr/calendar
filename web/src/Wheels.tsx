@@ -798,7 +798,7 @@ const GRID_RC: Record<number, [number, number]> = { 4: [0, 0], 9: [0, 1], 2: [0,
  * 玄空宅盘九宫格式（书中方格之式，南上）：每宫左上卦名、山星（蓝）居左、向星（红）居右、其下运星、角注流年与逐宫标记；
  * 与圆盘同数据，诸星亦沿洛书路径飞行（方格上即九宫飞星图之路）。随罗盘整盘转时可覆于房屋平面。
  */
-export function XuankongGrid({ d }: { d: XuankongWheelData }) {
+export function XuankongGrid({ d, sel, onSel }: { d: XuankongWheelData; sel?: number | null; onSel?: (g: number) => void }) {
   const S = 500, M = 30, W = (S - 2 * M) / 3
   const cx = (g: number) => M + W * GRID_RC[g]![1] + W / 2
   const cy = (g: number) => M + W * GRID_RC[g]![0] + W / 2
@@ -813,8 +813,8 @@ export function XuankongGrid({ d }: { d: XuankongWheelData }) {
         const zheng = d.zhengShen?.includes(g), ling = d.lingShen?.includes(g)
         const mk = marksOf(g)
         return (
-          <g key={g}>
-            <rect x={x + 1} y={y + 1} width={W - 2} height={W - 2} fill={zheng ? '#f6ffed' : ling ? '#fff1f0' : '#fffdf7'} stroke="#999" />
+          <g key={g} onClick={onSel ? () => onSel(g) : undefined} style={onSel ? { cursor: 'pointer' } : undefined}>
+            <rect x={x + 1} y={y + 1} width={W - 2} height={W - 2} fill={g === sel ? '#bae0ff' : zheng ? '#f6ffed' : ling ? '#fff1f0' : '#fffdf7'} stroke={g === sel ? '#1677ff' : '#999'} strokeWidth={g === sel ? 2 : 1} />
             <text x={x + 8} y={y + 18} fontSize={13} fill="#5b4a2e">{`${GUA_SYM[g] ?? ''}${GUA[g]}${CN_NUM[g]}`}</text>
             {mk.length > 0 && <text x={x + W - 6} y={y + W - 8} fontSize={10} fill="#a8071a" textAnchor="end">{mk.join(' ')}</text>}
           </g>
@@ -837,7 +837,8 @@ const XK_SHORT: Record<string, string> = { 正神: '正', 零神: '零', 正城�
 /** 兼向分段之色：下卦绿、替卦橙、小空亡浅红、大空亡红 */
 const DUAN_FILL: Record<string, string> = { 下卦: '#95de64', 替卦: '#ffc069', 小空亡: '#ffa39e', 大空亡: '#cf1322' }
 
-export function XuankongWheel({ d }: { d: XuankongWheelData }) {
+/** `sel`：所选之宫（洛书数 1—9），`onSel` 点宫 */
+export function XuankongWheel({ d, sel, onSel }: { d: XuankongWheelData; sel?: number | null; onSel?: (g: number) => void }) {
   const zuoI = SHAN24.indexOf(d.zuo), xiangI = SHAN24.indexOf(d.xiang)
   // 外加人盘中针（各山较正针逆时针半山）、天盘缝针（顺时针半山）两环（协纪卷二、卷三十三）
   const R = { tian: 36, gong: 112, mark: 132, gua: 148, yuan: 162, shan: 184, duan: 190, ren: 205, tianPan: 220, du: 232 }
@@ -933,6 +934,16 @@ export function XuankongWheel({ d }: { d: XuankongWheelData }) {
       <FlyStars pan={d.xiangPan} pos={(g) => (g === 5 ? [C + 11, C - 3, 0] : polar(72, scr(GONG_AZ[g]!) + 10))} size={20} centerSize={16} fill="#a8071a" />
       <FlyStars pan={d.yunPan} pos={(g) => (g === 5 ? [C, C + 15, 0] : polar(92, scr(GONG_AZ[g]!)))} size={15} centerSize={13} fill="#000" />
       <FlyStars pan={d.yearPan} pos={(g) => (g === 5 ? [C, C + 24, 0] : polar(105, scr(GONG_AZ[g]!)))} size={9} centerSize={8} fill="#531dab" prefix="年" />
+      {sel != null && sel !== 5 && <path d={sector(R.tian, R.gong, scr(GONG_AZ[sel]!) - 22.5, scr(GONG_AZ[sel]!) + 22.5)} fill="#bae0ff" opacity={0.45} stroke="#1677ff" strokeWidth={1.5} pointerEvents="none" />}
+      {sel === 5 && <circle cx={C} cy={C} r={R.tian} fill="#bae0ff" opacity={0.45} stroke="#1677ff" strokeWidth={1.5} pointerEvents="none" />}
+      {onSel && (
+        <g style={{ cursor: 'pointer' }}>
+          {[1, 2, 3, 4, 6, 7, 8, 9].map((g) => (
+            <path key={g} d={sector(R.tian, R.gong, scr(GONG_AZ[g]!) - 22.5, scr(GONG_AZ[g]!) + 22.5)} fill="transparent" pointerEvents="all" onClick={() => onSel(g)}><title>{`${GUA[g]}${CN_NUM[g]}宫`}</title></path>
+          ))}
+          <circle cx={C} cy={C} r={R.tian} fill="transparent" pointerEvents="all" onClick={() => onSel(5)}><title>中五宫</title></circle>
+        </g>
+      )}
     </Frame>
   )
 }

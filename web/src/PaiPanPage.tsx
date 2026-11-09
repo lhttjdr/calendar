@@ -559,6 +559,9 @@ const XuankongPanel = memo(function XuankongPanel(props: { wasm: LunarBackend; g
   const [locked, setLocked] = useState<number | null>(null)
   const xiangAz = locked ?? (useCompass ? props.heading : null)
   const az = xiangAz != null ? (xiangAz + 180) % 360 : -1
+  /** 盘⇄文字：所选之宫（洛书数） */
+  const [selG, setSelG] = useState<number | null>(null)
+  const pickG = (g: number) => setSelG(selG === g ? null : g)
   const d = useMemo((): XkData | null => {
     if (typeof props.wasm.xuankong_json !== 'function') return null
     try { return JSON.parse(props.wasm.xuankong_json(props.ganzhiYear, zuo, ti, az, props.jdUt ?? null, props.ear ?? null)) as XkData } catch { return null }
@@ -568,7 +571,7 @@ const XuankongPanel = memo(function XuankongPanel(props: { wasm: LunarBackend; g
       <div style={{ flex: '1 1 320px', maxWidth: 440 }}>
         <Radio.Group size="small" value={layout} onChange={(e) => setLayout(e.target.value)} optionType="button" style={{ marginBottom: 6 }}
           options={[{ label: '圆盘（罗盘式）', value: 'round' }, { label: '九宫格（书式）', value: 'grid' }]} />
-        {d && <CompassSpin spin={props.spin}>{layout === 'grid' ? <XuankongGrid d={d} /> : <XuankongWheel d={d} />}</CompassSpin>}
+        {d && <CompassSpin spin={props.spin}>{layout === 'grid' ? <XuankongGrid d={d} sel={selG} onSel={pickG} /> : <XuankongWheel d={d} sel={selG} onSel={pickG} />}</CompassSpin>}
         <Notes title="盘面图例">罗盘式，自内而外：中宫；八宫飞星（蓝山星居左、红向星居右，其外运星、流年紫白；绿底正神、红底零神）；逐宫标记；后天八卦与洛书数；三元龙（天人地）；二十四山（红阳黑阴，蓝底坐、红底向）；坐向两山旁色带为兼向分段（绿下卦、橙替卦、红空亡）；人盘中针（各山逆时针偏半山，格龙）；天盘缝针（顺时针偏半山，消砂纳水；协纪卷二、卷三十三）；周天度数。虚线为坐向（罗盘测向时为实测方位）。南上北下，开罗盘则随设备转至实地方位</Notes>
       </div>
       <div style={{ flex: '1 1 280px' }}>
@@ -589,6 +592,16 @@ const XuankongPanel = memo(function XuankongPanel(props: { wasm: LunarBackend; g
             </span>
           )}
         </Flex>
+        {d && selG != null && (
+          <div className="gong-detail" style={{ marginTop: 8 }}>
+            <Flex justify="space-between" align="center">
+              <Text strong>{`${['', '坎', '坤', '震', '巽', '中', '乾', '兌', '艮', '離'][selG]}${CN_NUM[selG]}宫`}</Text>
+              <Button size="small" type="text" onClick={() => setSelG(null)}>✕</Button>
+            </Flex>
+            <div style={{ fontSize: 13 }}>{`山星${CN_NUM[d.shanPan[selG - 1]!]} · 向星${CN_NUM[d.xiangPan[selG - 1]!]} · 运星${CN_NUM[d.yunPan[selG - 1]!]} · 流年${CN_NUM[d.yearPan[selG - 1]!]}`}{d.zhengShen?.includes(selG) ? ' · 正神' : d.lingShen?.includes(selG) ? ' · 零神' : ''}</div>
+            <div style={{ fontSize: 12 }}>{(d.gongMarks?.[selG - 1] ?? []).map((m) => `${m.n}${m.note ? `（${m.note}）` : ''}`).join('；') || <Text type="secondary" style={{ fontSize: 12 }}>此宫无标记</Text>}</div>
+          </div>
+        )}
         {d && (
           <div style={{ marginTop: 8, lineHeight: 1.8 }}>
             <div style={{ fontSize: 16 }}>{`${CN_NUM[d.yun]}运 ${d.zuo}山${d.xiang}向${d.ti ? '（替卦）' : '（下卦）'}${d.kongWang ? ` · ${d.kongWang}` : ''}`}</div>
@@ -601,7 +614,7 @@ const XuankongPanel = memo(function XuankongPanel(props: { wasm: LunarBackend; g
             {d.gongMarks && (
               <div style={{ fontSize: 12, marginTop: 4 }}>
                 {d.gongMarks.map((ms, i) => ms.length > 0 && (
-                  <div key={i}><b>{`${['坎', '坤', '震', '巽', '中', '乾', '兌', '艮', '離'][i]}${CN_NUM[i + 1]}`}</b>{' '}{ms.map((m) => <span key={m.n} title={m.note} style={{ marginRight: 6 }}>{m.n}</span>)}</div>
+                  <div key={i} role="button" onClick={() => pickG(i + 1)} style={{ cursor: 'pointer', borderRadius: 3, background: selG === i + 1 ? '#bae0ff' : undefined }}><b>{`${['坎', '坤', '震', '巽', '中', '乾', '兌', '艮', '離'][i]}${CN_NUM[i + 1]}`}</b>{' '}{ms.map((m) => <span key={m.n} title={m.note} style={{ marginRight: 6 }}>{m.n}</span>)}</div>
                 ))}
               </div>
             )}
