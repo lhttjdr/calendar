@@ -1,17 +1,23 @@
-//! 玄空飞星（风水理气）：宅运盘、山盘、向盘，下卦与替卦，兼向空亡，格局；流年、流月紫白飞星。
+//! 玄空飞星（风水理气）：宅运盘、山盘、向盘，下卦与替卦，兼向空亡，格局；零神正神、城门、兼向界线、逐宫标记；
+//! 流年、流月紫白飞星。
 //!
 //! 依据与口径（详见 doc/folk/xuankong.md）：
 //! - 挨星诀（替卦所据）：《青囊奧語》「坤壬乙，巨門從頭出；艮丙辛，位位是破星；巽辰亥，儘是武曲位；甲癸申，貪狼一路行」
 //!   （据维基文库录文，`vendor/folk/wikisource/青囊奧語/`）。扩为二十四山之替星表（子→貪狼、寅午庚丁→右弼等）
 //!   与运盘、山向盘入中飞布之法，出沈竹礽《沈氏玄空學》（民国排印；原书未见，出处未核）。
+//! - 零神、正神：经文《天玉經》「陰陽二字看零正，坐向須知病；若遇正神正位裝，撥水入零堂」「正神百步始成龍，水短便遭凶；
+//!   零神不問長何短，吉凶不同斷」（四库本影印第 22—24 页）。四库注以十二支为正神、八干四维为零神（双山三合之读，
+//!   [`si_ku_zheng_shen`]）；玄空家以当运之宫为正神、对宫为零神（沈氏；出处未核），二读并存。
 //! - 三元九运：协纪卷八「康熙二十三年甲子為上元」（[`super::taiyi::san_yuan_jiu_yun`]）。
 //! - 年、月紫白：协纪卷八（[`super::jiuxing`]）；入中顺飞。日、时紫白协纪未收，不提供。
 //!
 //! 九宫以洛书数 1—9 为下标（`[u8; 9]` 的下标 k−1 对应洛书 k 宫：一坎北、二坤西南、三震东、四巽东南、五中、六乾西北、
 //! 七兑西、八艮东北、九离南）。飞布次序：中五 → 六 → 七 → 八 → 九 → 一 → 二 → 三 → 四（洛书数序）。
+//! 度数一律用 [`Real`]（方位角，真北起顺时针）。
 
 use super::jiuxing;
-use super::taiyi::{san_yuan_jiu_yun, JiuYun};
+use super::taiyi::{san_yuan_jiu_yun, JiuYun, SHANG_YUAN_JIAZI};
+use crate::math::real::{real, real_const, Real, RealOps};
 
 /// 二十四山，自子起顺行（方位角：子 0°，每山 15°）
 pub const SHAN24: [&str; 24] = [
@@ -113,26 +119,97 @@ pub enum TiShunRule {
     TiXing,
 }
 
+/// 零神、正神之定法
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LingZhengRule {
+    /// 当运之数的洛书本宫为正神，其对宫（合十之宫）为零神（沈氏通行；出处未核）。缺省
+    YunGong,
+    /// 上元（一至四运）以一二三四宫为正神、六七八九宫为零神，下元（六至九运）反之（大玄空上下元零正之说；今人转述，未核）
+    ShangXiaYuan,
+}
+
+/// 五运无本宫（中五）时零正之寄
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WuJi {
+    /// 前十年寄坤二、后十年寄艮八（通行；出处未核）。缺省
+    KunGen,
+    /// 前十年寄巽四、后十年寄乾六（与 [`JiuYun::WuJiSiLiu`] 同意；另说，未核）
+    SiLiu,
+    /// 不寄：正神在中五，无零神（另说，未核）
+    Zhong,
+}
+
+/// 七星打劫真假之判
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DaJieRule {
+    /// 离宫打劫（离震乾）为真，坎宫打劫（坎巽兑）为假（沈氏之说；出处未核）。缺省
+    LiZhenKanJia,
+    /// 离宫、坎宫打劫皆真（另说；未核）
+    JieZhen,
+}
+
+/// 伏吟、反吟以何盘为准、全盘或逐宫
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FuFanRule {
+    /// 全盘与元旦盘（洛书本位，五入中顺飞）同为伏吟、合十为反吟（通行；未核）。缺省
+    YuanDanQuan,
+    /// 逐宫：该宫山（向）星与洛书本宫数同为伏吟、合十为反吟（局部伏反吟之说；未核）
+    YuanDanGong,
+    /// 全盘与运盘同为伏吟、合十为反吟（他说；未核）
+    YunPanQuan,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct XkOptions {
     pub wu: WuRule,
     pub ti_shun: TiShunRule,
-    /// 兼向超过此度数（离本山中线）用替卦；缺省 3°（通行；出处未核）
-    pub ti_threshold_deg: f64,
-    /// 距山界此度数以内为空亡（同宫两山之间小空亡，两宫之间大空亡）；缺省 1.5°（出处未核）
-    pub kong_wang_deg: f64,
+    /// 兼向超过此度数（离本山中线）用替卦；缺省 3°（通行；出处未核）。另说 4.5°（一山五分金、中三分金为正，未核）
+    pub ti_threshold_deg: Real,
+    /// 距同宫两山之界此度数以内为小空亡；缺省 1.5°（出处未核）
+    pub kong_wang_deg: Real,
+    /// 距两宫（两卦）之界此度数以内为大空亡；缺省 1.5°（与小空亡同；出处未核）
+    pub da_kong_wang_deg: Real,
+    pub ling_zheng: LingZhengRule,
+    pub wu_ji: WuJi,
+    pub da_jie: DaJieRule,
+    pub fu_fan: FuFanRule,
 }
 
-pub const DEFAULT_OPTIONS: XkOptions =
-    XkOptions { wu: WuRule::BenShan, ti_shun: TiShunRule::YuanXing, ti_threshold_deg: 3.0, kong_wang_deg: 1.5 };
+pub const DEFAULT_OPTIONS: XkOptions = XkOptions {
+    wu: WuRule::BenShan,
+    ti_shun: TiShunRule::YuanXing,
+    ti_threshold_deg: real_const(3.0),
+    kong_wang_deg: real_const(1.5),
+    da_kong_wang_deg: real_const(1.5),
+    ling_zheng: LingZhengRule::YunGong,
+    wu_ji: WuJi::KunGen,
+    da_jie: DaJieRule::LiZhenKanJia,
+    fu_fan: FuFanRule::YuanDanQuan,
+};
+
+/// 每山 15°、半山 7.5°
+fn shan_w() -> Real {
+    real_const(15.0)
+}
+fn half_w() -> Real {
+    real_const(7.5)
+}
 
 /// 坐向度数（坐山中线的方位角，度；向 = 坐 + 180°）所落之山与偏离本山中线的度数（−7.5—7.5，正为顺时针）
-pub fn shan_of_azimuth(az_deg: f64) -> (usize, f64) {
-    let a = az_deg.rem_euclid(360.0);
-    let i = ((a + 7.5) / 15.0).floor() as usize % 24;
-    let off = a - 15.0 * i as f64;
-    let off = if off > 180.0 { off - 360.0 } else { off };
+pub fn shan_of_azimuth(az_deg: Real) -> (usize, Real) {
+    let full = real_const(360.0);
+    let a = az_deg - (az_deg / full).floor() * full;
+    let i = ((a + half_w()) / shan_w()).to_i32_floor().rem_euclid(24) as usize;
+    let mut off = a - shan_w() * real(i as i32);
+    if off > real_const(180.0) {
+        off = off - full;
+    }
     (i, off)
+}
+
+/// 某山中线的方位角（子 0°，顺时针每山 15°）
+pub fn shan_center(shan: usize) -> Real {
+    shan_w() * real((shan % 24) as i32)
 }
 
 /// 空亡
@@ -169,6 +246,8 @@ pub struct ZhaiPan {
     pub shan_shun: bool,
     pub xiang_shun: bool,
     pub kong_wang: Option<KongWang>,
+    /// 以方位角排盘时，坐山偏离本山中线之度数（正为顺时针）；按山排盘时为 None
+    pub pian_deg: Option<Real>,
     pub ge_ju: Vec<GeJu>,
 }
 
@@ -222,23 +301,123 @@ pub fn zhai_pan(yun: u8, zuo: usize, ti: bool, o: &XkOptions) -> ZhaiPan {
         shan_shun,
         xiang_shun,
         kong_wang: None,
+        pian_deg: None,
         ge_ju: vec![],
     };
-    p.ge_ju = ge_ju(&p);
+    p.ge_ju = ge_ju(&p, o);
     p
 }
 
 /// 按坐山方位角（度，真北起顺时针）排宅盘：定山、兼向替卦与否、空亡
-pub fn zhai_pan_azimuth(yun: u8, zuo_az_deg: f64, o: &XkOptions) -> ZhaiPan {
+pub fn zhai_pan_azimuth(yun: u8, zuo_az_deg: Real, o: &XkOptions) -> ZhaiPan {
     let (zuo, off) = shan_of_azimuth(zuo_az_deg);
     let ti = off.abs() > o.ti_threshold_deg;
     let mut p = zhai_pan(yun, zuo, ti, o);
-    if 7.5 - off.abs() <= o.kong_wang_deg {
-        // 偏向的一侧之邻山：若与本山不同宫则大空亡
-        let nb = if off > 0.0 { (zuo + 1) % 24 } else { (zuo + 23) % 24 };
-        p.kong_wang = Some(if gong_of(nb).0 == gong_of(zuo).0 { KongWang::Xiao } else { KongWang::Da });
+    p.pian_deg = Some(off);
+    // 偏向的一侧之邻山：与本山同宫则小空亡，异宫则大空亡，各按其度数
+    let nb = if off > real_const(0.0) { (zuo + 1) % 24 } else { (zuo + 23) % 24 };
+    let da = gong_of(nb).0 != gong_of(zuo).0;
+    let w = if da { o.da_kong_wang_deg } else { o.kong_wang_deg };
+    if half_w() - off.abs() <= w {
+        p.kong_wang = Some(if da { KongWang::Da } else { KongWang::Xiao });
     }
     p
+}
+
+/// 一山之内的一段（方位角，自小而大；可为负或逾 360°，取模即可）
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct JieDuan {
+    pub from: Real,
+    pub to: Real,
+    pub kind: DuanKind,
+    /// 兼向之山（替卦、空亡段所偏向的邻山）；下卦段为 None
+    pub jian: Option<usize>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DuanKind {
+    /// 正向（不逾替卦限度）
+    XiaGua,
+    /// 兼向逾限，用替卦
+    TiGua,
+    /// 近同宫两山之界（亦属替卦）
+    XiaoKong,
+    /// 近两宫之界（出卦；亦属替卦）
+    DaKong,
+}
+
+impl DuanKind {
+    pub fn name(self) -> &'static str {
+        match self {
+            DuanKind::XiaGua => "下卦",
+            DuanKind::TiGua => "替卦",
+            DuanKind::XiaoKong => "小空亡",
+            DuanKind::DaKong => "大空亡",
+        }
+    }
+}
+
+/// 一山的兼向界线：供盘上画线
+#[derive(Clone, Debug, PartialEq)]
+pub struct ShanJie {
+    pub shan: usize,
+    /// 本山中线
+    pub center: Real,
+    /// 出线之界：本山两侧山界（逾之即入邻山，坐山改变）
+    pub shan_jie: [Real; 2],
+    /// 出卦之界：本山所在宫（卦）45° 的两界（逾之即入他卦）
+    pub gua_jie: [Real; 2],
+    /// 自左（逆时针侧）至右五段：空亡、替卦、下卦、替卦、空亡（度数为零之段略去）
+    pub duan: Vec<JieDuan>,
+}
+
+/// 某山的兼向、替卦、空亡区间与出线、出卦之界（按 [`XkOptions`] 的度数）
+pub fn shan_jie(shan: usize, o: &XkOptions) -> ShanJie {
+    let shan = shan % 24;
+    let c = shan_center(shan);
+    let (lo, hi) = (c - half_w(), c + half_w());
+    let (l, r) = ((shan + 23) % 24, (shan + 1) % 24);
+    let g = gong_of(shan).0;
+    let kw = |nb: usize| if gong_of(nb).0 == g { (o.kong_wang_deg, DuanKind::XiaoKong) } else { (o.da_kong_wang_deg, DuanKind::DaKong) };
+    let (wl, kl) = kw(l);
+    let (wr, kr) = kw(r);
+    let th = o.ti_threshold_deg;
+    let cand = [
+        JieDuan { from: lo, to: lo + wl, kind: kl, jian: Some(l) },
+        JieDuan { from: lo + wl, to: c - th, kind: DuanKind::TiGua, jian: Some(l) },
+        JieDuan { from: c - th, to: c + th, kind: DuanKind::XiaGua, jian: None },
+        JieDuan { from: c + th, to: hi - wr, kind: DuanKind::TiGua, jian: Some(r) },
+        JieDuan { from: hi - wr, to: hi, kind: kr, jian: Some(r) },
+    ];
+    // 限度相交时以空亡优先、下卦次之（替卦段被挤为零则略去）
+    let mut duan: Vec<JieDuan> = Vec::new();
+    for d in cand {
+        let mut d = d;
+        if d.from < lo {
+            d.from = lo;
+        }
+        if d.to > hi {
+            d.to = hi;
+        }
+        if d.kind == DuanKind::XiaGua {
+            d.from = if d.from < lo + wl { lo + wl } else { d.from };
+            d.to = if d.to > hi - wr { hi - wr } else { d.to };
+        }
+        if d.to > d.from {
+            duan.push(d);
+        }
+    }
+    // 本宫在 RING8 中的次序：坎宫自壬之左界 337.5° 起，每宫 45°
+    let k = RING8.iter().position(|&x| x == g).unwrap();
+    let mut g_lo = real_const(-22.5) + real_const(45.0) * real(k as i32);
+    // 使宫界包住本山中线
+    if c - g_lo >= real_const(360.0) {
+        g_lo = g_lo + real_const(360.0);
+    }
+    while c < g_lo {
+        g_lo = g_lo - real_const(360.0);
+    }
+    ShanJie { shan, center: c, shan_jie: [lo, hi], gua_jie: [g_lo, g_lo + real_const(45.0)], duan }
 }
 
 /// 某年（干支年，立春分）所属之运
@@ -276,8 +455,81 @@ pub fn cheng_men(p: &ZhaiPan, o: &XkOptions) -> Vec<(u8, bool, bool)> {
         .collect()
 }
 
-/// 格局
-pub fn ge_ju(p: &ZhaiPan) -> Vec<GeJu> {
+/// 某年是否在其运的前十年（只用于五运零正、城门之寄）
+pub fn qian_shi_nian(year: i32) -> bool {
+    (year - SHANG_YUAN_JIAZI).rem_euclid(20) < 10
+}
+
+/// 零神、正神所在之宫（洛书数）：返回（正神诸宫，零神诸宫）。`qian` 为是否在本运前十年（五运寄宫用）。
+pub fn ling_zheng(yun: u8, qian: bool, o: &XkOptions) -> (Vec<u8>, Vec<u8>) {
+    // 五运按寄法折为他运（Zhong 时为 None）
+    let eff = if yun == 5 {
+        match o.wu_ji {
+            WuJi::KunGen => Some(if qian { 2 } else { 8 }),
+            WuJi::SiLiu => Some(if qian { 4 } else { 6 }),
+            WuJi::Zhong => None,
+        }
+    } else {
+        Some(yun)
+    };
+    let Some(y) = eff else { return (vec![5], vec![]) };
+    match o.ling_zheng {
+        LingZhengRule::YunGong => (vec![y], vec![10 - y]),
+        LingZhengRule::ShangXiaYuan => {
+            let shang = vec![1, 2, 3, 4];
+            let xia = vec![6, 7, 8, 9];
+            // 寄坤（二）、寄巽（四）属上元之气；寄艮（八）、寄乾（六）属下元
+            if y < 5 { (shang, xia) } else { (xia, shang) }
+        }
+    }
+}
+
+/// 《天玉經》四库注之读：「十二支正神屬陽，八干四維零神屬陰」（四库本影印第 23 页），即二十四山中十二支为正神
+pub fn si_ku_zheng_shen(shan: usize) -> bool {
+    matches!(SHAN24[shan % 24], "子" | "丑" | "寅" | "卯" | "辰" | "巳" | "午" | "未" | "申" | "酉" | "戌" | "亥")
+}
+
+/// 七星打劫
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DaJie {
+    /// 劫取之三宫（向宫与之同为一四七或三六九者）
+    pub gong: [u8; 3],
+    /// 离宫打劫（离震乾）为 true，坎宫打劫（坎巽兑）为 false
+    pub li: bool,
+    /// 依 [`DaJieRule`] 判真假
+    pub zhen: bool,
+}
+
+/// 七星打劫：当运山星、向星同到向宫（双星到向），且向宫属离震乾（三六九）或坎巽兑（一四七）一组，
+/// 则此三宫为打劫之宫；向宫在坤艮（二五八组含中五）不能打劫（沈氏；出处未核）。
+/// 三宫之向星必为父母三般（同余于三）——飞星等差，三宫洛书数同余于三，故恒成立，测试验之。
+pub fn da_jie(p: &ZhaiPan, o: &XkOptions) -> Option<DaJie> {
+    let (gx, _) = gong_of(p.xiang);
+    let i = gx as usize - 1;
+    if p.xiang_pan[i] != p.yun || p.shan_pan[i] != p.yun {
+        return None;
+    }
+    let (gong, li) = match gx % 3 {
+        0 => ([9, 3, 6], true),
+        1 => ([1, 4, 7], false),
+        _ => return None,
+    };
+    let zhen = match o.da_jie {
+        DaJieRule::LiZhenKanJia => li,
+        DaJieRule::JieZhen => true,
+    };
+    Some(DaJie { gong, li, zhen })
+}
+
+/// 入囚：宅之山盘、向盘中宫之星即其入囚之运（运行至该运，当旺之星困于中宫）。返回（山星入囚之运，向星入囚之运）；
+/// 五黄入中者不论（五无本宫，诸说不一；未核）。向首见水不囚等形势之论不在此（沈氏；出处未核）。
+pub fn ru_qiu(p: &ZhaiPan) -> (Option<u8>, Option<u8>) {
+    let f = |m: u8| if m == 5 { None } else { Some(m) };
+    (f(p.shan_in), f(p.xiang_in))
+}
+
+/// 格局（全盘）
+pub fn ge_ju(p: &ZhaiPan, o: &XkOptions) -> Vec<GeJu> {
     let mut v = Vec::new();
     let (gz, _) = gong_of(p.zuo);
     let (gx, _) = gong_of(p.xiang);
@@ -312,30 +564,195 @@ pub fn ge_ju(p: &ZhaiPan) -> Vec<GeJu> {
     if (0..9).all(|k| p.xiang_pan[k] + p.yun_pan[k] == 10) {
         add("向星合十", "各宫向星与运星合十");
     }
-    let sorted = |k: usize| {
-        let mut a = [p.yun_pan[k], p.shan_pan[k], p.xiang_pan[k]];
-        a.sort();
-        a
-    };
-    // 连珠：三星为相连三数（含九一相接，如八九一）
-    let lian = (0..9).all(|k| {
-        let t = sorted(k);
+    if (0..9).all(|k| p.shan_pan[k] + p.xiang_pan[k] == 10) {
+        add("山向合十", "各宫山星与向星合十");
+    }
+    if lian_zhu(p, 0..9) {
+        add("連珠三般卦", "各宫运、山、向三星相连（如一二三、八九一）");
+    }
+    if fu_mu(p, 0..9) {
+        add("父母三般卦", "各宫运、山、向三星为一四七、二五八、三六九之一");
+    }
+    if let Some(d) = da_jie(p, o) {
+        add(
+            match (d.li, d.zhen) {
+                (true, true) => "離宮打劫（真）",
+                (true, false) => "離宮打劫（假）",
+                (false, true) => "坎宮打劫（真）",
+                (false, false) => "坎宮打劫（假）",
+            },
+            if d.li { "七星打劫：双星到向，劫离震乾三宫" } else { "七星打劫：双星到向，劫坎巽兑三宫" },
+        );
+    }
+    if p.xiang_in == w && w != 5 {
+        add("向星入囚", "当运向星入中宫");
+    }
+    if p.shan_in == w && w != 5 {
+        add("山星入囚", "当运山星入中宫");
+    }
+    v
+}
+
+fn sorted3(p: &ZhaiPan, k: usize) -> [u8; 3] {
+    let mut a = [p.yun_pan[k], p.shan_pan[k], p.xiang_pan[k]];
+    a.sort();
+    a
+}
+
+/// 连珠：诸宫运、山、向三星为相连三数（含九一相接，如八九一）
+fn lian_zhu(p: &ZhaiPan, ks: impl IntoIterator<Item = usize>) -> bool {
+    ks.into_iter().all(|k| {
+        let t = sorted3(p, k);
         (1..=9u8).any(|st| {
             let mut c = [st, wrap9(st as i32 + 1), wrap9(st as i32 + 2)];
             c.sort();
             c == t
         })
-    });
-    if lian {
-        add("連珠三般卦", "各宫运、山、向三星相连（如一二三、八九一）");
-    }
-    if (0..9).all(|k| {
-        let a = sorted(k);
+    })
+}
+
+/// 父母三般：诸宫运、山、向三星互异且同余于三（一四七、二五八、三六九）
+fn fu_mu(p: &ZhaiPan, ks: impl IntoIterator<Item = usize>) -> bool {
+    ks.into_iter().all(|k| {
+        let a = sorted3(p, k);
         a[0] % 3 == a[1] % 3 && a[1] % 3 == a[2] % 3 && a[0] != a[1] && a[1] != a[2]
-    }) {
-        add("父母三般卦", "各宫运、山、向三星为一四七、二五八、三六九之一");
+    })
+}
+
+/// 逐宫标记：九宫（下标 = 宫数 − 1）各列其所当之标记，供盘上标注。`qian` 为是否在本运前十年（五运零正用）。
+///
+/// 标记：正神、零神；正城門、副城門（注可用否）；旺山、旺向、上山、下水（坐向宫之当运星）；雙星到向（坐）；
+/// 合十（全盘者九宫皆标，另标坐、向宫局部合十）；伏吟、反吟（依 [`FuFanRule`]）；三般卦（全盘者九宫皆标）；
+/// 七星打劫（三宫）；入囚（中宫）。
+pub fn gong_biao(p: &ZhaiPan, qian: bool, o: &XkOptions) -> [Vec<GeJu>; 9] {
+    let mut m: [Vec<GeJu>; 9] = Default::default();
+    let mut put = |g: u8, name: &'static str, note: &'static str| m[g as usize - 1].push(GeJu { name, note });
+    let (zs, ls) = ling_zheng(p.yun, qian, o);
+    for g in zs {
+        put(g, "正神", "当运之宫，宜山（实）");
     }
-    v
+    for g in ls {
+        put(g, "零神", "失运之宫，宜水（虚）");
+    }
+    for (g, zheng, ok) in cheng_men(p, o) {
+        put(
+            g,
+            if zheng { "正城門" } else { "副城門" },
+            if ok { "可用：城门宫运星入中顺飞" } else { "不可用：城门宫运星入中逆飞" },
+        );
+    }
+    let (gz, _) = gong_of(p.zuo);
+    let (gx, _) = gong_of(p.xiang);
+    let w = p.yun;
+    let si = |g: u8| p.shan_pan[g as usize - 1];
+    let xi = |g: u8| p.xiang_pan[g as usize - 1];
+    if si(gz) == w {
+        put(gz, "旺山", "当运山星到坐");
+    }
+    if xi(gz) == w {
+        put(gz, "上山", "当运向星到坐");
+    }
+    if xi(gx) == w {
+        put(gx, "旺向", "当运向星到向");
+    }
+    if si(gx) == w {
+        put(gx, "下水", "当运山星到向");
+    }
+    if si(gx) == w && xi(gx) == w {
+        put(gx, "雙星到向", "当运山星、向星同到向首");
+    }
+    if si(gz) == w && xi(gz) == w {
+        put(gz, "雙星到坐", "当运山星、向星同到坐山");
+    }
+    // 合十：全盘者九宫皆标；否则坐、向宫局部合十另标
+    let he = |a: &[u8; 9], b: &[u8; 9], k: usize| a[k] + b[k] == 10;
+    let kinds: [(&[u8; 9], &[u8; 9], &'static str, &'static str, &'static str); 3] = [
+        (&p.shan_pan, &p.yun_pan, "山運合十", "全盘山星与运星合十", "此宫山星与运星合十（局部）"),
+        (&p.xiang_pan, &p.yun_pan, "向運合十", "全盘向星与运星合十", "此宫向星与运星合十（局部）"),
+        (&p.shan_pan, &p.xiang_pan, "山向合十", "全盘山星与向星合十", "此宫山星与向星合十（局部）"),
+    ];
+    for (a, b, name, quan, jubu) in kinds {
+        if (0..9).all(|k| he(a, b, k)) {
+            for g in 1..=9 {
+                put(g, name, quan);
+            }
+        } else {
+            for g in [gz, gx] {
+                if he(a, b, g as usize - 1) {
+                    put(g, name, jubu);
+                }
+            }
+        }
+    }
+    // 伏吟、反吟
+    let luoshu = fly(5, true);
+    match o.fu_fan {
+        FuFanRule::YuanDanQuan | FuFanRule::YunPanQuan => {
+            let r = if o.fu_fan == FuFanRule::YuanDanQuan { luoshu } else { p.yun_pan };
+            for (pan, fu, fan) in [(&p.shan_pan, "山星伏吟", "山星反吟"), (&p.xiang_pan, "向星伏吟", "向星反吟")] {
+                if *pan == r {
+                    for g in 1..=9 {
+                        put(g, fu, "全盘与所比之盘同");
+                    }
+                } else if (0..9).all(|k| pan[k] + r[k] == 10) {
+                    for g in 1..=9 {
+                        put(g, fan, "全盘与所比之盘合十");
+                    }
+                }
+            }
+        }
+        FuFanRule::YuanDanGong => {
+            for g in 1..=9u8 {
+                if g == 5 {
+                    continue;
+                }
+                let k = g as usize - 1;
+                for (pan, fu, fan) in [(&p.shan_pan, "山星伏吟", "山星反吟"), (&p.xiang_pan, "向星伏吟", "向星反吟")] {
+                    if pan[k] == luoshu[k] {
+                        put(g, fu, "此宫星与洛书本宫数同（局部）");
+                    } else if pan[k] + luoshu[k] == 10 {
+                        put(g, fan, "此宫星与洛书本宫数合十（局部）");
+                    }
+                }
+            }
+        }
+    }
+    if lian_zhu(p, 0..9) {
+        for g in 1..=9 {
+            put(g, "連珠三般卦", "全盘运、山、向三星相连");
+        }
+    }
+    if fu_mu(p, 0..9) {
+        for g in 1..=9 {
+            put(g, "父母三般卦", "全盘运、山、向三星为一四七、二五八、三六九");
+        }
+    }
+    if let Some(d) = da_jie(p, o) {
+        for g in d.gong {
+            put(
+                g,
+                if d.zhen { "七星打劫（真）" } else { "七星打劫（假）" },
+                if d.li { "離宮打劫：離震乾三宫" } else { "坎宮打劫：坎巽兌三宫" },
+            );
+        }
+    }
+    if p.xiang_in == w && w != 5 {
+        put(5, "向星入囚", "当运向星入中宫");
+    }
+    if p.shan_in == w && w != 5 {
+        put(5, "山星入囚", "当运山星入中宫");
+    }
+    m
+}
+
+/// 一年十二月之流月紫白盘（寅月起至丑月），`ganzhi_year` 为干支年（立春分）
+pub fn month_pans(ganzhi_year: i32) -> [[u8; 9]; 12] {
+    let zhi = (ganzhi_year - 4).rem_euclid(12) as u8;
+    let mut r = [[0u8; 9]; 12];
+    for (m, x) in r.iter_mut().enumerate() {
+        *x = month_pan(zhi, m as u8);
+    }
+    r
 }
 
 #[cfg(test)]
@@ -381,18 +798,243 @@ mod tests {
 
     #[test]
     fn azimuth() {
-        assert_eq!(shan_of_azimuth(0.0), (idx("子"), 0.0));
-        assert_eq!(shan_of_azimuth(359.0).0, idx("子"));
-        assert_eq!(shan_of_azimuth(180.0).0, idx("午"));
-        assert_eq!(shan_of_azimuth(45.0).0, idx("艮"));
-        let p = zhai_pan_azimuth(8, 7.0, &DEFAULT_OPTIONS);
+        let r = |x: f64| real(x);
+        assert_eq!(shan_of_azimuth(r(0.0)), (idx("子"), r(0.0)));
+        assert_eq!(shan_of_azimuth(r(359.0)).0, idx("子"));
+        assert_eq!(shan_of_azimuth(r(180.0)).0, idx("午"));
+        assert_eq!(shan_of_azimuth(r(45.0)).0, idx("艮"));
+        assert_eq!(shan_of_azimuth(r(-15.0)).0, idx("壬"));
+        let p = zhai_pan_azimuth(8, r(7.0), &DEFAULT_OPTIONS);
         assert!(p.ti);
         assert_eq!(p.kong_wang, Some(KongWang::Xiao)); // 子癸之间
-        let p = zhai_pan_azimuth(8, 22.0, &DEFAULT_OPTIONS);
+        let p = zhai_pan_azimuth(8, r(22.0), &DEFAULT_OPTIONS);
         assert_eq!(p.kong_wang, Some(KongWang::Da)); // 癸丑之间（坎艮两宫）
-        assert!(!zhai_pan_azimuth(8, 2.0, &DEFAULT_OPTIONS).ti);
+        assert!(!zhai_pan_azimuth(8, r(2.0), &DEFAULT_OPTIONS).ti);
+        // 大空亡另设度数：3° 时 20° 即入大空亡、而 7.0° 仍按小空亡 1.5°
+        let o = XkOptions { da_kong_wang_deg: r(3.0), ..DEFAULT_OPTIONS };
+        assert_eq!(zhai_pan_azimuth(8, r(20.0), &o).kong_wang, Some(KongWang::Da));
+        assert_eq!(zhai_pan_azimuth(8, r(5.5), &o).kong_wang, None);
     }
 
+    /// 兼向界线：每山 15° 依次分空亡、替卦、下卦、替卦、空亡，首尾相接，合为本山
+    #[test]
+    fn jie_xian() {
+        for o in [DEFAULT_OPTIONS, XkOptions { ti_threshold_deg: real(4.5), ..DEFAULT_OPTIONS }] {
+            for i in 0..24 {
+                let j = shan_jie(i, &o);
+                assert_eq!(j.duan.first().unwrap().from, j.shan_jie[0]);
+                assert_eq!(j.duan.last().unwrap().to, j.shan_jie[1]);
+                for w in j.duan.windows(2) {
+                    assert_eq!(w[0].to, w[1].from);
+                }
+                assert!(j.gua_jie[0] <= j.shan_jie[0] && j.shan_jie[1] <= j.gua_jie[1]);
+                // 段内一点按方位角排盘，替卦与空亡与段相符
+                for d in &j.duan {
+                    let mid = (d.from + d.to) / real(2.0);
+                    let p = zhai_pan_azimuth(8, mid, &o);
+                    assert_eq!(p.zuo, i);
+                    assert_eq!(p.ti, d.kind != DuanKind::XiaGua, "{} {:?}", SHAN24[i], d.kind);
+                    let kw = match d.kind {
+                        DuanKind::XiaoKong => Some(KongWang::Xiao),
+                        DuanKind::DaKong => Some(KongWang::Da),
+                        _ => None,
+                    };
+                    assert_eq!(p.kong_wang, kw, "{} {:?}", SHAN24[i], d.kind);
+                }
+                // 天元（每宫中山）两侧皆小空亡，地元左、人元右为大空亡
+                let (_, y) = gong_of(i);
+                let k0 = j.duan.first().unwrap().kind;
+                let k1 = j.duan.last().unwrap().kind;
+                match y {
+                    YuanLong::Tian => assert_eq!((k0, k1), (DuanKind::XiaoKong, DuanKind::XiaoKong)),
+                    YuanLong::Di => assert_eq!((k0, k1), (DuanKind::DaKong, DuanKind::XiaoKong)),
+                    YuanLong::Ren => assert_eq!((k0, k1), (DuanKind::XiaoKong, DuanKind::DaKong)),
+                }
+            }
+        }
+        let j = shan_jie(idx("子"), &DEFAULT_OPTIONS);
+        let v: Vec<(f64, f64, &str)> = j.duan.iter().map(|d| (d.from.as_f64(), d.to.as_f64(), d.kind.name())).collect();
+        assert_eq!(v, vec![(-7.5, -6.0, "小空亡"), (-6.0, -3.0, "替卦"), (-3.0, 3.0, "下卦"), (3.0, 6.0, "替卦"), (6.0, 7.5, "小空亡")]);
+        assert_eq!((j.gua_jie[0].as_f64(), j.gua_jie[1].as_f64()), (-22.5, 22.5));
+        let j = shan_jie(idx("壬"), &DEFAULT_OPTIONS);
+        assert_eq!((j.gua_jie[0].as_f64(), j.gua_jie[1].as_f64()), (337.5, 382.5));
+    }
+
+    /// 零神正神：缺省当运本宫为正神、对宫为零神；五运前十年寄坤、后十年寄艮
+    #[test]
+    fn ling_zheng_shen() {
+        let o = DEFAULT_OPTIONS;
+        for y in [1u8, 2, 3, 4, 6, 7, 8, 9] {
+            assert_eq!(ling_zheng(y, true, &o), (vec![y], vec![10 - y]));
+        }
+        assert_eq!(ling_zheng(5, true, &o), (vec![2], vec![8]));
+        assert_eq!(ling_zheng(5, false, &o), (vec![8], vec![2]));
+        let o2 = XkOptions { wu_ji: WuJi::SiLiu, ..o };
+        assert_eq!(ling_zheng(5, true, &o2), (vec![4], vec![6]));
+        let o3 = XkOptions { ling_zheng: LingZhengRule::ShangXiaYuan, ..o };
+        assert_eq!(ling_zheng(8, true, &o3), (vec![6, 7, 8, 9], vec![1, 2, 3, 4]));
+        assert_eq!(ling_zheng(2, true, &o3), (vec![1, 2, 3, 4], vec![6, 7, 8, 9]));
+        // 1684 上元甲子：2024—2033 为九运前十年，2034—2043 后十年；五运 1744—1763
+        assert!(qian_shi_nian(2024) && qian_shi_nian(2033) && !qian_shi_nian(2034) && qian_shi_nian(1744) && !qian_shi_nian(1754));
+        // 四库注：十二支正神、八干四维零神
+        assert_eq!((0..24).filter(|&i| si_ku_zheng_shen(i)).count(), 12);
+        assert!(si_ku_zheng_shen(idx("子")) && !si_ku_zheng_shen(idx("癸")) && !si_ku_zheng_shen(idx("乾")));
+    }
+
+    /// 七星打劫：遍历九运二十四山下卦，打劫恰为双星到向且向宫不在坤艮者；三宫向星恒为父母三般
+    #[test]
+    fn qi_xing_da_jie() {
+        for yun in 1..=9u8 {
+            for zuo in 0..24 {
+                for ti in [false, true] {
+                    let p = zhai_pan(yun, zuo, ti, &DEFAULT_OPTIONS);
+                    let (gx, _) = gong_of(p.xiang);
+                    let shuang = p.shan_pan[gx as usize - 1] == yun && p.xiang_pan[gx as usize - 1] == yun;
+                    let d = da_jie(&p, &DEFAULT_OPTIONS);
+                    assert_eq!(d.is_some(), shuang && gx != 2 && gx != 8 && gx != 5);
+                    if let Some(d) = d {
+                        assert!(d.gong.contains(&gx));
+                        let r: Vec<u8> = d.gong.iter().map(|&g| p.xiang_pan[g as usize - 1] % 3).collect();
+                        assert!(r.iter().all(|&x| x == r[0]));
+                        assert_eq!(d.zhen, d.li);
+                    }
+                }
+            }
+        }
+        // 八运子山午向下卦：双星到向（离），离宫打劫，劫离震乾（通行之例，未核原书）
+        let p = zhai_pan(8, idx("子"), false, &DEFAULT_OPTIONS);
+        let d = da_jie(&p, &DEFAULT_OPTIONS).unwrap();
+        assert_eq!((d.gong, d.li, d.zhen), ([9, 3, 6], true, true));
+        assert_eq!([p.xiang_pan[8], p.xiang_pan[2], p.xiang_pan[5]], [8, 5, 2]);
+        // 八运午山子向：双星到坐，无打劫
+        assert!(da_jie(&zhai_pan(8, idx("午"), false, &DEFAULT_OPTIONS), &DEFAULT_OPTIONS).is_none());
+    }
+
+    /// 入囚：下卦时中宫山、向星取自运盘坐、向宫，必非当运之星，故当运不囚；八运子山午向向星三入中，至三运入囚
+    #[test]
+    fn ru_qiu_test() {
+        for yun in 1..=9u8 {
+            for zuo in 0..24 {
+                let p = zhai_pan(yun, zuo, false, &DEFAULT_OPTIONS);
+                assert!(p.ge_ju.iter().all(|g| !g.name.contains("入囚")));
+            }
+        }
+        let p = zhai_pan(8, idx("子"), false, &DEFAULT_OPTIONS);
+        assert_eq!(ru_qiu(&p), (Some(4), Some(3)));
+    }
+
+    /// 逐宫标记：八运子山午向下卦
+    #[test]
+    fn gong_biao_ba_yun_zi() {
+        let p = zhai_pan(8, idx("子"), false, &DEFAULT_OPTIONS);
+        let b = gong_biao(&p, true, &DEFAULT_OPTIONS);
+        let names = |g: usize| b[g - 1].iter().map(|x| x.name).collect::<Vec<_>>();
+        assert!(names(8).contains(&"正神"));
+        assert!(names(2).contains(&"零神"));
+        assert!(names(2).contains(&"副城門"));
+        assert!(names(4).contains(&"正城門"));
+        for n in ["旺向", "下水", "雙星到向", "七星打劫（真）"] {
+            assert!(names(9).contains(&n), "{n}");
+        }
+        assert!(names(3).contains(&"七星打劫（真）") && names(6).contains(&"七星打劫（真）"));
+        // 全盘格局与逐宫标记相应：全盘合十、三般、伏反吟者九宫皆标
+        for yun in 1..=9u8 {
+            for zuo in 0..24 {
+                for ti in [false, true] {
+                    let p = zhai_pan(yun, zuo, ti, &DEFAULT_OPTIONS);
+                    let b = gong_biao(&p, true, &DEFAULT_OPTIONS);
+                    for g in &p.ge_ju {
+                        let quan = ["山星合十", "向星合十", "山向合十", "連珠三般卦", "父母三般卦", "山星伏吟", "向星伏吟", "山星反吟", "向星反吟"];
+                        if let Some(k) = quan.iter().position(|q| *q == g.name) {
+                            let n = ["山運合十", "向運合十", "山向合十", "連珠三般卦", "父母三般卦", "山星伏吟", "向星伏吟", "山星反吟", "向星反吟"][k];
+                            assert!(b.iter().all(|v| v.iter().any(|x| x.name == n)), "{yun} {} {}", SHAN24[zuo], g.name);
+                        }
+                    }
+                }
+            }
+        }
+        // 局部伏反吟：逆飞之盘恰有一宫星到本宫（2k ≡ m+5 mod 9）
+        let o = XkOptions { fu_fan: FuFanRule::YuanDanGong, ..DEFAULT_OPTIONS };
+        let b = gong_biao(&p, true, &o);
+        let fu = b.iter().filter(|v| v.iter().any(|x| x.name == "向星伏吟")).count();
+        assert!(fu <= 1);
+    }
+
+    #[test]
+    fn liu_yue() {
+        // 2026 丙午年：子午卯酉年正月八白入中，逐月逆退
+        let m = month_pans(2026);
+        assert_eq!(m[0][4], 8);
+        assert_eq!(m[1][4], 7);
+        assert_eq!(m[8][4], 9); // 戌月九紫
+        assert_eq!(m[11][4], 6); // 丑月六白
+        // 2025 乙巳年（寅申巳亥）正月二黑；2024 甲辰年（辰戌丑未）正月五黄
+        assert_eq!(month_pans(2025)[0][4], 2);
+        assert_eq!(month_pans(2024)[0][4], 5);
+    }
+
+    /// 生成文档检验表（cargo test ... -- --ignored --nocapture xuankong::tests::dump）
+    #[test]
+    #[ignore]
+    fn dump() {
+        let o = DEFAULT_OPTIONS;
+        println!("## 打劫、入囚（下卦）");
+        for yun in 1..=9u8 {
+            let mut v = vec![];
+            for zuo in 0..24 {
+                let p = zhai_pan(yun, zuo, false, &o);
+                if let Some(d) = da_jie(&p, &o) {
+                    v.push(format!("{}{}{}", SHAN24[zuo], SHAN24[p.xiang], if d.li { "離" } else { "坎" }));
+                }
+            }
+            println!("| {yun} | {} |", v.join("、"));
+        }
+        println!("## 替卦打劫");
+        for yun in 1..=9u8 {
+            let mut v = vec![];
+            for zuo in 0..24 {
+                let p = zhai_pan(yun, zuo, true, &o);
+                if let Some(d) = da_jie(&p, &o) {
+                    v.push(format!("{}{}{}", SHAN24[zuo], SHAN24[p.xiang], if d.li { "離" } else { "坎" }));
+                }
+            }
+            println!("| {yun} | {} |", v.join("、"));
+        }
+        println!("## 替卦当运入囚");
+        for yun in 1..=9u8 {
+            let mut v = vec![];
+            for zuo in 0..24 {
+                let p = zhai_pan(yun, zuo, true, &o);
+                for g in &p.ge_ju {
+                    if g.name.contains("入囚") {
+                        v.push(format!("{}{}{}", SHAN24[zuo], SHAN24[p.xiang], g.name));
+                    }
+                }
+            }
+            println!("| {yun} | {} |", v.join("、"));
+        }
+        println!("## 界线");
+        for i in 0..24 {
+            let j = shan_jie(i, &o);
+            let d: Vec<String> = j.duan.iter().map(|d| format!("{}〔{}，{}〕", d.kind.name(), d.from.as_f64(), d.to.as_f64())).collect();
+            println!("| {} | {} | {}—{} | {} |", SHAN24[i], j.center.as_f64(), j.gua_jie[0].as_f64(), j.gua_jie[1].as_f64(), d.join(" "));
+        }
+        println!("## 全盘格局（下卦、替卦，旺山旺向等四格以外）");
+        for ti in [false, true] {
+            for yun in 1..=9u8 {
+                let mut v = vec![];
+                for zuo in 0..24 {
+                    let p = zhai_pan(yun, zuo, ti, &o);
+                    let g: Vec<&str> =
+                        p.ge_ju.iter().map(|g| g.name).filter(|n| !["旺山旺向", "上山下水", "雙星到向", "雙星到坐"].contains(n)).collect();
+                    if !g.is_empty() {
+                        v.push(format!("{}{}：{}", SHAN24[zuo], SHAN24[p.xiang], g.join("、")));
+                    }
+                }
+                println!("| {} | {yun} | {} |", if ti { "替" } else { "下" }, v.join("；"));
+            }
+        }
+    }
     /// 飞星定理：坐向对宫洛书数和十，故（下卦、五不入中时）旺山 ⟺ 山盘逆飞，旺向 ⟺ 向盘逆飞；
     /// 山顺向逆 ⟺ 双星到向，山逆向顺 ⟺ 双星到坐，山向俱顺 ⟺ 上山下水
     #[test]

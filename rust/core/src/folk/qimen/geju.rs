@@ -43,11 +43,11 @@ pub fn gan_on_pan(gz: u8) -> &'static str {
 }
 
 /// 洛书宫之五行：一水、二土、三木、四木、六金、七金、八土、九火（中五土）
-fn gong_wx(p: u8) -> u8 {
+pub(super) fn gong_wx(p: u8) -> u8 {
     // 0 木 1 火 2 土 3 金 4 水
     [0, 4, 2, 0, 0, 2, 3, 3, 2, 1][p as usize]
 }
-fn men_wx(m: &str) -> Option<u8> {
+pub(super) fn men_wx(m: &str) -> Option<u8> {
     Some(match m {
         "休門" => 4,
         "生門" | "死門" => 2,
@@ -57,7 +57,7 @@ fn men_wx(m: &str) -> Option<u8> {
         _ => return None,
     })
 }
-fn ke(a: u8, b: u8) -> bool {
+pub(super) fn ke(a: u8, b: u8) -> bool {
     // 木克土、土克水、水克火、火克金、金克木
     matches!((a, b), (0, 2) | (2, 4) | (4, 1) | (1, 3) | (3, 0))
 }

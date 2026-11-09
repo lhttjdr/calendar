@@ -189,47 +189,68 @@ const ZHI = '子丑寅卯辰巳午未申酉戌亥'
 const JIANG_NAME: Record<string, string> = { 子: '神后', 丑: '大吉', 寅: '功曹', 卯: '太衝', 辰: '天罡', 巳: '太乙', 午: '勝光', 未: '小吉', 申: '傳送', 酉: '從魁', 戌: '河魁', 亥: '登明' }
 
 /** 大六壬天地盘（多层），自内而外：地盘十二支（不动）；天盘支（月将加时而转）；天盘神名；十二天将；三传；二十四山；周天度数 */
-export function LiurenWheel({ pan, shi, sanChuan, label, tianJiang }: { pan: string[]; shi: string; sanChuan: string[]; label: string; tianJiang?: string[] }) {
-  const R = [56, 94, 132, 156, 184, 202, 222, 234]
+export type LiurenExtra = {
+  /** 遁干：按地盘子至亥，其上天盘神之遁干 */
+  dunGan?: (string | null)[]
+  /** 天盘神上之标记（支 → 简称数组）：三传、旬空、驿马、丁马、天马、日德、日禄、羊刃、日鬼 */
+  tianMarks?: Record<string, string[]>
+  /** 地盘位上之标记（本命、行年） */
+  diMarks?: Record<string, string[]>
+  /** 中宫第二行（课体） */
+  center2?: string
+}
+
+/**
+ * 大六壬天地盘（多层），自内而外：地盘十二支（不动；占时底色，本命行年标注）；天盘支（三传红）；遁干；天盘神名；十二天将；
+ * 三传与神煞（空、馬、丁、德、祿、刃、鬼）；二十四山；周天度数。天盘诸环为一组，随月将加时相对地盘转。
+ */
+export function LiurenWheel({ pan, shi, sanChuan, label, tianJiang, extra }: { pan: string[]; shi: string; sanChuan: string[]; label: string; tianJiang?: string[]; extra?: LiurenExtra }) {
+  const R = [50, 84, 118, 136, 156, 178, 200, 216, 228]
   const mid = (k: number) => (R[k]! + R[k + 1]!) / 2
   // 天盘 = 地盘转 k 位（地盘子位上所临之天盘支序为 k）；天盘诸环按本位画，整组转 −30k°（月将加时），时辰交界时可见其转动
   const k = Math.max(0, ZHI.indexOf(pan[0] ?? '子'))
   const spin = useSpin(-30 * k)
   return (
     <Frame label="大六壬天地盘">
-      <DegreeRing r0={R[6]!} r1={R[7]!} />
-      <Shan24Ring r0={R[5]!} r1={R[6]!} />
-      {[4, 3, 2, 1, 0].map((n) => <Ring key={n} r0={R[n]!} r1={R[n + 1]!} n={12} fill={n % 2 ? '#fbf6ea' : '#fffdf7'} />)}
+      <DegreeRing r0={R[7]!} r1={R[8]!} />
+      <Shan24Ring r0={R[6]!} r1={R[7]!} />
+      {[5, 4, 3, 2, 1, 0].map((n) => <Ring key={n} r0={R[n]!} r1={R[n + 1]!} n={12} fill={n % 2 ? '#fbf6ea' : '#fffdf7'} />)}
       {/* 地盘（不动） */}
       {[...ZHI].map((z, i) => {
         const deg = scr(30 * i)
+        const dm = extra?.diMarks?.[z]
         return (
           <g key={z}>
             {z === shi && <path d={sector(R[0]!, R[1]!, deg - 15, deg + 15)} fill="#ffe7ba" />}
-            <T r={mid(0)} deg={deg} size={18} fill="#666">{z}</T>
+            <T r={mid(0) + (dm ? 5 : 0)} deg={deg} size={17} fill="#666">{z}</T>
+            {dm && <T r={R[0]! + 7} deg={deg} size={9} fill="#ad4e00">{dm.join(' ')}</T>}
           </g>
         )
       })}
-      {/* 天盘：天盘支、神名、天将、三传 */}
+      {/* 天盘：天盘支、遁干、神名、天将、三传与神煞 */}
       <g style={spinG(spin)}>
         {[...ZHI].map((tian, j) => {
           const i = (j - k + 12) % 12 // 此天盘支所临之地盘位
           const deg = scr(30 * j)
           const ci = sanChuan.indexOf(tian)
           const tj = tianJiang?.[i]
+          const dg = extra?.dunGan?.[i]
+          const marks = [...(ci >= 0 ? [['初', '中', '末'][ci]!] : []), ...(extra?.tianMarks?.[tian] ?? [])]
           return (
             <g key={tian}>
               <T r={mid(1)} deg={deg} size={24} fill={ci >= 0 ? '#a8071a' : '#000'} weight={ci >= 0 ? 700 : 500}>{tian}</T>
-              <T r={mid(2)} deg={deg} size={11} fill="#8c6d3f">{JIANG_NAME[tian] ?? ''}</T>
-              {tj && <T r={mid(3)} deg={deg} size={13} fill={tj === '貴人' ? '#ad4e00' : '#531dab'} weight={tj === '貴人' ? 700 : 400}>{tj}</T>}
-              {ci >= 0 && <T r={mid(4)} deg={deg} size={11} fill="#a8071a" weight={700}>{['初傳', '中傳', '末傳'][ci]}</T>}
+              {dg && <T r={mid(2)} deg={deg} size={12} fill="#0958d9">{dg}</T>}
+              <T r={mid(3)} deg={deg} size={11} fill="#8c6d3f">{JIANG_NAME[tian] ?? ''}</T>
+              {tj && <T r={mid(4)} deg={deg} size={13} fill={tj === '貴人' ? '#ad4e00' : '#531dab'} weight={tj === '貴人' ? 700 : 400}>{tj}</T>}
+              {marks.length > 0 && <T r={mid(5)} deg={deg} size={marks.length > 3 ? 9 : 11} fill="#a8071a" weight={600}>{marks.join('')}</T>}
             </g>
           )
         })}
       </g>
       <circle cx={C} cy={C} r={R[0]} fill="#fff" stroke="#999" />
-      <text x={C} y={C - 4} fontSize={13} textAnchor="middle">{label}</text>
-      <text x={C} y={C + 14} fontSize={10} textAnchor="middle" fill="#888">底色為占時</text>
+      <text x={C} y={C - 6} fontSize={12} textAnchor="middle">{label}</text>
+      <text x={C} y={C + 10} fontSize={10} textAnchor="middle" fill="#ad4e00">{extra?.center2 ?? ''}</text>
+      <text x={C} y={C + 24} fontSize={8} textAnchor="middle" fill="#888">底色為占時</text>
     </Frame>
   )
 }

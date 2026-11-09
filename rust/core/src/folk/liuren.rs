@@ -5,6 +5,10 @@
 //! - 起课：卷一「入手法」十干寄宫与九法（賊尅、比用、渉害、遙尅、昴星、别責、八專、伏吟、返吟），细则依卷五各课「訂訛」。
 //! - 天乙贵人与十二天将：贵人起例两说并列（[`GuiRule`]：书中所沿俗例，缺省；协纪卷七引《考原》定法），
 //!   昼夜分界两说（卯酉为界、日出日入为界），顺逆以贵人所临地盘定（亥至辰顺、巳至戌逆）。见 doc/folk/liuren.md「天将」。
+//! - 盘面标注（旬空、遁干、驿马丁马天马、日德日禄羊刃日鬼、本命行年）见 [`shen_sha`]；课体（九宗门、课名、常见课格）见 [`ke_ti`]。
+
+pub mod ke_ti;
+pub mod shen_sha;
 
 use crate::astronomy::aspects::solar_term_jds_for_year_cached;
 use crate::astronomy::ephemeris::Vsop87;
