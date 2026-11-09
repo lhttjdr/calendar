@@ -188,6 +188,7 @@ const BODY_VERT = /* glsl */ `
   varying vec3 vColor;
   varying vec3 vToSun;
   varying vec3 vTrueCenter;
+  varying vec3 vViewCenter;
   varying float vRadius;
   varying float vTrueDisc;
   varying float vPixelRadius;
@@ -197,6 +198,7 @@ const BODY_VERT = /* glsl */ `
     vec3 v = uLocalToView * l;
     vColor = aColor;
     vTrueCenter = t;
+    vViewCenter = normalize(v);
     vRadius = aRadius;
     vToSun = uEqToLocal * aToSun;
     // 太阳：有半径、无月→日向量。白色，近地平变红（显示效果，不是色度计算）；全食时不画，只留日冕
@@ -240,6 +242,7 @@ const BODY_FRAG = /* glsl */ `
   varying vec3 vColor;
   varying vec3 vToSun;
   varying vec3 vTrueCenter;
+  varying vec3 vViewCenter;
   varying float vRadius;
   varying float vTrueDisc;
   varying float vPixelRadius;
@@ -283,10 +286,21 @@ const BODY_FRAG = /* glsl */ `
       float r = length(p);
       alpha = 1.0 - smoothstep(0.78, 0.92, r);
       if (isMoon) {
-        // 符号太小，暗面透明：新月附近不显示一个圆盖住太阳
+        // 符号太小，暗面透明：新月附近不显示一个圆盖住太阳。
+        // 符号上的点按月亮所在方向 c 处的切平面取球面法向：屏幕 x、y 对应 c 处的切向 ex、ey（球极投影保角，
+        // 屏幕径向对应过视场中心的大圆、切向对应绕中心的小圆），朝观测者的分量为 −c。
+        // 不能用视场中心方向代替 c：月亮离开中心 θ 时，明暗界会偏 θ，播放中月亮移过画面，月相就像在变。
         vec2 q = p / 0.85;
-        vec3 view = vec3(q, -sqrt(max(1.0 - dot(q, q), 0.0)));
-        alpha *= smoothstep(-0.03, 0.05, dot(view, uLocalToView * vToSun));
+        vec3 c = vViewCenter;
+        float st = length(c.xy);
+        float cf = st > 1e-6 ? c.x / st : 1.0;
+        float sf = st > 1e-6 ? c.y / st : 0.0;
+        vec3 mer = vec3(c.z * cf, c.z * sf, -st);
+        vec3 tan = vec3(-sf, cf, 0.0);
+        vec3 ex = cf * mer - sf * tan;
+        vec3 ey = sf * mer + cf * tan;
+        vec3 nrm = q.x * ex + q.y * ey - sqrt(max(1.0 - dot(q, q), 0.0)) * c;
+        alpha *= smoothstep(-0.03, 0.05, dot(nrm, uLocalToView * vToSun));
       }
     }
     if (alpha <= 0.0) discard;
