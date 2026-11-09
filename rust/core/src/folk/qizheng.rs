@@ -8,6 +8,8 @@
 //! - 宿度：黄道宿度——二十八宿距星的视黄经为各宿起点，天体视黄经减其西侧最近之距星，周天 360°（清时宪书即此）。
 //! - 命宫：以太阳所躔之宫加生时，卯上所临之宫为命宫（《星學大成》卷一「天盤轉出地盤上，卯上分明是命宫」），
 //!   或取天文上升点所在宫（选项）；十二宫自命宫逆布（通例）。
+//! - 星命（[`XingMing`]）：宫主、度主（宿主）、命主、身宫身主、十二宫主、廟樂旺喜怒、七强五弱、
+//!   恩難（五行生克）、童限大限、小限（[`xiao_xian`]）；以宿度分宫的旧法见 [`GongRule`]。
 //!
 //! 原典、实测核对与各说出处见 doc/folk/qizheng.md。
 
@@ -83,6 +85,239 @@ pub enum MingRule {
     Ascendant,
 }
 
+/// 分宫之法
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GongRule {
+    /// 以中气分宫（黄经每 30° 一宫，太阳过宫即中气），清时宪书。缺省
+    ZhongQi,
+    /// 以宿度分宫：宫界在某宿某度，《張果星宗》卷一「度數所在」（女二子、斗四丑、尾三寅、氐一卯、軫十辰、張十五巳……），
+    /// 见 [`GONG_JIE_XINGZONG`]。需距星（无则退回中气分宫）
+    XiuDuXingZong,
+    /// 以宿度分宫：《星學大成》卷一「氐一過卯尾三寅，斗三度兮丑中陳，女至一度方過子……張十四巳軫九辰」，
+    /// 与星宗差一度者四（斗、女、張、軫），见 [`GONG_JIE_DACHENG`]
+    XiuDuDaCheng,
+}
+
+/// 命主取何者
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MingZhuRule {
+    /// 命度主（命度所在宿之主曜）：《星命溯源》卷二《果憕問答·評人生禀賦分金論》「方知專用宫主為非，度主為是」；
+    /// 《張果星宗》卷四先天心法「先觀主曜，即命度主也」。缺省（无距星则退回宫主）
+    DuZhu,
+    /// 命宫主（命宫之宫主）：分金论所斥「專用宫主」之法
+    GongZhu,
+}
+
+/// 身主取何者（身宫恒为太阴所躔之宫）
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ShenZhuRule {
+    /// 身度主（太阴所躔宿之主）：《張果星宗》有「身度主」之称（卷四「水為身度主」），与命主取度主同理。缺省
+    DuZhu,
+    /// 身宫主（太阴所躔宫之宫主）：《星學大成》卷二《論學堂》「凡身宫主星是學堂星，假令太隂星在人馬宫是身宫也，即木為宫主星」
+    GongZhu,
+}
+
+/// 廟樂旺喜好怒之表
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MiaoWangRule {
+    /// 《星學大成》卷十四至二十二《三辰通載》各曜总论句（如卷十八太陽「其星廟戌樂巳好辰喜寅旺午怒酉」），十一曜俱全。缺省
+    Lun,
+    /// 同书各卷「某星廟樂旺順留伏逆」节（只五星：木廟亥樂寅旺未、火廟卯樂戌旺丑、土子丑廟旺樂、金辰廟旺樂酉、水巳廟旺樂申）；
+    /// 日月四余无此节，仍用总论句
+    Jie,
+}
+
+/// 七强五弱
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum QiangRuoRule {
+    /// 《星學大成》卷三《論十二宫管庫星歌》「命宫官禄最髙位，福徳妻宫次强宗，近强男女并田宅，第九遷移合照宫；
+    /// 五弱疾宫并相貌，兄弟奴僕八宫中」：遷移为强、財帛为弱。缺省
+    DaCheng,
+    /// 《張果星宗》卷一入门看法「强宫者，謂命宫、官禄、田宅、妻妾、男女、福德、財帛」（又云财帛次弱、迁移近强）：財帛为强、遷移为弱
+    XingZong,
+}
+
+/// 大限各宫年数
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DaXianYears {
+    /// 《張果星宗》卷三「定行限度法」：相貌十年、官禄十五、福德妻妾各十一、遷移八、疾厄七、奴僕男女田宅各四年半、兄弟財帛各五。缺省
+    XingZong,
+    /// 《星學大成》卷三限例「十三嵗出童限入寅，二十三卯，三十三辰，四十八巳，五十七午，六十四未，七十五申」所含年数：
+    /// 福德十、遷移九，余同星宗（例只到妻妾，其后各宫借星宗）
+    DaChengLi,
+}
+
+/// 宿度分宫宫界（地支序 子…亥）：该宫起于（宿下标，入宿古度）。《張果星宗》卷一「度數所在」
+pub const GONG_JIE_XINGZONG: [(usize, f64); 12] =
+    [(9, 2.0), (7, 4.0), (5, 3.0), (2, 1.0), (27, 10.0), (25, 15.0), (23, 3.0), (21, 8.0), (18, 6.0), (16, 3.0), (14, 1.0), (11, 12.0)];
+/// 宿度分宫宫界，《星學大成》卷一（宫界歌）
+pub const GONG_JIE_DACHENG: [(usize, f64); 12] =
+    [(9, 1.0), (7, 3.0), (5, 3.0), (2, 1.0), (27, 9.0), (25, 14.0), (23, 3.0), (21, 8.0), (18, 6.0), (16, 3.0), (14, 1.0), (11, 12.0)];
+
+/// 古度 / 度（周天 365¼ 古度）
+const GU_DU: f64 = 365.25 / 360.0;
+
+/// 十一曜五行（0 木 1 火 2 土 3 金 4 水）：日火之精、月水之精（《星學大成》卷十八「太陽日宿火之精」、卷十九「太隂月宿水之精」）；
+/// 四余：炁木、孛水、羅火、計土（《張果星宗》卷四《緯克經論》「木星有用忌金……土星有用忌木炁……金星有用忌火羅……水星有用忌土計」；
+/// 《星學大成》卷三月限「見木炁」「見火羅」并称）
+pub const YAO_XING: [u8; 11] = [1, 4, 4, 3, 1, 0, 2, 1, 2, 4, 0];
+/// 五行名
+pub const XING: [&str; 5] = ["木", "火", "土", "金", "水"];
+
+/// 宫主（地支序 → 十一曜下标）：子丑土、寅亥木、卯戌火、辰酉金、巳申水、午日、未月。
+/// 《星學大成》卷二「午屬太陽未屬月，申巳水宿辰酉金，卯戌火星寅亥木，子丑遇土來」；《張果星宗》卷一同
+pub const GONG_ZHU: [usize; 12] = [6, 6, 5, 4, 3, 2, 0, 1, 2, 3, 4, 5];
+
+/// 宿主（度主），七曜周而复始：角木、亢金、氐土、房日、心月、尾火、箕水……
+/// 《星學大成》卷三月限「亢牛婁鬼金度……斗奎井角木度……參箕軫壁水度……心危畢張月度……女氐柳胃土度……尾翼觜室火度」（房虛昴星日度由此推）；
+/// 《張果星宗》卷一「度主者……房虛昴星度日」俱全
+const XIU_ZHU7: [usize; 7] = [5, 3, 6, 0, 1, 4, 2];
+
+/// 地支所主之宫主（十一曜下标）
+pub fn gong_zhu(zhi: u8) -> usize {
+    GONG_ZHU[(zhi % 12) as usize]
+}
+/// 宿（0 角 … 27 轸）之主（十一曜下标）
+pub fn xiu_zhu(xiu: usize) -> usize {
+    XIU_ZHU7[xiu % 7]
+}
+
+/// 《三辰通載》总论句（卷十四至二十二），按十一曜之序原文照录（「正廟」作廟）
+const MIAO_LUN: [&str; 11] = [
+    "廟戌樂巳好辰喜寅旺午怒酉",     // 太陽 卷十八
+    "廟戌旺酉喜巳樂申順亥丑怒寅",   // 太隂 卷十九「順於亥丑二位，怒於寅」
+    "廟午旺巳喜辰好亥子",           // 水 卷十七
+    "廟辰旺亥樂酉好巳喜午",         // 金 卷十六
+    "廟卯旺丑好戌樂未喜申好寅",     // 火 卷十五
+    "廟亥樂寅好申喜未",             // 木 卷十四
+    "廟丑樂子旺辰好戌喜午",         // 土 卷十六「正廟在丑」
+    "廟午樂卯旺辰好酉喜戌怒申",     // 羅㬋 卷二十一
+    "廟亥旺戌樂寅好未喜卯巳怒辰",   // 計都 卷二十二
+    "廟未旺寅好巳樂酉喜申順子怒戌", // 月孛 卷二十
+    "廟丑旺亥好寅樂申喜午戌怒未",   // 紫炁 卷十九「午戌宫安皆喜，惟未為怒」
+];
+/// 「廟樂旺順留伏逆」节（五星；空串表示无此节、用总论句）
+const MIAO_JIE: [&str; 11] = ["", "", "廟巳旺巳樂申", "廟辰旺辰樂酉", "廟卯樂戌旺丑", "廟亥樂寅旺未", "廟子丑旺子丑樂子丑", "", "", "", ""];
+const MIAO_KIND: [&str; 7] = ["廟", "樂", "旺", "喜", "好", "怒", "順"];
+const ZHI_CH: &str = "子丑寅卯辰巳午未申酉戌亥";
+
+/// 一曜之廟樂旺喜好怒（宫，地支序）
+pub fn miao_wang(yao: usize, rule: MiaoWangRule) -> Vec<(&'static str, u8)> {
+    let src = match rule {
+        MiaoWangRule::Jie if !MIAO_JIE[yao].is_empty() => MIAO_JIE[yao],
+        _ => MIAO_LUN[yao],
+    };
+    let mut out = Vec::new();
+    let mut kind = "";
+    for c in src.chars() {
+        if let Some(k) = MIAO_KIND.iter().find(|k| k.starts_with(c)) {
+            kind = k;
+        } else if let Some(z) = ZHI_CH.chars().position(|x| x == c) {
+            out.push((kind, z as u8));
+        }
+    }
+    out
+}
+
+/// 十二宫（PALACES 下标）是否强宫
+pub fn palace_strong(palace: usize, rule: QiangRuoRule) -> bool {
+    match rule {
+        QiangRuoRule::DaCheng => matches!(palace, 0 | 3 | 4 | 6 | 8 | 9 | 10),
+        QiangRuoRule::XingZong => matches!(palace, 0 | 1 | 3 | 4 | 6 | 9 | 10),
+    }
+}
+
+/// 大限各宫年数（PALACES 下标；命宫由童限定，此处为 0）
+pub fn da_xian_years(palace: usize, rule: DaXianYears) -> f64 {
+    const XZ: [f64; 12] = [0.0, 5.0, 5.0, 4.5, 4.5, 4.5, 11.0, 7.0, 8.0, 15.0, 11.0, 10.0];
+    match (rule, palace) {
+        (DaXianYears::DaChengLi, 10) => 10.0,
+        (DaXianYears::DaChengLi, 8) => 9.0,
+        _ => XZ[palace % 12],
+    }
+}
+
+/// 童限（出童限之岁）：命度在命宫内距宫首（与相貌宫相接之界）`d` 古度，《星學大成》卷三
+/// 「遇交宫隨宫交三度起一嵗，如立命在子，女二女三女四共三度起十一嵗，女五女六女七共三度起十二嵗，女八女九女十起十三嵗」，
+/// 即 11 + ⌊d／3⌋（宫中十五度约十五六岁，合「命宫十五為例」）
+pub fn tong_xian(d_gudu: Real) -> Real {
+    real(11.0) + crate::math::real::from_i32((d_gudu / real(3.0)).to_i32_floor().max(0))
+}
+
+/// 小限：生年支 `birth_zhi` 起命宫，逐年逆行一宫，`year_zhi` 年所在之宫。《星學大成》卷三
+/// 「從命宫起逆轉，如亥生人立命在丑，就丑上數亥，子年在子，丑年在亥，寅年在戌……」
+pub fn xiao_xian(ming: u8, birth_zhi: u8, year_zhi: u8) -> u8 {
+    ((ming as i32 - (year_zhi as i32 - birth_zhi as i32)).rem_euclid(12)) as u8
+}
+
+/// 大限一周：命宫 0 岁至童限 `tong`，其后顺支（相貌、福德、官祿……財帛）各依 [`da_xian_years`]。
+/// 《星學大成》卷三「以限度言則一命宫二相貌三福徳四官禄……十二財帛，順數左旋」
+pub fn da_xian(ming: u8, tong: Real, rule: DaXianYears) -> Vec<DaXian> {
+    let mut v = vec![DaXian { gong: ming % 12, palace: PALACES[0], from: real(0.0), to: tong }];
+    let mut age = tong;
+    for k in 1..12u8 {
+        let z = (ming + k) % 12;
+        let p = ((ming as i32 - z as i32).rem_euclid(12)) as usize;
+        let to = age + real(da_xian_years(p, rule));
+        v.push(DaXian { gong: z, palace: PALACES[p], from: age, to });
+        age = to;
+    }
+    v
+}
+
+/// 一宫大限
+#[derive(Clone, Debug, PartialEq)]
+pub struct DaXian {
+    /// 宫（地支序）
+    pub gong: u8,
+    /// 宫名（PALACES）
+    pub palace: &'static str,
+    /// 起止之岁
+    pub from: Real,
+    pub to: Real,
+}
+
+/// 星命诸项
+#[derive(Clone, Debug)]
+pub struct XingMing {
+    /// 命度黄经（°）：上升点法即上升点；卯上起命法以太阳入宫度移至命宫（量天尺未见，见文档）
+    pub ming_lon: Real,
+    /// 命度所在宿与入宿度（°）
+    pub ming_xiu: Option<(usize, Real)>,
+    /// 命宫主、命度主（十一曜下标）；命主依 [`MingZhuRule`]
+    pub ming_gong_zhu: usize,
+    pub ming_du_zhu: Option<usize>,
+    pub ming_zhu: usize,
+    /// 身宫（太阴所躔之宫）、身宫主、身度主、身主（依 [`ShenZhuRule`]）
+    pub shen_gong: u8,
+    pub shen_gong_zhu: usize,
+    pub shen_du_zhu: Option<usize>,
+    pub shen_zhu: usize,
+    /// 十二宫之宫主（地支序 → 十一曜下标）
+    pub gong_zhu: [usize; 12],
+    /// 各曜（与 `QizhengChart::yao` 同序）所居之廟樂旺喜好怒順，及「入垣」（居自主之宫）、「升殿」（居自主之宿）
+    pub dignity: Vec<Vec<&'static str>>,
+    /// 各宫（地支序）强弱：true 为强
+    pub strong: [bool; 12],
+    /// 各曜对命主之五行关系：恩（生命主）、難（克命主）、比（同行）、子（命主所生）、制（命主所克）；命主本身为「主」
+    pub relation: Vec<&'static str>,
+    /// 出童限之岁
+    pub tong_xian: Real,
+    /// 大限：命宫（童限）起，顺支历相貌、福德、官祿……財帛一周
+    pub da_xian: Vec<DaXian>,
+}
+
+/// 五行关系：a 对 b（b 为主）
+fn relation_of(a: u8, b: u8) -> &'static str {
+    match (a as i32 - b as i32).rem_euclid(5) {
+        0 => "比",
+        4 => "恩", // a 生 b：a + 1 = b
+        1 => "子", // b 生 a
+        3 => "難", // a 克 b：a + 2 = b
+        _ => "制", // b 克 a
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct QizhengOptions {
     pub luo_ji: LuoJi,
@@ -90,11 +325,29 @@ pub struct QizhengOptions {
     pub bei: BeiKind,
     pub zi_qi: ZiQiRule,
     pub ming: MingRule,
+    pub gong: GongRule,
+    pub ming_zhu: MingZhuRule,
+    pub shen_zhu: ShenZhuRule,
+    pub miao_wang: MiaoWangRule,
+    pub qiang_ruo: QiangRuoRule,
+    pub da_xian: DaXianYears,
 }
 
 impl Default for QizhengOptions {
     fn default() -> Self {
-        Self { luo_ji: LuoJi::JiAscending, node: NodeKind::True, bei: BeiKind::MeanApogee, zi_qi: ZiQiRule::ShiXian, ming: MingRule::SunOnHour }
+        Self {
+            luo_ji: LuoJi::JiAscending,
+            node: NodeKind::True,
+            bei: BeiKind::MeanApogee,
+            zi_qi: ZiQiRule::ShiXian,
+            ming: MingRule::SunOnHour,
+            gong: GongRule::ZhongQi,
+            ming_zhu: MingZhuRule::DuZhu,
+            shen_zhu: ShenZhuRule::DuZhu,
+            miao_wang: MiaoWangRule::Lun,
+            qiang_ruo: QiangRuoRule::DaCheng,
+            da_xian: DaXianYears::XingZong,
+        }
     }
 }
 
@@ -123,6 +376,8 @@ pub struct QizhengChart {
     pub ming: u8,
     /// 十二宫：下标为地支，值为宫名
     pub palaces: [&'static str; 12],
+    /// 星命诸项（宫主、度主、命主、身主、廟旺、强弱、恩難、限）
+    pub xing_ming: XingMing,
 }
 
 fn deg(x: Real) -> Real {
@@ -221,6 +476,19 @@ pub fn xiu_of(mansion_lons: &[Real; 28], lon: Real) -> (usize, Real) {
     best
 }
 
+/// 以宿度分宫：黄经 `lon` 所在之宫（地支序）与距宫首之度（°）。宫首 = 宫界宿距星黄经 + 入宿古度（折为度）
+pub fn gong_of_xiu(mansion_lons: &[Real; 28], lon: Real, jie: &[(usize, f64); 12]) -> (u8, Real) {
+    let mut best = (0u8, real(f64::MAX));
+    for (z, (x, d)) in jie.iter().enumerate() {
+        let b = mansion_lons[*x] + real(*d / GU_DU);
+        let dd = norm360(lon - b);
+        if dd < best.1 {
+            best = (z as u8, dd);
+        }
+    }
+    best
+}
+
 /// 命宫（地支序）：太阳所躔之宫 `sun_gong` 加生时 `hour_zhi`，卯上所临之宫
 pub fn ming_sun_on_hour(sun_gong: u8, hour_zhi: u8) -> u8 {
     ((sun_gong as i32 + 3 - hour_zhi as i32).rem_euclid(12)) as u8
@@ -253,8 +521,17 @@ pub fn chart<P: EphemerisProvider>(
 ) -> QizhengChart {
     let mlon = frame.map(|f| mansion_longitudes(f, t));
     let jd = t.to_scale(TimeScale::TT).jd;
+    let jie = match (o.gong, mlon.is_some()) {
+        (GongRule::XiuDuXingZong, true) => Some(&GONG_JIE_XINGZONG),
+        (GongRule::XiuDuDaCheng, true) => Some(&GONG_JIE_DACHENG),
+        _ => None,
+    };
+    let gong_fn = |lon: Real| match (jie, mlon.as_ref()) {
+        (Some(j), Some(m)) => gong_of_xiu(m, lon, j),
+        _ => gong_of(lon),
+    };
     let mk = |name: &'static str, lon: Real, lat: Option<Real>, retro: bool| {
-        let (gong, gong_deg) = gong_of(lon);
+        let (gong, gong_deg) = gong_fn(lon);
         YaoPos { name, lon: norm360(lon), lat, gong, gong_deg, xiu: mlon.as_ref().map(|m| xiu_of(m, lon)), retro }
     };
     let bodies = [
@@ -298,12 +575,82 @@ pub fn chart<P: EphemerisProvider>(
         yao.push(mk("紫炁", real(l0) + real(360.0) * (jd - real(j0)) / real(p), None, false));
     }
     let sun_gong = yao[0].gong;
-    let ming = match (o.ming, lst_lat) {
-        (MingRule::Ascendant, Some((lst, lat))) => gong_of(ascendant(lst, lat, true_obliquity(t))).0,
-        _ => ming_sun_on_hour(sun_gong, hour_zhi),
+    let (ming, ming_lon) = match (o.ming, lst_lat) {
+        (MingRule::Ascendant, Some((lst, lat))) => {
+            let a = ascendant(lst, lat, true_obliquity(t));
+            (gong_fn(a).0, a)
+        }
+        _ => {
+            let m = ming_sun_on_hour(sun_gong, hour_zhi);
+            // 命度：太阳入宫度移至命宫（宫首 = 太阳黄经 − 入宫度，再移 Δ 宫）
+            let shift = match jie {
+                Some(j) => {
+                    let ml = mlon.as_ref().unwrap();
+                    let b = |z: u8| ml[j[z as usize].0] + real(j[z as usize].1 / GU_DU);
+                    norm360(b(m) - b(sun_gong))
+                }
+                None => real(30.0) * real(((sun_gong as i32 - m as i32).rem_euclid(12)) as f64),
+            };
+            (m, norm360(yao[0].lon + shift))
+        }
     };
     let palaces = core::array::from_fn(|z| PALACES[((ming as i32 - z as i32).rem_euclid(12)) as usize]);
-    QizhengChart { yao, ming, palaces }
+    let xing_ming = xing_ming(&yao, ming, ming_lon, gong_fn(ming_lon).1, mlon.as_ref(), o);
+    QizhengChart { yao, ming, palaces, xing_ming }
+}
+
+/// 由诸曜位置、命宫、命度推星命诸项
+fn xing_ming(yao: &[YaoPos], ming: u8, ming_lon: Real, ming_gong_deg: Real, mlon: Option<&[Real; 28]>, o: &QizhengOptions) -> XingMing {
+    let ming_xiu = mlon.map(|m| xiu_of(m, ming_lon));
+    let ming_gong_zhu = gong_zhu(ming);
+    let ming_du_zhu = ming_xiu.map(|(x, _)| xiu_zhu(x));
+    let ming_zhu = match (o.ming_zhu, ming_du_zhu) {
+        (MingZhuRule::DuZhu, Some(d)) => d,
+        _ => ming_gong_zhu,
+    };
+    let moon = &yao[1];
+    let shen_gong = moon.gong;
+    let shen_gong_zhu = gong_zhu(shen_gong);
+    let shen_du_zhu = moon.xiu.map(|(x, _)| xiu_zhu(x));
+    let shen_zhu = match (o.shen_zhu, shen_du_zhu) {
+        (ShenZhuRule::DuZhu, Some(d)) => d,
+        _ => shen_gong_zhu,
+    };
+    let palace_of = |z: u8| ((ming as i32 - z as i32).rem_euclid(12)) as usize;
+    let dignity = yao
+        .iter()
+        .enumerate()
+        .map(|(k, y)| {
+            let mut v: Vec<&'static str> = miao_wang(k, o.miao_wang).into_iter().filter(|(_, z)| *z == y.gong).map(|(kd, _)| kd).collect();
+            if gong_zhu(y.gong) == k {
+                v.push("入垣");
+            }
+            if y.xiu.is_some_and(|(x, _)| xiu_zhu(x) == k) {
+                v.push("升殿");
+            }
+            v
+        })
+        .collect();
+    let relation = (0..yao.len()).map(|k| if k == ming_zhu { "主" } else { relation_of(YAO_XING[k], YAO_XING[ming_zhu]) }).collect();
+    let tong = tong_xian(ming_gong_deg * real(GU_DU));
+    let da_xian = da_xian(ming, tong, o.da_xian);
+    XingMing {
+        ming_lon,
+        ming_xiu,
+        ming_gong_zhu,
+        ming_du_zhu,
+        ming_zhu,
+        shen_gong,
+        shen_gong_zhu,
+        shen_du_zhu,
+        shen_zhu,
+        gong_zhu: GONG_ZHU,
+        dignity,
+        strong: core::array::from_fn(|z| palace_strong(palace_of(z as u8), o.qiang_ruo)),
+        relation,
+        tong_xian: tong,
+        da_xian,
+    }
 }
 
 /// 宿名
@@ -329,6 +676,90 @@ mod tests {
         assert_eq!(ming_sun_on_hour(11, 3), 11);
         assert_eq!(ming_sun_on_hour(11, 6), 8);
         assert_eq!(ming_sun_on_hour(0, 0), 3);
+    }
+
+    /// 宫主、宿主：《星學大成》卷二宫主歌、卷三月限宿度五行；《張果星宗》卷一宫度偏正垣「虛日坐命度，主是日，宫主是土」
+    #[test]
+    fn gong_xiu_zhu() {
+        let z = |c: char| ZHI_CH.chars().position(|x| x == c).unwrap() as u8;
+        for (zs, y) in [("午", 0), ("未", 1), ("巳申", 2), ("辰酉", 3), ("卯戌", 4), ("寅亥", 5), ("子丑", 6)] {
+            for c in zs.chars() {
+                assert_eq!(gong_zhu(z(c)), y, "{c}");
+            }
+        }
+        let x = |c: &str| MANSIONS.iter().position(|m| *m == c).unwrap();
+        for (xs, y) in [("亢牛娄鬼", 3), ("斗奎井角", 5), ("参箕轸壁", 2), ("心危毕张", 1), ("女氐柳胃", 6), ("尾翼觜室", 4), ("房虚昴星", 0)] {
+            for c in xs.chars() {
+                assert_eq!(xiu_zhu(x(&c.to_string())), y, "{c}");
+            }
+        }
+        assert_eq!((xiu_zhu(x("虚")), gong_zhu(z('子'))), (0, 6));
+        // 卷二《論學堂》：太隂在人馬宫（寅）是身宫，木為宫主星
+        assert_eq!(YAO[gong_zhu(z('寅'))], "木星");
+    }
+
+    /// 《星學大成》卷三限例
+    #[test]
+    fn xian_examples() {
+        // 童限：立命在子，女二至四起十一歲，女五至七十二歲，女八至十十三歲（距宫首古度 0—3、3—6、6—9）
+        for (d, a) in [(0.5, 11.0), (2.9, 11.0), (3.5, 12.0), (6.5, 13.0), (15.0, 16.0)] {
+            assert_eq!(tong_xian(real(d)).as_f64(), a, "{d}");
+        }
+        // 大限：「十三嵗出童限入寅，二十三卯，三十三辰，四十八巳，五十七午，六十四未，七十五申」（命宫丑）
+        let book = [(2u8, 13.0), (3, 23.0), (4, 33.0), (5, 48.0), (6, 57.0), (7, 64.0), (8, 75.0)];
+        let li = da_xian(1, real(13.0), DaXianYears::DaChengLi);
+        let xz = da_xian(1, real(13.0), DaXianYears::XingZong);
+        for (k, (g, a)) in book.iter().enumerate() {
+            assert_eq!((li[k + 1].gong, li[k + 1].from.as_f64()), (*g, *a));
+        }
+        // 星宗年数：卯、辰两宫起岁各晚一年，巳以后复合
+        let xz_from: Vec<f64> = xz[1..8].iter().map(|d| d.from.as_f64()).collect();
+        assert_eq!(xz_from, vec![13.0, 23.0, 34.0, 49.0, 57.0, 64.0, 75.0]);
+        assert_eq!(li[1].palace, "相貌");
+        assert_eq!(li[3].palace, "官祿");
+        // 小限：亥生人立命在丑，就丑上數亥，子年在子，丑年在亥……戌年在寅
+        let z = |c: char| ZHI_CH.chars().position(|x| x == c).unwrap() as u8;
+        let book = "亥丑 子子 丑亥 寅戌 卯酉 辰申 巳未 午午 未巳 申辰 酉卯 戌寅";
+        for w in book.split(' ') {
+            let c: Vec<char> = w.chars().collect();
+            assert_eq!(xiao_xian(z('丑'), z('亥'), z(c[0])), z(c[1]), "{w}");
+        }
+    }
+
+    /// 恩難：《星學大成》卷三月限「命坐巳未申三宫以月水為主，喜金水月木，畏火羅土計」；
+    /// 「辰酉安命以金為主，流月喜逢胃柳女氐（土度），忌尾室翼觜（火度）」
+    #[test]
+    fn en_nan() {
+        let r = |a: usize, b: usize| relation_of(YAO_XING[a], YAO_XING[b]);
+        // 水为主（下标 2）：金恩、水月比、木子；火羅制、土計難
+        assert_eq!([r(3, 2), r(1, 2), r(5, 2), r(4, 2), r(7, 2), r(6, 2), r(8, 2)], ["恩", "比", "子", "制", "制", "難", "難"]);
+        // 金为主（3）：土計恩，火羅日難
+        assert_eq!([r(6, 3), r(8, 3), r(4, 3), r(7, 3), r(0, 3)], ["恩", "恩", "難", "難", "難"]);
+    }
+
+    /// 廟樂旺：《三辰通載》总论句与「廟樂旺」节
+    #[test]
+    fn miao_wang_tables() {
+        assert!(miao_wang(5, MiaoWangRule::Lun).contains(&("廟", 11))); // 木廟亥（卷十四）
+        assert!(miao_wang(0, MiaoWangRule::Lun).contains(&("怒", 9))); // 太陽怒酉（卷十八）
+        assert!(miao_wang(8, MiaoWangRule::Lun).contains(&("喜", 5))); // 計都喜卯巳（卷二十二）
+        assert!(miao_wang(4, MiaoWangRule::Lun).contains(&("樂", 7))); // 火樂未（论句）
+        assert!(miao_wang(4, MiaoWangRule::Jie).contains(&("樂", 10))); // 火樂戌（节「火入白羊戌上」）
+        assert_eq!(miao_wang(6, MiaoWangRule::Jie).len(), 6); // 土子丑廟旺樂
+        assert_eq!(miao_wang(0, MiaoWangRule::Jie), miao_wang(0, MiaoWangRule::Lun)); // 日无节，用论句
+        assert!(palace_strong(8, QiangRuoRule::DaCheng) && !palace_strong(1, QiangRuoRule::DaCheng));
+        assert!(!palace_strong(8, QiangRuoRule::XingZong) && palace_strong(1, QiangRuoRule::XingZong));
+    }
+
+    /// 宿度分宫：宫首在界宿距星 + 古度
+    #[test]
+    fn gong_by_xiu() {
+        let m: [Real; 28] = core::array::from_fn(|i| real(i as f64 * 360.0 / 28.0));
+        let b = |z: usize| (m[GONG_JIE_XINGZONG[z].0] + real(GONG_JIE_XINGZONG[z].1 / GU_DU)).as_f64();
+        let (g, d) = gong_of_xiu(&m, real(b(0) + 0.1), &GONG_JIE_XINGZONG);
+        assert_eq!(g, 0);
+        assert!((d.as_f64() - 0.1).abs() < 1e-9);
+        assert_eq!(gong_of_xiu(&m, real(b(0) - 0.1), &GONG_JIE_XINGZONG).0, 1); // 女二之前属丑
     }
 
     #[test]
@@ -387,6 +818,26 @@ mod tests {
             if dd == 0 {
                 assert!((c.yao[0].lon.as_f64() - (330.0 + 51.0 / 60.0)).abs() * 60.0 < 2.0);
                 assert_eq!(c.yao[0].gong, 11);
+                // 星命：子时生，命宫 = 亥 + 3 − 0 = 寅；身宫为太阴之宫；大限一周十二宫
+                let x = &c.xing_ming;
+                assert_eq!(c.ming, 2);
+                assert_eq!(x.ming_gong_zhu, 5);
+                assert_eq!(x.ming_zhu, xiu_zhu(x.ming_xiu.unwrap().0));
+                assert_eq!(x.shen_gong, c.yao[1].gong);
+                assert_eq!(x.relation[x.ming_zhu], "主");
+                assert_eq!(x.da_xian.len(), 12);
+                assert_eq!(x.da_xian[1].palace, "相貌");
+                // 宿度分宫：各曜宫与中气分宫至多差一宫
+                for g in [GongRule::XiuDuXingZong, GongRule::XiuDuDaCheng] {
+                    let c2 = chart(&eph, t, Some(&frame), 0, None, &QizhengOptions { gong: g, ..Default::default() }, &opts);
+                    for (a, b) in c.yao.iter().zip(&c2.yao) {
+                        let dz = (a.gong as i32 - b.gong as i32).rem_euclid(12);
+                        assert!(dz == 0 || dz == 1 || dz == 11, "{:?} {} {} {}", g, a.name, a.gong, b.gong);
+                        assert!(b.gong_deg.as_f64() < 40.0);
+                    }
+                    eprintln!("{g:?}: 太阳 {} 宫 {:.2}°，命 {}", c2.yao[0].gong, c2.yao[0].gong_deg.as_f64(), c2.ming);
+                }
+                eprintln!("命度 {:?} 命主 {} 身主 {} 童限 {} 廟旺 {:?}", x.ming_xiu, YAO[x.ming_zhu], YAO[x.shen_zhu], x.tong_xian.as_f64(), x.dignity);
             }
         }
     }
