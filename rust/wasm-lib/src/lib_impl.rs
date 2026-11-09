@@ -1143,6 +1143,13 @@ pub fn ziwei18_json(year_gz: u8, lunar_month: u8, is_leap: bool, lunar_day: u8, 
 /// 1024 橫天朱雀（鳌头：初一）否决、2048 赤口依协纪卷三十六所述兀日起法（阳年起小吉、阴年起留連，即类编卷二六輪兀；值下兀否决，优先于 256、512）。可用与否全依所选规则。
 /// 返回逐日 JSON 数组；`verdict` 为「可用」「經制化可用」「不可用」，`jie` 为经制化之忌与制法出处，`liuRen` 为小六壬之位（类编卷十五），`wuRi` 为兀日（「上兀」「下兀」或 null），`jiri` 为类编卷七吉日表所列（表名、注）。
 #[wasm_bindgen]
+pub fn leibian_shen_list_json() -> String {
+    // 类编卷七嫁娶凶神（与行嫁白虎）：[名, 「用类编凶神」缺省是否否决]；下标即 jiaqu_days_json 之 leibian_mask 位
+    use lunar_core::folk::jiaqu::{LEIBIAN_DEFAULT_VETO, LEIBIAN_SHEN};
+    json_arr(LEIBIAN_SHEN.iter().map(|n| format!("[{},{}]", json_str(n), LEIBIAN_DEFAULT_VETO.contains(n))))
+}
+
+#[wasm_bindgen]
 pub fn hun_shen_list_json() -> String {
     // 婚事（結婚姻、嫁娶）宜神、忌神与「特定日」：下标即 jiaqu_days_json 之 ignore 位；[名, 是否宜神]
     json_arr(lunar_core::folk::yiji_derive::HUN_SHEN.iter().map(|(n, y)| format!("[{},{}]", json_str(n), y)))
@@ -1165,6 +1172,7 @@ pub fn jiaqu_days_json(
     opts: u32,
     ignore_lo: u32,
     ignore_hi: u32,
+    leibian_mask: u32,
 ) -> Result<String, JsValue> {
     use lunar_core::calendar::chinese_lunar::ChineseLunarDate;
     use lunar_core::folk::jiaqu::{judge_day, ChiKouRule, Jiang, JiaquInput, JiaquOptions, ZhouTangRule};
@@ -1179,6 +1187,18 @@ pub fn jiaqu_days_json(
     let o = JiaquOptions {
         // 不看之神（位义见 hun_shen_list_json）
         ignore_shen: ignore_lo as u64 | (ignore_hi as u64) << 32,
+        // 类编凶神逐神（位义见 leibian_shen_list_json）；俗说诸忌：4096 楊公忌、8192 紅沙轉神厯、16384 紅沙又一本、32768 天狗、65536 章光
+        leibian_mask: leibian_mask as u64,
+        yang_gong: opts & 4096 != 0,
+        hong_sha: if opts & 8192 != 0 {
+            lunar_core::folk::jiaqu::HongShaRule::ZhuanShen
+        } else if opts & 16384 != 0 {
+            lunar_core::folk::jiaqu::HongShaRule::YouYiBen
+        } else {
+            lunar_core::folk::jiaqu::HongShaRule::BuYong
+        },
+        tian_gou: opts & 32768 != 0,
+        zhang_guang: opts & 65536 != 0,
         xieji_yiji: if opts & 64 != 0 {
             lunar_core::folk::jiaqu::XieJiYiJi::BuYong
         } else if opts & 32 != 0 {

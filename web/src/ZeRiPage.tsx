@@ -8,7 +8,7 @@ import { Notes, OptionsFold, useOpt, useOptGroup } from './fold'
 import type { LunarBackend } from './lunar-backend-types'
 import { useCompassBar, useSpinDriver, type CompassSpinSource } from './CompassBar'
 import { ensureLiShu, LISHU_FAMILY } from './Wheels'
-import { JIAQU_DEFAULTS as JD, JIAQU_IN_NS, JIAQU_RULE_NS, hunShenList, jiaquMonth, nvGzOf, type JiaquDay, type MonthLunar } from './jiaquShared'
+import { JIAQU_DEFAULTS as JD, JIAQU_IN_NS, JIAQU_RULE_NS, hunShenList, leibianShenList, jiaquMonth, nvGzOf, type JiaquDay, type MonthLunar } from './jiaquShared'
 
 const { Text } = Typography
 
@@ -235,6 +235,12 @@ function JiaquDetail(props: { d: JiaquDay; i: number; m: MonthLunar; ignored?: s
       {d.jie && d.jie.length > 0 && <div><Text type="warning" strong style={{ fontSize: 12 }}>制化 </Text>{d.jie.map(([a, b], k) => <div key={k} className="jq-r">{`${a}（${b}）`}</div>)}</div>}
       <div style={{ fontSize: 12, marginTop: 4 }}><Text type="secondary">标注 </Text>{marks.join(' · ')}</div>
       {d.leibian.length > 0 && <div style={{ fontSize: 12 }}><Text type="secondary">类编凶神 </Text>{d.leibian.map(([a]) => a).join(' ')}</div>}
+      {(() => {
+        // 核心附注中标注栏未含者（俗说诸忌与吉位、天狗、五合五離之名、受死等）
+        const skip = /^(嫁娶周堂值|女命|类编所列|类编吉日表|不將|赤口|上兀|下兀)/
+        const ns = d.notes.filter((x) => !skip.test(x))
+        return ns.length > 0 && <div style={{ fontSize: 12 }}><Text type="secondary">附注 </Text>{ns.join('；')}</div>
+      })()}
       {d.jiri && d.jiri.length > 0 && <div style={{ fontSize: 12 }}><Text type="success">类编吉日表 </Text>{d.jiri.map(([a, b]) => (b ? `${a}（${b}）` : a)).join('、')}</div>}
     </div>
   )
@@ -259,6 +265,22 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
   const [aoTou, setAoTou] = useOpt(g, 'aoTou', JD.aoTou, '鳌头白虎')
   const [chiKou, setChiKou] = useOpt(g, 'chiKou', JD.chiKou, '赤口')
   const [hengTian, setHengTian] = useOpt(g, 'hengTian', JD.hengTian, '橫天朱雀')
+  /** 类编凶神逐神否决（位掩码）；俗说诸忌 */
+  const [leibianMask, setLeibianMask] = useOpt(g, 'leibianMask', JD.leibianMask, '类编凶神逐神')
+  const [yangGong, setYangGong] = useOpt(g, 'yangGong', JD.yangGong, '楊公忌')
+  const [tianGou, setTianGou] = useOpt(g, 'tianGou', JD.tianGou, '天狗')
+  const [zhangGuang, setZhangGuang] = useOpt(g, 'zhangGuang', JD.zhangGuang, '章光')
+  const [hongSha, setHongSha] = useOpt(g, 'hongSha', JD.hongSha, '紅沙')
+  const lbList = useMemo(() => leibianShenList(props.wasm), [props.wasm])
+  /** 类编实际否决之集：有掩码按掩码，否则「用类编凶神」取缺省所列 */
+  const lbOn = (i: number) => (leibianMask ? (leibianMask >>> i) & 1 : useXiong ? Number(lbList[i]?.[1]) : 0) === 1
+  const lbToggle = (i: number) => {
+    let m = 0
+    lbList.forEach((_, j) => { if (j === i ? !lbOn(j) : lbOn(j)) m |= 1 << j })
+    setLeibianMask(m >>> 0)
+    if (m === 0) setUseXiong(false)
+  }
+  const lbPreset = (def: boolean) => { setLeibianMask(0); setUseXiong(def) }
   /** 协纪推法中不看之神（「、」连名） */
   const [ignore, setIgnore] = useOpt(g, 'ignore', JD.ignore, '不看之神')
   const shenList = useMemo(() => hunShenList(props.wasm), [props.wasm])
@@ -274,14 +296,14 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
   const list = useMemo((): JiaquDay[] | null => {
     try {
       setErr(null)
-      return jiaquMonth(props.wasm, props.ear, m, { nvYear, wengGu, fuMu, naXu, useYue, xieji, zt, useXiong, zhiHua, aoTou, chiKou, hengTian, ignore })
+      return jiaquMonth(props.wasm, props.ear, m, { nvYear, wengGu, fuMu, naXu, useYue, xieji, zt, useXiong, zhiHua, aoTou, chiKou, hengTian, ignore, leibianMask, yangGong, tianGou, zhangGuang, hongSha })
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       console.error('jiaqu_days_json', e)
       setErr(msg)
       return null
     }
-  }, [props.wasm, props.ear, m, nvYear, wengGu, fuMu, naXu, useYue, zt, xieji, useXiong, zhiHua, aoTou, chiKou, hengTian, ignore])
+  }, [props.wasm, props.ear, m, nvYear, wengGu, fuMu, naXu, useYue, zt, xieji, useXiong, zhiHua, aoTou, chiKou, hengTian, ignore, leibianMask, yangGong, tianGou, zhangGuang, hongSha])
   return (
     <Card size="small" title={`婚嫁择吉（${props.monthLabel}）`} style={{ marginTop: 16 }}>
       <Flex gap={12} wrap align="center" style={{ marginBottom: 8 }}>
@@ -325,7 +347,26 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
         <span>嫁娶周堂 <Radio.Group size="small" value={zt} onChange={(e) => setZt(e.target.value)} optionType="button"
           options={[{ label: '协纪', value: 0 }, { label: '类编', value: 1 }, { label: '不用', value: 2 }]} /></span>
         <Checkbox checked={useYue} onChange={(e) => setUseYue(e.target.checked)}>女命行嫁月否决（类编；协纪奏准删除）</Checkbox>
-        <Checkbox checked={useXiong} onChange={(e) => setUseXiong(e.target.checked)}>类编嫁娶凶神否决</Checkbox>
+        <div style={{ flexBasis: '100%', fontSize: 12, lineHeight: 2 }}>
+          <Text type="secondary" style={{ fontSize: 12 }}>类编卷七嫁娶凶神（点选即据以否决，未选者只列）：</Text>
+          <Button size="small" type="link" onClick={() => lbPreset(true)}>按「論嫁娶凶日」等缺省所列</Button>
+          <Button size="small" type="link" onClick={() => lbPreset(false)}>全不用</Button>
+          <div>
+            {lbList.map(([n], i) => (
+              <Tag.CheckableTag key={n} checked={lbOn(i)} onChange={() => lbToggle(i)}>{n}</Tag.CheckableTag>
+            ))}
+          </div>
+        </div>
+        <div style={{ flexBasis: '100%', fontSize: 12 }}>
+          <Text type="secondary" style={{ fontSize: 12 }}>通书俗说（协纪卷三十六辨讹斥之；不选则只列于标注）：</Text>
+          <Flex gap={12} wrap align="center">
+            <Checkbox checked={yangGong} onChange={(e) => setYangGong(e.target.checked)}>楊公忌否决</Checkbox>
+            <Checkbox checked={tianGou} onChange={(e) => setTianGou(e.target.checked)}>天狗頭尾口腹否决</Checkbox>
+            <Checkbox checked={zhangGuang} onChange={(e) => setZhangGuang(e.target.checked)}>章光否决</Checkbox>
+            <span>紅沙 <Radio.Group size="small" value={hongSha} onChange={(e) => setHongSha(e.target.value)} optionType="button"
+              options={[{ label: '不用（协纪）', value: 0 }, { label: '轉神厯（孟酉仲巳季丑）', value: 1 }, { label: '又一本（孟巳仲酉季丑）', value: 2 }]} /></span>
+          </Flex>
+        </div>
         <Checkbox checked={aoTou} onChange={(e) => setAoTou(e.target.checked)}>白虎从鳌头（值门床堂路）</Checkbox>
         <span>赤口 <Radio.Group size="small" value={chiKou} onChange={(e) => setChiKou(e.target.value)} optionType="button"
           options={[{ label: '不用（协纪）', value: 0 }, { label: '类编（凡赤口）', value: 1 }, { label: '祛疑说（值寅巳酉戌）', value: 2 }, { label: '兀日起法（协纪所述：阳年起小吉、阴年起留連）', value: 3 }]} /></span>

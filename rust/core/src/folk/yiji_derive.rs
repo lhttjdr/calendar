@@ -271,7 +271,7 @@ pub fn names_of(d: &YueBiaoDay, k: u8) -> HashSet<String> {
     s
 }
 
-/// 可略去（「不看」）之神：婚事两事之宜神、忌神（卷十一），末加「特定日」一组（卷十月厭條諸事皆忌之日）。
+/// 可略去（「不看」）之神：婚事两事之宜神、忌神（卷十一），末加卷十月厭條「諸事皆忌」之日（大會、小會、單陰……各名分列）。
 /// 下标即 [`JiaquOptions::ignore_shen`](super::jiaqu::JiaquOptions) 位
 pub static HUN_SHEN: Lazy<Vec<(&'static str, bool)>> = Lazy::new(|| {
     let mut v: Vec<(&'static str, bool)> = Vec::new();
@@ -288,25 +288,20 @@ pub static HUN_SHEN: Lazy<Vec<(&'static str, bool)>> = Lazy::new(|| {
             }
         }
     }
-    v.push(("特定日", false));
-    assert!(v.len() <= 64);
+    // 卷十月厭條：陰陽大會（與月德併仍諸事皆忌）、小會、單陰、純陽……「亦諸事皆忌」
+    v.push(("大會", false));
+    for n in ALLBAD {
+        if !v.iter().any(|(x, _)| *x == n) {
+            v.push((n, false));
+        }
+    }
+    assert!(v.len() <= 64, "{}", v.len());
     v
 });
 
-/// 位掩码 → 所略诸神名（「特定日」展开为其各名）
+/// 位掩码 → 所略诸神名
 pub fn ignore_names(mask: u64) -> Vec<String> {
-    let mut out = Vec::new();
-    for (i, (n, _)) in HUN_SHEN.iter().enumerate() {
-        if mask >> i & 1 == 1 {
-            if *n == "特定日" {
-                out.extend(ALLBAD.iter().map(|x| x.to_string()));
-                out.push("大會".into());
-            } else {
-                out.push(n.to_string());
-            }
-        }
-    }
-    out
+    HUN_SHEN.iter().enumerate().filter(|(i, _)| mask >> i & 1 == 1).map(|(_, (n, _))| n.to_string()).collect()
 }
 
 /// 略去 `ignore` 诸神后的月表一日：婚事两事之宜忌按重推，余事照月表。`ignore` 空时即月表

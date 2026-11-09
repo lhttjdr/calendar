@@ -19,6 +19,10 @@ export const JIAQU_DEFAULTS = {
   useYue: false, xieji: 0, zt: 0, useXiong: false, zhiHua: false, aoTou: false, chiKou: 0, hengTian: false,
   /** 协纪推法中不看之神，以「、」连名（名见 hun_shen_list_json）；空即全依协纪月表 */
   ignore: '',
+  /** 类编凶神逐神否决（位掩码，位义见 leibian_shen_list_json）；0 则依 useXiong（缺省所列或全不用） */
+  leibianMask: 0,
+  /** 俗说诸忌（协纪卷三十六斥之）：楊公忌、天狗（頭尾口腹）、章光否决；紅沙 0 不用 1 轉神厯 2 又一本 */
+  yangGong: false, tianGou: false, zhangGuang: false, hongSha: 0,
 }
 export type JiaquParams = typeof JIAQU_DEFAULTS
 /** 输入之组名（不入起例摘要）与规则之组名（起例区「取舍规则」） */
@@ -42,6 +46,7 @@ export function readJiaquParams(): JiaquParams {
 export function jiaquFlags(p: JiaquParams): number {
   return (p.useYue ? 1 : 0) | (p.zt === 1 ? 2 : p.zt === 2 ? 128 : 0) | (p.xieji === 1 ? 32 : p.xieji === 2 ? 64 : 0) | (p.useXiong ? 4 : 0)
     | (p.zhiHua ? 8 : 0) | (p.aoTou ? 16 : 0) | (p.chiKou === 1 ? 256 : p.chiKou === 2 ? 512 : p.chiKou === 3 ? 2048 : 0) | (p.hengTian ? 1024 : 0)
+    | (p.yangGong ? 4096 : 0) | (p.hongSha === 1 ? 8192 : p.hongSha === 2 ? 16384 : 0) | (p.tianGou ? 32768 : 0) | (p.zhangGuang ? 65536 : 0)
 }
 
 export const nvGzOf = (year: number) => (((year - 4) % 60) + 60) % 60
@@ -50,6 +55,12 @@ export const nvGzOf = (year: number) => (((year - 4) % 60) + 60) % 60
 export function hunShenList(wasm: LunarBackend): [string, boolean][] {
   if (typeof wasm.hun_shen_list_json !== 'function') return []
   try { return JSON.parse(wasm.hun_shen_list_json()) as [string, boolean][] } catch { return [] }
+}
+
+/** 类编嫁娶凶神：[名, 缺省是否否决] */
+export function leibianShenList(wasm: LunarBackend): [string, boolean][] {
+  if (typeof wasm.leibian_shen_list_json !== 'function') return []
+  try { return JSON.parse(wasm.leibian_shen_list_json()) as [string, boolean][] } catch { return [] }
 }
 
 /** 不看之神 → 位掩码（低、高 32 位） */
@@ -68,5 +79,5 @@ export function ignoreMask(wasm: LunarBackend, ignore: string): [number, number]
 export function jiaquMonth(wasm: LunarBackend, ear: string, m: MonthLunar, p: JiaquParams): JiaquDay[] | null {
   if (typeof wasm.jiaqu_days_json !== 'function') return null
   return JSON.parse(wasm.jiaqu_days_json(m.jd0, ear, Uint8Array.from(m.months), Uint8Array.from(m.days), Uint8Array.from(m.leaps), Uint8Array.from(m.dims), Int8Array.from(m.phases),
-    nvGzOf(p.nvYear), p.wengGu, p.fuMu, p.naXu, jiaquFlags(p), ...ignoreMask(wasm, p.ignore))) as JiaquDay[]
+    nvGzOf(p.nvYear), p.wengGu, p.fuMu, p.naXu, jiaquFlags(p), ...ignoreMask(wasm, p.ignore), p.leibianMask >>> 0)) as JiaquDay[]
 }

@@ -445,8 +445,18 @@ pub struct JiaquOptions {
     /// 用女命行嫁月（类编；协纪奏准删除）——缺省 false：只列出不据以否决
     pub nv_ming_yue: bool,
     pub zhou_tang: ZhouTangRule,
-    /// 用类编嫁娶凶神表否决——缺省 false：只列出
+    /// 用类编嫁娶凶神表否决——缺省 false：只列出。为 true 而 `leibian_mask` 为 0 时用 [`LEIBIAN_DEFAULT_VETO`] 诸神
     pub leibian_xiong: bool,
+    /// 类编凶神逐神取舍（位义见 [`LEIBIAN_SHEN`]，置位者否决）；非 0 时优先于 `leibian_xiong`
+    pub leibian_mask: u64,
+    /// 楊公忌（通书；协纪卷三十六辨讹斥之）否决——缺省 false：只作附注
+    pub yang_gong: bool,
+    /// 紅沙（协纪卷三十六引《轉神厯》及「又一本」；协纪不用）——缺省不用：只作附注
+    pub hong_sha: HongShaRule,
+    /// 天狗頭、尾、口、腹（通书；协纪卷三十六「天狗」條斥之）否决——缺省 false：只作附注
+    pub tian_gou: bool,
+    /// 章光（《堪輿經》月厭前一辰；协纪卷三十六斥之）否决——缺省 false：只作附注
+    pub zhang_guang: bool,
     /// 行嫁白虎须禳之位（启用类编凶神时据以否决）
     pub bai_hu: BaiHuRule,
     /// 用制化：可制之否决移入 `jie`，判「经制化可用」——缺省 false。
@@ -469,6 +479,11 @@ impl Default for JiaquOptions {
             nv_ming_yue: false,
             zhou_tang: ZhouTangRule::XieJi,
             leibian_xiong: false,
+            leibian_mask: 0,
+            yang_gong: false,
+            hong_sha: HongShaRule::BuYong,
+            tian_gou: false,
+            zhang_guang: false,
             bai_hu: BaiHuRule::LeiBian,
             zhi_hua: false,
             wuji: WuJiJi::LeiBian,
@@ -476,6 +491,95 @@ impl Default for JiaquOptions {
             heng_tian_zhu_que: false,
         }
     }
+}
+
+/// 类编卷七嫁娶凶神（与行嫁白虎）之名，下标即 `leibian_mask` 位
+pub const LEIBIAN_SHEN: [&str; 26] = [
+    "歸忌", "月厭", "厭對", "天賊", "月破", "受死", "天寡", "地寡", "紅沙殺", "披麻殺", "天罡勾絞", "河魁勾絞", "吟神勾絞",
+    "天雄", "地雌", "往亡", "無翹", "荒蕪", "陰錯", "陽錯", "伏斷", "人民離", "亥日", "大殺白虎入中宮", "雷霆白虎入中宮", "行嫁白虎",
+];
+/// 「用类编凶神」缺省所否决者：「論嫁娶凶日」所列（[`LEIBIAN_XIONG_RI`]）与天寡地寡、紅沙、勾絞、往亡、無翹、陰陽錯、伏斷、行嫁白虎。
+/// 受死（书云「今人多不忌」）、吟神（曆忌）、天雄地雌、荒蕪只列
+pub const LEIBIAN_DEFAULT_VETO: [&str; 21] = [
+    "月厭", "厭對", "歸忌", "天賊", "月破", "亥日", "大殺白虎入中宮", "雷霆白虎入中宮", "人民離", "披麻殺",
+    "天寡", "地寡", "紅沙殺", "天罡勾絞", "河魁勾絞", "往亡", "無翹", "陰錯", "陽錯", "伏斷", "行嫁白虎",
+];
+
+/// 楊公忌（协纪卷三十六）：「元旦起角宿依二十八宿次序順數值室宿之日……每月遞退二日，故正月十三、二月十一以至七月初一、
+/// 二十九而終于十二月十九，凡十三日」——通书按农历月日。闰月：书未言，从本月之数（未核）
+pub fn yang_gong_ji(lunar_month: u8, lunar_day: u8) -> bool {
+    let m = lunar_month as i32;
+    let d = lunar_day as i32;
+    (m <= 7 && d == 15 - 2 * m) || (m >= 7 && d == 43 - 2 * m)
+}
+
+/// 天狗诸位（协纪卷三十六「天狗」條所述俗说）：按季取「正位」——
+/// 天狗頭＝月厭正位（春酉夏午秋卯冬子，「犯之者小姑無子」）、天狗尾＝厭對正位（春卯夏子秋酉冬午，「妨夫主」）、
+/// 天狗口＝章光正位（春申夏巳秋寅冬亥，「忌行嫁」）、天狗腹＝天喜正位（春午夏卯秋子冬酉，「主當年無子」）。
+/// 同條天狗背（紅鸞正位）、足、後足主有子，不是忌，不列。季以月建（节）分：寅卯辰为春
+pub fn tian_gou(month_ord: u8, day_zhi: u8) -> Option<(&'static str, &'static str)> {
+    let season = (month_ord % 12 / 3) as usize; // 0 春 1 夏 2 秋 3 冬
+    const T: [(&str, &str, [u8; 4]); 4] = [
+        ("天狗頭", "小姑無子", [9, 6, 3, 0]),
+        ("天狗尾", "妨夫主", [3, 0, 9, 6]),
+        ("天狗口", "忌行嫁", [8, 5, 2, 11]),
+        ("天狗腹", "當年無子", [6, 3, 0, 9]),
+    ];
+    T.iter().find(|(_, _, z)| z[season] == day_zhi % 12).map(|(n, w, _)| (*n, *w))
+}
+
+/// 天狗之吉位（同條）：天狗背＝紅鸞正位（春子夏酉秋午冬卯，「主三年有子」）、天狗足＝六合正位（春戌夏未秋辰冬丑，「主六年生子」）、
+/// 天狗後足＝月害正位（春辰夏丑秋戌冬未，「主九年生子」）
+pub fn tian_gou_ji(month_ord: u8, day_zhi: u8) -> Option<(&'static str, &'static str)> {
+    let season = (month_ord % 12 / 3) as usize;
+    const T: [(&str, &str, [u8; 4]); 3] = [
+        ("天狗背", "三年有子", [0, 9, 6, 3]),
+        ("天狗足", "六年生子", [10, 7, 4, 1]),
+        ("天狗後足", "九年生子", [4, 1, 10, 7]),
+    ];
+    T.iter().find(|(_, _, z)| z[season] == day_zhi % 12).map(|(n, w, _)| (*n, *w))
+}
+
+/// 五合五離之俗名（协纪卷三十六「五合五離」條所述俗术）：寅卯日为合、申酉日为離，干分日月（甲乙）、陰陽（丙丁）、
+/// 人民（戊己）、金石（庚辛）、江河（壬癸）。世俗以戊寅己卯（人民合）为大吉、戊申己酉（人民離）为大凶
+pub fn wu_he_li_su(day_gz: u8) -> Option<(String, bool)> {
+    let z = day_gz % 12;
+    let he = match z {
+        2 | 3 => true,
+        8 | 9 => false,
+        _ => return None,
+    };
+    // 寅卯、申酉之干须为阳寅阴卯：甲寅乙卯……（干支同阴阳自然成立）
+    let name = ["日月", "陰陽", "人民", "金石", "江河"][(day_gz % 10 / 2) as usize];
+    Some((format!("{name}{}", if he { "合" } else { "離" }), he))
+}
+
+/// 章光（《堪輿經》「月厭前一辰為章光，後一辰為無翹」）：正月酉，逐月逆行
+pub fn zhang_guang(month_ord: u8, day_zhi: u8) -> bool {
+    (21 - month_ord as i32 % 12) % 12 == day_zhi as i32 % 12
+}
+
+/// 紅沙之说（协纪卷三十六）
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HongShaRule {
+    /// 不用（协纪：「通書萬年書皆不用，故今仍之，不以轉神為據」）
+    BuYong,
+    /// 《轉神厯》：孟月酉、仲月巳、季月丑，「其日忌嫁娶」
+    ZhuanShen,
+    /// 「又一本孟月取巳、仲月取酉」，季月丑
+    YouYiBen,
+}
+
+/// 某月（月建序，寅 0）某日支是否紅沙
+pub fn hong_sha(rule: HongShaRule, month_ord: u8, day_zhi: u8) -> bool {
+    let k = month_ord % 3; // 0 孟 1 仲 2 季
+    let z = match (rule, k) {
+        (HongShaRule::BuYong, _) => return false,
+        (_, 2) => 1, // 丑
+        (HongShaRule::ZhuanShen, 0) | (HongShaRule::YouYiBen, 1) => 9, // 酉
+        _ => 5, // 巳
+    };
+    day_zhi % 12 == z
 }
 
 /// 协纪月表嫁娶宜忌之用法
@@ -665,8 +769,16 @@ pub fn judge_day(d: &PuzhuDay, inp: &JiaquInput, o: &JiaquOptions) -> JiaquDay {
         BaiHuRule::AoTou => matches!(bh, Some("門" | "床" | "堂" | "路")),
     };
     let bh_jie = if o.bai_hu == BaiHuRule::LeiBian { JIE_XING_JIA_BAI_HU_LEIBIAN } else { JIE_XING_JIA_BAI_HU_AOTOU };
+    // 类编逐神取舍：位掩码优先，否则「用类编凶神」取缺省诸神
+    let lb_veto = |n: &str| -> bool {
+        if o.leibian_mask != 0 {
+            LEIBIAN_SHEN.iter().position(|x| *x == n).is_some_and(|i| o.leibian_mask >> i & 1 == 1)
+        } else {
+            o.leibian_xiong && LEIBIAN_DEFAULT_VETO.contains(&n)
+        }
+    };
     if bh_bad {
-        if o.leibian_xiong {
+        if lb_veto("行嫁白虎") {
             veto.push((format!("行嫁白虎值{}", bh.unwrap()), Some(bh_jie)));
         } else {
             notes.push(format!("行嫁白虎值{}（{bh_jie}）", bh.unwrap()));
@@ -685,18 +797,54 @@ pub fn judge_day(d: &PuzhuDay, inp: &JiaquInput, o: &JiaquOptions) -> JiaquDay {
         notes.push(format!("女命{}（类编；协纪奏准删除）", yue.name()));
     }
     // 类编凶神：白虎入中宫可禳；披麻殺书云「俗有厭𭫲之法，詳見諸公口訣」而法未载，不作可制；余不可制
-    const VETO_EXTRA: [&str; 10] = ["天寡", "地寡", "紅沙殺", "天罡勾絞", "河魁勾絞", "往亡", "無翹", "陰錯", "陽錯", "伏斷"];
-    let lx_veto: Vec<&(&str, &str)> = lx.iter().filter(|(n, _)| LEIBIAN_XIONG_RI.contains(n) || VETO_EXTRA.contains(n)).collect();
-    if o.leibian_xiong {
-        for (n, _) in &lx_veto {
-            let jie = match *n {
-                "大殺白虎入中宮" | "雷霆白虎入中宮" => Some(JIE_BAI_HU_ZHONG_GONG),
-                _ => None,
-            };
-            veto.push((format!("类编凶神：{n}"), jie));
+    let (lx_veto, lx_note): (Vec<&(&str, &str)>, Vec<&(&str, &str)>) = lx.iter().partition(|(n, _)| lb_veto(n));
+    for (n, _) in &lx_veto {
+        let jie = match *n {
+            "大殺白虎入中宮" | "雷霆白虎入中宮" => Some(JIE_BAI_HU_ZHONG_GONG),
+            _ => None,
+        };
+        veto.push((format!("类编凶神：{n}"), jie));
+    }
+    if !lx_note.is_empty() {
+        notes.push(format!("类编所列：{}", lx_note.iter().map(|(n, _)| *n).collect::<Vec<_>>().join(" ")));
+    }
+    // 楊公忌（通书；协纪斥之）
+    if yang_gong_ji(d.lunar.month, d.lunar.day) {
+        if o.yang_gong {
+            veto.push(("楊公忌（通书）".into(), None));
+        } else {
+            notes.push("楊公忌（通书载；协纪卷三十六斥为「邪説誣民」）".into());
         }
-    } else if !lx.is_empty() {
-        notes.push(format!("类编所列：{}", lx.iter().map(|(n, _)| *n).collect::<Vec<_>>().join(" ")));
+    }
+    // 天狗诸位、章光（通书、堪輿經；协纪卷三十六斥之）
+    if let Some((n, w)) = tian_gou(d.month_ord, gz % 12) {
+        if o.tian_gou {
+            veto.push((format!("{n}（通书：{w}）"), None));
+        } else {
+            notes.push(format!("{n}（通书：{w}；协纪卷三十六斥）"));
+        }
+    }
+    if let Some((n, w)) = tian_gou_ji(d.month_ord, gz % 12) {
+        notes.push(format!("{n}（通书：{w}）"));
+    }
+    if let Some((n, he)) = wu_he_li_su(gz) {
+        // 人民離已在类编凶神内；余者俗名只作附注
+        if n != "人民離" {
+            notes.push(format!("{n}（俗术五{}之名；协纪卷三十六斥为附会）", if he { "合" } else { "離" }));
+        }
+    }
+    if zhang_guang(d.month_ord, gz % 12) {
+        if o.zhang_guang {
+            veto.push(("章光（堪輿經：月厭前一辰）".into(), None));
+        } else {
+            notes.push("章光（堪輿經月厭前一辰；协纪卷三十六斥）".into());
+        }
+    }
+    // 紅沙（协纪所引《轉神厯》等；协纪不用）
+    if o.hong_sha != HongShaRule::BuYong && hong_sha(o.hong_sha, d.month_ord, gz % 12) {
+        veto.push((format!("紅沙（{}）", if o.hong_sha == HongShaRule::ZhuanShen { "轉神厯：孟酉仲巳季丑" } else { "又一本：孟巳仲酉季丑" }), None));
+    } else if hong_sha(HongShaRule::ZhuanShen, d.month_ord, gz % 12) {
+        notes.push("紅沙（轉神厯；协纪不用）".into());
     }
     if lx.iter().any(|(n, _)| *n == "披麻殺") {
         notes.push("披麻殺：类编云「俗有厭𭫲之法，詳見諸公口訣」，法未载".into());
@@ -825,6 +973,40 @@ pub fn choose(
         .iter()
         .map(|d| judge_day(d, inp, o))
         .collect()
+}
+
+#[cfg(test)]
+mod tests_tonshu_su {
+    use super::*;
+
+    /// 协纪卷三十六所举诸俗说之日（逐条与原文核）
+    #[test]
+    fn su_shuo_days() {
+        // 楊公忌：正月十三、二月十一……七月初一、二十九……十二月十九，凡十三日
+        let days: Vec<(u8, u8)> = (1..=12u8).flat_map(|m| (1..=30u8).map(move |d| (m, d))).filter(|&(m, d)| yang_gong_ji(m, d)).collect();
+        assert_eq!(days.len(), 13);
+        assert!(days.contains(&(1, 13)) && days.contains(&(2, 11)) && days.contains(&(7, 1)) && days.contains(&(7, 29)) && days.contains(&(12, 19)));
+        // 紅沙：轉神厯孟酉仲巳季丑；又一本孟巳仲酉
+        assert!(hong_sha(HongShaRule::ZhuanShen, 0, 9) && hong_sha(HongShaRule::ZhuanShen, 1, 5) && hong_sha(HongShaRule::ZhuanShen, 2, 1));
+        assert!(hong_sha(HongShaRule::YouYiBen, 0, 5) && hong_sha(HongShaRule::YouYiBen, 1, 9));
+        // 章光：正月酉（月厭戌之前一辰）、二月申……十二月戌
+        assert!(zhang_guang(0, 9) && zhang_guang(1, 8) && zhang_guang(11, 10));
+        // 天狗：春月厭正位酉为頭、厭對卯为尾、章光正位申为口、天喜正位午为腹
+        assert_eq!(tian_gou(1, 9).map(|x| x.0), Some("天狗頭"));
+        assert_eq!(tian_gou(1, 3).map(|x| x.0), Some("天狗尾"));
+        assert_eq!(tian_gou(1, 8).map(|x| x.0), Some("天狗口"));
+        assert_eq!(tian_gou(1, 6).map(|x| x.0), Some("天狗腹"));
+        assert_eq!(tian_gou(10, 0).map(|x| x.0), Some("天狗頭")); // 冬子
+        // 天狗背、足、後足：春子、戌、辰
+        assert_eq!(tian_gou_ji(0, 0).map(|x| x.0), Some("天狗背"));
+        assert_eq!(tian_gou_ji(0, 10).map(|x| x.0), Some("天狗足"));
+        assert_eq!(tian_gou_ji(0, 4).map(|x| x.0), Some("天狗後足"));
+        // 五合五離俗名：戊寅人民合、己酉人民離、甲寅日月合
+        let gz = |n: &str| (0..60u8).find(|k| "甲乙丙丁戊己庚辛壬癸".chars().nth(*k as usize % 10) == n.chars().next() && "子丑寅卯辰巳午未申酉戌亥".chars().nth(*k as usize % 12) == n.chars().nth(1)).unwrap();
+        assert_eq!(wu_he_li_su(gz("戊寅")), Some(("人民合".to_string(), true)));
+        assert_eq!(wu_he_li_su(gz("己酉")), Some(("人民離".to_string(), false)));
+        assert_eq!(wu_he_li_su(gz("甲寅")), Some(("日月合".to_string(), true)));
+    }
 }
 
 #[cfg(test)]
