@@ -242,6 +242,16 @@ pub fn ge_ju(pan: &QimenPan, ctx: &GeJuContext) -> Vec<GeJu> {
                 add("三奇入墓", g, false, "卷二「三竒入墓好思推」引王璋「乙竒下臨二宫、丙竒到六宫、丁竒下臨八宫」", None);
             }
         }
+        // —— 三奇受制：乙临乾六合惊门（木入金乡）、丙临坎一合休门（火入水乡）（卷二引王璋）
+        if (t("乙") && p == 6 && men == "驚門") || (t("丙") && p == 1 && men == "休門") {
+            add(
+                "三奇受制",
+                g,
+                false,
+                "卷二引王璋「乙竒臨乾驚門庚辛囚死乃木入金鄉也丙竒臨坎休門壬癸囚死乃火入水鄉也此謂三竒受制」",
+                Some("「庚辛囚死」「壬癸囚死」作受制之由（金克木、水克火）解，未另加地盘干或旺相休囚之条件（未核）；丁奇原文未举"),
+            );
+        }
         // —— 门迫：门克宫（卷二「宫制其門不為迫，門制其宫是迫雄」）
         if let (Some(mw), true) = (men_wx(men), p != 5) {
             if ke(mw, gong_wx(p)) {
@@ -281,6 +291,107 @@ pub fn ge_ju(pan: &QimenPan, ctx: &GeJuContext) -> Vec<GeJu> {
     // —— 时干入墓：丙戌、壬辰、丁丑、癸未、戊戌、己丑时（卷二「又有時干入墓宫」）
     if [22u8, 28, 13, 19, 34, 25].contains(&(pan.hour_gz % 60)) {
         add("時干入墓", None, false, "卷二歌「戊戌壬辰兼丙戌，癸未丁丑已同凶」；葛洪「己丑時……亦不可用」", None);
+    }
+    out
+}
+
+/// 依月将加时而定的方位格（演义卷二「天三門」「地四戸」「地私門」「天馬」「亭亭白奸」诸条）所需的盘外之数
+#[derive(Clone, Copy, Debug)]
+pub struct GeJuExtra {
+    /// 月将（地支序，子 0 … 亥 11），即太阳所过之次，见 `liuren::yue_jiang`（演义「正月雨水後太陽某日過亥乃登明將」，按中气换将）
+    pub yue_jiang: u8,
+}
+
+/// 一个方位格：系于地盘十二支（方），附所属洛书宫（子坎一、丑寅艮八、卯震三、辰巳巽四、午离九、未申坤二、酉兑七、戌亥乾六）
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FangGe {
+    pub name: &'static str,
+    /// 地盘支（方位）
+    pub zhi: u8,
+    pub gong: u8,
+    pub ji: bool,
+    pub basis: &'static str,
+    pub note: Option<&'static str>,
+}
+
+/// 地支所属洛书宫
+pub fn zhi_gong(z: u8) -> u8 {
+    [1, 8, 8, 3, 4, 4, 9, 2, 2, 7, 6, 6][(z % 12) as usize]
+}
+
+/// 演义「地私門」旦暮之分：卷二「旦貴用隂貴……乙巽丙丁坤庚六時」即辰巳午未申酉六时为旦，余为暮
+pub fn is_dan(hour_zhi: u8) -> bool {
+    (4..=9).contains(&(hour_zhi % 12))
+}
+
+/// 地私门三将（六合、太阴、太常）所临地盘之支：月将加时，起本日贵人布十二将。
+/// 演义阳贵诗「庚戊見牛甲在羊……六辛逢虎」即六壬俗例夜贵，阴贵诗「甲貴隂牛庚戊羊……辛遇馬」即俗例昼贵，
+/// 故 `dan`（旦，用阴贵）对应 `GuiRule::SuLi` 的昼贵。返回 (六合, 太陰, 太常)。
+pub fn si_men(yue_jiang: u8, hour_zhi: u8, day_gan: u8, dan: bool) -> (u8, u8, u8) {
+    use crate::folk::liuren::{tian_jiang, GuiRule, TianPan};
+    let tp = TianPan { jiang: yue_jiang % 12, shi: hour_zhi % 12 };
+    let tj = tian_jiang(&tp, day_gan % 10, dan, GuiRule::SuLi);
+    let at = |n: &str| tp.below((0..12u8).find(|&z| tj.name_of(z) == n).unwrap());
+    (at("六合"), at("太陰"), at("太常"))
+}
+
+/// 月将加时诸方位格：天三门、地四户、地私门、天马、亭亭、贵人登天门。白奸原文自相出入，未取（见 doc/folk/qimen.md）。
+pub fn fang_ge(pan: &QimenPan, ctx: &GeJuContext, x: &GeJuExtra) -> Vec<FangGe> {
+    use crate::folk::liuren::{gui_ren, GuiRule, TianPan};
+    let mut out = Vec::new();
+    let mut add = |name, zhi: u8, ji, basis, note| out.push(FangGe { name, zhi, gong: zhi_gong(zhi), ji, basis, note });
+    let shi = pan.hour_gz % 12;
+    let tp = TianPan { jiang: x.yue_jiang % 12, shi };
+    // 天三门：太冲卯、小吉未、从魁酉所临（卷二「天三門」引煙波叟）
+    for s in [3u8, 7, 9] {
+        add("天門", tp.below(s), true, "卷二「天三門」：「以月將加正時順數太冲小吉從魁所臨之方為天門」；例正月雨水後午時登明加午，戌寅辰三方為天門", None);
+    }
+    // 地四户：时支上加月建，建除顺数，除、定、危、开所临（卷二「地四戸」）
+    for k in [1u8, 4, 7, 10] {
+        add(
+            "地戸",
+            (shi + k) % 12,
+            true,
+            "卷二「地四戸」：「用時支上加月建」，以建除十二神順數，除定危開所臨為地戸；例九月巳時除午定酉危子開夘",
+            Some("建加于时支，四户之位只随时支而定，月建不影响方位"),
+        );
+    }
+    // 地私门：六合、太阴、太常所临（卷二「地私門」），旦用阴贵、暮用阳贵
+    let (lh, ty, tc) = si_men(x.yue_jiang, shi, ctx.day_gz % 10, is_dan(shi));
+    for z in [lh, ty, tc] {
+        add("地私門", z, true, "卷二「地私門」：「以月將加用時……起本日貴人……六合太隂太常所臨之方為地私門」", Some("旦（辰至酉六时）用阴贵、暮用阳贵；辰时两例阴阳贵并举，取旦"));
+    }
+    // 天马：太冲所临（卷二「天馬」）
+    add("天馬", tp.below(3), true, "卷二「天馬」：「以月將加時順數至太冲所臨之方」；例正月子時亥加子，夘在辰", None);
+    // 亭亭：神后子所临（卷二「亭亭白奸」引王璋）
+    add("亭亭", tp.below(0), true, "卷二「亭亭白奸」：「以天月將加所用正時神后所臨之宫即亭亭居其上」；例正月午時子到未", Some("宜背之（坐其上），非吉凶断语"));
+    // 贵人登天门：本日贵人（旦阴暮阳）临地盘亥
+    let gui = gui_ren(ctx.day_gz % 10, is_dan(shi), GuiRule::SuLi);
+    if tp.below(gui) == 11 {
+        add("貴人登天門", 11, true, "卷二「天三門」：「如得本日貴人到乾亥就是貴人登天門」", Some("贵人旦暮依地私门条取"));
+    }
+    out
+}
+
+/// 三胜五不击（卷二「亭亭白奸」条后引湯謂）：三胜为天乙（天上直符）宫、九天宫、生门宫；五不击为天乙、九天、生门、九地、直使之宫。
+/// 每宫一条，`name` 为「三勝」或「五不擊」，`note` 标所据何神；中五依所选寄宫。不需月将。
+pub fn san_sheng_wu_bu_ji(pan: &QimenPan) -> Vec<GeJu> {
+    let ji = pan.options.ji_gong.gong(pan.ju.yang);
+    let eff = |p: u8| if p == 5 { ji } else { p };
+    let find = |f: &dyn Fn(&super::pan::GongCell) -> bool| (1..=9u8).find(|&p| f(pan.at(p))).map(eff);
+    let tian_yi = Some(eff(pan.zhi_fu_gong));
+    let jiu_tian = find(&|c| c.shen == Some("九天"));
+    let sheng = find(&|c| c.men == Some("生門"));
+    let jiu_di = find(&|c| c.shen == Some("九地"));
+    let zhi_shi = Some(eff(pan.zhi_shi_gong));
+    const B3: &str = "卷二「亭亭白奸」條後：天乙宫第一勝、九天第二勝、生門第三勝";
+    const B5: &str = "卷二引湯謂「五不可擊第一不擊天乙宫第二不擊九天宫第三不擊生門宫第四不擊九地宫第五不擊直使宫」";
+    let mut out = Vec::new();
+    for (g, n) in [(tian_yi, "天乙"), (jiu_tian, "九天"), (sheng, "生門")] {
+        out.push(GeJu { name: "三勝", gong: g, ji: true, basis: B3, note: Some(n) });
+    }
+    for (g, n) in [(tian_yi, "天乙"), (jiu_tian, "九天"), (sheng, "生門"), (jiu_di, "九地"), (zhi_shi, "直使")] {
+        out.push(GeJu { name: "五不擊", gong: g, ji: true, basis: B5, note: Some(n) });
     }
     out
 }
@@ -409,5 +520,105 @@ mod tests {
         assert!(ke(men_wx("傷門").unwrap(), gong_wx(2)) && ke(men_wx("杜門").unwrap(), gong_wx(8)));
         assert!(ke(men_wx("死門").unwrap(), gong_wx(1)) && ke(men_wx("驚門").unwrap(), gong_wx(4)));
         assert!(!ke(men_wx("開門").unwrap(), gong_wx(2)));
+    }
+
+    fn pan(yang: bool, ju: u8, hour: &str) -> QimenPan {
+        let sj = ShiJu { yang, ju, term: if yang { 18 } else { 6 }, yuan: Yuan::Shang, run: false, chao: 0 };
+        pai_pan(&sj, gz(hour), DEFAULT_PAN)
+    }
+    const ZHI: &str = "子丑寅卯辰巳午未申酉戌亥";
+    fn zs(v: &[FangGe], name: &str) -> String {
+        let mut z: Vec<u8> = v.iter().filter(|g| g.name == name).map(|g| g.zhi).collect();
+        z.sort();
+        z.iter().map(|&i| ZHI.chars().nth(i as usize).unwrap()).collect()
+    }
+    fn fg(jiang: u8, day: &str, hour: &str) -> Vec<FangGe> {
+        fang_ge(&pan(true, 1, hour), &GeJuContext { day_gz: gz(day), ..Default::default() }, &GeJuExtra { yue_jiang: jiang })
+    }
+
+    /// 卷二月将加时诸方位格原例（正月雨水后登明亥将）
+    #[test]
+    fn fang_wei_ge() {
+        // 天三门：「正月雨水後……午時……太冲在戌、小吉在寅、從魁在辰……戌寅辰三方為天門」
+        assert_eq!(zs(&fg(11, "甲子", "庚午"), "天門"), "寅辰戌");
+        // 地四户：「九月……巳時……除在午定在酉危在子開在夘」
+        assert_eq!(zs(&fg(3, "甲子", "己巳"), "地戸"), "子卯午酉");
+        // 地私门：甲日卯时暮贵（阳贵未加亥顺行）六合寅、太常未、太阴酉
+        assert_eq!(zs(&fg(11, "甲子", "丁卯"), "地私門"), "寅未酉");
+        // 甲日午时旦贵（阴贵丑在申逆行）太阴戌、太常子、六合巳
+        assert_eq!(zs(&fg(11, "甲子", "庚午"), "地私門"), "子巳戌");
+        // 甲日子时阳贵在申逆行：同上
+        assert_eq!(zs(&fg(11, "甲子", "甲子"), "地私門"), "子巳戌");
+        // 辰时两例：阳贵六合卯太常申太阴戌；阴贵六合卯太常戌太阴申
+        assert_eq!(si_men(11, 4, 0, false), (3, 10, 8));
+        assert_eq!(si_men(11, 4, 0, true), (3, 8, 10));
+        // 天马：「正月子時……亥加子……夘在辰」
+        assert_eq!(zs(&fg(11, "甲子", "甲子"), "天馬"), "辰");
+        // 天马表：正月子至亥时辰巳……寅夘，余月依次
+        use crate::folk::liuren::TianPan;
+        for m in 0..12u8 {
+            for h in 0..12u8 {
+                let tp = TianPan { jiang: (11 + 12 - m) % 12, shi: h };
+                assert_eq!(tp.below(3), (4 + h + m) % 12);
+            }
+        }
+        // 亭亭：「正月……午時……子到未宫即是亭亭在未上」；「正月夘時……數至辰上得子亭亭在辰」
+        assert_eq!(zs(&fg(11, "甲子", "庚午"), "亭亭"), "未");
+        assert_eq!(zs(&fg(11, "甲子", "丁卯"), "亭亭"), "辰");
+        // 贵人登天门：甲日卯时暮贵未加亥
+        assert!(fg(11, "甲子", "丁卯").iter().any(|g| g.name == "貴人登天門"));
+        assert!(!fg(11, "甲子", "庚午").iter().any(|g| g.name == "貴人登天門"));
+    }
+
+    fn ssw(yang: bool, ju: u8, hour: &str) -> Vec<(&'static str, &'static str, Option<u8>)> {
+        san_sheng_wu_bu_ji(&pan(yang, ju, hour)).into_iter().map(|g| (g.name, g.note.unwrap(), g.gong)).collect()
+    }
+    fn at(v: &[(&str, &str, Option<u8>)], name: &str, who: &str) -> Option<u8> {
+        v.iter().find(|x| x.0 == name && x.1 == who).unwrap().2
+    }
+
+    /// 三胜五不击原例四则
+    #[test]
+    fn san_sheng_wu_bu_ji_li() {
+        // 「大寒上元陽三局甲巳日丁夘時天上直符乗六丁臨九宫……九天四宫……生門……臨七宫」
+        let v = ssw(true, 3, "丁卯");
+        assert_eq!((at(&v, "三勝", "天乙"), at(&v, "三勝", "九天"), at(&v, "三勝", "生門")), (Some(9), Some(4), Some(7)));
+        // 「隂八局甲巳之日戊辰時地下直符在八宫……九天在三宫……生門臨四宫」
+        let v = ssw(false, 8, "戊辰");
+        assert_eq!((at(&v, "三勝", "天乙"), at(&v, "三勝", "九天"), at(&v, "三勝", "生門")), (Some(8), Some(3), Some(4)));
+        // 「陽八局丙辛日辛夘時天乙在坤二宫……生門在三宫……九地在四宫……直使在八宫」
+        let v = ssw(true, 8, "辛卯");
+        assert_eq!(
+            (at(&v, "五不擊", "天乙"), at(&v, "五不擊", "生門"), at(&v, "五不擊", "九地"), at(&v, "五不擊", "直使")),
+            (Some(2), Some(3), Some(4), Some(8))
+        );
+        // 「隂七局甲巳之日丙寅時天上直符臨九宫……九天在二宫……生門在一宫……九地在七宫……直使在五宫寄坤二宫」
+        let v = ssw(false, 7, "丙寅");
+        assert_eq!(
+            (at(&v, "五不擊", "天乙"), at(&v, "五不擊", "九天"), at(&v, "五不擊", "生門"), at(&v, "五不擊", "九地"), at(&v, "五不擊", "直使")),
+            (Some(9), Some(2), Some(1), Some(7), Some(2))
+        );
+    }
+
+    /// 三奇受制（原文无盘例）：遍历阴阳十八局六十时，凡天盘乙临六宫合惊门、丙临一宫合休门者必报，反之不报
+    #[test]
+    fn san_qi_shou_zhi() {
+        let mut n = 0;
+        for yang in [true, false] {
+            for ju in 1..=9u8 {
+                for h in 0..60u8 {
+                    let p = pai_pan(&ShiJu { yang, ju, term: 0, yuan: Yuan::Shang, run: false, chao: 0 }, h, DEFAULT_PAN);
+                    let v = ge_ju(&p, &GeJuContext { day_gz: h, ..Default::default() });
+                    for g in 1..=9u8 {
+                        let c = p.at(g);
+                        let want = (c.tian_pan.contains(&"乙") && g == 6 && c.men == Some("驚門"))
+                            || (c.tian_pan.contains(&"丙") && g == 1 && c.men == Some("休門"));
+                        assert_eq!(has(&v, "三奇受制", Some(g)), want);
+                        n += want as u32;
+                    }
+                }
+            }
+        }
+        assert!(n > 0);
     }
 }
