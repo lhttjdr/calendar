@@ -2,13 +2,14 @@
  * 择日页：年神方位二十四山图（《协纪辨方书》卷三）、当日神煞宜忌（月表 + 卷十铺注 + 时宪书体例；可切《董公選擇日要覽》为另一说）、日游神鹤神。
  * 与日历共用所选日期；图依古图南上北下、东左西右。
  */
-import { Button, Card, Checkbox, Flex, InputNumber, Radio, Tag, Typography } from 'antd'
+import { Button, Card, Checkbox, Flex, InputNumber, Radio, Typography } from 'antd'
 import { memo, useMemo, useRef, useState } from 'react'
 import { Notes, OptionsFold, useOpt, useOptGroup } from './fold'
 import type { LunarBackend } from './lunar-backend-types'
 import { useCompassBar, useSpinDriver, type CompassSpinSource } from './CompassBar'
 import { ensureLiShu, LISHU_FAMILY } from './Wheels'
-import { JIAQU_DEFAULTS as JD, JIAQU_IN_NS, JIAQU_RULE_NS, hunShenList, leibianShenList, jiaquMonth, nvGzOf, type JiaquDay, type MonthLunar } from './jiaquShared'
+import { RulePanel, type RuleGroup, type RuleInfo as RuleInfoUi, type RuleItem } from './RulePanel'
+import { JIAQU_DEFAULTS as JD, JIAQU_IN_NS, JIAQU_RULE_NS, hunShenInfo, hunShenList, jiaquRuleCatalog, leibianShenList, puzhuHunList, tongshuShenList, jiaquMonth, nvGzOf, type JiaquDay, type MonthLunar } from './jiaquShared'
 
 const { Text } = Typography
 
@@ -271,6 +272,19 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
   const [tianGou, setTianGou] = useOpt(g, 'tianGou', JD.tianGou, '天狗')
   const [zhangGuang, setZhangGuang] = useOpt(g, 'zhangGuang', JD.zhangGuang, '章光')
   const [hongSha, setHongSha] = useOpt(g, 'hongSha', JD.hongSha, '紅沙')
+  /** 协纪改删旧说与类编鳌头董公诸神、铺注逐项不看、董公婚姻、鳌头婚姻表（起例区控件由目录驱动界面提供） */
+  const [tongshuMask, setTongshuMask] = useOpt(g, 'tongshuMask', JD.tongshuMask, '旧说诸神')
+  const [puzhuSkip, setPuzhuSkip] = useOpt(g, 'puzhuSkip', JD.puzhuSkip, '铺注不看')
+  const [dongGong, setDongGong] = useOpt(g, 'dongGong', JD.dongGong, '董公婚姻')
+  const [aotouJiri, setAotouJiri] = useOpt(g, 'aotouJiri', JD.aotouJiri, '鳌头婚姻表')
+  const tsList = useMemo(() => tongshuShenList(props.wasm), [props.wasm])
+  const pzList = useMemo(() => puzhuHunList(props.wasm), [props.wasm])
+  /** 各项说明（各家并列）：目录 + 协纪所看诸神 */
+  const infoMap = useMemo(() => {
+    const m2 = new Map<string, RuleInfoUi>()
+    for (const c of [...jiaquRuleCatalog(props.wasm), ...hunShenInfo(props.wasm)]) m2.set(c.key, { name: c.name, group: c.group, views: c.views })
+    return m2
+  }, [props.wasm])
   const lbList = useMemo(() => leibianShenList(props.wasm), [props.wasm])
   /** 类编实际否决之集：有掩码按掩码，否则「用类编凶神」取缺省所列 */
   const lbOn = (i: number) => (leibianMask ? (leibianMask >>> i) & 1 : useXiong ? Number(lbList[i]?.[1]) : 0) === 1
@@ -296,14 +310,14 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
   const list = useMemo((): JiaquDay[] | null => {
     try {
       setErr(null)
-      return jiaquMonth(props.wasm, props.ear, m, { nvYear, wengGu, fuMu, naXu, useYue, xieji, zt, useXiong, zhiHua, aoTou, chiKou, hengTian, ignore, leibianMask, yangGong, tianGou, zhangGuang, hongSha })
+      return jiaquMonth(props.wasm, props.ear, m, { nvYear, wengGu, fuMu, naXu, useYue, xieji, zt, useXiong, zhiHua, aoTou, chiKou, hengTian, ignore, leibianMask, yangGong, tianGou, zhangGuang, hongSha, tongshuMask, puzhuSkip, dongGong, aotouJiri })
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       console.error('jiaqu_days_json', e)
       setErr(msg)
       return null
     }
-  }, [props.wasm, props.ear, m, nvYear, wengGu, fuMu, naXu, useYue, zt, xieji, useXiong, zhiHua, aoTou, chiKou, hengTian, ignore, leibianMask, yangGong, tianGou, zhangGuang, hongSha])
+  }, [props.wasm, props.ear, m, nvYear, wengGu, fuMu, naXu, useYue, zt, xieji, useXiong, zhiHua, aoTou, chiKou, hengTian, ignore, leibianMask, yangGong, tianGou, zhangGuang, hongSha, tongshuMask, puzhuSkip, dongGong, aotouJiri])
   return (
     <Card size="small" title={`婚嫁择吉（${props.monthLabel}）`} style={{ marginTop: 16 }}>
       <Flex gap={12} wrap align="center" style={{ marginBottom: 8 }}>
@@ -314,65 +328,66 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
         <Checkbox checked={onlyOk} onChange={(e) => setOnlyOk(e.target.checked)}>只看可用之日</Checkbox>
       </Flex>
       <OptionsFold g={g} title="取舍规则" defaultNote="依协纪：月表须宜嫁娶、协纪周堂">
-      <Flex gap={12} wrap align="center">
-        <span>协纪月表 <Radio.Group size="small" value={xieji} onChange={(e) => setXieji(e.target.value)} optionType="button"
-          options={[{ label: '须宜嫁娶', value: 0 }, { label: '只避忌嫁娶', value: 1 }, { label: '不用', value: 2 }]} /></span>
-        {xieji !== 2 && shenList.length > 0 && (
-          <div style={{ flexBasis: '100%', fontSize: 12, lineHeight: 2 }}>
-            <Text type="secondary" style={{ fontSize: 12 }}>协纪所看之神（点去即「不看」，按协纪推法重推婚事宜忌；全看即月表）：</Text>
-            {([true, false] as const).map((isYi) => (
-              <div key={String(isYi)}>
-                <Text style={{ fontSize: 12, color: isYi ? 'var(--ok-text)' : '#cf1322' }}>{isYi ? '宜神 ' : '忌神 '}</Text>
-                {shenList.filter(([, y]) => y === isYi).map(([n]) => (
-                  <Tag.CheckableTag key={n} checked={!ignoreSet.has(n)} onChange={() => toggleShen(n)}
-                    style={ignoreSet.has(n) ? { textDecoration: 'line-through', opacity: 0.6 } : undefined}>
-                    {n}
-                  </Tag.CheckableTag>
-                ))}
-              </div>
-            ))}
-            {ignoreSet.size > 0 && <Text type="warning" style={{ fontSize: 12 }}>{`已不看：${[...ignoreSet].join('、')}——此时所注已非协纪月表，乃按其推法略去诸神所得`}</Text>}
-          </div>
-        )}
-        <details className="day-ji" style={{ flexBasis: '100%', fontSize: 12 }}>
-          <summary>协纪月表怎样注嫁娶</summary>
-          <div style={{ lineHeight: 1.7, color: 'var(--text-2)' }}>
-            <div>1. <b>宜神</b>（卷十一「嫁娶」）：天德、月德、天德合、月德合、天赦、天願、三合、天喜、六合、不將。</div>
-            <div>2. <b>忌神</b>（同上）：月破、平日、收日、閉日、劫煞、災煞、月煞、月刑、月害、月厭、厭對、大時、天吏、四廢、四忌、四窮、五墓、往亡、八專、亥日（百忌日「亥不嫁娶」）。</div>
-            <div>3. <b>宜忌并值</b>：主凶神（平收閉日、劫災月煞、月刑、月害、月厭、大時、天吏）按卷十宜忌等第表，以所值最重之等第与遇德否定「從宜／相抵／從忌／皆忌」；厭對、八專等次凶神按卷十各条「與德等併則不忌」。月表 720 日皆据此推出并与影印本逐页核过。</div>
-            <div>4. <b>铺注</b>（卷十鋪註條例）：周堂值夫、值婦不注宜嫁娶；上朔、四離、四絕、晦日、無祿、月忌等止注数事，余事不注宜或注忌。</div>
-            <div>「须宜嫁娶」：注宜方可用（时宪书注宜之日）；「只避忌嫁娶」：两不注之日亦可；「不用」：不看协纪月表。每日所值之神与推得之由见月格点日之依据。</div>
-          </div>
-        </details>
-        <span>嫁娶周堂 <Radio.Group size="small" value={zt} onChange={(e) => setZt(e.target.value)} optionType="button"
-          options={[{ label: '协纪', value: 0 }, { label: '类编', value: 1 }, { label: '不用', value: 2 }]} /></span>
-        <Checkbox checked={useYue} onChange={(e) => setUseYue(e.target.checked)}>女命行嫁月否决（类编；协纪奏准删除）</Checkbox>
-        <div style={{ flexBasis: '100%', fontSize: 12, lineHeight: 2 }}>
-          <Text type="secondary" style={{ fontSize: 12 }}>类编卷七嫁娶凶神（点选即据以否决，未选者只列）：</Text>
-          <Button size="small" type="link" onClick={() => lbPreset(true)}>按「論嫁娶凶日」等缺省所列</Button>
-          <Button size="small" type="link" onClick={() => lbPreset(false)}>全不用</Button>
-          <div>
-            {lbList.map(([n], i) => (
-              <Tag.CheckableTag key={n} checked={lbOn(i)} onChange={() => lbToggle(i)}>{n}</Tag.CheckableTag>
-            ))}
-          </div>
-        </div>
-        <div style={{ flexBasis: '100%', fontSize: 12 }}>
-          <Text type="secondary" style={{ fontSize: 12 }}>通书俗说（协纪卷三十六辨讹斥之；不选则只列于标注）：</Text>
-          <Flex gap={12} wrap align="center">
-            <Checkbox checked={yangGong} onChange={(e) => setYangGong(e.target.checked)}>楊公忌否决</Checkbox>
-            <Checkbox checked={tianGou} onChange={(e) => setTianGou(e.target.checked)}>天狗頭尾口腹否决</Checkbox>
-            <Checkbox checked={zhangGuang} onChange={(e) => setZhangGuang(e.target.checked)}>章光否决</Checkbox>
-            <span>紅沙 <Radio.Group size="small" value={hongSha} onChange={(e) => setHongSha(e.target.value)} optionType="button"
-              options={[{ label: '不用（协纪）', value: 0 }, { label: '轉神厯（孟酉仲巳季丑）', value: 1 }, { label: '又一本（孟巳仲酉季丑）', value: 2 }]} /></span>
-          </Flex>
-        </div>
-        <Checkbox checked={aoTou} onChange={(e) => setAoTou(e.target.checked)}>白虎从鳌头（值门床堂路）</Checkbox>
-        <span>赤口 <Radio.Group size="small" value={chiKou} onChange={(e) => setChiKou(e.target.value)} optionType="button"
-          options={[{ label: '不用（协纪）', value: 0 }, { label: '类编（凡赤口）', value: 1 }, { label: '祛疑说（值寅巳酉戌）', value: 2 }, { label: '兀日起法（协纪所述：阳年起小吉、阴年起留連）', value: 3 }]} /></span>
-        <Checkbox checked={hengTian} onChange={(e) => setHengTian(e.target.checked)}>橫天朱雀否决（鳌头：初一）</Checkbox>
-        <Checkbox checked={zhiHua} onChange={(e) => setZhiHua(e.target.checked)}>用制化（周堂回避、白虎禳法；协纪不录）</Checkbox>
-      </Flex>
+        {(() => {
+          const info = (k: string) => infoMap.get(k)
+          const bit = (mask: number, i: number) => ((mask >>> i) & 1) === 1
+          const flip = (mask: number, i: number) => (mask ^ (1 << i)) >>> 0
+          const shen = (yi: boolean): RuleItem[] => shenList.map(([n, y], i) => [n, y, i] as const).filter(([, y]) => y === yi).map(([n]) => ({
+            kind: 'toggle', key: `xj:${n}`, name: n, tone: yi ? 'yi' : 'ji', on: !ignoreSet.has(n), changed: ignoreSet.has(n),
+            onChange: () => toggleShen(n), info: info(`xj:${n}`),
+          }))
+          const tsGroup = (grp: string): RuleItem[] => tsList.map(([n, gr], i) => [n, gr, i] as const).filter(([, gr]) => gr === grp).map(([n, , i]) => ({
+            kind: 'toggle', key: `ts:${n}`, name: n, tone: 'ji', on: bit(tongshuMask, i), changed: bit(tongshuMask, i),
+            onChange: () => setTongshuMask(flip(tongshuMask, i)), info: info(`ts:${n}`),
+          }))
+          const tg = (key: string, name: string, on: boolean, set: (v: boolean) => void, def = false): RuleItem => ({
+            kind: 'toggle', key, name, tone: 'ji', on, changed: on !== def, onChange: set, info: info(key),
+          })
+          const ch = (key: string, name: string, value: number, set: (v: number) => void, options: { label: string; value: number }[], def = 0): RuleItem => ({
+            kind: 'choice', key, name, value, onChange: set, options, changed: value !== def, info: info(key),
+          })
+          const groups: RuleGroup[] = [
+            { key: 'xj-use', title: '协纪月表', note: '月表加铺注所注之宜忌如何用', items: [ch('xieji', '用法', xieji, setXieji, [{ label: '须宜嫁娶', value: 0 }, { label: '只避忌嫁娶', value: 1 }, { label: '不用', value: 2 }])] },
+            ...(xieji !== 2 ? [
+              { key: 'xj-yi', title: '协纪宜神', note: '亮为看，点去即不看，按协纪推法重推（全看即月表）', items: shen(true) },
+              { key: 'xj-ji', title: '协纪忌神', note: '含卷十諸事皆忌之日与歲薄、逐陣、陰陽錯', items: shen(false) },
+              {
+                key: 'xj-pz', title: '协纪铺注', note: '亮为用，点去即不用此条铺注', items: pzList.map((n, i): RuleItem => ({
+                  kind: 'toggle', key: `pz:${n}`, name: n, tone: 'ji', on: !bit(puzhuSkip, i), changed: bit(puzhuSkip, i),
+                  onChange: () => setPuzhuSkip(flip(puzhuSkip, i)), info: info(`pz:${n}`),
+                })),
+              },
+            ] : []),
+            { key: 'zt', title: '周堂与白虎', items: [
+              ch('zt', '嫁娶周堂', zt, setZt, [{ label: '协纪', value: 0 }, { label: '类编', value: 1 }, { label: '不用', value: 2 }]),
+              ch('aoTou', '行嫁白虎之位', aoTou ? 1 : 0, (v) => setAoTou(v === 1), [{ label: '类编（值路）', value: 0 }, { label: '鳌头（门床堂路）', value: 1 }]),
+            ] },
+            { key: 'gai', title: '协纪改删旧说', note: '亮为据以否决，暗则只列于附注', items: tsGroup('协纪改删') },
+            { key: 'su', title: '协纪辨讹所斥俗说', note: '同上', items: [
+              tg('yangGong', '楊公忌', yangGong, setYangGong), tg('tianGou', '天狗頭尾口腹', tianGou, setTianGou), tg('zhangGuang', '章光', zhangGuang, setZhangGuang),
+              ch('hongSha', '紅沙', hongSha, setHongSha, [{ label: '不用', value: 0 }, { label: '轉神厯', value: 1 }, { label: '又一本', value: 2 }]),
+              ch('chiKou', '赤口', chiKou, setChiKou, [{ label: '不用', value: 0 }, { label: '类编', value: 1 }, { label: '祛疑说', value: 2 }, { label: '兀日起法', value: 3 }]),
+            ] },
+            {
+              key: 'lb', title: '类编卷七', note: '亮为据以否决', items: [
+                tg('useYue', '女命行嫁月', useYue, setUseYue),
+                ...lbList.map(([n], i): RuleItem => ({ kind: 'toggle', key: `lb:${n}`, name: n, tone: 'ji', on: lbOn(i), changed: lbOn(i), onChange: () => lbToggle(i), info: info(`lb:${n}`) })),
+                ...tsGroup('类编'),
+              ],
+              actions: [{ label: '按「論嫁娶凶日」等缺省所列', onClick: () => lbPreset(true) }, { label: '全不用', onClick: () => lbPreset(false) }],
+            },
+            { key: 'at', title: '鳌头', note: '亮为据以否决', items: [
+              ...tsGroup('鳌头'), tg('hengTian', '橫天朱雀', hengTian, setHengTian),
+              tg('aotouJiri', '须在鳌头嫁娶表', aotouJiri, setAotouJiri),
+            ] },
+            { key: 'dg', title: '董公', note: '亮为据以否决', items: [
+              ...tsGroup('董公'),
+              ch('dongGong', '董公逐日婚姻', dongGong, setDongGong, [{ label: '不用', value: 0 }, { label: '避其忌', value: 1 }, { label: '须其宜', value: 2 }]),
+            ] },
+            { key: 'zh', title: '制化', items: [tg('zhiHua', '用制化（周堂回避、白虎禳法；协纪不录）', zhiHua, setZhiHua)] },
+          ]
+          return <RulePanel groups={groups} />
+        })()}
       </OptionsFold>
       <div style={{ height: 8 }} />
       <Radio.Group size="small" value={view} onChange={(e) => setView(e.target.value)} optionType="button" style={{ marginBottom: 8 }}

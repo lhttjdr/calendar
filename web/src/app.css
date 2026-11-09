@@ -123,3 +123,26 @@ details.day-ji[open] > summary::after { content: ' ▾'; }
 
 /* 盘面按纸色绘：深色下给盘一圈纸底，免与暗底相接 */
 :root[data-theme='dark'] svg[role='img'][aria-label*='盘'] { background: #f7f1e3; border-radius: 12px; }
+
+/* 取舍规则面板（RulePanel.tsx）：芯片统一样式；亮为参与判定 */
+.rule-panel { display: flex; flex-direction: column; gap: 12px; }
+.rule-group { display: flex; flex-direction: column; gap: 6px; }
+.rule-items { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.rule-chip { display: inline-flex; align-items: stretch; border: 1px solid var(--border-3); border-radius: 14px; overflow: hidden; background: var(--bg); font-size: 13px; line-height: 24px; }
+.rule-chip button { border: none; background: none; font: inherit; color: var(--text-3); cursor: pointer; }
+.rule-chip-main { padding: 0 10px; }
+.rule-chip-info { padding: 0 8px 0 2px; font-size: 12px; color: var(--text-3); border: none; background: none; cursor: pointer; }
+.rule-chip-info:hover { color: var(--accent); }
+.rule-chip.on .rule-chip-main { color: var(--text-1); }
+.rule-chip.on { border-color: var(--accent); background: var(--hl-soft); }
+.rule-chip.rule-yi.on { border-color: var(--ok-border); background: var(--ok-bg); }
+.rule-chip.rule-yi.on .rule-chip-main { color: var(--ok-text); }
+.rule-chip.rule-ji.on { border-color: var(--bad-border); background: color-mix(in srgb, var(--bad-border) 30%, var(--bg)); }
+.rule-chip.rule-ji.on .rule-chip-main { color: #cf1322; }
+.rule-chip.changed, .rule-choice.changed .rule-seg { box-shadow: 0 0 0 2px var(--warn-border); }
+.rule-choice { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.rule-choice-name { display: inline-flex; align-items: center; color: var(--text-2); }
+.rule-seg { display: inline-flex; border: 1px solid var(--border-3); border-radius: 14px; overflow: hidden; }
+.rule-seg button { border: none; border-left: 1px solid var(--border-3); background: var(--bg); color: var(--text-2); font: inherit; font-size: 13px; line-height: 24px; padding: 0 10px; cursor: pointer; }
+.rule-seg button:first-child { border-left: none; }
+.rule-seg button.on { background: var(--hl-soft); color: var(--accent); }
