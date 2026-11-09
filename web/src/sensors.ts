@@ -70,20 +70,33 @@ export function useCompassHeading() {
   const [accuracy, setAccuracy] = useState<number | null>(null)
   const smooth = useRef<{ x: number; y: number } | null>(null)
   const cleanup = useRef<(() => void) | null>(null)
+  /** 最新平滑读数（不经 React 状态；转盘由 requestAnimationFrame 直接读此，免得每个读数都重绘整页） */
+  const headingRef = useRef<number | null>(null)
+  const lastSet = useRef({ t: 0, v: Number.NaN })
 
   const onReading = useCallback((h: number) => {
     const r = (h * Math.PI) / 180
     const k = 0.25
     const s = smooth.current
     smooth.current = s ? { x: s.x + k * (Math.cos(r) - s.x), y: s.y + k * (Math.sin(r) - s.y) } : { x: Math.cos(r), y: Math.sin(r) }
-    const v = (Math.atan2(smooth.current.y, smooth.current.x) * 180) / Math.PI
-    setHeading((v + 360) % 360)
+    const v = ((((Math.atan2(smooth.current.y, smooth.current.x) * 180) / Math.PI) % 360) + 360) % 360
+    headingRef.current = v
+    // 文字读数与玄空测向用的 React 状态：至多每 250 ms 一次，且变 0.5° 以上（静止时每 1 s 补一次）；转盘不靠此
+    const now = performance.now()
+    const dv = Math.abs(((v - lastSet.current.v + 540) % 360) - 180)
+    const dt = now - lastSet.current.t
+    if (Number.isNaN(lastSet.current.v) || (dt > 250 && dv >= 0.5) || dt > 1000) {
+      lastSet.current = { t: now, v }
+      setHeading(v)
+    }
   }, [])
 
   const stop = useCallback(() => {
     cleanup.current?.()
     cleanup.current = null
     smooth.current = null
+    headingRef.current = null
+    lastSet.current = { t: 0, v: Number.NaN }
     setActive(false)
     setHeading(null)
     setTilt(null)
@@ -129,5 +142,5 @@ export function useCompassHeading() {
   }, [onReading])
 
   useEffect(() => () => cleanup.current?.(), [])
-  return { heading, active, error, tilt, accuracy, start, stop }
+  return { heading, headingRef, active, error, tilt, accuracy, start, stop }
 }

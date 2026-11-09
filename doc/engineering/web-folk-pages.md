@@ -36,6 +36,7 @@
 **传感器**（`web/src/sensors.ts`）：
 - 定位：Geolocation API，取经纬度、海拔、精度；写回观测地（时柱当地时、更点、磁偏角共用），存于本机 localStorage。日历设置「观测地」与择日页均有按钮。
 - 罗盘：DeviceOrientation。iOS 用 `webkitCompassHeading`（须在点击中 `requestPermission`），Android 用 `deviceorientationabsolute` 的 `alpha`（朝向 = 360 − alpha），加屏幕旋转角；角度圆周指数平滑。所得为磁北方位，加 WMM2025 磁偏角（`magnetic_declination_wasm`，见 `doc/astronomy/geomag.md`）为真北。二十四山图北在下，故整盘转 −真北方位 − 180°，手机平放时图上方位与实地相合。
+- 转盘（`CompassBar.tsx` 的 `useSpinDriver`、`CompassSpin`）：读数存 ref，不经 React 状态；每帧（requestAnimationFrame）以时间常数约 90 ms 指数趋近目标角（−真北方位 − 180°），取最短路径、角度连续累加（跨 0°/360° 不倒转一周），直接写元素 transform（排盘诸盘写 CSS，择日二十四山图写 SVG 属性），不用 CSS transition；开罗盘时容器设 will-change 成独立合成层。文字读数与玄空测向所用之 React 状态节流：至多每 250 ms 一次且变 0.5° 以上（静止时每 1 s 补一次）；各盘面板以 React.memo 包住，读数更新时不重绘盘面。缘起：原先每个读数（约 60 Hz）都 setState 重绘整页并重启 120 ms 过渡，手机上盘面颤动、文字重影（截图为单帧，故清晰）。检验：无头 Chromium 2 s 内连发 126 个读数（跨 0°，±1.5° 噪声），盘角连续单调、长任务 1 次。
 - 平放检测：取 beta、gamma 较大者为倾角，超过 15° 提示放平（立起时 alpha 不再是平面朝向）；iOS 报 `webkitCompassAccuracy` 不佳（负或大于 15°）时提示远离金属、画「8」字校准。
 - 接口只在安全上下文（https 或 localhost）可用。
 

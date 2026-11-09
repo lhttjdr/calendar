@@ -4,9 +4,9 @@
  */
 import { Button, Card, Checkbox, Flex, InputNumber, Radio, Typography } from 'antd'
 import { LeftOutlined, RightOutlined } from '@ant-design/icons'
-import { useMemo, useState } from 'react'
+import { memo, useMemo, useRef, useState } from 'react'
 import type { LunarBackend } from './lunar-backend-types'
-import { useCompassBar } from './CompassBar'
+import { useCompassBar, useSpinDriver, type CompassSpinSource } from './CompassBar'
 import { ensureLiShu, LISHU_FAMILY } from './Wheels'
 
 const { Text } = Typography
@@ -33,10 +33,12 @@ const MAJOR = new Set(['太歲', '歲破', '大將軍', '劫煞', '災煞', '歲
 const WEI = new Set(['乾', '坤', '艮', '巽'])
 const GAN = new Set(['甲', '乙', '丙', '丁', '庚', '辛', '壬', '癸'])
 
-/** `rotate`：整盘顺时针旋转的角度（罗盘模式由设备朝向给出）；文字随盘转 */
-export function ShanWheel({ data, size = 560, rotate = 0 }: { data: NianShenData; size?: number; rotate?: number }) {
+/** `spin`：罗盘转盘驱动源（开罗盘时整盘随设备朝向转，由 rAF 直接写 transform）；文字随盘转 */
+export const ShanWheel = memo(function ShanWheel({ data, size = 560, spin }: { data: NianShenData; size?: number; spin?: CompassSpinSource }) {
   ensureLiShu()
   const c = size / 2
+  const gRef = useRef<SVGGElement | null>(null)
+  useSpinDriver(gRef, spin, c)
   // 内圈年干支，中圈二十四山，外圈诸神（沿半径向外书写，按弧长等距排开）
   const r0 = size * 0.17
   const r1 = size * 0.25
@@ -46,7 +48,7 @@ export function ShanWheel({ data, size = 560, rotate = 0 }: { data: NianShenData
   const pt = (r: number, a: number) => [c + r * Math.sin(a), c - r * Math.cos(a)] as const
   return (
     <svg viewBox={`0 0 ${size} ${size}`} style={{ width: '100%', maxWidth: size, height: 'auto', fontFamily: LISHU_FAMILY }} role="img" aria-label="年神方位二十四山图">
-      <g transform={`rotate(${rotate} ${c} ${c})`} style={{ transition: 'transform 120ms linear' }}>
+      <g ref={gRef}>
       <circle cx={c} cy={c} r={r2} fill="var(--zr-bg, #fffdf7)" stroke="#999" />
       <circle cx={c} cy={c} r={r1} fill="none" stroke="#999" />
       <circle cx={c} cy={c} r={r0} fill="none" stroke="#bbb" />
@@ -133,10 +135,10 @@ export function ShanWheel({ data, size = 560, rotate = 0 }: { data: NianShenData
       </g>
       <text x={c} y={c - 8} fontSize={size * 0.03} textAnchor="middle" fontWeight={600}>{data.year}</text>
       <text x={c} y={c + 14} fontSize={size * 0.022} textAnchor="middle" fill="#237804">{`歲德${data.suiDe} 合${data.suiDeHe}`}</text>
-      {rotate !== 0 && <path d={`M ${c} ${size * 0.005} l -8 14 l 16 0 z`} fill="#a8071a" />}
+      {spin?.active && <path d={`M ${c} ${size * 0.005} l -8 14 l 16 0 z`} fill="#a8071a" />}
     </svg>
   )
-}
+})
 
 type MonthLunar = { jd0: number; months: number[]; days: number[]; leaps: number[]; dims: number[]; phases: number[] }
 type JiaquDay = {
@@ -361,7 +363,7 @@ export function ZeRiPage(props: {
   monthLabel?: string
 }) {
   const { wasm, ear, jd } = props
-  const { rotate, bar: compassBar } = useCompassBar(props)
+  const { bar: compassBar, spin } = useCompassBar(props)
   const [yiJiSrc, setYiJiSrc] = useState<'xieji' | 'dong'>('xieji')
   const data = useMemo((): NianShenData | null => {
     if (!wasm || ear == null || typeof wasm.nian_shen_json !== 'function') return null
@@ -385,7 +387,7 @@ export function ZeRiPage(props: {
       ) : (
         <Flex gap={16} wrap align="flex-start">
           <Card size="small" title={`年神方位（${data.year}年，立春换年）`} style={{ flex: '1 1 420px', maxWidth: 600 }}>
-            <ShanWheel data={data} rotate={rotate} />
+            <ShanWheel data={data} spin={spin} />
             <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>
               据《协纪辨方书》卷三；南上北下，东左西右。打开罗盘（手机），盘随设备转动，图上方位与实地相合（磁北经磁偏角改为真北；磁偏角未知时按磁北）。绿为吉神（岁德、奏书、博士），红为太岁、岁破、大将军、三煞。时宪书附言：「惟奏書博士宜向之，餘各有所忌」。
             </Text>

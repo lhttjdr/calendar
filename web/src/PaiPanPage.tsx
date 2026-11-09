@@ -5,9 +5,9 @@
  */
 import { Button, Flex, InputNumber, Radio, Switch, Tabs, Typography } from 'antd'
 import { LeftOutlined, RightOutlined } from '@ant-design/icons'
-import { useEffect, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useState } from 'react'
 import type { LunarBackend } from './lunar-backend-types'
-import { useCompassBar, type LocationProps } from './CompassBar'
+import { CompassSpin, useCompassBar, type CompassSpinSource, type LocationProps } from './CompassBar'
 import { LiurenWheel, QimenWheel, type QimenGongMarks, QizhengWheel, TaiyiWheel, XuankongWheel, YAO_SHORT, type XuankongWheelData, type QizhengWheelData } from './Wheels'
 import { useWorkerRpc } from './useWorkerRpc'
 import type { SkyRequest } from './skyWorker'
@@ -17,7 +17,6 @@ const { Text } = Typography
 const ZHI = '子丑寅卯辰巳午未申酉戌亥'
 
 /** 罗盘模式：方位盘（九宫、天地盘、十六神盘、宅盘、七政十二宫）整盘旋转至实地方位；紫微命盘不对应实地方位，不转 */
-const spinStyle = (deg: number) => (deg === 0 ? {} : { transform: `rotate(${deg}deg)`, transition: 'transform 120ms linear' })
 
 type LiurenData = { jiang: string; shi: string; pan: string[]; siKe: { xia: string; shang: string }[]; sanChuan: string[]; fa: string; tianJiang?: string[]; gui?: string; shun?: boolean; zhou?: boolean
   dunGan?: (string | null)[]; sanChuanDun?: (string | null)[]; xunShou?: string; xunKong?: string[]
@@ -58,7 +57,7 @@ type QimenData = {
 }
 
 
-function QimenPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; hourGz: number; dayGz: number; rotate: number }) {
+const QimenPanel = memo(function QimenPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; hourGz: number; dayGz: number; spin: CompassSpinSource }) {
   const [method, setMethod] = useState(0)
   const [jiGong, setJiGong] = useState(0)
   const [shenMing, setShenMing] = useState(0)
@@ -75,7 +74,7 @@ function QimenPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; hour
   }, [props.wasm, props.ear, props.jdUt, props.hourGz, props.dayGz, method, jiGong, shenMing, dingJu, source, anGan, ganMu, jiXing, kong])
   return (
     <Flex gap={16} wrap align="flex-start">
-      <div style={{ flex: '1 1 320px', maxWidth: 440, ...spinStyle(props.rotate) }}>{d ? <QimenWheel d={d} turn={method === 0} /> : <Text type="secondary">无法布盘</Text>}</div>
+      <CompassSpin spin={props.spin} style={{ flex: '1 1 320px', maxWidth: 440 }}>{d ? <QimenWheel d={d} turn={method === 0} /> : <Text type="secondary">无法布盘</Text>}</CompassSpin>
       <div style={{ flex: '1 1 280px' }}>
         {d && (
           <div style={{ marginBottom: 10, lineHeight: 1.8 }}>
@@ -128,7 +127,7 @@ function QimenPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; hour
       </div>
     </Flex>
   )
-}
+})
 
 type ZiweiData = {
   palaces: string[]; gan: string[]; stars: [string, number, string | null][]; siHua: [string, string][]
@@ -178,7 +177,7 @@ function ZiweiBoard({ d }: { d: ZiweiData }) {
   )
 }
 
-function ZiweiPanel(props: { wasm: LunarBackend; lunar: { yearGz: number; month: number; leap: boolean; day: number }; hourZhi: number }) {
+const ZiweiPanel = memo(function ZiweiPanel(props: { wasm: LunarBackend; lunar: { yearGz: number; month: number; leap: boolean; day: number }; hourZhi: number }) {
   const [male, setMale] = useState(true)
   const [school, setSchool] = useState(14)
   const [leap, setLeap] = useState(0)
@@ -233,7 +232,7 @@ function ZiweiPanel(props: { wasm: LunarBackend; lunar: { yearGz: number; month:
       </div>
     </Flex>
   )
-}
+})
 
 type LiuyaoData = {
   ben: string; zhi: string; gong: string; gongWx: string; shi: number; ying: number; xunKong: string | null; guaShen: string | null
@@ -245,7 +244,7 @@ type LiuyaoData = {
 /** 爻之四象：六爻家记作单拆重交（⚊⚋○✕），即《周易》大衍筮法之七八九六（少阳、少阴、老阳、老阴；九六为变） */
 const YAO_NAME: Record<number, string> = { 7: '⚊ 单（少阳）', 8: '⚋ 拆（少阴）', 9: '○ 重（老阳）', 6: '✕ 交（老阴）' }
 
-function LiuyaoPanel(props: { wasm: LunarBackend; lunar: { yearGz: number; month: number; leap: boolean; day: number } | null; hourZhi: number; dayGz: number; monthZhi: number | null }) {
+const LiuyaoPanel = memo(function LiuyaoPanel(props: { wasm: LunarBackend; lunar: { yearGz: number; month: number; leap: boolean; day: number } | null; hourZhi: number; dayGz: number; monthZhi: number | null }) {
   const timeValues = (): number[] => {
     if (!props.lunar || typeof props.wasm.meihua_time_values !== 'function') return [7, 7, 7, 7, 7, 7]
     return Array.from(props.wasm.meihua_time_values(props.lunar.yearGz % 12, props.lunar.month, props.lunar.day, props.hourZhi))
@@ -315,7 +314,7 @@ function LiuyaoPanel(props: { wasm: LunarBackend; lunar: { yearGz: number; month
       </div>
     </Flex>
   )
-}
+})
 
 type XkData = {
   yun: number; zuo: string; xiang: string; ti: boolean; kongWang: string | null
@@ -328,7 +327,7 @@ const XK_SHAN = ['子', '癸', '丑', '艮', '寅', '甲', '卯', '乙', '辰', 
 const CN_NUM = '〇一二三四五六七八九'
 
 /** 玄空飞星：运盘、山盘、向盘（洛书九宫，南上）；坐向可选，或以罗盘测（手机顶端朝向首，坐即其背） */
-function XuankongPanel(props: { wasm: LunarBackend; ganzhiYear: number; heading: number | null; rotate: number }) {
+const XuankongPanel = memo(function XuankongPanel(props: { wasm: LunarBackend; ganzhiYear: number; heading: number | null; spin: CompassSpinSource }) {
   const [zuo, setZuo] = useState(0)
   const [ti, setTi] = useState(false)
   const [useCompass, setUseCompass] = useState(false)
@@ -342,10 +341,8 @@ function XuankongPanel(props: { wasm: LunarBackend; ganzhiYear: number; heading:
   }, [props.wasm, props.ganzhiYear, zuo, ti, az])
   return (
     <Flex gap={16} wrap align="flex-start">
-      <div style={{ flex: '1 1 320px', maxWidth: 440, ...spinStyle(props.rotate) }}>
-        {d && (
-          <XuankongWheel d={d} />
-        )}
+      <div style={{ flex: '1 1 320px', maxWidth: 440 }}>
+        {d && <CompassSpin spin={props.spin}><XuankongWheel d={d} /></CompassSpin>}
         <Text type="secondary" style={{ fontSize: 11 }}>罗盘式，自内而外：中宫；八宫飞星（蓝山星居左、红向星居右，其外运星、流年紫白；绿底正神、红底零神）；逐宫标记；后天八卦与洛书数；三元龙（天人地）；二十四山（红阳黑阴，蓝底坐、红底向）；坐向两山旁色带为兼向分段（绿下卦、橙替卦、红空亡）；周天度数。虚线为坐向（罗盘测向时为实测方位）。南上北下，开罗盘则随设备转至实地方位</Text>
       </div>
       <div style={{ flex: '1 1 280px' }}>
@@ -392,7 +389,7 @@ function XuankongPanel(props: { wasm: LunarBackend; ganzhiYear: number; heading:
       </div>
     </Flex>
   )
-}
+})
 
 /** 十二支方框（地盘）：巳午未申在上，亥子丑寅在下（南上北下） */
 const LIUREN_CELLS: [string, number, number][] = [
@@ -403,7 +400,7 @@ const LIUREN_CELLS: [string, number, number][] = [
 ]
 
 
-function LiurenPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; dayGz: number; hourZhi: number; rotate: number }) {
+const LiurenPanel = memo(function LiurenPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; dayGz: number; hourZhi: number; spin: CompassSpinSource }) {
   const [rule, setRule] = useState(0)
   const [guiRule, setGuiRule] = useState(0)
   const [zhou, setZhou] = useState(-1)
@@ -420,7 +417,7 @@ function LiurenPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; day
   if (!d) return <Text type="secondary">无法起课</Text>
   return (
     <Flex gap={16} wrap align="flex-start">
-      <div style={{ flex: '1 1 300px', maxWidth: 380, ...spinStyle(props.rotate) }}><LiurenWheel pan={d.pan} shi={d.shi} sanChuan={d.sanChuan} tianJiang={d.tianJiang} label={`${d.jiang}將加${d.shi}時`} extra={liurenExtra(d)} /></div>
+      <CompassSpin spin={props.spin} style={{ flex: '1 1 300px', maxWidth: 380 }}><LiurenWheel pan={d.pan} shi={d.shi} sanChuan={d.sanChuan} tianJiang={d.tianJiang} label={`${d.jiang}將加${d.shi}時`} extra={liurenExtra(d)} /></CompassSpin>
       <div style={{ flex: '1 1 260px' }}>
         <div style={{ marginBottom: 8 }}>
           <Text type="secondary" style={{ fontSize: 12 }}>换将</Text>{' '}
@@ -475,11 +472,11 @@ function LiurenPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; day
       </div>
     </Flex>
   )
-}
+})
 
 
 
-function TaiyiPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; dayGz: number; hourZhi: number; rotate: number }) {
+const TaiyiPanel = memo(function TaiyiPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; dayGz: number; hourZhi: number; spin: CompassSpinSource }) {
   const [kind, setKind] = useState(3)
   const [school, setSchool] = useState(0)
   const [dun, setDun] = useState(0)
@@ -489,7 +486,7 @@ function TaiyiPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; dayG
   }, [props.wasm, props.ear, props.jdUt, props.dayGz, props.hourZhi, kind, school, dun])
   return (
     <Flex gap={16} wrap align="flex-start">
-      <div style={{ flex: '1 1 300px', maxWidth: 460, ...spinStyle(props.rotate) }}>{d ? <TaiyiWheel d={d} /> : <Text type="secondary">无法起局</Text>}</div>
+      <CompassSpin spin={props.spin} style={{ flex: '1 1 300px', maxWidth: 460 }}>{d ? <TaiyiWheel d={d} /> : <Text type="secondary">无法起局</Text>}</CompassSpin>
       <div style={{ flex: '1 1 260px' }}>
         <Flex vertical gap={6}>
           <Radio.Group size="small" value={kind} onChange={(e) => setKind(e.target.value)} optionType="button"
@@ -524,14 +521,14 @@ function TaiyiPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; dayG
       </div>
     </Flex>
   )
-}
+})
 
 function BitRadio(p: { label: string; o: { value: boolean; onChange: (v: boolean) => void }; a: string; b: string }) {
   return <div>{p.label}：<Radio.Group size="small" value={p.o.value} onChange={(e) => p.o.onChange(e.target.value)} options={[{ label: p.a, value: false }, { label: p.b, value: true }]} /></div>
 }
 
 /** 七政四余：日月五星视黄经要五大行星历表，经星图 Worker（SkyEngine）按需算，切到本页签才加载 */
-function QizhengPanel(props: { jdUt: number; hourZhi: number; latitude: number; longitude: number; rotate: number }) {
+const QizhengPanel = memo(function QizhengPanel(props: { jdUt: number; hourZhi: number; latitude: number; longitude: number; spin: CompassSpinSource }) {
   const call = useWorkerRpc<SkyRequest>(() => new Worker(new URL('./skyWorker.ts', import.meta.url), { type: 'module' }))
   const [luoAsc, setLuoAsc] = useState(false)
   const [meanNode, setMeanNode] = useState(false)
@@ -554,9 +551,9 @@ function QizhengPanel(props: { jdUt: number; hourZhi: number; latitude: number; 
   }, [call, props.jdUt, props.longitude, props.latitude, props.hourZhi, luoAsc, meanNode, ascendant, flags])
   return (
     <Flex gap={24} wrap align="flex-start">
-      <div style={{ flex: '1 1 320px', maxWidth: 440, ...spinStyle(props.rotate) }}>
+      <CompassSpin spin={props.spin} style={{ flex: '1 1 320px', maxWidth: 440 }}>
         {d ? <QizhengWheel d={d} turn={turn ? { jdUt: props.jdUt, lonDeg: props.longitude } : undefined} /> : <Text type="secondary">{err ?? '加载五星历表与距星……'}</Text>}
-      </div>
+      </CompassSpin>
       <div style={{ flex: '1 1 300px', minWidth: 0 }}>
         <Flex vertical gap={8}>
           <div>罗计：<Radio.Group size="small" value={luoAsc} onChange={(e) => setLuoAsc(e.target.value)} options={[{ label: '计都升交（回回历、清中期后时宪书）', value: false }, { label: '罗睺升交（崇祯新法、清初）', value: true }]} /></div>
@@ -640,7 +637,7 @@ function QizhengPanel(props: { jdUt: number; hourZhi: number; latitude: number; 
       </div>
     </Flex>
   )
-}
+})
 
 export function PaiPanPage(props: LocationProps & {
   wasm: LunarBackend | null
@@ -663,7 +660,7 @@ export function PaiPanPage(props: LocationProps & {
   onShiftDay: (n: number) => void
 }) {
   const { wasm, ear, dayGz, hourZhi } = props
-  const { rotate, bar: compassBar, trueHeading } = useCompassBar(props)
+  const { bar: compassBar, trueHeading, spin } = useCompassBar(props)
   // 按分钟取时刻：实时模式下时钟每秒走，盘只在分钟变时重算（局在时辰、节气交界才变）
   const jdUt = Math.floor(props.jdUt * 1440) / 1440
   const ready = wasm && ear != null && dayGz != null && hourZhi != null
@@ -696,23 +693,23 @@ export function PaiPanPage(props: LocationProps & {
               key: 'qimen', label: '奇门遁甲',
               children: (
                 props.hourGz != null
-                  ? <QimenPanel wasm={wasm!} ear={ear!} jdUt={jdUt} hourGz={props.hourGz} dayGz={dayGz!} rotate={rotate} />
+                  ? <QimenPanel wasm={wasm!} ear={ear!} jdUt={jdUt} hourGz={props.hourGz} dayGz={dayGz!} spin={spin} />
                   : <Text type="secondary">{qimenLine}</Text>
               ),
             },
-            { key: 'liuren', label: '大六壬', children: <LiurenPanel wasm={wasm!} ear={ear!} jdUt={jdUt} dayGz={dayGz!} hourZhi={hourZhi!} rotate={rotate} /> },
-            { key: 'taiyi', label: '太乙', children: <TaiyiPanel wasm={wasm!} ear={ear!} jdUt={jdUt} dayGz={dayGz!} hourZhi={hourZhi!} rotate={rotate} /> },
+            { key: 'liuren', label: '大六壬', children: <LiurenPanel wasm={wasm!} ear={ear!} jdUt={jdUt} dayGz={dayGz!} hourZhi={hourZhi!} spin={spin} /> },
+            { key: 'taiyi', label: '太乙', children: <TaiyiPanel wasm={wasm!} ear={ear!} jdUt={jdUt} dayGz={dayGz!} hourZhi={hourZhi!} spin={spin} /> },
             {
               key: 'liuyao', label: '六爻·周易',
               children: <LiuyaoPanel wasm={wasm!} lunar={props.lunar} hourZhi={hourZhi!} dayGz={dayGz!} monthZhi={props.monthZhi ?? null} />,
             },
             {
               key: 'xuankong', label: '玄空飞星',
-              children: <XuankongPanel wasm={wasm!} ganzhiYear={props.ganzhiYear ?? new Date().getFullYear()} heading={trueHeading} rotate={rotate} />,
+              children: <XuankongPanel wasm={wasm!} ganzhiYear={props.ganzhiYear ?? new Date().getFullYear()} heading={trueHeading} spin={spin} />,
             },
             {
               key: 'qizheng', label: '七政四余',
-              children: <QizhengPanel jdUt={jdUt} hourZhi={hourZhi!} latitude={props.latitude} longitude={props.longitude} rotate={rotate} />,
+              children: <QizhengPanel jdUt={jdUt} hourZhi={hourZhi!} latitude={props.latitude} longitude={props.longitude} spin={spin} />,
             },
             {
               key: 'ziwei', label: '紫微斗数',
