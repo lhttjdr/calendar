@@ -54,6 +54,7 @@ declare module 'lunar-wasm' {
   export function paipan_wasm(jd_ut: number, vsop87_ear: string, day_gz: number, hour_zhi: number): string
   export function seed_solar_terms_wasm(years: Int32Array, jds: Float64Array): number
   export function shensha_day_wasm(jd: number, vsop87_ear: string, lunar_month: number, lunar_day: number, is_leap: boolean, days_in_month: number, phase: number): string
+  export function dong_gong_day_json(jd: number, vsop87_ear: string): string
   export function jianchu_day_wasm(jd: number, vsop87_ear: string): string
   export function huanghei_hour_wasm(day_name: string, hour_name: string): string
   export function gengdian_wasm(jd: number, latitude_deg: number, longitude_deg: number, method: number, vsop87_ear: string): string

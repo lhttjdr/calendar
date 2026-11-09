@@ -1,5 +1,5 @@
 /**
- * 择日页：年神方位二十四山图（《协纪辨方书》卷三）、当日神煞宜忌（月表 + 卷十铺注 + 时宪书体例）、日游神鹤神。
+ * 择日页：年神方位二十四山图（《协纪辨方书》卷三）、当日神煞宜忌（月表 + 卷十铺注 + 时宪书体例；可切《董公選擇日要覽》为另一说）、日游神鹤神。
  * 与日历共用所选日期；图依古图南上北下、东左西右。
  */
 import { Button, Card, Checkbox, Flex, InputNumber, Radio, Typography } from 'antd'
@@ -208,6 +208,71 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
   )
 }
 
+type DongGongRule = { event: string; yi: boolean; grade: string; basis: string; cond: string; note: string; xieji: string[] }
+type DongGongData = {
+  monthZhi: string
+  dayGz: string
+  jianChu: string
+  noText: boolean
+  text: string
+  fullText: string
+  entryNote: string
+  gods: string[]
+  rules: DongGongRule[]
+}
+
+/** 宜忌另一说：《董公選擇日要覽》。无宜忌之文的日子只说明，不以协纪填补 */
+function DongGongYiJi({ wasm, ear, jd }: { wasm: LunarBackend; ear: string; jd: number }) {
+  const d = useMemo((): DongGongData | null => {
+    if (typeof wasm.dong_gong_day_json !== 'function') return null
+    try {
+      return JSON.parse(wasm.dong_gong_day_json(jd, ear)) as DongGongData
+    } catch {
+      return null
+    }
+  }, [wasm, ear, jd])
+  if (!d) return <Text type="secondary">董公宜忌需新版 wasm</Text>
+  const label = (r: DongGongRule) => `${r.event}${r.grade ? `（${r.grade}）` : ''}${r.cond ? `〔${r.cond}〕` : ''}`
+  const yi = d.rules.filter((r) => r.yi).map(label)
+  const ji = d.rules.filter((r) => !r.yi).map(label)
+  // 缘由：按所据原句归并
+  const basis: { b: string; yi: string[]; ji: string[]; notes: string[] }[] = []
+  for (const r of d.rules) {
+    let g = basis.find((x) => x.b === r.basis)
+    if (!g) basis.push((g = { b: r.basis, yi: [], ji: [], notes: [] }))
+    ;(r.yi ? g.yi : g.ji).push(label(r))
+    if (r.note && !g.notes.includes(r.note)) g.notes.push(r.note)
+  }
+  return (
+    <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+      <div>{`董公：${d.monthZhi}月${d.jianChu}${d.dayGz.slice(1)}日 · ${d.dayGz}`}</div>
+      {d.noText ? (
+        <div><Text strong>董公无宜忌之文</Text></div>
+      ) : (
+        <>
+          <div>{`宜：${yi.length ? yi.join(' ') : '—'}`}</div>
+          <div>{`忌：${ji.length ? ji.join(' ') : '—'}`}</div>
+        </>
+      )}
+      {d.gods.length > 0 && <div>{`董公所举神煞：${d.gods.join(' ')}`}</div>}
+      {basis.length > 0 && (
+        <div style={{ marginTop: 4 }}>
+          {basis.map((g) => (
+            <div key={g.b} style={{ fontSize: 12 }}>
+              {`「${g.b}」→ ${g.yi.length ? `宜 ${g.yi.join(' ')}` : ''}${g.yi.length && g.ji.length ? '；' : ''}${g.ji.length ? `忌 ${g.ji.join(' ')}` : ''}`}
+              {g.notes.length > 0 && <Text type="secondary" style={{ fontSize: 11 }}>{`（校：${g.notes.join('；')}）`}</Text>}
+            </div>
+          ))}
+        </div>
+      )}
+      <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
+        {`原文（${d.monthZhi}月${d.jianChu}${d.dayGz.slice(1)}日条）：${d.fullText}`}
+        {d.entryNote ? `　校：${d.entryNote}` : ''}
+      </Text>
+    </div>
+  )
+}
+
 export function ZeRiPage(props: {
   wasm: LunarBackend | null
   ear: string | null
@@ -229,6 +294,7 @@ export function ZeRiPage(props: {
 }) {
   const { wasm, ear, jd } = props
   const { rotate, bar: compassBar } = useCompassBar(props)
+  const [yiJiSrc, setYiJiSrc] = useState<'xieji' | 'dong'>('xieji')
   const data = useMemo((): NianShenData | null => {
     if (!wasm || ear == null || typeof wasm.nian_shen_json !== 'function') return null
     try {
@@ -270,14 +336,32 @@ export function ZeRiPage(props: {
               {`日遊神${data.riYou} · 鶴神${data.heShen}`}
               {data.taiSuiYou ? ` · 太歲${data.taiSuiYou}遊` : ''}
             </div>
-            {props.shensha ? (
-              <div style={{ whiteSpace: 'pre-line', fontSize: 13, lineHeight: 1.7 }}>{props.shensha}</div>
+            <Flex align="center" gap={8} wrap style={{ marginBottom: 8 }}>
+              <Text>宜忌依：</Text>
+              <Radio.Group size="small" value={yiJiSrc} onChange={(e) => setYiJiSrc(e.target.value)}>
+                <Radio.Button value="xieji">协纪（缺省）</Radio.Button>
+                <Radio.Button value="dong">董公</Radio.Button>
+              </Radio.Group>
+            </Flex>
+            {yiJiSrc === 'dong' && wasm && ear != null ? (
+              <>
+                <DongGongYiJi wasm={wasm} ear={ear} jd={jd} />
+                <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 8 }}>
+                  据《董公選擇日要覽》（嘉庆二十二年蒋云抄传本，维基文库录文，未以书影校）：每月以建除分十二条，条内分举日干支；月建按节。与协纪月表相合约五成五，神煞（煞集中宮、紅沙、黃羅紫檀、到州星等协纪所不立）与吉凶相抵之法皆不同，作并列之说，不与协纪互补；董公无宜忌之文之日不以协纪填补。「諸事」为泛言（原文「百事不宜」「次吉」等不举事项者），〔〕内为原文所设条件。只录宜忌，不录「犯之……」应验之语。逐日判定经人工逐条校订，存疑者注「未核」。
+                </Text>
+              </>
             ) : (
-              <Text type="secondary">神煞宜忌需农历与岁数据，加载后显示</Text>
+              <>
+                {props.shensha ? (
+                  <div style={{ whiteSpace: 'pre-line', fontSize: 13, lineHeight: 1.7 }}>{props.shensha}</div>
+                ) : (
+                  <Text type="secondary">神煞宜忌需农历与岁数据，加载后显示</Text>
+                )}
+                <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 8 }}>
+                  据《协纪辨方书》月表加卷十铺注（反支、上朔、四離四絕、晦日、二至二分、土王用事、伏社、朔弦望、月忌、人神、長短星、氣往亡、無祿），并依时宪书体例计嫁娶周堂、交节日；「時憲書宜」为民用三十七事；「時憲書朱字」为底栏朱字应值之神（含钦天监沿用的通书之神荒蕪、枯焦、四不祥、天獄）。日遊神、鶴神、太歲出遊见卷三。
+                </Text>
+              </>
             )}
-            <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 8 }}>
-              据《协纪辨方书》月表加卷十铺注（反支、上朔、四離四絕、晦日、二至二分、土王用事、伏社、朔弦望、月忌、人神、長短星、氣往亡、無祿），并依时宪书体例计嫁娶周堂、交节日；「時憲書宜」为民用三十七事；「時憲書朱字」为底栏朱字应值之神（含钦天监沿用的通书之神荒蕪、枯焦、四不祥、天獄）。日遊神、鶴神、太歲出遊见卷三。
-            </Text>
           </Card>
         </Flex>
       )}

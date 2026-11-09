@@ -153,6 +153,8 @@ export interface LunarBackend {
   /** 灌入 Worker 解出的节气（每年 24 项），返回灌入年数 */
   seed_solar_terms_wasm?(years: Int32Array, jds: Float64Array): number
   shensha_day_wasm?(jd: number, vsop87_ear: string, lunar_month: number, lunar_day: number, is_leap: boolean, days_in_month: number, phase: number): string
+  /** 择日页宜忌另一说：《董公選擇日要覽》（JSON；月建按节） */
+  dong_gong_day_json?(jd: number, vsop87_ear: string): string
   /** 建除、日黄黑道、百忌 */
   jianchu_day_wasm?(jd: number, vsop87_ear: string): string
   /** 时黄黑道 */

@@ -1449,6 +1449,45 @@ pub fn shensha_day_wasm(
     ))
 }
 
+/// 择日页宜忌另一说：《董公選擇日要覽》。`jd` 所在民用日；月建按节（与协纪同），用地球历表现算。
+/// 返回 {"monthZhi":"寅","dayGz":"丁酉","jianChu":"危","noText":false,"text":"宜忌之文","fullText":"原文","entryNote":"条目校记",
+/// "gods":["天德",…],"rules":[{"event":"安葬","yi":true,"grade":"","basis":"所据原句","cond":"","note":"校记","xieji":["安葬"]}…]}；
+/// noText 为真时 rules 为空（「董公无宜忌之文」），不回退协纪。见 doc/folk/tongshu_yiji.md。
+#[wasm_bindgen]
+pub fn dong_gong_day_json(jd: f64, vsop87_ear: &str) -> Result<String, JsValue> {
+    use lunar_core::folk::dong_gong::{dong_gong_day, xieji_events};
+    let vsop = vsop87_cached(vsop87_ear)?;
+    let (_, mi, _) = lunar_core::calendar::gan_zhi_options::ganzhi_from_jd_solar(vsop.as_ref(), jd, &lunar_core::calendar::gan_zhi_options::preset_zi_ping_ba_zi());
+    let month_zhi = (mi % 12) as u8;
+    let dgz = ((jd + 0.5).floor() as i64 + 49).rem_euclid(60) as u8;
+    let d = dong_gong_day(month_zhi, dgz);
+    const ZHI: [&str; 12] = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"];
+    let rules = d.rules.iter().map(|r| {
+        format!(
+            "{{\"event\":{},\"yi\":{},\"grade\":{},\"basis\":{},\"cond\":{},\"note\":{},\"xieji\":{}}}",
+            json_str(r.event),
+            r.yi,
+            json_str(r.grade),
+            json_str(r.basis),
+            json_str(r.condition),
+            json_str(r.note),
+            json_arr(xieji_events(r.event).iter().map(|e| json_str(e)))
+        )
+    });
+    Ok(format!(
+        "{{\"monthZhi\":{},\"dayGz\":{},\"jianChu\":{},\"noText\":{},\"text\":{},\"fullText\":{},\"entryNote\":{},\"gods\":{},\"rules\":{}}}",
+        json_str(ZHI[month_zhi as usize]),
+        json_str(lunar_core::calendar::gan_zhi_options::gan_zhi_index_to_name(dgz)),
+        json_str(d.jian_chu),
+        d.no_text(),
+        json_str(d.text),
+        json_str(d.full_text),
+        json_str(d.entry_note),
+        json_arr(d.gods.iter().map(|g| json_str(g))),
+        json_arr(rules)
+    ))
+}
+
 /// 时黄黑道：按日支起时。day_name、hour_name 为干支名（如「乙未」「丙子」）；不合法返回空串。
 #[wasm_bindgen]
 pub fn huanghei_hour_wasm(day_name: &str, hour_name: &str) -> String {
