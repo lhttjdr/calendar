@@ -55,6 +55,7 @@ declare module 'lunar-wasm' {
   export function seed_solar_terms_wasm(years: Int32Array, jds: Float64Array): number
   export function shensha_day_wasm(jd: number, vsop87_ear: string, lunar_month: number, lunar_day: number, is_leap: boolean, days_in_month: number, phase: number): string
   export function dong_gong_day_json(jd: number, vsop87_ear: string): string
+  export function qili_shen_day_json(jd: number, vsop87_ear: string, tian_de: number, tian_huo: number, ming_fei: number, ming_fei_dui: number, fu_ri: number, huang_wu: number, can_ming: number): string
   export function jianchu_day_wasm(jd: number, vsop87_ear: string): string
   export function huanghei_hour_wasm(day_name: string, hour_name: string): string
   export function gengdian_wasm(jd: number, latitude_deg: number, longitude_deg: number, method: number, vsop87_ear: string): string

@@ -175,15 +175,26 @@ export function qimenMarks(c: QimenGongMarks): string[] {
  * 奇门八宫盘（多层罗盘式），自内而外：中五；宫卦与洛书数；地盘干；暗干；八门；九星；天盘干；八神；
  * 逐宫标记（空馬迫刑墓）；二十四山；周天度数。值符、值使之宫底色标出。
  */
-export function QimenWheel({ d }: { d: QimenWheelData }) {
+export function QimenWheel({ d, turn }: { d: QimenWheelData; turn?: boolean }) {
   const R = [40, 62, 84, 104, 128, 152, 174, 194, 212, 226, 236]
   const mid = (k: number) => (R[k]! + R[k + 1]!) / 2
+  // 转盘：九星（连天盘干）、八门、八神三组各绕八宫转。各组取其转过之宫数 k（天蓬离坎、休門离坎、直符离坎），
+  // 组内按「本位」画（第 i 位画的是 k 宫之后那一宫的内容），整组转 45k°，时辰交界即见其转动；飞盘不转（k=0，原位重画）
+  const RING8 = [1, 8, 3, 4, 9, 2, 7, 6]
+  const stepOf = (pred: (c: QimenWheelData['gong'][number]) => boolean) => {
+    if (!turn) return 0
+    const g = RING8.findIndex((x) => pred(d.gong[x - 1]!))
+    return g < 0 ? 0 : g
+  }
+  const kx = stepOf((c) => c.xing.includes('天蓬')), km = stepOf((c) => c.men === '休門'), ks = stepOf((c) => c.shen === '直符' || c.shen === '值符')
+  const ax = useSpin(45 * kx), am = useSpin(45 * km), as_ = useSpin(45 * ks)
+  const cellAt = (i: number, k: number) => d.gong[RING8[(i + k) % 8]! - 1]!
   return (
     <Frame label="奇门遁甲八宫盘">
       <DegreeRing r0={R[9]!} r1={R[10]!} />
       <Shan24Ring r0={R[8]!} r1={R[9]!} />
       {[7, 6, 5, 4, 3, 2, 1, 0].map((k) => <Ring key={k} r0={R[k]!} r1={R[k + 1]!} n={8} offset={0} fill={k % 2 ? '#fbf6ea' : '#fffdf7'} />)}
-      {[1, 8, 3, 4, 9, 2, 7, 6].map((g) => {
+      {RING8.map((g) => {
         const deg = scr(GONG_AZ[g]!)
         const c = d.gong[g - 1]!
         const hot = g === d.zhiFuGong || g === d.zhiShiGong
@@ -194,14 +205,36 @@ export function QimenWheel({ d }: { d: QimenWheelData }) {
             <T r={mid(0)} deg={deg} size={11} fill="#888">{`${GUA[g]}${g}`}</T>
             <T r={mid(1)} deg={deg} size={16}>{c.di.join('')}</T>
             {c.anGan && <T r={mid(2)} deg={deg} size={12} fill="#8c8c8c">{`暗${c.anGan}`}</T>}
-            {c.men && <T r={mid(3)} deg={deg} size={15} fill="#0958d9" weight={c.men === d.zhiShi ? 700 : 400}>{c.men}</T>}
-            <T r={mid(4)} deg={deg} size={c.xing.length > 1 ? 12 : 15} weight={c.xing.includes(d.zhiFu) ? 700 : 400}>{c.xing.join(' ')}</T>
-            <T r={mid(5)} deg={deg} size={16} fill="#a8071a">{c.tian.join('')}</T>
-            {c.shen && <T r={mid(6)} deg={deg} size={14} fill="#531dab">{c.shen}</T>}
             {mk.length > 0 && <T r={mid(7)} deg={deg} size={mk.length > 3 ? 9 : 11} fill="#a8071a" weight={600}>{mk.join(' ')}</T>}
           </g>
         )
       })}
+      {/* 八门 */}
+      <g style={spinG(am)}>
+        {RING8.map((g, i) => {
+          const c = cellAt(i, km), deg = scr(GONG_AZ[g]!)
+          return c.men ? <T key={g} r={mid(3)} deg={deg} size={15} fill="#0958d9" weight={c.men === d.zhiShi ? 700 : 400}>{c.men}</T> : null
+        })}
+      </g>
+      {/* 九星与天盘干 */}
+      <g style={spinG(ax)}>
+        {RING8.map((g, i) => {
+          const c = cellAt(i, kx), deg = scr(GONG_AZ[g]!)
+          return (
+            <g key={g}>
+              <T r={mid(4)} deg={deg} size={c.xing.length > 1 ? 12 : 15} weight={c.xing.includes(d.zhiFu) ? 700 : 400}>{c.xing.join(' ')}</T>
+              <T r={mid(5)} deg={deg} size={16} fill="#a8071a">{c.tian.join('')}</T>
+            </g>
+          )
+        })}
+      </g>
+      {/* 八神 */}
+      <g style={spinG(as_)}>
+        {RING8.map((g, i) => {
+          const c = cellAt(i, ks), deg = scr(GONG_AZ[g]!)
+          return c.shen ? <T key={g} r={mid(6)} deg={deg} size={14} fill="#531dab">{c.shen}</T> : null
+        })}
+      </g>
       <circle cx={C} cy={C} r={R[0]} fill={d.zhiFuGong === 5 || d.zhiShiGong === 5 ? '#fff7e6' : '#fff'} stroke="#999" />
       <text x={C} y={C - 14} fontSize={10} fill="#888" textAnchor="middle">中5</text>
       <text x={C} y={C + 4} fontSize={15} textAnchor="middle">{d.gong[4]!.di.join('')}</text>

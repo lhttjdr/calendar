@@ -1649,6 +1649,49 @@ pub fn shensha_day_wasm(
 /// 返回 {"monthZhi":"寅","dayGz":"丁酉","jianChu":"危","noText":false,"text":"宜忌之文","fullText":"原文","entryNote":"条目校记",
 /// "gods":["天德",…],"rules":[{"event":"安葬","yi":true,"grade":"","basis":"所据原句","cond":"","note":"校记","xieji":["安葬"]}…]}；
 /// noText 为真时 rules 为空（「董公无宜忌之文」），不回退协纪。见 doc/folk/tongshu_yiji.md。
+/// 择日页「起例依」：所选民用日之月家日神，协纪起例与所选诸说（类编等）对照。月以节换（子平四柱月支），日干支以 JDN。
+/// `tian_de`、`tian_huo` 0 协纪 1 类编；`ming_fei` 0 协纪 1 类编十四日 2 类编安葬十二日；`ming_fei_dui` 0 协纪 1 类编十一日 2 类编十日；
+/// `fu_ri` 0 协纪 1 集正 2 百忌 3 阴阳备用 4 百忌歌两干；`huang_wu` 0 不列 1 按季三支 2 类编表序 3 类编新增起例；`can_ming` 0 协纪 1 类编（年神蚕命）。
+/// 返回 {"xieji":[[名,吉]…],"sel":[[名,吉]…],"add":[…],"remove":[…],"canMing":{"xieji":支,"sel":支}}。见 doc/folk/tongshu.md 第五节。
+#[wasm_bindgen]
+pub fn qili_shen_day_json(jd: f64, vsop87_ear: &str, tian_de: u8, tian_huo: u8, ming_fei: u8, ming_fei_dui: u8, fu_ri: u8, huang_wu: u8, can_ming: u8) -> Result<String, JsValue> {
+    use lunar_core::folk::nianshen::{nian_shen_with, NianShenOptions};
+    use lunar_core::folk::shensha::{shen_for_day_with, FuRiRule, HuangWuRule, MingFeiDuiRule, MingFeiRule, QiLiYi, ShenshaOptions};
+    let vsop = vsop87_cached(vsop87_ear)?;
+    let (_, mi, _) = lunar_core::calendar::gan_zhi_options::ganzhi_from_jd_solar(vsop.as_ref(), jd, &lunar_core::calendar::gan_zhi_options::preset_zi_ping_ba_zi());
+    let month_ord = ((mi % 12) as i32 - 2).rem_euclid(12) as u8; // 寅月 = 0
+    let dgz = ((jd + 0.5).floor() as i64 + 49).rem_euclid(60) as u8;
+    let qly = |v: u8| if v == 1 { QiLiYi::LeiBian } else { QiLiYi::XieJi };
+    let o = ShenshaOptions {
+        tian_de: qly(tian_de),
+        tian_huo: qly(tian_huo),
+        ming_fei: match ming_fei { 1 => MingFeiRule::LeiBian14, 2 => MingFeiRule::LeiBianAnZang12, _ => MingFeiRule::XieJi },
+        ming_fei_dui: match ming_fei_dui { 1 => MingFeiDuiRule::LeiBian11, 2 => MingFeiDuiRule::LeiBian10, _ => MingFeiDuiRule::XieJi },
+        fu_ri: match fu_ri { 1 => FuRiRule::JiZheng, 2 => FuRiRule::BaiJi, 3 => FuRiRule::BeiYong, 4 => FuRiRule::BaiJiGe, _ => FuRiRule::XieJi },
+        huang_wu: match huang_wu { 1 => HuangWuRule::AnJi, 2 => HuangWuRule::LeiBianBiao, 3 => HuangWuRule::LeiBianQiLi, _ => HuangWuRule::BuLie },
+    };
+    let base = shen_for_day_with(month_ord, dgz, &ShenshaOptions::default());
+    let sel = shen_for_day_with(month_ord, dgz, &o);
+    let pair = |v: &[(String, bool)]| json_arr(v.iter().map(|(n, j)| format!("[{},{}]", json_str(n), j)));
+    let add: Vec<(String, bool)> = sel.iter().filter(|x| !base.contains(x)).cloned().collect();
+    let rem: Vec<(String, bool)> = base.iter().filter(|x| !sel.contains(x)).cloned().collect();
+    let y = folk_year_gz(vsop.as_ref(), jd);
+    let cm = |opt: NianShenOptions| {
+        nian_shen_with(y, &opt).into_iter().find(|n| n.name == "蠶命").map(|n| n.positions.join("")).unwrap_or_default()
+    };
+    let cm_x = cm(NianShenOptions::default());
+    let cm_s = cm(NianShenOptions { can_ming: qly(can_ming) });
+    Ok(format!(
+        "{{\"xieji\":{},\"sel\":{},\"add\":{},\"remove\":{},\"canMing\":{{\"xieji\":{},\"sel\":{}}}}}",
+        pair(&base),
+        pair(&sel),
+        pair(&add),
+        pair(&rem),
+        json_str(&cm_x),
+        json_str(&cm_s)
+    ))
+}
+
 #[wasm_bindgen]
 pub fn dong_gong_day_json(jd: f64, vsop87_ear: &str) -> Result<String, JsValue> {
     use lunar_core::folk::dong_gong::{dong_gong_day, xieji_events};

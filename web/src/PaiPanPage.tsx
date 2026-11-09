@@ -75,7 +75,7 @@ function QimenPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; hour
   }, [props.wasm, props.ear, props.jdUt, props.hourGz, props.dayGz, method, jiGong, shenMing, dingJu, source, anGan, ganMu, jiXing, kong])
   return (
     <Flex gap={16} wrap align="flex-start">
-      <div style={{ flex: '1 1 320px', maxWidth: 440, ...spinStyle(props.rotate) }}>{d ? <QimenWheel d={d} /> : <Text type="secondary">无法布盘</Text>}</div>
+      <div style={{ flex: '1 1 320px', maxWidth: 440, ...spinStyle(props.rotate) }}>{d ? <QimenWheel d={d} turn={method === 0} /> : <Text type="secondary">无法布盘</Text>}</div>
       <div style={{ flex: '1 1 280px' }}>
         {d && (
           <div style={{ marginBottom: 10, lineHeight: 1.8 }}>

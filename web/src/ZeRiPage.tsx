@@ -275,6 +275,72 @@ function DongGongYiJi({ wasm, ear, jd }: { wasm: LunarBackend; ear: string; jd: 
   )
 }
 
+/** 神煞起例诸说（核心 shensha::ShenshaOptions、nianshen::NianShenOptions；出处见知识库 tongshu.md 第五节） */
+const QILI_ITEMS: { key: string; label: string; opts: string[] }[] = [
+  { key: 'tianDe', label: '天德·天德合四仲', opts: ['协纪（四仲无）', '类编（申亥寅巳）'] },
+  { key: 'tianHuo', label: '天火', opts: ['协纪（逆行）', '类编（顺行四仲）'] },
+  { key: 'mingFei', label: '鳴吠', opts: ['协纪', '类编十四日', '类编安葬十二日'] },
+  { key: 'mingFeiDui', label: '鳴吠對', opts: ['协纪', '类编十一日', '类编十日'] },
+  { key: 'fuRi', label: '復日', opts: ['协纪', '集正', '百忌', '阴阳备用', '百忌歌两干'] },
+  { key: 'huangWu', label: '荒蕪', opts: ['不列（协纪：即五虚）', '按季三支', '类编表序', '类编新增起例'] },
+  { key: 'canMing', label: '蠶命（年神）', opts: ['协纪', '类编'] },
+]
+const QILI_LEIBIAN: Record<string, number> = { tianDe: 1, tianHuo: 1, mingFei: 1, mingFeiDui: 1, fuRi: 1, huangWu: 2, canMing: 1 }
+
+function QiLiPanel(props: { wasm: LunarBackend; ear: string; jd: number }) {
+  const [o, setO] = useState<Record<string, number>>({})
+  const [open, setOpen] = useState(false)
+  const v = (k: string) => o[k] ?? 0
+  const r = useMemo(() => {
+    if (typeof props.wasm.qili_shen_day_json !== 'function') return null
+    try {
+      return JSON.parse(props.wasm.qili_shen_day_json(props.jd, props.ear, v('tianDe'), v('tianHuo'), v('mingFei'), v('mingFeiDui'), v('fuRi'), v('huangWu'), v('canMing'))) as {
+        add: [string, boolean][]; remove: [string, boolean][]; canMing: { xieji: string; sel: string }
+      }
+    } catch { return null }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.wasm, props.ear, props.jd, o])
+  const all = Object.values(o).every((x) => x === 0) ? 'xieji' : QILI_ITEMS.every((it) => v(it.key) === QILI_LEIBIAN[it.key]) ? 'leibian' : 'mix'
+  return (
+    <div style={{ marginTop: 10, fontSize: 13 }}>
+      <Flex align="center" gap={8} wrap>
+        <Text>神煞起例依：</Text>
+        <Radio.Group size="small" value={all} onChange={(e) => { if (e.target.value === 'xieji') setO({}); else if (e.target.value === 'leibian') setO({ ...QILI_LEIBIAN }); else setOpen(true) }}>
+          <Radio.Button value="xieji">协纪（缺省）</Radio.Button>
+          <Radio.Button value="leibian">类编</Radio.Button>
+          <Radio.Button value="mix">逐神选</Radio.Button>
+        </Radio.Group>
+        <Button size="small" type="link" onClick={() => setOpen(!open)}>{open ? '收起' : '逐神'}</Button>
+      </Flex>
+      {open && (
+        <div style={{ marginTop: 6 }}>
+          {QILI_ITEMS.map((it) => (
+            <div key={it.key} style={{ marginBottom: 4 }}>
+              <Text style={{ fontSize: 12, display: 'inline-block', width: 110 }}>{it.label}</Text>
+              <Radio.Group size="small" value={v(it.key)} onChange={(e) => setO({ ...o, [it.key]: e.target.value })}
+                options={it.opts.map((label, i) => ({ label, value: i }))} />
+            </div>
+          ))}
+        </div>
+      )}
+      {r && all !== 'xieji' && (
+        <div style={{ marginTop: 6 }}>
+          {r.add.length + r.remove.length === 0 ? <Text type="secondary">本日所值之神与协纪同</Text> : (
+            <>
+              {r.add.length > 0 && <div>{'较协纪多：'}{r.add.map(([n, j]) => <span key={n} style={{ color: j ? '#237804' : '#a8071a', marginRight: 6 }}>{n}</span>)}</div>}
+              {r.remove.length > 0 && <div>{'较协纪少：'}{r.remove.map(([n, j]) => <span key={n} style={{ color: j ? '#237804' : '#a8071a', marginRight: 6, textDecoration: 'line-through' }}>{n}</span>)}</div>}
+            </>
+          )}
+          {r.canMing.sel !== r.canMing.xieji && <div>{`蠶命：协纪在${r.canMing.xieji}，所选在${r.canMing.sel}`}</div>}
+          <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>
+            只改所列当日之神，宜忌仍依协纪月表。类编为元末《類編曆法通書大全》，协纪按语所斥「通書」诸说多见于此（鸣吠、复日、天火、蚕命等）；乾隆三十年时宪书蚕命从协纪。
+          </Text>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function ZeRiPage(props: {
   wasm: LunarBackend | null
   ear: string | null
@@ -338,6 +404,7 @@ export function ZeRiPage(props: {
               {`日遊神${data.riYou} · 鶴神${data.heShen}`}
               {data.taiSuiYou ? ` · 太歲${data.taiSuiYou}遊` : ''}
             </div>
+            {wasm && ear != null && <QiLiPanel wasm={wasm} ear={ear} jd={jd} />}
             <Flex align="center" gap={8} wrap style={{ marginBottom: 8 }}>
               <Text>宜忌依：</Text>
               <Radio.Group size="small" value={yiJiSrc} onChange={(e) => setYiJiSrc(e.target.value)}>

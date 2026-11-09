@@ -155,6 +155,7 @@ export interface LunarBackend {
   shensha_day_wasm?(jd: number, vsop87_ear: string, lunar_month: number, lunar_day: number, is_leap: boolean, days_in_month: number, phase: number): string
   /** 择日页宜忌另一说：《董公選擇日要覽》（JSON；月建按节） */
   dong_gong_day_json?(jd: number, vsop87_ear: string): string
+  qili_shen_day_json?(jd: number, vsop87_ear: string, tian_de: number, tian_huo: number, ming_fei: number, ming_fei_dui: number, fu_ri: number, huang_wu: number, can_ming: number): string
   /** 建除、日黄黑道、百忌 */
   jianchu_day_wasm?(jd: number, vsop87_ear: string): string
   /** 时黄黑道 */
