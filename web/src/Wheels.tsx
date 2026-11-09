@@ -160,3 +160,51 @@ export function TaiyiWheel({ d }: { d: TaiyiWheelData }) {
     </Frame>
   )
 }
+
+export type QizhengWheelData = {
+  yao: { n: string; gong: number; gongDeg: number; xiu: string | null; xiuDeg: number | null; retro: boolean }[]
+  ming: number
+  palaces: string[]
+}
+
+/** 十二次名，下标为地支序 */
+const GONG_CI = ['玄枵', '星紀', '析木', '大火', '壽星', '鶉尾', '鶉火', '鶉首', '實沈', '大梁', '降婁', '娵訾']
+/** 盘上简称（时宪书七政躔度亦作日月水金火木土羅計孛炁） */
+export const YAO_SHORT: Record<string, string> = { 太陽: '日', 太陰: '月', 水星: '水', 金星: '金', 火星: '火', 木星: '木', 土星: '土', 羅睺: '羅', 計都: '計', 月孛: '孛', 紫炁: '炁' }
+/** 七政用阴阳家五色：日月朱，五星依五行，四余紫 */
+const YAO_FILL: Record<string, string> = { 太陽: '#cf1322', 太陰: '#cf1322', 水星: '#1d39c4', 金星: '#8c8c8c', 火星: '#d4380d', 木星: '#389e0d', 土星: '#ad6800' }
+
+/** 七政四余盘：十二宫依地支方位（同六壬地盘），内圈支与十二次，中圈人事十二宫（命宫起逆布），外圈本宫诸曜（名、入宫度，逆行注「逆」） */
+export function QizhengWheel({ d }: { d: QizhengWheelData }) {
+  return (
+    <Frame label="七政四余盘">
+      <circle cx={C} cy={C} r={205} fill="#fffdf7" stroke="#999" />
+      <circle cx={C} cy={C} r={118} fill="#fff" stroke="#999" />
+      <circle cx={C} cy={C} r={60} fill="#fff" stroke="#bbb" />
+      {[...ZHI].map((z, i) => {
+        const deg = scr(30 * i)
+        const here = d.yao.filter((y) => y.gong === i).sort((a, b) => a.gongDeg - b.gongDeg)
+        const ming = i === d.ming
+        return (
+          <g key={z}>
+            <path d={sector(60, 205, deg - 15, deg + 15)} fill={ming ? '#fff7e6' : 'none'} stroke="#ddd" />
+            <T r={74} deg={deg} size={16} fill="#666">{z}</T>
+            <T r={92} deg={deg} size={11} fill="#999">{GONG_CI[i]}</T>
+            <T r={108} deg={deg} size={12} fill={ming ? '#ad4e00' : '#531dab'} weight={ming ? 700 : 400}>{d.palaces[i]}</T>
+            {here.map((y, k) => {
+              // 宫内多曜：沿半径排开，每曜一行（名＋度）；过多则缩字
+              const step = here.length > 5 ? 15 : 17
+              return (
+                <T key={y.n} r={130 + k * step} deg={deg} size={here.length > 5 ? 10 : 12} fill={YAO_FILL[y.n] ?? '#531dab'}>
+                  {`${YAO_SHORT[y.n] ?? y.n}${Math.floor(y.gongDeg)}°${y.retro ? '逆' : ''}`}
+                </T>
+              )
+            })}
+          </g>
+        )
+      })}
+      <text x={C} y={C - 4} fontSize={13} textAnchor="middle">命宮在{ZHI[d.ming]}</text>
+      <text x={C} y={C + 14} fontSize={10} textAnchor="middle" fill="#888">中气分宫</text>
+    </Frame>
+  )
+}

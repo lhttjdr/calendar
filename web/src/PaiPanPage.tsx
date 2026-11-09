@@ -1,14 +1,16 @@
 /**
- * 排盘页：大六壬天地盘与四课三传、太乙盘（十六神与九宫）、奇门遁甲（定局；布盘待接入）。
+ * 排盘页：奇门遁甲、大六壬、太乙、六爻·周易、玄空飞星、七政四余（经星图 Worker）、紫微斗数。
  * 与日历共用所选时刻；日柱、时支取日历所示四柱。图依古式南上北下、东左西右。
  * 规则与出处见知识库 doc/folk/liuren.md、taiyi.md、qimen.md。
  */
 import { Button, Flex, Radio, Switch, Tabs, Typography } from 'antd'
 import { LeftOutlined, RightOutlined } from '@ant-design/icons'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { LunarBackend } from './lunar-backend-types'
 import { useCompassBar, type LocationProps } from './CompassBar'
-import { LiurenWheel, QimenWheel, TaiyiWheel } from './Wheels'
+import { LiurenWheel, QimenWheel, QizhengWheel, TaiyiWheel, type QizhengWheelData } from './Wheels'
+import { useWorkerRpc } from './useWorkerRpc'
+import type { SkyRequest } from './skyWorker'
 
 const { Text } = Typography
 
@@ -436,6 +438,56 @@ function TaiyiPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; dayG
   )
 }
 
+/** 七政四余：日月五星视黄经要五大行星历表，经星图 Worker（SkyEngine）按需算，切到本页签才加载 */
+function QizhengPanel(props: { jdUt: number; hourZhi: number; latitude: number; longitude: number; rotate: number }) {
+  const call = useWorkerRpc<SkyRequest>(() => new Worker(new URL('./skyWorker.ts', import.meta.url), { type: 'module' }))
+  const [luoAsc, setLuoAsc] = useState(false)
+  const [meanNode, setMeanNode] = useState(false)
+  const [ascendant, setAscendant] = useState(false)
+  const [d, setD] = useState<QizhengWheelData | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  useEffect(() => {
+    let live = true
+    call<QizhengWheelData>({ type: 'qizheng', jdUt: props.jdUt, lon: props.longitude, lat: props.latitude, hourZhi: props.hourZhi, luoAsc, meanNode, ascendant })
+      .then((r) => { if (live) { setD(r); setErr(null) } })
+      .catch((e: Error) => { if (live) setErr(e.message) })
+    return () => { live = false }
+  }, [call, props.jdUt, props.longitude, props.latitude, props.hourZhi, luoAsc, meanNode, ascendant])
+  return (
+    <Flex gap={24} wrap align="flex-start">
+      <div style={{ flex: '1 1 320px', maxWidth: 440, ...spinStyle(props.rotate) }}>
+        {d ? <QizhengWheel d={d} /> : <Text type="secondary">{err ?? '加载五星历表与距星……'}</Text>}
+      </div>
+      <div style={{ flex: '1 1 300px', minWidth: 0 }}>
+        <Flex vertical gap={8}>
+          <div>罗计：<Radio.Group size="small" value={luoAsc} onChange={(e) => setLuoAsc(e.target.value)} options={[{ label: '计都升交（回回历、清中期后时宪书）', value: false }, { label: '罗睺升交（崇祯新法、清初）', value: true }]} /></div>
+          <div>交点：<Radio.Group size="small" value={meanNode} onChange={(e) => setMeanNode(e.target.value)} options={[{ label: '真交点', value: false }, { label: '平交点', value: true }]} /></div>
+          <div>命宫：<Radio.Group size="small" value={ascendant} onChange={(e) => setAscendant(e.target.value)} options={[{ label: '太阳宫加时、卯上起命', value: false }, { label: '东方上升点', value: true }]} /></div>
+          {d && (
+            <table style={{ borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead><tr>{['曜', '宫', '入宫度', '宿度', ''].map((h) => <th key={h} style={{ textAlign: 'left', padding: '2px 8px', borderBottom: '1px solid #ddd' }}>{h}</th>)}</tr></thead>
+              <tbody>
+                {d.yao.map((y) => (
+                  <tr key={y.n}>
+                    <td style={{ padding: '2px 8px' }}>{y.n}</td>
+                    <td style={{ padding: '2px 8px' }}>{ZHI[y.gong]}</td>
+                    <td style={{ padding: '2px 8px' }}>{y.gongDeg.toFixed(2)}°</td>
+                    <td style={{ padding: '2px 8px' }}>{y.xiu != null && y.xiuDeg != null ? `${y.xiu}${y.xiuDeg.toFixed(2)}°` : '—'}</td>
+                    <td style={{ padding: '2px 8px', color: '#a8071a' }}>{y.retro ? '逆' : ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            视黄经（当日真春分点）；宫依中气分宫，黄经 0°—30° 为戌宫；宿度依清代二十八宿距星；紫炁依时宪书平行；命宫用所在地经纬度（上升点法）。
+          </Text>
+        </Flex>
+      </div>
+    </Flex>
+  )
+}
+
 export function PaiPanPage(props: LocationProps & {
   wasm: LunarBackend | null
   /** 所选日农历（紫微用）；无则 null */
@@ -503,6 +555,10 @@ export function PaiPanPage(props: LocationProps & {
             {
               key: 'xuankong', label: '玄空飞星',
               children: <XuankongPanel wasm={wasm!} ganzhiYear={props.ganzhiYear ?? new Date().getFullYear()} heading={trueHeading} rotate={rotate} />,
+            },
+            {
+              key: 'qizheng', label: '七政四余',
+              children: <QizhengPanel jdUt={jdUt} hourZhi={hourZhi!} latitude={props.latitude} longitude={props.longitude} rotate={rotate} />,
             },
             {
               key: 'ziwei', label: '紫微斗数',

@@ -2676,6 +2676,51 @@ impl SkyEngine {
     /// 气温、气压给 NaN 时取标准值；`inversion_*` 见 [`site_atmosphere`]；`humidity` 为 0—1；`city_nl` 为城市光（nL）。
     /// `delta_t_s` 只用于恒星时（GAST）。
     #[wasm_bindgen]
+    /// 七政四余（排盘页，按需经星图 Worker 调用）：十一曜视黄经、中气分宫、黄道宿度（清代距星）、命宫与十二宫。
+    /// `luo_asc` 罗睺为升交点（清初之法；缺省 false 即计都升交）；`mean_node` 平交点（缺省真交点）；
+    /// `ascendant` 命宫取上升点（缺省「卯上起命」）。见 doc/folk/qizheng.md。
+    pub fn qizheng(&self, jd_tt: f64, delta_t_s: f64, lon_deg: f64, lat_deg: f64, hour_zhi: u8, luo_asc: bool, mean_node: bool, ascendant: bool) -> String {
+        use lunar_core::astronomy::apparent::ApparentPipelineOptions;
+        use lunar_core::astronomy::sky_culture::chinese::MansionFrame;
+        use lunar_core::astronomy::time::{TimePoint, TimeScale};
+        use lunar_core::folk::qizheng as qz;
+        let eph = Vsop87Elp {
+            planets: Vsop87Planets { earth: &self.earth, planets: self.planets.iter().map(|(p, v)| (*p, v)).collect() },
+            moon: &self.elp,
+        };
+        let opts = ApparentPipelineOptions::default();
+        let t = TimePoint::new(TimeScale::TT, real(jd_tt));
+        let frame = self.mansions.iter().find(|m| m.id == "qing").and_then(|sys| MansionFrame::new(&eph, &self.catalog, sys, t, &opts).ok());
+        let o = qz::QizhengOptions {
+            luo_ji: if luo_asc { qz::LuoJi::LuoAscending } else { qz::LuoJi::JiAscending },
+            node: if mean_node { qz::NodeKind::Mean } else { qz::NodeKind::True },
+            ming: if ascendant { qz::MingRule::Ascendant } else { qz::MingRule::SunOnHour },
+            ..Default::default()
+        };
+        let jd_ut1 = jd_tt - delta_t_s / 86400.0;
+        let gast = lunar_core::astronomy::time::earth_rotation::gast(real(jd_ut1), real(jd_tt));
+        let lst = (gast.rad().as_f64().to_degrees() + lon_deg).rem_euclid(360.0);
+        let c = qz::chart(&eph, t, frame.as_ref(), hour_zhi % 12, Some((real(lst), real(lat_deg))), &o, &opts);
+        let yao: Vec<String> = c
+            .yao
+            .iter()
+            .map(|y| {
+                format!(
+                    "{{\"n\":{},\"lon\":{:.4},\"gong\":{},\"gongDeg\":{:.4},\"xiu\":{},\"xiuDeg\":{},\"retro\":{}}}",
+                    json_str(y.name),
+                    y.lon.as_f64(),
+                    y.gong,
+                    y.gong_deg.as_f64(),
+                    y.xiu.map(|(k, _)| json_str(qz::xiu_name(k))).unwrap_or_else(|| "null".into()),
+                    y.xiu.map(|(_, d)| format!("{:.4}", d.as_f64())).unwrap_or_else(|| "null".into()),
+                    y.retro
+                )
+            })
+            .collect();
+        let palaces: Vec<String> = c.palaces.iter().map(|x| json_str(x)).collect();
+        format!("{{\"yao\":[{}],\"ming\":{},\"palaces\":[{}]}}", yao.join(","), c.ming, palaces.join(","))
+    }
+
     pub fn snapshot(&self, jd_tt: f64, delta_t_s: f64, lon_deg: f64, lat_deg: f64, height_m: f64, temperature_c: f64, pressure_kpa: f64, inversion_depth_m: f64, inversion_rise_k: f64, humidity: f64, city_nl: f64) -> String {
         use lunar_core::astronomy::apparent::ApparentPipelineOptions;
         use lunar_core::astronomy::sky_map::sky_snapshot;
