@@ -2996,14 +2996,43 @@ impl SkyEngine {
         };
         let starts = qz::gong_starts(jie, mlon.as_ref());
         let fmt_arr = |v: &[lunar_core::math::real::Real]| v.iter().map(|x| format!("{:.4}", x.as_f64())).collect::<Vec<_>>().join(",");
+        // 神煞与诸家限法（生年干支、节月、晝夜由 jd 与太阳黄经推，见 qizheng::nian_gan_zhi 等）
+        let u8s = |v: &[u8]| v.iter().map(|g| g.to_string()).collect::<Vec<_>>().join(",");
+        let shen_sha: Vec<String> = x
+            .shen_sha
+            .iter()
+            .map(|s| {
+                format!(
+                    "{{\"n\":{},\"by\":{},\"yao\":{},\"gong\":{},\"src\":{}}}",
+                    json_str(s.name),
+                    json_str(s.by),
+                    s.yao.map(nm).unwrap_or_else(|| "null".into()),
+                    s.gong.map(|g| g.to_string()).unwrap_or_else(|| "null".into()),
+                    json_str(s.src)
+                )
+            })
+            .collect();
+        let zhu_luo: Vec<String> = x
+            .zhu_luo
+            .iter()
+            .map(|z| format!("{{\"yao\":{},\"from\":{},\"to\":{},\"start\":{}}}", nm(z.yao), z.from, z.to, z.start))
+            .collect();
         format!(
-            "{{\"yao\":[{}],\"ming\":{},\"palaces\":[{}],\"xingMing\":{},\"xiuLon\":{},\"gongStart\":[{}]}}",
+            "{{\"yao\":[{}],\"ming\":{},\"palaces\":[{}],\"xingMing\":{},\"xiuLon\":{},\"gongStart\":[{}],\"nianGz\":{},\"jieYue\":{},\"zhou\":{},\"shenSha\":[{}],\"dongWei\":[{}],\"zhuLuo\":[{}],\"zhuLuoGong\":[{}],\"tongXianGong\":[{}]}}",
             yao.join(","),
             c.ming,
             palaces.join(","),
             xm,
             mlon.map(|m| format!("[{}]", fmt_arr(&m))).unwrap_or_else(|| "null".into()),
-            fmt_arr(&starts)
+            fmt_arr(&starts),
+            x.nian_gz,
+            x.jie_yue,
+            x.zhou,
+            shen_sha.join(","),
+            u8s(&x.dong_wei),
+            zhu_luo.join(","),
+            u8s(&x.zhu_luo_gong),
+            u8s(&x.tong_xian_gong)
         )
     }
 

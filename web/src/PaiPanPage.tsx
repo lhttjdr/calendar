@@ -617,6 +617,22 @@ function QizhengPanel(props: { jdUt: number; hourZhi: number; latitude: number; 
               </tbody>
             </table>
           )}
+          {d?.shenSha && d.shenSha.length > 0 && (() => {
+            const hua = d.shenSha.filter((x) => x.yao != null)
+            const gong = d.shenSha.filter((x) => x.yao == null && x.gong != null)
+            const byYao = new Map<string, string[]>()
+            hua.forEach((x) => byYao.set(x.yao!, [...(byYao.get(x.yao!) ?? []), x.n]))
+            return (
+              <div style={{ fontSize: 12, lineHeight: 1.7 }}>
+                <div><b>化曜</b>（{d.nianGz != null ? `${'甲乙丙丁戊己庚辛壬癸'[d.nianGz % 10]}${ZHI[d.nianGz % 12]}年生，` : ''}{d.zhou ? '晝' : '夜'}生）：{[...byYao.entries()].map(([y, ns]) => `${YAO_SHORT[y] ?? y}為${ns.join('、')}`).join('；')}</div>
+                <div><b>宫位神煞</b>：{[...Array(12).keys()].map((z) => {
+                  const ns = gong.filter((x) => x.gong === z).map((x) => x.n)
+                  return ns.length ? `${ZHI[z]}：${ns.join('、')}` : ''
+                }).filter(Boolean).join('；')}</div>
+              </div>
+            )
+          })()}
+          {d?.zhuLuo && d.zhuLuo.length > 0 && <div style={{ fontSize: 12 }}>{`竹羅三限：${d.zhuLuo.map((z) => `${YAO_SHORT[z.yao] ?? z.yao}限 ${z.from}—${z.to} 岁（起${ZHI[z.start]}）`).join('；')}`}</div>}
           <Text type="secondary" style={{ fontSize: 12 }}>
             视黄经（当日真春分点）；宫依中气分宫，黄经 0°—30° 为戌宫；宿度依清代二十八宿距星；紫炁依时宪书平行；命宫用所在地经纬度（上升点法）。以所选时刻为生时；命度依量天尺：命宫中与太阳同位之度（集成本《張果星宗》安命度法）。
           </Text>

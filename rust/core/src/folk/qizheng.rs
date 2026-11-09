@@ -12,6 +12,8 @@
 //!   恩難（五行生克）、命度（量天尺，[`liang_tian_chi`]）、童限大限、童限逐岁宫（[`tong_xian_gong`]）、
 //!   小限（[`xiao_xian`]、按生日 [`xiao_xian_sui`]）、月限（[`yue_xian`]）、流年變曜（[`liu_nian_bian_yao`]）；
 //!   以宿度分宫的旧法见 [`GongRule`]。
+//! - 神煞（[`shen_sha`]）：以生年干支、节月、生时、命宫起例之化曜与宫位神煞；限法（[`xian_fa`]）：洞微飛限、竹羅三限；
+//!   《欽天監校正授時過宮度圖》部分转录（[`guo_gong`]）。
 //!
 //! 原典、实测核对与各说出处见 doc/folk/qizheng.md。
 
@@ -22,6 +24,12 @@ use crate::astronomy::pipeline::{Body, EphemerisProvider, Planet};
 use crate::astronomy::sky_culture::chinese::{ecliptic_longitude, MansionFrame, MANSIONS};
 use crate::astronomy::time::{TimePoint, TimeScale};
 use crate::math::real::{real, Real, RealOps};
+
+pub mod guo_gong;
+pub mod shen_sha;
+pub mod xian_fa;
+pub use shen_sha::{GuiRenRule, KuiXingRule, NianJie, ShenSha, ShenShaOptions, TianJieRule};
+pub use xian_fa::{dong_wei_fei_xian, zhu_luo, zhu_luo_zhu, ZhuLuoRule, ZhuLuoXian};
 
 /// 十一曜之序：太阳、太阴、水、金、火、木、土、罗睺、计都、月孛、紫炁
 pub const YAO: [&str; 11] = ["太陽", "太陰", "水星", "金星", "火星", "木星", "土星", "羅睺", "計都", "月孛", "紫炁"];
@@ -430,6 +438,20 @@ pub struct XingMing {
     pub da_xian: Vec<DaXian>,
     /// 童限逐岁之宫（下标 0 为一岁，至出童限前一岁），见 [`tong_xian_gong`]
     pub tong_xian_gong: Vec<u8>,
+    /// 生年干支序（甲子 = 0），换年之界依 [`NianJie`]
+    pub nian_gz: u8,
+    /// 生月（节月：0 = 寅月正月，以太阳视黄经 315° 起每 30° 一月）
+    pub jie_yue: u8,
+    /// 晝生（太阳在地平之上；无地方恒星时则以生时支正中与纬度 35° 估，见 [`zhou_sheng`]）
+    pub zhou: bool,
+    /// 神煞（化曜者附所化之曜与该曜之宫，宫位者附宫），见 [`shen_sha::shen_sha`]
+    pub shen_sha: Vec<ShenSha>,
+    /// 洞微飛限逐岁之宫（下标 0 为一岁，至一百岁），见 [`dong_wei_fei_xian`]
+    pub dong_wei: Vec<u8>,
+    /// 竹羅三限（初、中、末三限之限星、起止岁、起宫），见 [`zhu_luo`]
+    pub zhu_luo: Vec<ZhuLuoXian>,
+    /// 竹羅三限逐岁之宫（下标 0 为一岁）
+    pub zhu_luo_gong: Vec<u8>,
 }
 
 /// 五行关系：a 对 b（b 为主）
@@ -458,6 +480,12 @@ pub struct QizhengOptions {
     pub da_xian: DaXianYears,
     pub ming_du: MingDuRule,
     pub yue_xian: YueXianRule,
+    /// 生年换年之界（神煞用）
+    pub nian_jie: NianJie,
+    /// 神煞异说（魁星庚字、晝夜貴人、天解）
+    pub shen_sha: ShenShaOptions,
+    /// 竹羅三方主寅午戌一组之异说
+    pub zhu_luo: ZhuLuoRule,
 }
 
 impl Default for QizhengOptions {
@@ -476,6 +504,9 @@ impl Default for QizhengOptions {
             da_xian: DaXianYears::XingZong,
             ming_du: MingDuRule::FromStart,
             yue_xian: YueXianRule::XiaoXian,
+            nian_jie: NianJie::LiChun,
+            shen_sha: ShenShaOptions::default(),
+            zhu_luo: ZhuLuoRule::Ge,
         }
     }
 }
@@ -742,7 +773,19 @@ pub fn chart<P: EphemerisProvider>(
         }
     };
     let palaces = core::array::from_fn(|z| PALACES[((ming as i32 - z as i32).rem_euclid(12)) as usize]);
-    let xing_ming = xing_ming(&yao, ming, ming_lon, gong_fn(ming_lon).1, mlon.as_ref(), o);
+    let mut xing_ming = xing_ming(&yao, ming, ming_lon, gong_fn(ming_lon).1, mlon.as_ref(), o);
+    // 神煞与诸家限法：生年干支、节月、晝夜由时刻与太阳视黄经推
+    let sun_lon = yao[0].lon;
+    xing_ming.nian_gz = nian_gan_zhi(jd, sun_lon, o.nian_jie);
+    xing_ming.jie_yue = jie_yue(sun_lon);
+    xing_ming.zhou = zhou_sheng(sun_lon, true_obliquity(t), hour_zhi, lst_lat);
+    let inp = shen_sha::ShenShaInput { nian_gz: xing_ming.nian_gz, month: xing_ming.jie_yue, hour_zhi, zhou: xing_ming.zhou, ming, yao: &yao };
+    xing_ming.shen_sha = shen_sha::shen_sha(&inp, &o.shen_sha);
+    xing_ming.dong_wei = (1..=100).filter_map(|s| dong_wei_fei_xian(ming, s)).collect();
+    let stars = zhu_luo_zhu(ming, xing_ming.zhou, o.zhu_luo);
+    let (zl, zg) = zhu_luo(stars, stars.map(|k| yao[k].gong));
+    xing_ming.zhu_luo = zl;
+    xing_ming.zhu_luo_gong = zg;
     QizhengChart { yao, ming, palaces, xing_ming }
 }
 
@@ -799,7 +842,45 @@ fn xing_ming(yao: &[YaoPos], ming: u8, ming_lon: Real, ming_gong_deg: Real, mlon
         tong_xian: tong,
         da_xian,
         tong_xian_gong,
+        nian_gz: 0,
+        jie_yue: 0,
+        zhou: true,
+        shen_sha: Vec::new(),
+        dong_wei: Vec::new(),
+        zhu_luo: Vec::new(),
+        zhu_luo_gong: Vec::new(),
     }
+}
+
+/// 生年干支序（甲子 = 0）：`jd`（TT）时刻、太阳视黄经 `sun_lon`（°）。自所设之界（立春 315°、冬至 270°）回推至最近一次交界之时，
+/// 取其所在之年（冬至属次年），干支 = (年 − 4) mod 60（公元前用天文纪年）。回推按平太阳日行，误差不过一日，不影响年之归属
+pub fn nian_gan_zhi(jd: Real, sun_lon: Real, rule: NianJie) -> u8 {
+    let (l0, add) = match rule {
+        NianJie::LiChun => (real(315.0), 0),
+        NianJie::DongZhi => (real(270.0), 1),
+    };
+    let back = norm360(sun_lon - l0) / real(360.0) * real(365.2422);
+    let y = ((jd - back - real(2451545.0)) / real(365.2425)).to_i32_floor() + 2000 + add;
+    ((y - 4).rem_euclid(60)) as u8
+}
+
+/// 节月（0 = 寅月正月，立春起；太阳视黄经 315° 起每 30° 一月）
+pub fn jie_yue(sun_lon: Real) -> u8 {
+    ((norm360(sun_lon - real(315.0)) / real(30.0)).to_i32_floor().rem_euclid(12)) as u8
+}
+
+/// 晝生：《星學大成》卷七竹羅三限「右三方主星取日出没時分晝夜」。有地方恒星时与纬度（`lst_lat`）则以太阳视地平高度
+/// 过 −50′（日出没之界）为晝；无则以生时支正中为地方真太阳时、纬度取 35°（本项目所设，未核）
+pub fn zhou_sheng(sun_lon: Real, eps: Real, hour_zhi: u8, lst_lat: Option<(Real, Real)>) -> bool {
+    let l = rad(sun_lon);
+    let dec = (eps.sin() * l.sin()).asin();
+    let ra = (eps.cos() * l.sin()).atan2(l.cos());
+    let (h, phi) = match lst_lat {
+        Some((lst, lat)) => (rad(lst) - ra, rad(lat)),
+        None => (rad(real(30.0) * real(hour_zhi as f64) - real(180.0)), rad(real(35.0))),
+    };
+    let alt = (phi.sin() * dec.sin() + phi.cos() * dec.cos() * h.cos()).asin();
+    alt > rad(real(-50.0 / 60.0))
 }
 
 /// 宿名
@@ -976,6 +1057,22 @@ mod tests {
                 assert_eq!(x.relation[x.ming_zhu], "主");
                 assert_eq!(x.da_xian.len(), 12);
                 assert_eq!(x.da_xian[1].palace, "相貌");
+                // 神煞与限法：癸巳年（立春后，正月初一）、寅月、子时夜生
+                assert_eq!(x.nian_gz, 29);
+                assert_eq!(nian_gan_zhi(t.to_scale(TimeScale::TT).jd, c.yao[0].lon, NianJie::DongZhi), 29);
+                assert_eq!(x.jie_yue, 0);
+                assert!(!x.zhou);
+                let ss = |n: &str| x.shen_sha.iter().find(|s| s.name == n).unwrap().clone();
+                assert_eq!(ss("天祿").yao, Some(7)); // 癸化祿羅
+                assert_eq!(ss("天祿").gong, Some(c.yao[7].gong));
+                assert_eq!(ss("驛馬").gong, Some(11)); // 巳酉丑馬在亥
+                assert_eq!(ss("天元印").yao, Some(4)); // 寅命：寅午戌火
+                assert_eq!(x.dong_wei.len(), 100);
+                assert_eq!(x.dong_wei[0], c.ming);
+                assert_eq!(x.zhu_luo.len(), 3);
+                assert_eq!(x.zhu_luo[0].yao, 5); // 寅命夜生：木日土
+                assert_eq!(x.zhu_luo_gong.len(), 30 + 28 + 26);
+                eprintln!("神煞 {} 项：{:?}", x.shen_sha.len(), x.shen_sha.iter().map(|s| format!("{}{}", s.name, s.gong.map(|g| g.to_string()).unwrap_or_default())).collect::<Vec<_>>());
                 // 宿度分宫：各曜宫与中气分宫至多差一宫
                 for g in [GongRule::XiuDuXingZong, GongRule::XiuDuDaCheng] {
                     let c2 = chart(&eph, t, Some(&frame), 0, None, &QizhengOptions { gong: g, ..Default::default() }, &opts);
@@ -1259,6 +1356,56 @@ mod tests {
         for (n, y) in [("黄少卿", 1394), ("壬申五月二十", 1332), ("王待制", 1404)] {
             assert!(full.iter().any(|(a, b, t)| a == n && *b == y && *t == "中") && full.iter().any(|(a, b, t)| a == n && *b == y && *t == "宗"), "{n} {y}");
         }
+    }
+
+    /// 竹羅三限书例（《星學大成》卷七）：「假令大紀二年戊子嵗十二月初八日卯時生，即丑上安命……可作夜生人起限月金火為例，
+    /// 是年六十九嵗火命人限星到寅即長生限也」。逐个戊子年推算命宫、晝夜、火星之宫与六十九岁竹羅限宫（地点取开封，114.3°E、34.8°N）
+    #[test]
+    #[ignore = "逐年推算；手动 --ignored 运行"]
+    fn zhu_luo_wuzi_case() {
+        use crate::astronomy::ephemeris::elpmpp02::{load_all, Elpmpp02Correction};
+        use crate::astronomy::ephemeris::vsop87_patch::PatchTarget;
+        use crate::astronomy::ephemeris::{load_earth_vsop87_corrected_from_repo, load_planet_vsop87_corrected_from_repo};
+        use crate::astronomy::frame::nutation::try_init_full_nutation_from_repo;
+        use crate::astronomy::pipeline::{Vsop87Elp, Vsop87Planets};
+        use crate::calendar::chinese_lunar::{compute_year_data, to_julian_day, tt_to_day_number_utc8, ChineseLunarDate};
+        use crate::quantity::angle::PlaneAngle;
+        let _ = try_init_full_nutation_from_repo();
+        let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::DEFAULT).unwrap();
+        let planets: Vec<_> = [Planet::Mercury, Planet::Venus, Planet::Mars, Planet::Jupiter, Planet::Saturn]
+            .iter()
+            .map(|&p| (p, load_planet_vsop87_corrected_from_repo(p, PatchTarget::DEFAULT).unwrap()))
+            .collect();
+        let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT).unwrap();
+        let eph = Vsop87Elp { planets: Vsop87Planets { earth: &earth, planets: planets.iter().map(|(p, v)| (*p, v)).collect() }, moon: &elp };
+        let opts = ApparentPipelineOptions::pipeline_default();
+        let mut hits = Vec::new();
+        for y in (988..=1588).filter(|y| (*y - 4i32).rem_euclid(60) == 24) {
+            let Ok(yd) = compute_year_data(&earth, &elp, y + 1, PlaneAngle::from_rad(real(1e-9)), 30) else { continue };
+            let date = ChineseLunarDate { year: y + 1, month: 12, day: 1, is_leap_month: false, days_in_month: 30 };
+            let Some(nm) = to_julian_day(date, &yd) else { continue };
+            let dn = tt_to_day_number_utc8(nm) + 7;
+            // 卯时正中（东八区民用时 6 时，即世界时前一日 22 时）
+            let jd_ut = real(dn as f64 - 0.5 + (6.0 - 8.0) / 24.0);
+            let t = TimePoint::new(TimeScale::UT1, jd_ut).to_scale(TimeScale::TT);
+            let gast = crate::astronomy::time::earth_rotation::gast(jd_ut, t.jd);
+            let lst = deg(gast.rad()) + real(114.3);
+            let c = chart(&eph, t, None, 3, Some((lst, real(34.8))), &QizhengOptions::default(), &opts);
+            let x = &c.xing_ming;
+            let at69 = x.zhu_luo_gong.get(68).copied();
+            eprintln!(
+                "竹羅|{y}|命{}|{}|三限{:?}|火{}|69岁{}",
+                &ZHI_CH[c.ming as usize * 3..c.ming as usize * 3 + 3],
+                if x.zhou { "晝" } else { "夜" },
+                x.zhu_luo.iter().map(|z| (YAO[z.yao], z.from, z.to, z.start)).collect::<Vec<_>>(),
+                c.yao[4].gong,
+                at69.map(|g| &ZHI_CH[g as usize * 3..g as usize * 3 + 3]).unwrap_or("-")
+            );
+            if c.ming == 1 && !x.zhou && at69 == Some(2) {
+                hits.push(y);
+            }
+        }
+        eprintln!("竹羅书例全合之年：{hits:?}");
     }
 
     #[test]

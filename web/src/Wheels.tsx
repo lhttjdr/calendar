@@ -389,6 +389,10 @@ export type QizhengWheelData = {
   /** 二十八宿距星视黄经（角起），十二宫宫首黄经（地支序） */
   xiuLon?: number[] | null
   gongStart?: number[]
+  /** 神煞：宫位类 yao 为 null，化曜类 yao 为曜名；gong 地支序 */
+  shenSha?: { n: string; by: string; yao: string | null; gong: number | null; src: string }[]
+  zhuLuo?: { yao: string; from: number; to: number; start: number }[]
+  nianGz?: number; zhou?: boolean
 }
 
 export type XingMingData = {
@@ -412,11 +416,12 @@ const lonAz = (lon: number) => (((315 - lon) % 360) + 360) % 360
 const norm = (x: number) => ((x % 360) + 360) % 360
 
 /**
- * 七政四余盘（多层），自内而外：十二宫（支与十二次，宫界依分宫法之实际黄经）；人事十二宫；宫主（绿强灰弱）；
+ * 七政四余盘（多层），自内而外：十二宫（支与十二次，宫界依分宫法之实际黄经）；人事十二宫；宫主（绿强灰弱）；宫位神煞（至多四名，全表见面板）；
  * 二十八宿（距星视黄经为界）；黄道（十一曜按视黄经落点，近者错层）；周天黄经刻度（命度以▲标）。
  */
 export function QizhengWheel({ d, turn }: { d: QizhengWheelData; turn?: { jdUt: number; lonDeg: number } }) {
-  const R = [44, 84, 110, 130, 154, 210, 222, 234]
+  // 环：0 支与次、1 人事宫、2 宫主、3 神煞（宫位类）、4 二十八宿、5 黄道、6 刻度
+  const R = [44, 80, 104, 122, 150, 172, 214, 226]
   const mid = (k: number) => (R[k]! + R[k + 1]!) / 2
   const starts = d.gongStart ?? Array.from({ length: 12 }, (_, z) => 30 * (((10 - z) % 12 + 12) % 12))
   /** 宫 z 的黄经区间：宫首至逆支下一宫宫首 */
@@ -430,7 +435,7 @@ export function QizhengWheel({ d, turn }: { d: QizhengWheelData; turn?: { jdUt: 
     return sector(r0, r1, d1 - w, d1)
   }
   // 诸曜按黄经排序，近者（< 9°）错入下一层，免文字相叠
-  const lanes = [168, 186, 202]
+  const lanes = [184, 197, 208]
   const sorted = [...d.yao].sort((a, b) => a.lon - b.lon)
   const placed: { y: (typeof d.yao)[number]; r: number }[] = []
   sorted.forEach((y) => {
@@ -439,6 +444,9 @@ export function QizhengWheel({ d, turn }: { d: QizhengWheelData; turn?: { jdUt: 
     placed.push({ y, r: lanes[lane]! })
   })
   const xm = d.xingMing
+  // 宫位类神煞按宫（地支序）归并；化曜类见面板
+  const ss: string[][] = Array.from({ length: 12 }, () => [])
+  d.shenSha?.forEach((x) => { if (x.yao == null && x.gong != null) ss[x.gong]!.push(x.n) })
   // 天盘随时转（选项）：太阳时角 H = 地方恒星时 − 太阳赤经；太阳在盘上方位 = 180° + H（午正居南、卯初居东），
   // 天盘整组转 Δ = 太阳方位 − 本位方位（315° − 太阳黄经），即「太阳宫加时」之连续形；地盘十二支不动，卯上之宫即命宫（卯上起命法）。
   let delta = 0
@@ -455,40 +463,41 @@ export function QizhengWheel({ d, turn }: { d: QizhengWheelData; turn?: { jdUt: 
   const spin = useSpin(delta)
   return (
     <Frame label="七政四余盘">
-      <DegreeRing r0={R[5]!} r1={R[6]!} />
-      <circle cx={C} cy={C} r={R[5]} fill="#fffdf7" stroke="#999" />
+      <DegreeRing r0={R[6]!} r1={R[7]!} />
+      <circle cx={C} cy={C} r={R[6]} fill="#fffdf7" stroke="#999" />
       <g style={spinG(spin, 600)}>
       {/* 二十八宿 */}
-      <circle cx={C} cy={C} r={R[4]} fill="#fbf6ea" stroke="#999" />
+      <circle cx={C} cy={C} r={R[5]} fill="#fbf6ea" stroke="#999" />
       {d.xiuLon && d.xiuLon.map((a, k) => {
         const w = norm(d.xiuLon![(k + 1) % 28]! - a)
         return (
           <g key={k}>
-            <path d={lonSector(R[3]!, R[4]!, a, w)} fill="none" stroke="#d9cfb8" />
-            <T r={mid(3)} deg={scr(lonAz(a + w / 2))} size={w < 5 ? 9 : 12} fill="#5b4a2e">{XIU28[k]!}</T>
+            <path d={lonSector(R[4]!, R[5]!, a, w)} fill="none" stroke="#d9cfb8" />
+            <T r={mid(4)} deg={scr(lonAz(a + w / 2))} size={w < 5 ? 9 : 12} fill="#5b4a2e">{XIU28[k]!}</T>
           </g>
         )
       })}
       {/* 十二宫三环 */}
-      {[2, 1, 0].map((k) => <circle key={k} cx={C} cy={C} r={R[k + 1]} fill={k % 2 ? '#fbf6ea' : '#fffdf7'} stroke="#999" />)}
+      {[3, 2, 1, 0].map((k) => <circle key={k} cx={C} cy={C} r={R[k + 1]} fill={k % 2 ? '#fbf6ea' : '#fffdf7'} stroke="#999" />)}
       {[...ZHI].map((z, i) => {
         const [a, w] = span(i)
         const deg = scr(lonAz(a + w / 2))
         const ming = i === d.ming
         return (
           <g key={z}>
-            <path d={lonSector(R[0]!, R[3]!, a, w)} fill={ming ? '#ffe7ba' : 'none'} opacity={ming ? 0.6 : 1} stroke="#ccc" />
+            <path d={lonSector(R[0]!, R[4]!, a, w)} fill={ming ? '#ffe7ba' : 'none'} opacity={ming ? 0.6 : 1} stroke="#ccc" />
             <T r={mid(0) - 7} deg={deg} size={15} fill="#555">{z}</T>
             <T r={mid(0) + 10} deg={deg} size={9} fill="#999">{GONG_CI[i]}</T>
             <T r={mid(1)} deg={deg} size={11} fill={ming ? '#ad4e00' : '#531dab'} weight={ming ? 700 : 400}>{`${d.palaces[i]}${xm && xm.shenGong === i ? '·身' : ''}`}</T>
             {xm && <T r={mid(2)} deg={deg} size={11} fill={xm.strong[i] ? '#389e0d' : '#999'}>{`${YAO_SHORT[xm.gongZhu[i]!] ?? ''}主`}</T>}
+            {ss[i] && ss[i]!.length > 0 && <T r={mid(3)} deg={deg} size={ss[i]!.length > 3 ? 8 : 9} fill="#874d00">{ss[i]!.slice(0, 4).join(' ')}</T>}
           </g>
         )
       })}
       {/* 黄道诸曜 */}
       {placed.map(({ y, r }) => {
         const deg = scr(lonAz(y.lon))
-        const [x0, y0] = pt(R[5]! - 2, deg), [x1, y1] = pt(r + 8, deg)
+        const [x0, y0] = pt(R[6]! - 2, deg), [x1, y1] = pt(r + 8, deg)
         return (
           <g key={y.n}>
             <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={YAO_FILL[y.n] ?? '#531dab'} strokeWidth={0.8} />
@@ -496,7 +505,7 @@ export function QizhengWheel({ d, turn }: { d: QizhengWheelData; turn?: { jdUt: 
           </g>
         )
       })}
-      {xm && <T r={R[6]! + 6} deg={scr(lonAz(xm.mingLon))} size={10} fill="#ad4e00">▲</T>}
+      {xm && <T r={R[7]! + 6} deg={scr(lonAz(xm.mingLon))} size={10} fill="#ad4e00">▲</T>}
       </g>
       <circle cx={C} cy={C} r={R[0]} fill="#fff" stroke="#999" />
       {turn ? (
