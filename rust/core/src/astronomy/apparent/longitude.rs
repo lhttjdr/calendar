@@ -47,6 +47,20 @@ pub struct ApparentPipelineOptions {
     pub vsop_barycentric_planets: Option<Vec<(Vsop87, f64)>>,
     /// 若 true：定气/太阳视黄经用「X_r + 显式光行差」；默认 false（Xproper 折叠法，不再施光行差）。
     pub use_explicit_aberration: bool,
+    /// 引力光线偏折（缺省 [`LightDeflection::Sun`]）：只施于行星与恒星（[`super::body_apparent_equatorial`] 等、
+    /// [`super::star_apparent_equatorial`] 等）；太阳本身不施，月球近地、偏折 < 10 μas 亦不施。太阳视黄经、定气定朔不受影响。
+    pub light_deflection: LightDeflection,
+}
+
+/// 引力光线偏折选项。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum LightDeflection {
+    /// 不计（2026-11 以前的管线行为）。
+    None,
+    /// 太阳一阶偏折（SOFA `iauLd`/`iauLdsun` 同式，见 [`crate::astronomy::correction::light_deflection`]）。
+    /// 木星、土星的偏折（木星边缘 16 mas、离木星 1′ 外 < 1 mas）未计。
+    #[default]
+    Sun,
 }
 
 impl Default for ApparentPipelineOptions {
@@ -59,6 +73,7 @@ impl Default for ApparentPipelineOptions {
             use_analytic_velocity: false,
             vsop_barycentric_planets: None,
             use_explicit_aberration: false,
+            light_deflection: LightDeflection::Sun,
         }
     }
 }
@@ -73,6 +88,7 @@ impl ApparentPipelineOptions {
             use_analytic_velocity: false,
             vsop_barycentric_planets: None,
             use_explicit_aberration: false,
+            light_deflection: LightDeflection::Sun,
         }
     }
 
@@ -85,6 +101,7 @@ impl ApparentPipelineOptions {
             use_analytic_velocity: false,
             vsop_barycentric_planets: None,
             use_explicit_aberration: true,
+            light_deflection: LightDeflection::Sun,
         }
     }
 

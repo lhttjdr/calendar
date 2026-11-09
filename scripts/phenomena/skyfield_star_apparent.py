@@ -1,6 +1,6 @@
 """Skyfield 计算若干 Hipparcos 亮星的地心视位置（当日真赤道与春分点），核对 rust/core/src/astronomy/apparent/star.rs。
 星表值取 data/stars/hipparcos_bright.csv（I/311 位置自行 + 视差，历元 J1991.25），历表 DE406。
-Skyfield 含周年视差、太阳引力偏折、相对论光行差；本项目未计前两者（亮星视差 < 0.8″，偏折离日远时 < 0.01″）。
+Skyfield 含周年视差、太阳引力偏折、相对论光行差；本项目计周年视差与太阳引力偏折（2026-11-09 起缺省开），光行差为一阶。
 结果抄入 star.rs 测试的 SKYFIELD_STARS 表。
 
   uv run --no-project --with skyfield python -I scripts/phenomena/skyfield_star_apparent.py

@@ -25,6 +25,10 @@ TESTS=(
   matches_ap_mag_v3_official_test_data
   planet_magnitude_vs_skyfield
   star_apparent_vs_skyfield
+  star_deflection_near_sun_vs_skyfield
+  planets_pipeline_vs_skyfield
+  planets_near_conjunction_vs_skyfield
+  matches_erfa_ld_and_ldsun
   air_mass_matches_table_3
   moonlight_matches_krisciunas_schaefer_table_2
   zenith_limit_matches_1990_eq18

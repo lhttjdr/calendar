@@ -156,10 +156,10 @@ const SKYFIELD: [(f64, Planet, f64, f64, f64); 35] = [
 ];
 
 /// 视位置管线外部核对：同一 DE406，本管线 vs Skyfield。两者算法差别：
-/// - Skyfield 另计太阳等引力光线偏折（约 0.00407″·cot(ψ/2)，ψ 为距角）及光行差的相对论高阶项；
+/// - 太阳引力光线偏折两边都计（本管线缺省 [`LightDeflection::Sun`]）；Skyfield 另计木星、土星偏折及光行差的相对论高阶项；
 /// - 岁差同为 IAU 2006（P03），但本管线用 ζ_A、θ_A、z_A 三角式，Skyfield 用 ψ_A、ω_A、χ_A 四角式（Capitaine et al. 2003），
 ///   两者都是截断多项式，远端略有分歧：按各自系数直接构造矩阵比较，t = −19 世纪差 0.09″、t = −30 世纪差 1.25″。
-/// 断言：去掉偏折量级后，|t| ≤ 20 世纪剩余差 ≤ 0.1″；前 1000 年（t ≈ −30）≤ 1.3″。
+/// 断言：|t| ≤ 20 世纪差 ≤ 0.1″；前 1000 年（t ≈ −30）≤ 1.3″。另列不计偏折时的差，以见偏折的作用。
 /// 本测试发现并验证了 2026-10-26 修正的 P03 ζ/z 对调（修正前公元 100 年差 51″、前 1000 年差 196″）。
 #[test]
 fn planets_pipeline_vs_skyfield() {
@@ -172,24 +172,109 @@ fn planets_pipeline_vs_skyfield() {
     // Skyfield 用 IAU 2006（P03）岁差，同模型比较
     let mut opts = ApparentPipelineOptions::pipeline_default();
     opts.precession_model = Some(crate::astronomy::frame::precession::PrecessionModel::P03);
+    let off = ApparentPipelineOptions { light_deflection: LightDeflection::None, ..opts.clone() };
+    let mut tab = crate::test_util::CheckTable::new(
+        "planets_pipeline_vs_skyfield",
+        &["历元(TT)", "行星", "距角°", "差″(计偏折)", "差″(不计偏折)", "偏折量″"],
+    );
+    tab.meta("行星地心视位置（当日真赤道）对 Skyfield（DE406，P03，scripts/ephemeris/skyfield_planet_apparent.py）；本管线缺省计太阳引力偏折");
     let mut failures = vec![];
     for (jd, p, ra, dec, elong) in SKYFIELD {
         let t = TimePoint::new(TimeScale::TT, real(jd));
         let ours = to_f64(planet_apparent_equatorial(&kernel, p, t, &opts));
+        let ours_off = to_f64(planet_apparent_equatorial(&kernel, p, t, &off));
         let sky = [dec.cos() * ra.cos(), dec.cos() * ra.sin(), dec.sin()];
-        let d = sep_arcsec(ours, sky);
-        // 太阳引力偏折：δ = (4GM/c²R)·cot(ψ/2)/2·… 近似 0.00407″·cot(ψ/2)（距地 1 au）
-        let psi = elong.to_radians();
-        let deflection = 0.00407 / (psi / 2.0).tan();
-        println!("JD {jd} {p:?}：差 {d:.4}″（距角 {elong}°，太阳偏折量级 {deflection:.4}″）");
+        let (d, d_off) = (sep_arcsec(ours, sky), sep_arcsec(ours_off, sky));
+        let defl = sep_arcsec(ours, ours_off);
+        println!("JD {jd} {p:?}：差 {d:.4}″（不计偏折 {d_off:.4}″，距角 {elong}°，偏折 {defl:.4}″）");
+        tab.row(vec![crate::test_util::jd_to_calendar(jd), format!("{p:?}"), format!("{elong:.2}"), format!("{d:.4}"), format!("{d_off:.4}"), format!("{defl:.4}")]);
         let tol = if ((jd - 2451545.0) / 36525.0).abs() <= 20.0 { 0.1 } else { 1.3 };
-        if d - deflection > tol {
+        if d > tol {
             failures.push(format!("JD {jd} {p:?}：{d:.4}″"));
         }
     }
+    tab.write();
     assert!(failures.is_empty(), "{failures:?}");
 }
 
+/// Skyfield（DE406，`scripts/phenomena/skyfield_deflection_near_sun.py`）近合日行星视位置（当日真赤道）：
+/// (jd TT, 行星, ra rad, dec rad, 距角°, 去掉偏折的 ra rad, dec rad)。金星 2000-06-11 一例距角 0.10°，在日面之内（被日遮掩，公式无物理意义，只比数值）。
+const SKYFIELD_NEAR_SUN: [(f64, Planet, f64, f64, f64, f64, f64); 18] = [
+    (2459323.6489, Planet::Mercury, 0.4804803224803059, 0.18731866622683316, 0.5655, 0.4804798415112278, 0.18731952020975612),
+    (2459325.6489, Planet::Mercury, 0.5493108987573229, 0.21851475020727928, 2.3816, 0.54931067433183, 0.21851469338249113),
+    (2459329.6489, Planet::Mercury, 0.6902479815172511, 0.27838412527909956, 7.0049, 0.6902479118642372, 0.2783840983787296),
+    (2459300.0752, Planet::Venus, 0.10857346025678691, 0.021312377995349407, 1.3509, 0.10857314636065675, 0.021313011463285972),
+    (2459302.0752, Planet::Venus, 0.14824368631294457, 0.0388899025363374, 1.4414, 0.1482432029692748, 0.038890354977846736),
+    (2459306.0752, Planet::Venus, 0.22769036247310617, 0.07388057145415668, 2.0280, 0.22768990856567306, 0.07388069476924101),
+    (2451706.8857, Planet::Venus, 1.3947070768754506, 0.40516198249811736, 0.1009, 1.394709206005196, 0.40515298512026504),
+    (2451708.8857, Planet::Venus, 1.4412320376725207, 0.40912589958747847, 0.5609, 1.4412303666366884, 0.4091252959912814),
+    (2451712.8857, Planet::Venus, 1.5346740342819232, 0.41467178385829334, 1.6605, 1.534673441350104, 0.4146716640942585),
+    (2459495.7133, Planet::Mars, 3.3891169670358137, -0.09349938558384248, 0.6514, 3.3891161781874177, -0.09350139211133844),
+    (2459497.7133, Planet::Mars, 3.4103404865796136, -0.10258844853588465, 0.9262, 3.410341108504156, -0.10258983231295112),
+    (2459501.7133, Planet::Mars, 3.453021109561153, -0.12065756022101509, 2.0798, 3.45302163711092, -0.12065798671803131),
+    (2459644.0874, Planet::Jupiter, 6.048345738472798, -0.11906470608299817, 0.9788, 6.048344979529582, -0.11906291480175621),
+    (2459646.0874, Planet::Jupiter, 6.0561947926537965, -0.1158164358912703, 1.8072, 6.056195390182129, -0.11581556758363788),
+    (2459650.0874, Planet::Jupiter, 6.071869797394411, -0.10931485374202676, 4.6553, 6.071870133003622, -0.10931461960948445),
+    (2459615.2944, Planet::Saturn, 5.561720875186164, -0.29443770200245833, 0.8509, 5.561720106094691, -0.2944353617563436),
+    (2459617.2944, Planet::Saturn, 5.565905096633529, -0.29322130840699034, 1.9799, 5.565905902162438, -0.29322059037638903),
+    (2459621.2944, Planet::Saturn, 5.5742595548335325, -0.29078413269576625, 5.4264, 5.574259913007339, -0.2907839605268538),
+];
+
+/// 近合日行星对 Skyfield。偏折量逐例比较：本管线「开 − 关」与 Skyfield「apparent − 去掉偏折」两方向差矢量之差（与两边其余差异
+/// 无关）；日面外断言 < 2 mas。位置差另列（远离太阳时本已约 0.02—0.04″）。
+#[test]
+fn planets_near_conjunction_vs_skyfield() {
+    let Some(bsp) = crate::test_util::de406_bsp_path_if_exists() else {
+        println!("skipped: 无 DE406 BSP");
+        return;
+    };
+    let kernel = De406Kernel::open(&bsp).unwrap();
+    assert!(try_init_full_nutation_from_repo(), "未能加载 IAU 2000A 章动表");
+    let mut opts = ApparentPipelineOptions::pipeline_default();
+    opts.precession_model = Some(crate::astronomy::frame::precession::PrecessionModel::P03);
+    let off = ApparentPipelineOptions { light_deflection: LightDeflection::None, ..opts.clone() };
+    let mut tab = crate::test_util::CheckTable::new(
+        "planets_near_conjunction_vs_skyfield",
+        &["历元(TT)", "行星", "距角°", "本管线偏折″", "Skyfield偏折″", "偏折矢量差mas", "位置差″(计偏折)", "位置差″(不计偏折)"],
+    );
+    tab.meta("近合日行星对 Skyfield（DE406，P03，scripts/phenomena/skyfield_deflection_near_sun.py）：偏折量逐例比较（本管线开−关 对 Skyfield apparent−去偏折），及两边位置差；距角 < 0.27° 者在日面内");
+    let unit = |p: [f64; 3]| {
+        let n = (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt();
+        [p[0] / n, p[1] / n, p[2] / n]
+    };
+    let radec = |ra: f64, dec: f64| [dec.cos() * ra.cos(), dec.cos() * ra.sin(), dec.sin()];
+    let norm = |v: [f64; 3]| (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt() * 206264.806;
+    let (mut worst, mut worst_pos): (f64, f64) = (0.0, 0.0);
+    for (jd, p, ra, dec, elong, ra0, dec0) in SKYFIELD_NEAR_SUN {
+        let t = TimePoint::new(TimeScale::TT, real(jd));
+        let u_on = unit(to_f64(planet_apparent_equatorial(&kernel, p, t, &opts)));
+        let u_off = unit(to_f64(planet_apparent_equatorial(&kernel, p, t, &off)));
+        let (s_on, s_off) = (radec(ra, dec), radec(ra0, dec0));
+        let ours: [f64; 3] = core::array::from_fn(|i| u_on[i] - u_off[i]);
+        let sky: [f64; 3] = core::array::from_fn(|i| s_on[i] - s_off[i]);
+        let dv = norm(core::array::from_fn(|i| ours[i] - sky[i])) * 1000.0;
+        let (d, d_off) = (sep_arcsec(u_on, s_on), sep_arcsec(u_off, s_on));
+        println!("JD {jd} {p:?} 距角 {elong}°：偏折 本管线 {:.4}″ / Skyfield {:.4}″，矢量差 {dv:.3} mas；位置差 {d:.4}″（不计偏折 {d_off:.4}″）", norm(ours), norm(sky));
+        tab.row(vec![
+            crate::test_util::jd_to_calendar(jd),
+            format!("{p:?}"),
+            format!("{elong:.4}"),
+            format!("{:.4}", norm(ours)),
+            format!("{:.4}", norm(sky)),
+            format!("{dv:.3}"),
+            format!("{d:.4}"),
+            format!("{d_off:.4}"),
+        ]);
+        if elong > 0.3 {
+            worst = worst.max(dv);
+            worst_pos = worst_pos.max(d);
+        }
+    }
+    tab.write();
+    println!("日面外：偏折矢量差最大 {worst:.3} mas，位置差最大 {worst_pos:.4}″");
+    assert!(worst < 2.0, "偏折矢量差 {worst:.3} mas");
+    assert!(worst_pos < 0.1, "位置差 {worst_pos:.4}″");
+}
 
 /// 太阳视黄经与 DE406 之差：原样 VSOP87 与施加 DE406 版地球改正（`data/fit/vsop87-de406-planets.txt` 的 `ear` 段，
 /// Chapront 2000 方法）的 VSOP87，同一管线（`sun_apparent_ecliptic_longitude_with_options`），前 3000—3000 年每 100 年。

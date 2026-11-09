@@ -127,7 +127,7 @@
 
 除前述 GCRS 度规修正 (v_E/c)² 外，还忽略：
 
-- **光线引力偏折（Gravitational Deflection）**：广义相对论下光线经过太阳等大质量天体时的弯曲；对日、月视位置修正极小，直接略去。
+- **光线引力偏折（Gravitational Deflection）**：广义相对论下光线经过太阳等大质量天体时的弯曲；对日、月视位置修正极小（太阳自身不偏折，月球 < 10 μas），太阳、月球视黄经（定气定朔）不计。行星与恒星缺省计太阳偏折（`ApparentPipelineOptions::light_deflection`），见 [light-deflection.md](light-deflection.md)。
 - **Shapiro 延迟（时空弯曲对光行时的修正）**：严格光行时公式含广义相对论时间修正；本程序用纯几何近似 **tr ≈ t − |x(τ)−xE(τ)|/c**。忽略此项对太阳的时间修正 &lt; 10⁻⁴ s，对月球约 10⁻⁸ s。
 - **TT 与 TDB 的差异**：地球时（TT）与质心力学时（TDB）在数千年内偏差不超过约 2 ms，计算时刻时视为等同，忽略其周期项。
 

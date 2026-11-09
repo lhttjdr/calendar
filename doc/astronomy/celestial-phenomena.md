@@ -378,14 +378,14 @@ $\sum_{k\le N_{\mathrm{sec}}} a_k t^k + \sum_f \sum_{k\le N_{\mathrm{mix}}} t^k 
 **外部核对：Skyfield**（`apparent::tests_planets::planets_pipeline_vs_skyfield`）。Skyfield [27] 独立实现 IAU 视位置算法，读同一
 de406.bsp 计算 7 颗行星在 5 个时刻（2000、2023、约 1000、约 100、约前 1000 年）的当日真赤道视位置（`scripts/ephemeris/
 skyfield_planet_apparent.py`，用 uv 临时环境运行，不属本项目依赖），与本管线逐点比较：
-- 公元 100 年以来 28 点，差 ≤ 0.07″（Skyfield 另计太阳引力光线偏折，约 0.004″·cot(ψ/2)，本管线未计）；
+- 公元 100 年以来 28 点，差 ≤ 0.08″（2026-11-09 起本管线缺省计太阳引力光线偏折，两边同计；见 [light-deflection.md](light-deflection.md)）；
 - 前 1000 年 7 点，差 0.27–1.20″，即 IAU 2006 岁差三角式（本管线）与四角式（Skyfield）两种截断多项式在远端的分歧（1.25″）。
 
 **由此发现并修正岁差 bug**：本仓库 P03 岁差矩阵中 ζ_A 与 z_A 位置对调，修正前与 Skyfield 差：公元 1000 年 7″、公元 100 年
 51″、前 1000 年 196″。误差主要在黄纬、赤纬方向，黄经只受二阶影响，**节气、定朔不受影响**；详见 [岁差](precession.md)
 「本实现」。修正后全部库测试通过；《汉书》《后汉书》日月食检验已重跑核对（见下）。
 
-**尚未做**：太阳引力光线偏折（行星远离太阳时毫角秒级，近合日可达角秒级）。
+**太阳引力光线偏折（2026-11-09 完成）**：行星、恒星视位置缺省计太阳一阶偏折（SOFA `iauLd`/`iauLdsun` 同式），对 SOFA 18 例差 0 μas，近合日行星 18 例、恒星 28 例与 Skyfield 的偏折量逐例相差 ≤ 0.014 mas；对天象检验结果的影响见 [light-deflection.md](light-deflection.md)。
 
 **按精度选默认（2026-10-26 实测，待定）**：
 
@@ -578,7 +578,7 @@ DE431 的黄经差常数随之重测（[model-pairing.md](model-pairing.md) 第�
     I/311（文献 17），V、B−V 取原版 I/239；原始文件见 `vendor/hipparcos/`。
   - `apparent::star_apparent_equatorial`：空间运动（视向速度取 0）→ 周年视差 → 一阶周年光行差 → 当日真赤道。
   - 对 Skyfield（DE406、P03，`scripts/phenomena/skyfield_star_apparent.py`；5 星 × 1985、2000、2025、−500、−900 年）：
-    最大差 0.08″，主要来自未计的太阳引力偏折与以日心代质心。
+    最大差 0.08″（2026-11-09 起两边都计太阳引力偏折，余差主要来自以日心代质心与远古岁差式；近合日另测见 [light-deflection.md](light-deflection.md)）。
   - 核对中发现 VSOP87 解析速度的原有缺陷：α = 0 块（含中心差等主要周期项）的导数被当作 0，地球速度因此小约 3.3%
     （表现为恒星光行差差 0.6″）。已修正，`vsop87::tests::analytic_velocity_matches_numeric_derivative` 对数值微分检验。
     默认路径（视黄经速度用数值微分、光行差用 Xproper 折叠）不受影响；受影响的是 `use_analytic_velocity` 与
