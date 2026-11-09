@@ -370,26 +370,64 @@ pub fn zhu_zi(d: &PuzhuDay) -> Vec<&'static str> {
 /// 时宪书「不宜某事」所用五事（乾隆三十年时宪书归纳）
 pub const BU_YI: [&str; 5] = ["出行", "移徙", "針刺", "動土", "栽種"];
 
+/// 交节之日「不宜」的取法
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum JiaoJieBuYi {
+    /// 时宪书体例（缺省）：交节在 [`JIAO_JIE_EARLY_HOUR`] 以后者，「不宜」取新旧两月之交（两月各自推「不宜」，
+    /// 只留两月皆有之事）；以前者从新月。协纪无明文（卷四只言建除「每月交節則疊兩值日」，卷十、卷十一不及交节），
+    /// 据时宪书实测：乾隆三十年十三个交节日、乾隆二十一年小暑寒露立冬、三十一年清明，书印「不宜」皆合此法
+    ///（见 doc/folk/shensha.md「他年时宪书」）
+    #[default]
+    ShiXianShu,
+    /// 只从新月（建除、诸神皆从新月，忌亦只取新月）
+    XinYue,
+}
+
+/// 时宪书「不宜」推算选项
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct BuYiOptions {
+    pub jiao_jie: JiaoJieBuYi,
+}
+
 /// 时宪书「不宜某事」应值之全集（以乾隆三十年时宪书归纳，见 doc/folk/shensha.md「时宪书「不宜」与朱字」）：
-/// 某事在当日忌（月表加铺注之后，通书六十事）之内，且当日值该事的触发之神：
-/// - 出行：往亡、氣往亡、天賊、月厭，或巳日（百忌「巳不遠行」，卷十作「巳日忌出行」）；
+/// 某事在当日忌（月表加铺注之后，通书六十事）之内，且当日值该事的触发之神——
+/// - 出行：往亡、氣往亡、天賊、月厭、四離、四絕，或巳日（百忌「巳不遠行」，卷十作「巳日忌出行」）；
 /// - 移徙：歸忌、月厭；
 /// - 針刺：血忌、血支；
 /// - 動土（修造動土）：土府（建日）、土符、地囊；
 /// - 栽種：九焦（时宪书朱字作枯焦）、月煞、月厭，或乙日（百忌「乙不栽植」）。
 ///
-/// 触发神皆为协纪卷十所载该事之忌神。书印 244 处中 233 处在此集内；此集中书未印者多在宜事长、栏底无空之日，
-/// 宜事短之日书亦常只印一二事，取舍未明，故只给全集，不模拟取舍。月表「諸事不宜」之日（忌不另列）不给。
+/// 触发神皆为协纪所载该事之忌神：往亡等见卷十各条；四離、四絕卷十同上朔「餘事皆忌」，而卷六四離條引李鼎祚
+/// 「此日忌出行征伐」、四絕條引李鼎祚「此日忌出軍逺行」，专指出行（乾隆三十年四離四絕九日书全印不宜出行，
+/// 二十一年閏九月十四日四絕亦印）。此集中书未印者多在宜事长、栏底无空之日，宜事短之日书亦常只印一二事，
+/// 取舍未明，故只给全集，不模拟取舍。月表「諸事不宜」之日（忌不另列）不给。交节之日按 [`BuYiOptions`]。
 pub fn bu_yi(d: &PuzhuDay) -> Vec<&'static str> {
+    bu_yi_with(d, &BuYiOptions::default())
+}
+
+/// 同 [`bu_yi`]，交节之日的取法按选项
+pub fn bu_yi_with(d: &PuzhuDay, o: &BuYiOptions) -> Vec<&'static str> {
+    let new = bu_yi_month(d, d.month_ord);
+    let late = d.jiao_jie && d.jiao_jie_hour.is_some_and(|h| h >= JIAO_JIE_EARLY_HOUR);
+    if late && o.jiao_jie == JiaoJieBuYi::ShiXianShu {
+        let old = bu_yi_month(d, (d.month_ord + 11) % 12);
+        new.into_iter().filter(|x| old.contains(x)).collect()
+    } else {
+        new
+    }
+}
+
+/// 以某月（月序 `m`）之月表加铺注推当日「不宜」
+fn bu_yi_month(d: &PuzhuDay, m: u8) -> Vec<&'static str> {
     use super::yiji::yuebiao_day;
-    let after = yiji_for_day(d);
-    let base = yuebiao_day(d.month_ord, d.input.day_gz);
+    let base = yuebiao_day(m, d.input.day_gz);
+    let after = apply(base, &d.input, d.shuo_gz);
     let names = puzhu_names(&d.input, d.shuo_gz);
     let has = |n: &str| base.xiong_shen.iter().any(|x| x == n) || names.iter().any(|x| x == n);
     let ji = |e: &str| after.ji.iter().any(|x| x == e);
     let (gan, zhi) = (d.input.day_gz % 10, d.input.day_gz % 12);
     let mut out = Vec::new();
-    if ji("出行") && (has("往亡") || has("氣往亡") || has("天賊") || has("月厭") || zhi == 5) {
+    if ji("出行") && (has("往亡") || has("氣往亡") || has("天賊") || has("月厭") || has("四離") || has("四絕") || zhi == 5) {
         out.push("出行");
     }
     if ji("移徙") && (has("歸忌") || has("月厭")) {

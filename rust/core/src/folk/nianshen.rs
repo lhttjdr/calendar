@@ -3,6 +3,8 @@
 //! 起例逐条依卷三所引旧文与协纪按语（见各神注）；以乾隆三十年乙酉时宪书「年神方位之圖」核过（见 doc/folk/nianshen.md）。
 //! 方位以年计，不论立春前后：调用方按立春定年干支。
 
+pub use super::shensha::QiLiYi;
+
 /// 十二支
 const ZHI: [&str; 12] = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"];
 /// 十干
@@ -36,8 +38,25 @@ fn shen(name: &'static str, ji: bool, positions: Vec<&'static str>) -> NianShen 
     NianShen { name, ji, positions }
 }
 
-/// 某年干支（0 甲子 … 59 癸亥）的年神方位，次第依卷三。
+/// 年神起例选项（缺省全依协纪）
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct NianShenOptions {
+    /// 蠶命。协纪卷三取黎幹、《考原》：岁方五行长生（东亥南寅西巳北申），并引「今之蠶命子年未丑年午寅年亥卯年戌
+    /// 辰年巳巳年丑午年寅未年申申年卯酉年辰戌年子亥年酉」谓「此恐有悞」。类编卷十三年神表（02094410.cn PDF 第 5 页）
+    /// 蠶命正是此逐年一支：未午亥戌巳丑寅申卯辰子酉（子年起）
+    pub can_ming: QiLiYi,
+}
+
+/// 类编蠶命（子年起）
+const CAN_MING_LEIBIAN: [&str; 12] = ["未", "午", "亥", "戌", "巳", "丑", "寅", "申", "卯", "辰", "子", "酉"];
+
+/// 某年干支（0 甲子 … 59 癸亥）的年神方位，次第依卷三。起例全依协纪
 pub fn nian_shen(year_gz: u8) -> Vec<NianShen> {
+    nian_shen_with(year_gz, &NianShenOptions::default())
+}
+
+/// 同 [`nian_shen`]，起例按选项
+pub fn nian_shen_with(year_gz: u8, o: &NianShenOptions) -> Vec<NianShen> {
     let g = (year_gz % 10) as usize;
     let z = (year_gz % 12) as i32;
     let f = fang(z);
@@ -57,7 +76,10 @@ pub fn nian_shen(year_gz: u8) -> Vec<NianShen> {
     let da_jiang_jun = ["子", "卯", "午", "酉"][f];
     // 蚕官：岁方五行之墓；蚕命：岁方五行长生（黎幹、《考原》）
     let can_guan = ["戌", "丑", "辰", "未"][f];
-    let can_ming = ["亥", "寅", "巳", "申"][f];
+    let can_ming = match o.can_ming {
+        QiLiYi::XieJi => ["亥", "寅", "巳", "申"][f],
+        QiLiYi::LeiBian => CAN_MING_LEIBIAN[z as usize],
+    };
     let tai_yin = zhi(z - 2);
     // 劫煞、灾煞、岁煞（李鼎祚、曹震圭）；伏兵、大祸（黎幹）：按三合局
     let jie_sha = ["巳", "寅", "亥", "申"][sh];
@@ -134,6 +156,11 @@ pub fn nian_shen(year_gz: u8) -> Vec<NianShen> {
 
 /// 二十四山（自子起顺行）各位所临的年神名；无神之位为空。时宪书年神图于空位注「空」。
 pub fn by_position(year_gz: u8) -> Vec<(&'static str, Vec<&'static str>)> {
+    by_position_with(year_gz, &NianShenOptions::default())
+}
+
+/// 同 [`by_position`]，起例按选项
+pub fn by_position_with(year_gz: u8, o: &NianShenOptions) -> Vec<(&'static str, Vec<&'static str>)> {
     const SHAN: [&str; 24] = [
         "子", "癸", "丑", "艮", "寅", "甲", "卯", "乙", "辰", "巽", "巳", "丙", "午", "丁", "未", "坤", "申", "庚", "酉", "辛",
         "戌", "乾", "亥", "壬",
@@ -141,7 +168,7 @@ pub fn by_position(year_gz: u8) -> Vec<(&'static str, Vec<&'static str>)> {
     // 岁德、岁德合时宪书另行印「歲德在某合在某」；岁干合、岁枝德卷三《考原》谓「今厯日歲轉吉神無此條」，
     // 乾隆三十年图寅位（岁枝德所在）亦不见。均不入图
     let skip = ["歲德", "歲德合", "歲幹合", "歲枝德"];
-    let all = nian_shen(year_gz);
+    let all = nian_shen_with(year_gz, o);
     SHAN.iter()
         .map(|&p| (p, all.iter().filter(|s| !skip.contains(&s.name) && s.positions.contains(&p)).map(|s| s.name).collect()))
         .collect()
@@ -218,6 +245,31 @@ mod tests {
         for p in ["庚", "辛", "戌", "壬"] {
             assert!(bp.iter().find(|(q, _)| *q == p).unwrap().1.is_empty(), "{p} 应空");
         }
+    }
+
+    /// 蠶命类编选项：与类编卷十三年神表（对照表类编栏，以影像核过）逐年比对；协纪缺省与对照表协纪起例（岁方长生）比对。
+    /// 乾隆三十年乙酉时宪书图蠶命在巳（见上），与协纪合、与类编（酉年辰）不合
+    #[test]
+    fn can_ming_leibian() {
+        let csv = include_str!("../../../../data/folk/tongshu_leibian_vs_xieji.csv");
+        let l = csv.lines().find(|l| l.starts_with("蠶命（年）,")).unwrap();
+        let tbl: Vec<&str> = l.split(',').nth(2).unwrap().split('|').collect();
+        assert_eq!(tbl.len(), 12);
+        let lb = NianShenOptions { can_ming: QiLiYi::LeiBian };
+        let (mut n, mut ok_lb, mut ok_xj) = (0, 0, 0);
+        for y in 0..60u8 {
+            n += 1;
+            ok_lb += (at(&nian_shen_with(y, &lb), "蠶命") == vec![tbl[(y % 12) as usize]]) as usize;
+            // 岁方：寅卯辰东亥、巳午未南寅、申酉戌西巳、亥子丑北申
+            let xj = ["申", "申", "亥", "亥", "亥", "寅", "寅", "寅", "巳", "巳", "巳", "申"][(y % 12) as usize];
+            ok_xj += (at(&nian_shen(y), "蠶命") == vec![xj]) as usize;
+            // 其余年神不受影响
+            let strip = |v: Vec<NianShen>| v.into_iter().filter(|s| s.name != "蠶命").collect::<Vec<_>>();
+            assert_eq!(strip(nian_shen(y)), strip(nian_shen_with(y, &lb)));
+        }
+        println!("| 蠶命（协纪） | {n} 年 | {ok_xj} |\n| 蠶命（类编） | {n} 年 | {ok_lb} |");
+        assert_eq!((ok_xj, ok_lb), (60, 60));
+        assert_eq!(at(&nian_shen_with(21, &lb), "蠶命"), vec!["辰"]);
     }
 
     #[test]
