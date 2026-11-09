@@ -24,12 +24,15 @@ pub const POS16: [&str; 16] = ["子", "丑", "艮", "寅", "卯", "辰", "巽", 
 /// 五元名
 pub const YUAN: [&str; 5] = ["甲子", "丙子", "戊子", "庚子", "壬子"];
 
+pub mod geju;
+pub mod zhushen;
+
 /// 支序（子 = 0）在十六神中的位序
-fn zhi_pos(z: usize) -> usize {
+pub fn zhi_pos(z: usize) -> usize {
     [0, 1, 3, 4, 5, 7, 8, 9, 11, 12, 13, 15][z % 12]
 }
 /// 宫数在十六神中的位序（正宫）
-fn gong_pos(g: u8) -> usize {
+pub fn gong_pos(g: u8) -> usize {
     match g {
         1 => 14, // 乾
         2 => 8,  // 午（離）
@@ -43,7 +46,7 @@ fn gong_pos(g: u8) -> usize {
     }
 }
 /// 十六神位序所属正宫之数；间神为 None
-fn pos_gong(p: usize) -> Option<u8> {
+pub fn pos_gong(p: usize) -> Option<u8> {
     [Some(8), None, Some(3), None, Some(4), None, Some(9), None, Some(2), None, Some(7), None, Some(6), None, Some(1), None][p % 16]
 }
 
@@ -142,13 +145,19 @@ pub struct TaiyiJu {
 }
 
 fn tian_mu(r: u16, dun: Dun) -> usize {
-    let n = match (r % 18) as usize {
-        0 => 18,
-        k => k,
-    };
     let (start, stay) = match dun {
         Dun::Yang => (11, [14, 10]), // 武德起，陰德、大武重留
         Dun::Yin => (3, [2, 6]),     // 呂申起，和德（艮）、大炅（巽）重留
+    };
+    shen16_walk(start, stay, r as i64)
+}
+
+/// 十六神顺行、遇 `stay` 二位各重留一筭：积数 `n` 以十八去之（余零作十八），自 `start` 起第一筭，
+/// 返回所在位序。天目（金鏡卷一）与大游天目（金鏡卷五）共用。
+pub fn shen16_walk(start: usize, stay: [usize; 2], n: i64) -> usize {
+    let n = match n.rem_euclid(18) {
+        0 => 18,
+        k => k,
     };
     let mut p = start;
     let mut step = 1;
@@ -166,7 +175,7 @@ fn tian_mu(r: u16, dun: Dun) -> usize {
 }
 
 /// 自十六神位 `from` 起算，至太乙前一宫止
-fn suan(from: usize, gong: u8) -> u8 {
+pub fn suan(from: usize, gong: u8) -> u8 {
     let tp = gong_pos(gong);
     let mut s = pos_gong(from).unwrap_or(1) as u32;
     if from == tp {
@@ -183,7 +192,7 @@ fn suan(from: usize, gong: u8) -> u8 {
 }
 
 /// 由算求将：满十去之余零；整十取十位；得五为杜
-fn jiang(s: u32) -> Option<u8> {
+pub fn jiang(s: u32) -> Option<u8> {
     let g = if s % 10 == 0 { (s / 10) % 10 } else { s % 10 };
     (g != 5 && g != 0).then_some(g as u8)
 }
@@ -366,6 +375,8 @@ mod tests {
         // 时计例：十月五日庚申時加戊寅，入立冬陰遁，第六紀壬子元二十七局，太乙九宫，大武為天目，午為計神
         let j = ju(shi_ji(56, 2), Dun::Yin);
         assert_eq!((j.r, j.ji, j.yuan, j.ju, j.gong, name(j.tian_mu), POS16[j.ji_shen]), (315, 6, 4, 27, 9, "大武", "午"));
+        // 同例：「主筭得二十九主大將在九宫主參將在七宫以計神加和徳宫天目下臨髙叢卯客筭得單四客大將在四宫參將在二宫」
+        assert_eq!((j.zhu_suan, j.zhu_da, j.zhu_can, name(j.shi_ji), j.ke_suan, j.ke_da, j.ke_can), (29, Some(9), Some(7), "高叢", 4, Some(4), Some(2)));
         // 六纪表：阳遁乾一至六纪夜半甲子太乙一、六、一、六、一、六宫，天目武德、地主、大炅、武德、地主、大炅，計神寅；
         // 阴遁巽一至六纪太乙九、四、九、四、九、四宫，天目呂申、大威、陰德、呂申、大威、陰德，計神申
         let yang = ["武德", "地主", "大炅", "武德", "地主", "大炅"];
@@ -392,6 +403,143 @@ mod tests {
         let b = ju(r, Dun::Yin);
         assert_eq!((b.gong, POS16[b.ji_shen], POS16[b.shi_ji], b.zhu_suan, b.ke_suan), (9, "申", "辰", 16, 1));
         assert_eq!((b.zhu_da, b.zhu_can, b.ke_da, b.ke_can), (Some(6), Some(8), Some(1), Some(3)));
+    }
+
+    /// 金鏡卷三「陽局/隂局天目地目計神主客大小將立成」七十二局逐局比对（太乙、天目、主算、客目、客算、计神）
+    #[test]
+    fn jinjing_juan3_li_cheng() {
+        let rows = jinjing_juan3_check();
+        assert_eq!(rows.len(), 144, "阴阳各七十二局");
+        let bad: Vec<_> = rows.iter().filter(|r| !r.2.is_empty()).collect();
+        let n: usize = bad.iter().map(|r| r.2.len()).sum();
+        assert!(n <= JINJING_JUAN3_KNOWN_BAD, "{n}：{bad:#?}");
+    }
+
+    /// 金鏡卷三立成已知不合项数（逐项见 doc/folk/taiyi.md）
+    const JINJING_JUAN3_KNOWN_BAD: usize = 14;
+
+    /// 返回（遁、局、不合项（项，书，推））
+    pub(crate) fn jinjing_juan3_check() -> Vec<(Dun, u16, Vec<(&'static str, String, String)>)> {
+        let path = crate::repo::repo_root().join("vendor/folk/wikisource/太乙金鏡式經/卷03.wikitext");
+        let raw = std::fs::read_to_string(path).expect("卷三录文");
+        // 去夹注 {{SK notes|…}}
+        let mut text = String::new();
+        let mut rest = raw.as_str();
+        while let Some(i) = rest.find("{{SK notes|") {
+            text.push_str(&rest[..i]);
+            rest = &rest[i..];
+            let e = rest.find("}}").map(|e| e + 2).unwrap_or(rest.len());
+            rest = &rest[e..];
+        }
+        text.push_str(rest);
+        let text = text
+            .replace('夘', "卯")
+            .replace('戊', "戌")
+            .replace('吕', "呂")
+            .replace('髙', "高")
+            .replace('徳', "德")
+            .replace('隂', "陰")
+            .replace("太蔟", "太簇")
+            .replace("太炅", "大炅");
+        let yang = text.find("陽局天目地目計神主客大小將立成").unwrap();
+        let yin = text.find("陰局天目地目計神主客大小將立成").unwrap();
+        let end = text.rfind("五子元積年立成法").unwrap();
+        #[derive(Clone, Debug, PartialEq)]
+        enum U {
+            N(u16),
+            S(usize),
+            Z(usize),
+        }
+        let units = |seg: &str| -> Vec<U> {
+            let cs: Vec<char> = seg.chars().collect();
+            let mut out = Vec::new();
+            let mut i = 0;
+            let d = |c: char| "一二三四五六七八九".chars().position(|x| x == c).map(|p| p as u16 + 1);
+            while i < cs.len() {
+                let c = cs[i];
+                if d(c).is_some() || c == '十' {
+                    let mut k = i;
+                    while k < cs.len() && (d(cs[k]).is_some() || cs[k] == '十') {
+                        k += 1;
+                    }
+                    let w: Vec<char> = cs[i..k].to_vec();
+                    let v = match w.as_slice() {
+                        [a] => d(*a).unwrap_or(10),
+                        ['十', b] => 10 + d(*b).unwrap_or(0),
+                        [a, '十'] => d(*a).unwrap_or(0) * 10,
+                        [a, '十', b] => d(*a).unwrap_or(0) * 10 + d(*b).unwrap_or(0),
+                        _ => 0,
+                    };
+                    out.push(U::N(v));
+                    i = k;
+                    continue;
+                }
+                if i + 1 < cs.len() {
+                    let two: String = cs[i..i + 2].iter().collect();
+                    if let Some(p) = SHEN16.iter().position(|n| *n == two) {
+                        out.push(U::S(p));
+                        i += 2;
+                        continue;
+                    }
+                }
+                if let Some(z) = "子丑寅卯辰巳午未申酉戌亥".chars().position(|x| x == c) {
+                    out.push(U::Z(z));
+                }
+                i += 1;
+            }
+            out
+        };
+        let mut out = Vec::new();
+        for (dun, seg) in [(Dun::Yang, &text[yang..yin]), (Dun::Yin, &text[yin..end])] {
+            let us = units(seg);
+            let mut i = 2;
+            while i < us.len() {
+                let (U::N(r), U::N(g), U::S(tm)) = (&us[i - 2], &us[i - 1], &us[i]) else {
+                    i += 1;
+                    continue;
+                };
+                let next = |from: usize, f: &dyn Fn(&U) -> bool| (from..us.len()).find(|&k| f(&us[k]));
+                let Some(a) = next(i + 1, &|u| matches!(u, U::N(_))) else { break };
+                let Some(b) = next(a + 1, &|u| matches!(u, U::S(_))) else { break };
+                let Some(c) = next(b + 1, &|u| matches!(u, U::N(_))) else { break };
+                let Some(e) = next(c + 1, &|u| matches!(u, U::Z(_))) else { break };
+                let (U::N(zs), U::S(ke), U::N(ks), U::Z(js)) = (&us[a], &us[b], &us[c], &us[e]) else { unreachable!() };
+                let j = ju(*r, dun);
+                let mut diff = Vec::new();
+                let mut cmp = |k: &'static str, book: String, got: String| {
+                    if book != got {
+                        diff.push((k, book, got));
+                    }
+                };
+                cmp("太乙", g.to_string(), j.gong.to_string());
+                cmp("天目", SHEN16[*tm].into(), SHEN16[j.tian_mu].into());
+                cmp("主算", zs.to_string(), j.zhu_suan.to_string());
+                cmp("客目", SHEN16[*ke].into(), SHEN16[j.shi_ji].into());
+                cmp("客算", ks.to_string(), j.ke_suan.to_string());
+                cmp("计神", POS16[zhi_pos(*js)].into(), POS16[j.ji_shen].into());
+                out.push((dun, *r, diff));
+                i = e + 1;
+            }
+        }
+        out
+    }
+
+    /// 打印金鏡卷三立成比对不合项（`-- --ignored --nocapture jinjing_juan3_dump`）
+    #[test]
+    #[ignore]
+    fn jinjing_juan3_dump() {
+        let rows = jinjing_juan3_check();
+        let cell = |d: Dun, r: u16| {
+            let x = rows.iter().find(|x| x.0 == d && x.1 == r).expect("局");
+            if x.2.is_empty() {
+                "合".to_string()
+            } else {
+                x.2.iter().map(|(k, b, g)| format!("{k}書{b}推{g}")).collect::<Vec<_>>().join("；")
+            }
+        };
+        for r in 1..=72u16 {
+            println!("| {} | {} | {} |", r, cell(Dun::Yang, r), cell(Dun::Yin, r));
+        }
     }
 
     #[test]

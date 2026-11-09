@@ -1349,8 +1349,69 @@ pub fn taiyi_json(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8, kind: 
     };
     let j = taiyi::ju(r, d);
     let opt = |g: Option<u8>| g.map(|v| v.to_string()).unwrap_or_else(|| "null".into());
+    // 诸神（各取缺省之法；四神等、三基、五福、大游、小游皆岁神，四计同用干支年 `year`）与定计、格局。出处见 doc/folk/taiyi.md
+    use taiyi::zhushen as zs;
+    let ding_zhi = match kind {
+        0 => (year - 4).rem_euclid(12) as u8,
+        1 => mi % 12,
+        2 => ((jd_ut + 8.0 / 24.0 + 0.5).floor() as i64 + 49).rem_euclid(12) as u8,
+        _ => hour_zhi % 12,
+    };
+    let dj = zs::ding_ji(&j, ding_zhi, zs::DingJiFa::TaoJinGe);
+    let si = |k: zs::SiTaiYi| {
+        let z = zs::si_tai_yi(year, k);
+        format!(
+            "{{\"gong\":{},\"name\":{},\"zhi\":{},\"ruNian\":{}}}",
+            z.wei,
+            json_str(zs::GONG12[z.wei as usize - 1]),
+            json_str(zs::GONG12_ZHI[z.wei as usize - 1]),
+            z.ru_nian
+        )
+    };
+    let ji = |k: zs::SanJi| {
+        let z = zs::san_ji(year, k, zs::SanJiFa::JiaYin);
+        format!("{{\"zhi\":{},\"ruNian\":{}}}", json_str(zs::ZHI[z.wei as usize]), z.ru_nian)
+    };
+    let wf = zs::wu_fu(year, zs::WuFuFa::JinJing);
+    let wf_i = zs::WU_FU_XU.iter().position(|g| *g == wf.wei).unwrap_or(0);
+    let dy = zs::da_you(year, zs::DaYouFa::Shun);
+    let dytm = zs::da_you_tian_mu(year);
+    let gj = taiyi::geju::ge_ju(&j);
+    let zhushen = format!(
+        ",\"suiNian\":{},\"dingJi\":{},\"dingJiPos\":{},\"dingJiSuan\":{},\"dingJiDa\":{},\"dingJiCan\":{},\"siShen\":{},\"tianYi\":{},\"diYi\":{},\"zhiFu\":{},\"junJi\":{},\"chenJi\":{},\"minJi\":{},\"wuFu\":{{\"gong\":{},\"name\":{},\"ruNian\":{}}},\"daYou\":{{\"gong\":{},\"ruNian\":{}}},\"daYouTianMu\":{},\"daYouTianMuPos\":{},\"xiaoYou\":{},\"tianMuZhuang\":{},\"shiJiZhuang\":{},\"zhuDaZhuang\":{},\"zhuCanZhuang\":{},\"keDaZhuang\":{},\"keCanZhuang\":{},\"geJu\":{},\"zhuJiangFa\":{},\"keJiangFa\":{}",
+        year,
+        json_str(taiyi::SHEN16[dj.mu]),
+        json_str(taiyi::POS16[dj.mu]),
+        dj.suan,
+        opt(dj.da),
+        opt(dj.can),
+        si(zs::SiTaiYi::SiShen),
+        si(zs::SiTaiYi::TianYi),
+        si(zs::SiTaiYi::DiYi),
+        si(zs::SiTaiYi::ZhiFu),
+        ji(zs::SanJi::Jun),
+        ji(zs::SanJi::Chen),
+        ji(zs::SanJi::Min),
+        wf.wei,
+        json_str(zs::WU_FU_GONG[wf_i]),
+        wf.ru_nian,
+        dy.wei,
+        dy.ru_nian,
+        json_str(taiyi::SHEN16[dytm]),
+        json_str(taiyi::POS16[dytm]),
+        zs::xiao_you(year),
+        json_str(&gj.tian_mu),
+        json_str(&gj.shi_ji),
+        json_str(&gj.zhu_da),
+        json_str(&gj.zhu_can),
+        json_str(&gj.ke_da),
+        json_str(&gj.ke_can),
+        json_arr(gj.xiang.iter().map(|s| json_str(s))),
+        gj.zhu_fa,
+        gj.ke_fa
+    );
     Ok(format!(
-        "{{\"kind\":{},\"r\":{},\"dun\":{},\"yuan\":{},\"ju\":{},\"ji\":{},\"gong\":{},\"ruGong\":{},\"tianMu\":{},\"tianMuPos\":{},\"jiShen\":{},\"shiJi\":{},\"shiJiPos\":{},\"zhuSuan\":{},\"keSuan\":{},\"zhuDa\":{},\"zhuCan\":{},\"keDa\":{},\"keCan\":{}}}",
+        "{{\"kind\":{},\"r\":{},\"dun\":{},\"yuan\":{},\"ju\":{},\"ji\":{},\"gong\":{},\"ruGong\":{},\"tianMu\":{},\"tianMuPos\":{},\"jiShen\":{},\"shiJi\":{},\"shiJiPos\":{},\"zhuSuan\":{},\"keSuan\":{},\"zhuDa\":{},\"zhuCan\":{},\"keDa\":{},\"keCan\":{}{}}}",
         json_str(name),
         j.r,
         json_str(if j.dun == taiyi::Dun::Yang { "陽" } else { "陰" }),
@@ -1369,7 +1430,8 @@ pub fn taiyi_json(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8, kind: 
         opt(j.zhu_da),
         opt(j.zhu_can),
         opt(j.ke_da),
-        opt(j.ke_can)
+        opt(j.ke_can),
+        zhushen
     ))
 }
 

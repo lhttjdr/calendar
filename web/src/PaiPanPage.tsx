@@ -8,7 +8,7 @@ import { LeftOutlined, RightOutlined } from '@ant-design/icons'
 import { useEffect, useMemo, useState } from 'react'
 import type { LunarBackend } from './lunar-backend-types'
 import { useCompassBar, type LocationProps } from './CompassBar'
-import { LiurenWheel, QimenWheel, QizhengWheel, TaiyiWheel, XuankongWheel, YAO_SHORT, type QizhengWheelData } from './Wheels'
+import { LiurenWheel, QimenWheel, type QimenGongMarks, QizhengWheel, TaiyiWheel, XuankongWheel, YAO_SHORT, type XuankongWheelData, type QizhengWheelData } from './Wheels'
 import { useWorkerRpc } from './useWorkerRpc'
 import type { SkyRequest } from './skyWorker'
 
@@ -41,12 +41,20 @@ type TaiyiData = {
   kind: string; r: number; dun: string; yuan: string; ju: number; ji: number; gong: number; ruGong: number
   tianMu: string; tianMuPos: string; jiShen: string; shiJi: string; shiJiPos: string
   zhuSuan: number; keSuan: number; zhuDa: number | null; zhuCan: number | null; keDa: number | null; keCan: number | null
+  suiNian?: string; dingJi?: string; dingJiPos?: string | null; dingJiSuan?: number; dingJiDa?: number | null; dingJiCan?: number | null
+  siShen?: TyG; tianYi?: TyG; diYi?: TyG; zhiFu?: TyG; wuFu?: TyG; daYou?: TyG; xiaoYou?: number | null
+  junJi?: { zhi: string; ruNian?: number } | null; chenJi?: { zhi: string; ruNian?: number } | null; minJi?: { zhi: string; ruNian?: number } | null
+  daYouTianMu?: string | null; daYouTianMuPos?: string | null
+  tianMuZhuang?: string; shiJiZhuang?: string; zhuDaZhuang?: string; zhuCanZhuang?: string; keDaZhuang?: string; keCanZhuang?: string
+  geJu?: string[]; zhuJiangFa?: boolean; keJiangFa?: boolean
 }
+type TyG = { gong: number; name?: string; zhi?: string; ruNian?: number } | null
 
 type QimenData = {
   geju?: { n: string; gong: number | null; ji: boolean; basis: string; note: string | null }[]
   ju: string; xunShou: string; xunYi: string; zhiFu: string; zhiShi: string; zhiFuGong: number; zhiShiGong: number
-  gong: { di: string[]; tian: string[]; xing: string[]; men: string | null; shen: string | null }[]
+  gong: ({ di: string[]; tian: string[]; xing: string[]; men: string | null; shen: string | null } & QimenGongMarks)[]
+  xunKong?: string[]; xu?: string[]; kongGong?: number[]; riXunKong?: string[]; ma?: string; maGong?: number | null; jieLuKong?: boolean
 }
 
 
@@ -56,10 +64,15 @@ function QimenPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; hour
   const [shenMing, setShenMing] = useState(0)
   const [dingJu, setDingJu] = useState(0)
   const [source, setSource] = useState(0)
+  /** 逐宫标记诸说（doc/folk/qimen.md「逐宫标记」）：暗干、干墓、击刑、旬空落宫 */
+  const [anGan, setAnGan] = useState(0)
+  const [ganMu, setGanMu] = useState(0)
+  const [jiXing, setJiXing] = useState(0)
+  const [kong, setKong] = useState(0)
   const d = useMemo((): QimenData | null => {
     if (typeof props.wasm.qimen_json !== 'function') return null
-    try { return JSON.parse(props.wasm.qimen_json(props.jdUt, props.ear, props.hourGz, method, jiGong, shenMing, dingJu, source, props.dayGz, 0, 0, 0, 0)) as QimenData } catch { return null }
-  }, [props.wasm, props.ear, props.jdUt, props.hourGz, props.dayGz, method, jiGong, shenMing, dingJu, source])
+    try { return JSON.parse(props.wasm.qimen_json(props.jdUt, props.ear, props.hourGz, method, jiGong, shenMing, dingJu, source, props.dayGz, anGan, ganMu, jiXing, kong)) as QimenData } catch { return null }
+  }, [props.wasm, props.ear, props.jdUt, props.hourGz, props.dayGz, method, jiGong, shenMing, dingJu, source, anGan, ganMu, jiXing, kong])
   return (
     <Flex gap={16} wrap align="flex-start">
       <div style={{ flex: '1 1 320px', maxWidth: 440, ...spinStyle(props.rotate) }}>{d ? <QimenWheel d={d} /> : <Text type="secondary">无法布盘</Text>}</div>
@@ -68,6 +81,15 @@ function QimenPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; hour
           <div style={{ marginBottom: 10, lineHeight: 1.8 }}>
             <div style={{ fontSize: 16 }}>{d.ju}</div>
             <div>{`旬首${d.xunShou}（遁${d.xunYi}）· 直符${d.zhiFu}加${d.zhiFuGong}宫 · 直使${d.zhiShi}加${d.zhiShiGong}宫`}</div>
+            <div style={{ fontSize: 13 }}>{`时旬空${(d.xunKong ?? []).join('')}（落${(d.kongGong ?? []).join('、')}宫）· 驿马${d.ma ?? ''}（${d.maGong ?? ''}宫）${d.jieLuKong ? ' · 截路空亡' : ''}`}</div>
+            {d.gong.some((c) => (c.keYing?.length ?? 0) > 0) && (
+              <div style={{ fontSize: 12, marginTop: 4 }}>
+                <Text strong style={{ fontSize: 12 }}>十干克应（寶鑑）：</Text>
+                {d.gong.flatMap((c, i) => (c.keYing ?? []).map((k) => (
+                  <span key={`${i}${k.t}${k.d}`} title={k.text} style={{ marginRight: 8 }}>{`${i + 1}宫${k.t}加${k.d}「${k.n}」`}</span>
+                )))}
+              </div>
+            )}
             {d.geju && d.geju.length > 0 && (
               <div style={{ fontSize: 12, marginTop: 4 }}>
                 <Text strong style={{ fontSize: 12 }}>格局（演义卷二）：</Text>
@@ -91,9 +113,17 @@ function QimenPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; hour
             options={[{ label: '置闰（演义）', value: 0 }, { label: '置闰（统宗）', value: 1 }, { label: '拆补', value: 2 }]} />
           <Radio.Group size="small" value={source} onChange={(e) => setSource(e.target.value)} optionType="button"
             options={[{ label: '节气从行用历', value: 0 }, { label: '定气', value: 1 }]} />
+          <Radio.Group size="small" value={anGan} onChange={(e) => setAnGan(e.target.value)} optionType="button"
+            options={[{ label: '暗干·值使宫起（中五例外）', value: 0 }, { label: '暗干·一律值使宫起', value: 1 }, { label: '不布暗干', value: 2 }]} />
+          <Radio.Group size="small" value={ganMu} onChange={(e) => setGanMu(e.target.value)} optionType="button"
+            options={[{ label: '干墓阳顺阴逆', value: 0 }, { label: '五行墓·土戌', value: 1 }, { label: '五行墓·土辰', value: 2 }]} />
+          <Radio.Group size="small" value={jiXing} onChange={(e) => setJiXing(e.target.value)} optionType="button"
+            options={[{ label: '击刑只论直符（演义）', value: 0 }, { label: '天盘诸仪（寶鑑）', value: 1 }, { label: '诸仪兼一本', value: 2 }]} />
+          <Radio.Group size="small" value={kong} onChange={(e) => setKong(e.target.value)} optionType="button"
+            options={[{ label: '旬空以支论宫', value: 0 }, { label: '以仪论宫', value: 1 }, { label: '两者并取', value: 2 }]} />
         </Flex>
         <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 8 }}>
-          八宫按八卦方位，南上北下；每宫由内向外为地盘干、八门（蓝）、九星、天盘干（红）、八神；直符、直使所加之宫底色标出。定局据《遁甲演義》卷一、卷三；转盘布法据演义、《太白陰經》卷九、《古今圖書集成》卷七百八；寄宫三说以集成十八局表衡量，寄坤最合。飞盘原典未见，出处未核。
+          八宫按八卦方位，南上北下；每宫由内向外为地盘干、暗干、八门（蓝）、九星、天盘干（红）、八神、标记（空旬空、馬驿马、迫门迫、刑击刑、干墓星墓門墓）；暗干原典未见，今人之法；直符、直使所加之宫底色标出。定局据《遁甲演義》卷一、卷三；转盘布法据演义、《太白陰經》卷九、《古今圖書集成》卷七百八；寄宫三说以集成十八局表衡量，寄坤最合。飞盘原典未见，出处未核。
         </Text>
       </div>
     </Flex>
@@ -290,6 +320,9 @@ function LiuyaoPanel(props: { wasm: LunarBackend; lunar: { yearGz: number; month
 type XkData = {
   yun: number; zuo: string; xiang: string; ti: boolean; kongWang: string | null
   yunPan: number[]; shanPan: number[]; xiangPan: number[]; geju: { n: string; note: string }[]; chengMen: [number, boolean, boolean][]; yearPan: number[]
+  pian?: number | null; zhengShen?: number[]; lingShen?: number[]; gongMarks?: { n: string; note: string }[][]
+  jieXian?: XuankongWheelData['jieXian']; daJie?: { gong: number[]; li: boolean; zhen: boolean } | null
+  ruQiu?: { shan: number | null; xiang: number | null }; monthPans?: number[][]
 }
 const XK_SHAN = ['子', '癸', '丑', '艮', '寅', '甲', '卯', '乙', '辰', '巽', '巳', '丙', '午', '丁', '未', '坤', '申', '庚', '酉', '辛', '戌', '乾', '亥', '壬']
 const CN_NUM = '〇一二三四五六七八九'
@@ -313,7 +346,7 @@ function XuankongPanel(props: { wasm: LunarBackend; ganzhiYear: number; heading:
         {d && (
           <XuankongWheel d={d} />
         )}
-        <Text type="secondary" style={{ fontSize: 11 }}>罗盘式，自内而外：中宫；八宫飞星（蓝山星居左、红向星居右，其外运星、流年紫白）；后天八卦与洛书数；三元龙（天人地）；二十四山（红阳黑阴，蓝底坐、红底向）；周天度数。虚线为坐向。南上北下，开罗盘则随设备转至实地方位</Text>
+        <Text type="secondary" style={{ fontSize: 11 }}>罗盘式，自内而外：中宫；八宫飞星（蓝山星居左、红向星居右，其外运星、流年紫白；绿底正神、红底零神）；逐宫标记；后天八卦与洛书数；三元龙（天人地）；二十四山（红阳黑阴，蓝底坐、红底向）；坐向两山旁色带为兼向分段（绿下卦、橙替卦、红空亡）；周天度数。虚线为坐向（罗盘测向时为实测方位）。南上北下，开罗盘则随设备转至实地方位</Text>
       </div>
       <div style={{ flex: '1 1 280px' }}>
         <Flex vertical gap={6}>
@@ -338,6 +371,18 @@ function XuankongPanel(props: { wasm: LunarBackend; ganzhiYear: number; heading:
             <div style={{ fontSize: 16 }}>{`${CN_NUM[d.yun]}运 ${d.zuo}山${d.xiang}向${d.ti ? '（替卦）' : '（下卦）'}${d.kongWang ? ` · ${d.kongWang}` : ''}`}</div>
             {xiangAz != null && <div style={{ fontSize: 12 }}>{`${locked != null ? '锁定' : '实测'}：向首真北 ${xiangAz | 0}°，坐 ${(xiangAz + 180) % 360 | 0}°`}</div>}
             <div style={{ fontSize: 13 }}>{d.geju.map((g) => g.n).join('、') || '—'}</div>
+            {d.zhengShen && <div style={{ fontSize: 13 }}>{`正神${d.zhengShen.join('、')}宫（宜山），零神${(d.lingShen ?? []).join('、')}宫（宜水）`}</div>}
+            {d.daJie && <div style={{ fontSize: 13 }}>{`七星打劫：${d.daJie.li ? '离宫' : '坎宫'}打劫（${d.daJie.gong.join('、')}宫）${d.daJie.zhen ? '真' : '假'}`}</div>}
+            {d.ruQiu && (d.ruQiu.shan != null || d.ruQiu.xiang != null) && <div style={{ fontSize: 13 }}>{`入囚：山星${d.ruQiu.shan != null ? `${CN_NUM[d.ruQiu.shan]}运` : '—'}，向星${d.ruQiu.xiang != null ? `${CN_NUM[d.ruQiu.xiang]}运` : '—'}`}</div>}
+            {d.jieXian && <div style={{ fontSize: 12 }}>{`兼向：${d.jieXian.zuo.duan.map((x) => `${(((x.from % 360) + 360) % 360).toFixed(1)}°起${x.kind}${x.jian ? `兼${x.jian}` : ''}`).join('；')}`}</div>}
+            {d.gongMarks && (
+              <div style={{ fontSize: 12, marginTop: 4 }}>
+                {d.gongMarks.map((ms, i) => ms.length > 0 && (
+                  <div key={i}><b>{`${['坎', '坤', '震', '巽', '中', '乾', '兌', '艮', '離'][i]}${CN_NUM[i + 1]}`}</b>{' '}{ms.map((m) => <span key={m.n} title={m.note} style={{ marginRight: 6 }}>{m.n}</span>)}</div>
+                ))}
+              </div>
+            )}
+            {d.monthPans && <div style={{ fontSize: 12 }}>{`流月入中：${d.monthPans.map((p, i) => `${'寅卯辰巳午未申酉戌亥子丑'[i]}${CN_NUM[p[4]!]}`).join(' ')}`}</div>}
             <div style={{ fontSize: 13 }}>{`城门：${d.chengMen.map(([g, z, k]) => `${['', '坎', '坤', '震', '巽', '中', '乾', '兌', '艮', '離'][g]}${z ? '（正）' : '（副）'}${k ? '可用' : '不可用'}`).join('；')}`}</div>
           </div>
         )}
@@ -444,7 +489,7 @@ function TaiyiPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; dayG
   }, [props.wasm, props.ear, props.jdUt, props.dayGz, props.hourZhi, kind, school, dun])
   return (
     <Flex gap={16} wrap align="flex-start">
-      <div style={{ flex: '1 1 300px', maxWidth: 400, ...spinStyle(props.rotate) }}>{d ? <TaiyiWheel d={d} /> : <Text type="secondary">无法起局</Text>}</div>
+      <div style={{ flex: '1 1 300px', maxWidth: 460, ...spinStyle(props.rotate) }}>{d ? <TaiyiWheel d={d} /> : <Text type="secondary">无法起局</Text>}</div>
       <div style={{ flex: '1 1 260px' }}>
         <Flex vertical gap={6}>
           <Radio.Group size="small" value={kind} onChange={(e) => setKind(e.target.value)} optionType="button"
@@ -463,10 +508,18 @@ function TaiyiPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; dayG
             <div>{`${d.kind}第${d.r}局 ${d.dun}遁 · ${d.yuan}元第${d.ju}局 · 第${d.ji}纪`}</div>
             <div>{`太乙在${d.gong}宫（入宫第${d.ruGong}）· 文昌${d.tianMu}（${d.tianMuPos}）· 計神${d.jiShen} · 始擊${d.shiJi}（${d.shiJiPos}）`}</div>
             <div>{`主算${d.zhuSuan}（大將${d.zhuDa ?? '杜'}、參將${d.zhuCan ?? '杜'}）· 客算${d.keSuan}（大將${d.keDa ?? '杜'}、參將${d.keCan ?? '杜'}）`}</div>
+            {d.dingJi && <div>{`定计目${d.dingJi}（${d.dingJiPos}）· 定算${d.dingJiSuan}（大將${d.dingJiDa ?? '杜'}、參將${d.dingJiCan ?? '杜'}）`}</div>}
+            {d.siShen && <div style={{ fontSize: 13 }}>{`${d.suiNian ?? ''}岁：四神${d.siShen.name}、天乙${d.tianYi?.name ?? ''}、地乙${d.diYi?.name ?? ''}、直符${d.zhiFu?.name ?? ''}；五福${d.wuFu?.name ?? ''}；大游${d.daYou?.gong ?? ''}宫、小游${d.xiaoYou ?? ''}宫；君基${d.junJi?.zhi ?? ''}、臣基${d.chenJi?.zhi ?? ''}、民基${d.minJi?.zhi ?? ''}`}</div>}
+            {(() => {
+              const z = [['文昌', d.tianMuZhuang], ['始擊', d.shiJiZhuang], ['主大', d.zhuDaZhuang], ['主參', d.zhuCanZhuang], ['客大', d.keDaZhuang], ['客參', d.keCanZhuang]].filter(([, v]) => v)
+              return z.length > 0 && <div style={{ fontSize: 13 }}>{`对太乙：${z.map(([k, v]) => `${k}${v}`).join('、')}`}</div>
+            })()}
+            {d.geJu && d.geJu.length > 0 && <div style={{ fontSize: 13 }}><b>格局</b> {d.geJu.join('、')}</div>}
+            {(d.zhuJiangFa || d.keJiangFa) && <div style={{ fontSize: 13 }}>{[d.zhuJiangFa && '主將發', d.keJiangFa && '客將發'].filter(Boolean).join('、')}</div>}
           </div>
         )}
         <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 8 }}>
-          据《太乙金鏡式經》卷一、《古今圖書集成·藝術典》卷六八八、《太乙秘書》、淘金歌；时计冬至后阳遁、夏至后阴遁。外圈十六神位，内圈八宫（不入中五）。
+          据《太乙金鏡式經》卷一、《古今圖書集成·藝術典》卷六八八、《太乙秘書》、淘金歌；时计冬至后阳遁、夏至后阴遁。内圈八宫（太乙不入中五），其外主客定计将、宫中诸神；外圈十六神位与神名、目击诸神、三基。诸岁神依金镜卷五按年推（月日时计亦用该岁）。
         </Text>
       </div>
     </Flex>

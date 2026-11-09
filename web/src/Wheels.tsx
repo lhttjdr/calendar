@@ -147,39 +147,65 @@ function Ring({ r0, r1, n, offset = 0, fill = '#fffdf7', dividers }: { r0: numbe
   )
 }
 
+export type QimenGongMarks = {
+  anGan?: string | null; kong?: boolean; ma?: boolean; menGong?: string | null; jiXing?: string[] | string | null
+  ganMu?: string[] | string | null; xingMu?: string[] | string | null; menMu?: boolean
+  keYing?: { t: string; d: string; n: string; text: string }[]; ge?: string[]
+}
 export type QimenWheelData = {
   zhiFu: string; zhiShi: string; zhiFuGong: number; zhiShiGong: number
-  gong: { di: string[]; tian: string[]; xing: string[]; men: string | null; shen: string | null }[]
+  gong: ({ di: string[]; tian: string[]; xing: string[]; men: string | null; shen: string | null } & QimenGongMarks)[]
 }
 
-/** 奇门八宫盘（多层罗盘式），自内而外：中五；宫卦与洛书数；地盘干；八门；九星；天盘干；八神；二十四山；周天度数。值符、值使之宫底色标出 */
+const nonEmpty = (v: string[] | string | null | undefined) => (Array.isArray(v) ? v.length > 0 : !!v)
+/** 奇门逐宫标记简称：空（旬空）、馬（驿马）、迫（门迫）、刑（六仪击刑）、干墓、星墓、門墓 */
+export function qimenMarks(c: QimenGongMarks): string[] {
+  const m: string[] = []
+  if (c.kong) m.push('空')
+  if (c.ma) m.push('馬')
+  if (c.menGong === '迫') m.push('迫')
+  if (nonEmpty(c.jiXing)) m.push('刑')
+  if (nonEmpty(c.ganMu)) m.push('干墓')
+  if (nonEmpty(c.xingMu)) m.push('星墓')
+  if (c.menMu) m.push('門墓')
+  return m
+}
+
+/**
+ * 奇门八宫盘（多层罗盘式），自内而外：中五；宫卦与洛书数；地盘干；暗干；八门；九星；天盘干；八神；
+ * 逐宫标记（空馬迫刑墓）；二十四山；周天度数。值符、值使之宫底色标出。
+ */
 export function QimenWheel({ d }: { d: QimenWheelData }) {
-  const R = [40, 66, 94, 122, 150, 178, 202, 222, 234]
+  const R = [40, 62, 84, 104, 128, 152, 174, 194, 212, 226, 236]
   const mid = (k: number) => (R[k]! + R[k + 1]!) / 2
   return (
     <Frame label="奇门遁甲八宫盘">
-      <DegreeRing r0={R[7]!} r1={R[8]!} />
-      <Shan24Ring r0={R[6]!} r1={R[7]!} />
-      {[5, 4, 3, 2, 1, 0].map((k) => <Ring key={k} r0={R[k]!} r1={R[k + 1]!} n={8} offset={0} fill={k % 2 ? '#fbf6ea' : '#fffdf7'} />)}
+      <DegreeRing r0={R[9]!} r1={R[10]!} />
+      <Shan24Ring r0={R[8]!} r1={R[9]!} />
+      {[7, 6, 5, 4, 3, 2, 1, 0].map((k) => <Ring key={k} r0={R[k]!} r1={R[k + 1]!} n={8} offset={0} fill={k % 2 ? '#fbf6ea' : '#fffdf7'} />)}
       {[1, 8, 3, 4, 9, 2, 7, 6].map((g) => {
         const deg = scr(GONG_AZ[g]!)
         const c = d.gong[g - 1]!
         const hot = g === d.zhiFuGong || g === d.zhiShiGong
+        const mk = qimenMarks(c)
         return (
           <g key={g}>
-            {hot && <path d={sector(R[0]!, R[6]!, deg - 22.5, deg + 22.5)} fill="#ffe7ba" opacity={0.45} />}
+            {hot && <path d={sector(R[0]!, R[7]!, deg - 22.5, deg + 22.5)} fill="#ffe7ba" opacity={0.45} />}
             <T r={mid(0)} deg={deg} size={11} fill="#888">{`${GUA[g]}${g}`}</T>
             <T r={mid(1)} deg={deg} size={16}>{c.di.join('')}</T>
-            {c.men && <T r={mid(2)} deg={deg} size={15} fill="#0958d9" weight={c.men === d.zhiShi ? 700 : 400}>{c.men}</T>}
-            <T r={mid(3)} deg={deg} size={c.xing.length > 1 ? 12 : 15} weight={c.xing.includes(d.zhiFu) ? 700 : 400}>{c.xing.join(' ')}</T>
-            <T r={mid(4)} deg={deg} size={16} fill="#a8071a">{c.tian.join('')}</T>
-            {c.shen && <T r={mid(5)} deg={deg} size={14} fill="#531dab">{c.shen}</T>}
+            {c.anGan && <T r={mid(2)} deg={deg} size={12} fill="#8c8c8c">{`暗${c.anGan}`}</T>}
+            {c.men && <T r={mid(3)} deg={deg} size={15} fill="#0958d9" weight={c.men === d.zhiShi ? 700 : 400}>{c.men}</T>}
+            <T r={mid(4)} deg={deg} size={c.xing.length > 1 ? 12 : 15} weight={c.xing.includes(d.zhiFu) ? 700 : 400}>{c.xing.join(' ')}</T>
+            <T r={mid(5)} deg={deg} size={16} fill="#a8071a">{c.tian.join('')}</T>
+            {c.shen && <T r={mid(6)} deg={deg} size={14} fill="#531dab">{c.shen}</T>}
+            {mk.length > 0 && <T r={mid(7)} deg={deg} size={mk.length > 3 ? 9 : 11} fill="#a8071a" weight={600}>{mk.join(' ')}</T>}
           </g>
         )
       })}
       <circle cx={C} cy={C} r={R[0]} fill={d.zhiFuGong === 5 || d.zhiShiGong === 5 ? '#fff7e6' : '#fff'} stroke="#999" />
-      <text x={C} y={C - 8} fontSize={11} fill="#888" textAnchor="middle">中5</text>
-      <text x={C} y={C + 12} fontSize={16} textAnchor="middle">{d.gong[4]!.di.join('')}</text>
+      <text x={C} y={C - 14} fontSize={10} fill="#888" textAnchor="middle">中5</text>
+      <text x={C} y={C + 4} fontSize={15} textAnchor="middle">{d.gong[4]!.di.join('')}</text>
+      <text x={C} y={C + 20} fontSize={9} textAnchor="middle" fill="#a8071a">{[d.gong[4]!.anGan ? `暗${d.gong[4]!.anGan}` : '', ...qimenMarks(d.gong[4]!)].filter(Boolean).join(' ')}</text>
     </Frame>
   )
 }
@@ -267,66 +293,89 @@ const POS16_DIV = POS16_AZ.map(([, az], k) => {
   return (az + nx) / 2
 })
 
+type TyGong = { gong: number; name?: string; ruNian?: number } | null
+type TyZhi = { zhi: string; ruNian?: number } | null
 export type TaiyiWheelData = {
   gong: number; tianMuPos: string; jiShen: string; shiJiPos: string
   zhuDa: number | null; zhuCan: number | null; keDa: number | null; keCan: number | null
   zhuSuan?: number; keSuan?: number
+  /** 诸神（taiyi::zhushen）：宫 1—9，四神诸神另有 10 絳宮、11 明堂、12 玉堂 */
+  siShen?: TyGong; tianYi?: TyGong; diYi?: TyGong; zhiFu?: TyGong; wuFu?: TyGong; daYou?: TyGong; xiaoYou?: number | null
+  junJi?: TyZhi; chenJi?: TyZhi; minJi?: TyZhi
+  dingJiPos?: string | null; dingJiDa?: number | null; dingJiCan?: number | null; daYouTianMuPos?: string | null
 }
 
 /** 十六神名（与 POS16_AZ 同序，自子起；Rust taiyi::SHEN16） */
 const SHEN16 = ['地主', '陽德', '和德', '呂申', '高叢', '太陽', '大炅', '大神', '大威', '天道', '大武', '武德', '太簇', '陰主', '陰德', '大義']
 
 /**
- * 太乙盘（多层），自内而外：中五（主客筭）；八宫（太乙所在底色）；主客大将参将（同宫者沿弧并列）；
- * 十六神位；十六神名；文昌、计神、始击（同位者并列）；周天度数。
+ * 太乙盘（多层），自内而外：中五（主客筭及居中五、絳宮、明堂、玉堂之神）；八宫（太乙所在底色）；主客与定计大将参将；
+ * 宫中诸神（四神、天乙、地乙、直符、五福、大游、小游）；十六神位；十六神名；文昌、始击、计神、定计目、大游天目；
+ * 君基、臣基、民基；周天度数。同格者沿弧并列。
  */
 export function TaiyiWheel({ d }: { d: TaiyiWheelData }) {
-  const R = [44, 88, 116, 144, 172, 202, 222, 234]
+  const R = [46, 80, 104, 128, 152, 172, 194, 214, 226, 236]
   const mid = (k: number) => (R[k]! + R[k + 1]!) / 2
-  const jiang = new Map<number, string[]>()
-  const put = (g: number | null, t: string) => { if (g != null && g !== 5 && GONG_AZ[g] != null) jiang.set(g, [...(jiang.get(g) ?? []), t]) }
-  put(d.zhuDa, '主大'); if (d.zhuCan !== d.zhuDa) put(d.zhuCan, '主參')
-  put(d.keDa, '客大'); if (d.keCan !== d.keDa) put(d.keCan, '客參')
-  const marks = new Map<string, string[]>()
-  const mark = (p: string, t: string) => marks.set(p, [...(marks.get(p) ?? []), t])
-  mark(d.tianMuPos, '文昌'); mark(d.jiShen, '計神'); mark(d.shiJiPos, '始擊')
-  const ring = (k: number, fill: string, n16: boolean) =>
-    n16 ? <Ring key={k} r0={R[k]!} r1={R[k + 1]!} n={16} dividers={POS16_DIV} fill={fill} /> : <Ring key={k} r0={R[k]!} r1={R[k + 1]!} n={8} fill={fill} />
+  const byGong = (pairs: [number | null | undefined, string][]) => {
+    const m = new Map<number, string[]>()
+    pairs.forEach(([g, t]) => { if (g != null) m.set(g, [...(m.get(g) ?? []), t]) })
+    return m
+  }
+  const jiang = byGong([
+    [d.zhuDa, '主大'], [d.zhuCan !== d.zhuDa ? d.zhuCan : null, '主參'], [d.keDa, '客大'], [d.keCan !== d.keDa ? d.keCan : null, '客參'],
+    [d.dingJiDa, '定大'], [d.dingJiCan !== d.dingJiDa ? d.dingJiCan : null, '定參'],
+  ])
+  const shen = byGong([
+    [d.siShen?.gong, '四神'], [d.tianYi?.gong, '天乙'], [d.diYi?.gong, '地乙'], [d.zhiFu?.gong, '直符'], [d.wuFu?.gong, '五福'], [d.daYou?.gong, '大游'], [d.xiaoYou, '小游'],
+  ])
+  const byPos = (pairs: [string | null | undefined, string][]) => {
+    const m = new Map<string, string[]>()
+    pairs.forEach(([p, t]) => { if (p) m.set(p, [...(m.get(p) ?? []), t]) })
+    return m
+  }
+  const mu = byPos([[d.tianMuPos, '文昌'], [d.shiJiPos, '始擊'], [d.jiShen, '計神'], [d.dingJiPos, '定目'], [d.daYouTianMuPos, '游目']])
+  const ji = byPos([[d.junJi?.zhi, '君基'], [d.chenJi?.zhi, '臣基'], [d.minJi?.zhi, '民基']])
+  // 居中五及絳宮（10）、明堂（11）、玉堂（12）者，列于中宫
+  const center = [...jiang.entries(), ...shen.entries()].filter(([g]) => g === 5 || g > 9)
+    .flatMap(([g, ts]) => ts.map((t) => `${t}${g === 5 ? '' : ['絳宮', '明堂', '玉堂'][g - 10]}`))
+  const ring = (k: number, n16: boolean) =>
+    n16 ? <Ring key={k} r0={R[k]!} r1={R[k + 1]!} n={16} dividers={POS16_DIV} fill={k % 2 ? '#fbf6ea' : '#fffdf7'} />
+      : <Ring key={k} r0={R[k]!} r1={R[k + 1]!} n={8} fill={k % 2 ? '#fbf6ea' : '#fffdf7'} />
+  const lab = (ts: string[]) => ts.join(' ')
+  const sz = (ts: string[], base: number) => (ts.length > 2 ? base - 3 : ts.length > 1 ? base - 1 : base)
   return (
     <Frame label="太乙盘">
-      <DegreeRing r0={R[6]!} r1={R[7]!} />
-      {ring(5, '#fffdf7', true)}
-      {ring(4, '#fbf6ea', true)}
-      {ring(3, '#fffdf7', true)}
-      {ring(2, '#fbf6ea', true)}
-      {ring(1, '#fffdf7', false)}
-      {ring(0, '#fbf6ea', false)}
+      <DegreeRing r0={R[8]!} r1={R[9]!} />
+      {[7, 6, 5, 4, 3].map((k) => ring(k, true))}
+      {[2, 1, 0].map((k) => ring(k, false))}
       {[1, 8, 3, 4, 9, 2, 7, 6].map((g) => {
         const deg = scr(GONG_AZ[g]!)
-        const js = jiang.get(g)
+        const js = jiang.get(g), ss = shen.get(g)
         return (
           <g key={g}>
             {d.gong === g && <path d={sector(R[0]!, R[1]!, deg - 22.5, deg + 22.5)} fill="#fff1b8" />}
-            <T r={mid(0) - 8} deg={deg} size={11} fill="#888">{`${GUA[g]}${g}`}</T>
-            {d.gong === g && <T r={mid(0) + 9} deg={deg} size={13} fill="#ad4e00" weight={700}>太乙</T>}
-            {js && <T r={mid(1)} deg={deg} size={js.length > 2 ? 10 : 12} fill="#0958d9">{js.join(' ')}</T>}
+            <T r={mid(0) - 7} deg={deg} size={11} fill="#888">{`${GUA[g]}${g}`}</T>
+            {d.gong === g && <T r={mid(0) + 8} deg={deg} size={13} fill="#ad4e00" weight={700}>太乙</T>}
+            {js && <T r={mid(1)} deg={deg} size={sz(js, 12)} fill="#0958d9">{lab(js)}</T>}
+            {ss && <T r={mid(2)} deg={deg} size={sz(ss, 12)} fill="#531dab">{lab(ss)}</T>}
           </g>
         )
       })}
       {POS16_AZ.map(([p, az], k) => {
-        const m = marks.get(p)
+        const m = mu.get(p), b = ji.get(p)
         return (
           <g key={p}>
-            <T r={mid(2)} deg={scr(az)} size={14} fill="#555">{p}</T>
-            <T r={mid(3)} deg={scr(az)} size={11} fill="#8c6d3f">{SHEN16[k]!}</T>
-            {m && <T r={mid(4)} deg={scr(az)} size={m.length > 1 ? 10 : 12} fill="#a8071a" weight={600}>{m.join(' ')}</T>}
+            <T r={mid(3)} deg={scr(az)} size={14} fill="#555">{p}</T>
+            <T r={mid(4)} deg={scr(az)} size={10} fill="#8c6d3f">{SHEN16[k]!}</T>
+            {m && <T r={mid(5)} deg={scr(az)} size={sz(m, 11)} fill="#a8071a" weight={600}>{lab(m)}</T>}
+            {b && <T r={mid(6)} deg={scr(az)} size={sz(b, 11)} fill="#389e0d">{lab(b)}</T>}
           </g>
         )
       })}
       <circle cx={C} cy={C} r={R[0]} fill="#fff" stroke="#999" />
-      <text x={C} y={C - 10} fontSize={11} textAnchor="middle" fill="#888">中五</text>
-      {d.zhuSuan != null && <text x={C} y={C + 6} fontSize={11} textAnchor="middle" fill="#0958d9">{`主筭${d.zhuSuan}`}</text>}
-      {d.keSuan != null && <text x={C} y={C + 20} fontSize={11} textAnchor="middle" fill="#531dab">{`客筭${d.keSuan}`}</text>}
+      <text x={C} y={C - 18} fontSize={10} textAnchor="middle" fill="#888">中五</text>
+      {d.zhuSuan != null && <text x={C} y={C - 5} fontSize={10} textAnchor="middle" fill="#0958d9">{`主筭${d.zhuSuan} 客筭${d.keSuan}`}</text>}
+      {center.slice(0, 3).map((t, i) => <text key={t} x={C} y={C + 9 + i * 11} fontSize={9} textAnchor="middle" fill="#531dab">{t}</text>)}
     </Frame>
   )
 }
@@ -475,8 +524,12 @@ export function QizhengWheel({ d, turn }: { d: QizhengWheelData; turn?: { jdUt: 
 const SHAN24 = ['子', '癸', '丑', '艮', '寅', '甲', '卯', '乙', '辰', '巽', '巳', '丙', '午', '丁', '未', '坤', '申', '庚', '酉', '辛', '戌', '乾', '亥', '壬']
 const CN_NUM = '〇一二三四五六七八九'
 
-export type XuankongWheelData = { zuo: string; xiang: string; yunPan: number[]; shanPan: number[]; xiangPan: number[]; yearPan: number[] }
-
+type XkJie = { shan: string; center: number; shanJie: [number, number]; guaJie: [number, number]; duan: { from: number; to: number; kind: string; jian: string | null }[] }
+export type XuankongWheelData = {
+  zuo: string; xiang: string; yunPan: number[]; shanPan: number[]; xiangPan: number[]; yearPan: number[]
+  pian?: number | null; zhengShen?: number[]; lingShen?: number[]; gongMarks?: { n: string; note: string }[][]
+  jieXian?: { zuo: XkJie; xiang: XkJie }
+}
 /** 二十四山阴阳：甲庚丙壬、乾坤艮巽、寅申巳亥为阳，子午卯酉、乙辛丁癸、辰戌丑未为阴（与 Rust xuankong::is_yang 同） */
 const SHAN_YANG = new Set(['甲', '庚', '丙', '壬', '乾', '坤', '艮', '巽', '寅', '申', '巳', '亥'])
 /** 三元龙：每卦三山，左为地元、中为天元、右为人元（子午卯酉乾坤艮巽天元，壬丙甲庚辰戌丑未地元，癸丁乙辛寅申巳亥人元） */
@@ -488,24 +541,42 @@ const GUA_SYM: Record<number, string> = { 1: '☵', 8: '☶', 3: '☳', 4: '☴'
  * 中宫（天池）；八宫飞星（卦名、山星蓝居左、向星红居右、运星、流年紫白）；后天八卦与洛书数；三元龙；
  * 二十四山（阳红阴黑，坐蓝底、向红底）；周天 360° 刻度。坐向以一线贯天池（天心十道之意）。
  */
+/** 玄空逐宫标记简称（全名与注见面板） */
+const XK_SHORT: Record<string, string> = { 正神: '正', 零神: '零', 正城門: '城', 副城門: '副城', 雙星到向: '雙向', 雙星到坐: '雙坐', 山星入囚: '山囚', 向星入囚: '向囚' }
+/** 兼向分段之色：下卦绿、替卦橙、小空亡浅红、大空亡红 */
+const DUAN_FILL: Record<string, string> = { 下卦: '#95de64', 替卦: '#ffc069', 小空亡: '#ffa39e', 大空亡: '#cf1322' }
+
 export function XuankongWheel({ d }: { d: XuankongWheelData }) {
   const zuoI = SHAN24.indexOf(d.zuo), xiangI = SHAN24.indexOf(d.xiang)
-  const R = { tian: 40, gong: 128, gua: 148, yuan: 166, shan: 190, du: 210 }
+  const R = { tian: 40, gong: 124, mark: 146, gua: 164, yuan: 180, shan: 204, duan: 211, du: 224 }
   const ring = (r: number, fill = 'none') => <circle cx={C} cy={C} r={r} fill={fill} stroke="#999" />
-  const [zx, zy] = pt(R.shan, scr(15 * zuoI)), [xx, xy] = pt(R.shan, scr(15 * xiangI))
+  // 坐向线：按山排盘取山之中线；罗盘测向时取实测（中线 + 偏）
+  const zuoAz = 15 * zuoI + (d.pian ?? 0)
+  const [zx, zy] = pt(R.shan, scr(zuoAz)), [xx, xy] = pt(R.shan, scr(zuoAz + 180))
+  // 遍及八宫以上之标记（全盘格）不逐宫标，列于面板
+  const cnt = new Map<string, number>()
+  d.gongMarks?.forEach((ms) => ms.forEach((m) => cnt.set(m.n, (cnt.get(m.n) ?? 0) + 1)))
+  const marksOf = (g: number) => (d.gongMarks?.[g - 1] ?? []).filter((m) => (cnt.get(m.n) ?? 0) < 8).map((m) => XK_SHORT[m.n] ?? m.n)
   return (
     <Frame label="玄空飞星宅盘">
       {ring(R.du, '#f5ecd7')}
-      {ring(R.shan, '#fffdf7')}
-      {ring(R.yuan, '#fbf6ea')}
-      {ring(R.gua, '#fffdf7')}
-      {ring(R.gong, '#fffdf7')}
-      {/* 周天刻度：每 1° 短刻、5° 中刻、15° 长刻（与二十四山界对齐） */}
       {Array.from({ length: 360 }, (_, a) => {
         const len = a % 15 === 0 ? 9 : a % 5 === 0 ? 6 : 3
         const [x0, y0] = pt(R.du, scr(a)), [x1, y1] = pt(R.du - len, scr(a))
         return <line key={a} x1={x0} y1={y0} x2={x1} y2={y1} stroke="#8c6d3f" strokeWidth={a % 15 === 0 ? 1 : 0.5} />
       })}
+      {ring(R.duan, '#fffdf7')}
+      {/* 兼向分段（坐、向两山）：下卦、替卦、空亡 */}
+      {d.jieXian && [d.jieXian.zuo, d.jieXian.xiang].flatMap((j, a) => j.duan.map((s, k) => (
+        <path key={`${a}-${k}`} d={sector(R.shan, R.duan, scr(s.from), scr(s.to))} fill={DUAN_FILL[s.kind] ?? '#ddd'}>
+          <title>{`${j.shan}山 ${s.from.toFixed(1)}°—${s.to.toFixed(1)}° ${s.kind}${s.jian ? `（兼${s.jian}）` : ''}`}</title>
+        </path>
+      )))}
+      {ring(R.shan, '#fffdf7')}
+      {ring(R.yuan, '#fbf6ea')}
+      {ring(R.gua, '#fffdf7')}
+      {ring(R.mark, '#fbf6ea')}
+      {ring(R.gong, '#fffdf7')}
       {SHAN24.map((s, i) => {
         const deg = scr(15 * i)
         const zuo = i === zuoI, xiang = i === xiangI
@@ -521,16 +592,20 @@ export function XuankongWheel({ d }: { d: XuankongWheelData }) {
       })}
       {[1, 8, 3, 4, 9, 2, 7, 6].map((g) => {
         const deg = scr(GONG_AZ[g]!)
+        const mk = marksOf(g)
+        const zheng = d.zhengShen?.includes(g), ling = d.lingShen?.includes(g)
         return (
           <g key={g}>
-            <path d={sector(R.tian, R.gong, deg - 22.5, deg + 22.5)} fill="none" stroke="#ccc" />
-            <path d={sector(R.gong, R.gua, deg - 22.5, deg + 22.5)} fill="none" stroke="#bbb" />
-            <T r={(R.gong + R.gua) / 2} deg={deg} size={12} fill="#5b4a2e">{`${GUA_SYM[g]} ${GUA[g]}${CN_NUM[g]}`}</T>
-            <T r={56} deg={deg} size={10} fill="#999">{GUA[g]!}</T>
-            <T r={82} deg={deg - 10} size={22} fill="#0958d9">{CN_NUM[d.shanPan[g - 1]!]}</T>
-            <T r={82} deg={deg + 10} size={22} fill="#a8071a">{CN_NUM[d.xiangPan[g - 1]!]}</T>
-            <T r={104} deg={deg} size={16}>{CN_NUM[d.yunPan[g - 1]!]}</T>
-            <T r={120} deg={deg} size={9} fill="#531dab">{`年${CN_NUM[d.yearPan[g - 1]!]}`}</T>
+            <path d={sector(R.tian, R.gong, deg - 22.5, deg + 22.5)} fill={zheng ? '#f6ffed' : ling ? '#fff1f0' : 'none'} stroke="#ccc" />
+            <path d={sector(R.gong, R.mark, deg - 22.5, deg + 22.5)} fill="none" stroke="#ccc" />
+            <path d={sector(R.mark, R.gua, deg - 22.5, deg + 22.5)} fill="none" stroke="#bbb" />
+            <T r={(R.mark + R.gua) / 2} deg={deg} size={12} fill="#5b4a2e">{`${GUA_SYM[g]} ${GUA[g]}${CN_NUM[g]}`}</T>
+            <T r={54} deg={deg} size={10} fill="#999">{GUA[g]!}</T>
+            <T r={80} deg={deg - 10} size={22} fill="#0958d9">{CN_NUM[d.shanPan[g - 1]!]}</T>
+            <T r={80} deg={deg + 10} size={22} fill="#a8071a">{CN_NUM[d.xiangPan[g - 1]!]}</T>
+            <T r={102} deg={deg} size={16}>{CN_NUM[d.yunPan[g - 1]!]}</T>
+            <T r={117} deg={deg} size={9} fill="#531dab">{`年${CN_NUM[d.yearPan[g - 1]!]}`}</T>
+            {mk.length > 0 && <T r={(R.gong + R.mark) / 2} deg={deg} size={mk.join('').length > 6 ? 8 : 10} fill="#a8071a" weight={600}>{mk.join(' ')}</T>}
           </g>
         )
       })}
@@ -540,7 +615,7 @@ export function XuankongWheel({ d }: { d: XuankongWheelData }) {
       <text x={C - 11} y={C - 3} fontSize={16} textAnchor="middle" fill="#0958d9">{CN_NUM[d.shanPan[4]!]}</text>
       <text x={C + 11} y={C - 3} fontSize={16} textAnchor="middle" fill="#a8071a">{CN_NUM[d.xiangPan[4]!]}</text>
       <text x={C} y={C + 15} fontSize={13} textAnchor="middle">{CN_NUM[d.yunPan[4]!]}</text>
-      <text x={C} y={C + 28} fontSize={8} textAnchor="middle" fill="#531dab">{`年${CN_NUM[d.yearPan[4]!]}`}</text>
+      <text x={C} y={C + 28} fontSize={8} textAnchor="middle" fill="#a8071a">{marksOf(5).join(' ') || `年${CN_NUM[d.yearPan[4]!]}`}</text>
     </Frame>
   )
 }
