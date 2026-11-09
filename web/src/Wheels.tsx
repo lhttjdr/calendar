@@ -220,42 +220,63 @@ const POS16_DIV = POS16_AZ.map(([, az], k) => {
 export type TaiyiWheelData = {
   gong: number; tianMuPos: string; jiShen: string; shiJiPos: string
   zhuDa: number | null; zhuCan: number | null; keDa: number | null; keCan: number | null
+  zhuSuan?: number; keSuan?: number
 }
 
-/** 太乙盘（多层），自内而外：中五；八宫（太乙所在底色）；主将（主大、主参）；客将（客大、客参）；十六神位；文昌、计神、始击各占一环；周天度数 */
+/** 十六神名（与 POS16_AZ 同序，自子起；Rust taiyi::SHEN16） */
+const SHEN16 = ['地主', '陽德', '和德', '呂申', '高叢', '太陽', '大炅', '大神', '大威', '天道', '大武', '武德', '太簇', '陰主', '陰德', '大義']
+
+/**
+ * 太乙盘（多层），自内而外：中五（主客筭）；八宫（太乙所在底色）；主客大将参将（同宫者沿弧并列）；
+ * 十六神位；十六神名；文昌、计神、始击（同位者并列）；周天度数。
+ */
 export function TaiyiWheel({ d }: { d: TaiyiWheelData }) {
-  const R = [40, 82, 108, 134, 162, 184, 204, 222, 234]
+  const R = [44, 88, 116, 144, 172, 202, 222, 234]
   const mid = (k: number) => (R[k]! + R[k + 1]!) / 2
-  const at = (k: number, g: number | null, t: string, fill: string) => g != null && g !== 5 && GONG_AZ[g] != null ? <T r={mid(k)} deg={scr(GONG_AZ[g]!)} size={12} fill={fill}>{t}</T> : null
-  const at16 = (k: number, p: string, t: string) => {
-    const e = POS16_AZ.find(([n]) => n === p)
-    return e ? <T r={mid(k)} deg={scr(e[1])} size={12} fill="#a8071a" weight={600}>{t}</T> : null
-  }
+  const jiang = new Map<number, string[]>()
+  const put = (g: number | null, t: string) => { if (g != null && g !== 5 && GONG_AZ[g] != null) jiang.set(g, [...(jiang.get(g) ?? []), t]) }
+  put(d.zhuDa, '主大'); if (d.zhuCan !== d.zhuDa) put(d.zhuCan, '主參')
+  put(d.keDa, '客大'); if (d.keCan !== d.keDa) put(d.keCan, '客參')
+  const marks = new Map<string, string[]>()
+  const mark = (p: string, t: string) => marks.set(p, [...(marks.get(p) ?? []), t])
+  mark(d.tianMuPos, '文昌'); mark(d.jiShen, '計神'); mark(d.shiJiPos, '始擊')
+  const ring = (k: number, fill: string, n16: boolean) =>
+    n16 ? <Ring key={k} r0={R[k]!} r1={R[k + 1]!} n={16} dividers={POS16_DIV} fill={fill} /> : <Ring key={k} r0={R[k]!} r1={R[k + 1]!} n={8} fill={fill} />
   return (
     <Frame label="太乙盘">
-      <DegreeRing r0={R[7]!} r1={R[8]!} />
-      {[6, 5, 4, 3].map((k) => <Ring key={k} r0={R[k]!} r1={R[k + 1]!} n={16} dividers={POS16_DIV} fill={k % 2 ? '#fbf6ea' : '#fffdf7'} />)}
-      {[2, 1, 0].map((k) => <Ring key={k} r0={R[k]!} r1={R[k + 1]!} n={8} fill={k % 2 ? '#fbf6ea' : '#fffdf7'} />)}
+      <DegreeRing r0={R[6]!} r1={R[7]!} />
+      {ring(5, '#fffdf7', true)}
+      {ring(4, '#fbf6ea', true)}
+      {ring(3, '#fffdf7', true)}
+      {ring(2, '#fbf6ea', true)}
+      {ring(1, '#fffdf7', false)}
+      {ring(0, '#fbf6ea', false)}
       {[1, 8, 3, 4, 9, 2, 7, 6].map((g) => {
         const deg = scr(GONG_AZ[g]!)
+        const js = jiang.get(g)
         return (
           <g key={g}>
             {d.gong === g && <path d={sector(R[0]!, R[1]!, deg - 22.5, deg + 22.5)} fill="#fff1b8" />}
             <T r={mid(0) - 8} deg={deg} size={11} fill="#888">{`${GUA[g]}${g}`}</T>
             {d.gong === g && <T r={mid(0) + 9} deg={deg} size={13} fill="#ad4e00" weight={700}>太乙</T>}
+            {js && <T r={mid(1)} deg={deg} size={js.length > 2 ? 10 : 12} fill="#0958d9">{js.join(' ')}</T>}
           </g>
         )
       })}
-      {at(1, d.zhuDa, '主大', '#0958d9')}
-      {d.zhuCan === d.zhuDa ? null : at(1, d.zhuCan, '主參', '#0958d9')}
-      {at(2, d.keDa, '客大', '#531dab')}
-      {d.keCan === d.keDa ? null : at(2, d.keCan, '客參', '#531dab')}
-      {POS16_AZ.map(([p, az]) => <T key={p} r={mid(3)} deg={scr(az)} size={14} fill="#555">{p}</T>)}
-      {at16(4, d.tianMuPos, '文昌')}
-      {at16(5, d.jiShen, '計神')}
-      {at16(6, d.shiJiPos, '始擊')}
+      {POS16_AZ.map(([p, az], k) => {
+        const m = marks.get(p)
+        return (
+          <g key={p}>
+            <T r={mid(2)} deg={scr(az)} size={14} fill="#555">{p}</T>
+            <T r={mid(3)} deg={scr(az)} size={11} fill="#8c6d3f">{SHEN16[k]!}</T>
+            {m && <T r={mid(4)} deg={scr(az)} size={m.length > 1 ? 10 : 12} fill="#a8071a" weight={600}>{m.join(' ')}</T>}
+          </g>
+        )
+      })}
       <circle cx={C} cy={C} r={R[0]} fill="#fff" stroke="#999" />
-      <text x={C} y={C + 4} fontSize={12} textAnchor="middle" fill="#888">中五</text>
+      <text x={C} y={C - 10} fontSize={11} textAnchor="middle" fill="#888">中五</text>
+      {d.zhuSuan != null && <text x={C} y={C + 6} fontSize={11} textAnchor="middle" fill="#0958d9">{`主筭${d.zhuSuan}`}</text>}
+      {d.keSuan != null && <text x={C} y={C + 20} fontSize={11} textAnchor="middle" fill="#531dab">{`客筭${d.keSuan}`}</text>}
     </Frame>
   )
 }
