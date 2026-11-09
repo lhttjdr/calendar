@@ -195,6 +195,9 @@ type LiuyaoData = {
 }
 
 /** 六爻纳甲与周易筮法：掷钱、揲蓍、梅花时间起卦，或逐爻手选；只排卦与给出应读之辞，不断吉凶 */
+/** 爻之四象：六爻家记作单拆重交（⚊⚋○✕），即《周易》大衍筮法之七八九六（少阳、少阴、老阳、老阴；九六为变） */
+const YAO_NAME: Record<number, string> = { 7: '⚊ 单（少阳）', 8: '⚋ 拆（少阴）', 9: '○ 重（老阳）', 6: '✕ 交（老阴）' }
+
 function LiuyaoPanel(props: { wasm: LunarBackend; lunar: { yearGz: number; month: number; leap: boolean; day: number } | null; hourZhi: number; dayGz: number; monthZhi: number | null }) {
   const timeValues = (): number[] => {
     if (!props.lunar || typeof props.wasm.meihua_time_values !== 'function') return [7, 7, 7, 7, 7, 7]
@@ -205,7 +208,8 @@ function LiuyaoPanel(props: { wasm: LunarBackend; lunar: { yearGz: number; month
   const [guaShen, setGuaShen] = useState(0)
   const [sanBian, setSanBian] = useState(0)
   const rnd = () => Math.floor(Math.random() * 1e9)
-  const coin = () => { const yang = [0, 0, 0].reduce((t) => t + (Math.random() < 0.5 ? 1 : 0), 0); return [6, 8, 7, 9][yang]! }
+  // 三钱一掷：一背为单（少阳 7）、二背为拆（少阴 8）、三背为重（老阳 9）、三字为交（老阴 6）（《火珠林》通行说，录文未入库，未核）
+  const coin = () => { const bei = [0, 0, 0].reduce((t) => t + (Math.random() < 0.5 ? 1 : 0), 0); return [6, 7, 8, 9][bei]! }
   const d = useMemo((): LiuyaoData | null => {
     if (typeof props.wasm.liuyao_json !== 'function') return null
     try { return JSON.parse(props.wasm.liuyao_json(Uint8Array.from(values), props.monthZhi ?? 0, props.dayGz, guaShen, sanBian)) as LiuyaoData } catch { return null }
@@ -218,7 +222,7 @@ function LiuyaoPanel(props: { wasm: LunarBackend; lunar: { yearGz: number; month
           <Button size="small" onClick={() => { setValues(Array.from({ length: 6 }, coin)); setMethod('掷钱') }}>掷钱（三钱六掷）</Button>
           <Button size="small" onClick={() => { setValues(Array.from({ length: 6 }, () => props.wasm.dayan_yao_wasm ? props.wasm.dayan_yao_wasm(rnd(), rnd(), rnd()) : 7)); setMethod('大衍揲蓍') }}>大衍揲蓍</Button>
         </Flex>
-        <Text type="secondary" style={{ fontSize: 12 }}>{`起卦：${method}；可逐爻改（6 老阴、7 少阳、8 少阴、9 老阳）`}</Text>
+        <Text type="secondary" style={{ fontSize: 12 }}>{`起卦：${method}；可逐爻改（单、拆、重、交；即大衍之七、八、九、六）`}</Text>
         {d && (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginTop: 6 }}>
             <tbody>
@@ -234,7 +238,7 @@ function LiuyaoPanel(props: { wasm: LunarBackend; lunar: { yearGz: number; month
                     <td style={{ color: '#0958d9', fontSize: 12 }}>{y.bian ? `→ ${y.bian}` : ''}</td>
                     <td>
                       <select value={values[k]} onChange={(e) => { const v = [...values]; v[k] = Number(e.target.value); setValues(v); setMethod('手选') }}>
-                        {[6, 7, 8, 9].map((n) => <option key={n} value={n}>{n}</option>)}
+                        {[7, 8, 9, 6].map((n) => <option key={n} value={n}>{YAO_NAME[n]}</option>)}
                       </select>
                     </td>
                   </tr>
