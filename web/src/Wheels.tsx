@@ -4,7 +4,7 @@
  * 每字字头朝外，绕圆心统一旋转（与择日二十四山图同），便于罗盘模式整盘转动。
  * 多层罗盘式：每类一环，不挤一层；方位盘外加二十四山与周天度数两环。
  */
-import type { ReactNode } from 'react'
+import { useRef, type ReactNode } from 'react'
 
 /**
  * 盘面字体：王漢宗中隸書繁（GPL v2），按盘面用字子集化为 public/fonts/lishu.woff2（scripts/dev/subset_lishu.sh）。
@@ -84,6 +84,20 @@ function Frame({ children, label }: { children: ReactNode; label: string }) {
 /** 洛书宫 → 罗盘方位角（坎北 0、艮东北 45、震东 90、巽东南 135、离南 180、坤西南 225、兑西 270、乾西北 315） */
 const GONG_AZ: Record<number, number> = { 1: 0, 8: 45, 3: 90, 4: 135, 9: 180, 2: 225, 7: 270, 6: 315 }
 const GUA: Record<number, string> = { 1: '坎', 8: '艮', 3: '震', 4: '巽', 9: '離', 2: '坤', 7: '兌', 6: '乾', 5: '中' }
+
+/**
+ * 天盘转角（度，屏幕顺时针）：目标角变化时取最短路径累加，免于跨 0° 时倒转一周；配合 CSS transition 呈现天盘相对地盘之转动。
+ */
+function useSpin(target: number) {
+  const ref = useRef<number | null>(null)
+  if (ref.current == null) ref.current = target
+  else {
+    const d = ((((target - ref.current) % 360) + 540) % 360) - 180
+    ref.current += d
+  }
+  return ref.current
+}
+const spinG = (a: number, ms = 900) => ({ transform: `rotate(${a}deg)`, transformOrigin: `${C}px ${C}px`, transition: `transform ${ms}ms ease-in-out` })
 
 /** 周天刻度环：每 1° 短刻、5° 中刻、15° 长刻 */
 function DegreeRing({ r0, r1 }: { r0: number; r1: number }) {
@@ -178,26 +192,41 @@ const JIANG_NAME: Record<string, string> = { 子: '神后', 丑: '大吉', 寅: 
 export function LiurenWheel({ pan, shi, sanChuan, label, tianJiang }: { pan: string[]; shi: string; sanChuan: string[]; label: string; tianJiang?: string[] }) {
   const R = [56, 94, 132, 156, 184, 202, 222, 234]
   const mid = (k: number) => (R[k]! + R[k + 1]!) / 2
+  // 天盘 = 地盘转 k 位（地盘子位上所临之天盘支序为 k）；天盘诸环按本位画，整组转 −30k°（月将加时），时辰交界时可见其转动
+  const k = Math.max(0, ZHI.indexOf(pan[0] ?? '子'))
+  const spin = useSpin(-30 * k)
   return (
     <Frame label="大六壬天地盘">
       <DegreeRing r0={R[6]!} r1={R[7]!} />
       <Shan24Ring r0={R[5]!} r1={R[6]!} />
-      {[4, 3, 2, 1, 0].map((k) => <Ring key={k} r0={R[k]!} r1={R[k + 1]!} n={12} fill={k % 2 ? '#fbf6ea' : '#fffdf7'} />)}
+      {[4, 3, 2, 1, 0].map((n) => <Ring key={n} r0={R[n]!} r1={R[n + 1]!} n={12} fill={n % 2 ? '#fbf6ea' : '#fffdf7'} />)}
+      {/* 地盘（不动） */}
       {[...ZHI].map((z, i) => {
         const deg = scr(30 * i)
-        const tian = pan[i]!
-        const ci = sanChuan.indexOf(tian)
         return (
           <g key={z}>
             {z === shi && <path d={sector(R[0]!, R[1]!, deg - 15, deg + 15)} fill="#ffe7ba" />}
             <T r={mid(0)} deg={deg} size={18} fill="#666">{z}</T>
-            <T r={mid(1)} deg={deg} size={24} fill={ci >= 0 ? '#a8071a' : '#000'} weight={ci >= 0 ? 700 : 500}>{tian}</T>
-            <T r={mid(2)} deg={deg} size={11} fill="#8c6d3f">{JIANG_NAME[tian] ?? ''}</T>
-            {tianJiang && <T r={mid(3)} deg={deg} size={13} fill={tianJiang[i] === '貴人' ? '#ad4e00' : '#531dab'} weight={tianJiang[i] === '貴人' ? 700 : 400}>{tianJiang[i]}</T>}
-            {ci >= 0 && <T r={mid(4)} deg={deg} size={11} fill="#a8071a" weight={700}>{['初傳', '中傳', '末傳'][ci]}</T>}
           </g>
         )
       })}
+      {/* 天盘：天盘支、神名、天将、三传 */}
+      <g style={spinG(spin)}>
+        {[...ZHI].map((tian, j) => {
+          const i = (j - k + 12) % 12 // 此天盘支所临之地盘位
+          const deg = scr(30 * j)
+          const ci = sanChuan.indexOf(tian)
+          const tj = tianJiang?.[i]
+          return (
+            <g key={tian}>
+              <T r={mid(1)} deg={deg} size={24} fill={ci >= 0 ? '#a8071a' : '#000'} weight={ci >= 0 ? 700 : 500}>{tian}</T>
+              <T r={mid(2)} deg={deg} size={11} fill="#8c6d3f">{JIANG_NAME[tian] ?? ''}</T>
+              {tj && <T r={mid(3)} deg={deg} size={13} fill={tj === '貴人' ? '#ad4e00' : '#531dab'} weight={tj === '貴人' ? 700 : 400}>{tj}</T>}
+              {ci >= 0 && <T r={mid(4)} deg={deg} size={11} fill="#a8071a" weight={700}>{['初傳', '中傳', '末傳'][ci]}</T>}
+            </g>
+          )
+        })}
+      </g>
       <circle cx={C} cy={C} r={R[0]} fill="#fff" stroke="#999" />
       <text x={C} y={C - 4} fontSize={13} textAnchor="middle">{label}</text>
       <text x={C} y={C + 14} fontSize={10} textAnchor="middle" fill="#888">底色為占時</text>
@@ -316,7 +345,7 @@ const norm = (x: number) => ((x % 360) + 360) % 360
  * 七政四余盘（多层），自内而外：十二宫（支与十二次，宫界依分宫法之实际黄经）；人事十二宫；宫主（绿强灰弱）；
  * 二十八宿（距星视黄经为界）；黄道（十一曜按视黄经落点，近者错层）；周天黄经刻度（命度以▲标）。
  */
-export function QizhengWheel({ d }: { d: QizhengWheelData }) {
+export function QizhengWheel({ d, turn }: { d: QizhengWheelData; turn?: { jdUt: number; lonDeg: number } }) {
   const R = [44, 84, 110, 130, 154, 210, 222, 234]
   const mid = (k: number) => (R[k]! + R[k + 1]!) / 2
   const starts = d.gongStart ?? Array.from({ length: 12 }, (_, z) => 30 * (((10 - z) % 12 + 12) % 12))
@@ -340,10 +369,25 @@ export function QizhengWheel({ d }: { d: QizhengWheelData }) {
     placed.push({ y, r: lanes[lane]! })
   })
   const xm = d.xingMing
+  // 天盘随时转（选项）：太阳时角 H = 地方恒星时 − 太阳赤经；太阳在盘上方位 = 180° + H（午正居南、卯初居东），
+  // 天盘整组转 Δ = 太阳方位 − 本位方位（315° − 太阳黄经），即「太阳宫加时」之连续形；地盘十二支不动，卯上之宫即命宫（卯上起命法）。
+  let delta = 0
+  const sun = d.yao.find((y) => y.n === '太陽')
+  if (turn && sun) {
+    const days = turn.jdUt - 2451545.0
+    const gmst = 280.46061837 + 360.98564736629 * days
+    const eps = ((23.4392911 - 0.0130042 * (days / 36525)) * Math.PI) / 180
+    const lam = (sun.lon * Math.PI) / 180
+    const ra = (Math.atan2(Math.sin(lam) * Math.cos(eps), Math.cos(lam)) * 180) / Math.PI
+    const ha = gmst + turn.lonDeg - ra
+    delta = norm(180 + ha - (315 - sun.lon))
+  }
+  const spin = useSpin(delta)
   return (
     <Frame label="七政四余盘">
       <DegreeRing r0={R[5]!} r1={R[6]!} />
       <circle cx={C} cy={C} r={R[5]} fill="#fffdf7" stroke="#999" />
+      <g style={spinG(spin, 600)}>
       {/* 二十八宿 */}
       <circle cx={C} cy={C} r={R[4]} fill="#fbf6ea" stroke="#999" />
       {d.xiuLon && d.xiuLon.map((a, k) => {
@@ -383,9 +427,26 @@ export function QizhengWheel({ d }: { d: QizhengWheelData }) {
         )
       })}
       {xm && <T r={R[6]! + 6} deg={scr(lonAz(xm.mingLon))} size={10} fill="#ad4e00">▲</T>}
+      </g>
       <circle cx={C} cy={C} r={R[0]} fill="#fff" stroke="#999" />
-      <text x={C} y={C - 4} fontSize={12} textAnchor="middle">命宮在{ZHI[d.ming]}</text>
-      <text x={C} y={C + 12} fontSize={9} textAnchor="middle" fill="#888">{xm ? `命主${YAO_SHORT[xm.mingZhu] ?? xm.mingZhu} 身主${YAO_SHORT[xm.shenZhu] ?? xm.shenZhu}` : ''}</text>
+      {turn ? (
+        <g>
+          {/* 地盘十二支（方位，不动）；卯位底色：卯上起命 */}
+          {[...ZHI].map((z, i) => (
+            <g key={z}>
+              {z === '卯' && <path d={sector(22, R[0]!, scr(30 * i) - 15, scr(30 * i) + 15)} fill="#ffe7ba" />}
+              <T r={33} deg={scr(30 * i)} size={10} fill="#333">{z}</T>
+            </g>
+          ))}
+          <circle cx={C} cy={C} r={22} fill="#fff" stroke="#bbb" />
+          <text x={C} y={C + 4} fontSize={9} textAnchor="middle" fill="#888">地盤</text>
+        </g>
+      ) : (
+        <>
+          <text x={C} y={C - 4} fontSize={12} textAnchor="middle">命宮在{ZHI[d.ming]}</text>
+          <text x={C} y={C + 12} fontSize={9} textAnchor="middle" fill="#888">{xm ? `命主${YAO_SHORT[xm.mingZhu] ?? xm.mingZhu} 身主${YAO_SHORT[xm.shenZhu] ?? xm.shenZhu}` : ''}</text>
+        </>
+      )}
     </Frame>
   )
 }

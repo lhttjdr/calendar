@@ -441,6 +441,8 @@ function QizhengPanel(props: { jdUt: number; hourZhi: number; latitude: number; 
   const [meanNode, setMeanNode] = useState(false)
   const [ascendant, setAscendant] = useState(false)
   /** 星命诸说（位义见 SkyEngine::qizheng）：分宫、命主、身主、庙旺、强弱、大限年 */
+  /** 天盘随时转（太阳宫加时之连续形）；缺省宫居本位（古盘静式） */
+  const [turn, setTurn] = useState(false)
   const [gongRule, setGongRule] = useState(0)
   const [flagBits, setFlagBits] = useState(0)
   const flags = gongRule | flagBits
@@ -457,13 +459,14 @@ function QizhengPanel(props: { jdUt: number; hourZhi: number; latitude: number; 
   return (
     <Flex gap={24} wrap align="flex-start">
       <div style={{ flex: '1 1 320px', maxWidth: 440, ...spinStyle(props.rotate) }}>
-        {d ? <QizhengWheel d={d} /> : <Text type="secondary">{err ?? '加载五星历表与距星……'}</Text>}
+        {d ? <QizhengWheel d={d} turn={turn ? { jdUt: props.jdUt, lonDeg: props.longitude } : undefined} /> : <Text type="secondary">{err ?? '加载五星历表与距星……'}</Text>}
       </div>
       <div style={{ flex: '1 1 300px', minWidth: 0 }}>
         <Flex vertical gap={8}>
           <div>罗计：<Radio.Group size="small" value={luoAsc} onChange={(e) => setLuoAsc(e.target.value)} options={[{ label: '计都升交（回回历、清中期后时宪书）', value: false }, { label: '罗睺升交（崇祯新法、清初）', value: true }]} /></div>
           <div>交点：<Radio.Group size="small" value={meanNode} onChange={(e) => setMeanNode(e.target.value)} options={[{ label: '真交点', value: false }, { label: '平交点', value: true }]} /></div>
           <div>命宫：<Radio.Group size="small" value={ascendant} onChange={(e) => setAscendant(e.target.value)} options={[{ label: '太阳宫加时、卯上起命', value: false }, { label: '东方上升点', value: true }]} /></div>
+          <BitRadio label="盘式" o={{ value: turn, onChange: setTurn }} a="宫居本位（静盘）" b="天盘随时转（地盘不动，卯上为命）" />
           <div>分宫：<Radio.Group size="small" value={gongRule} onChange={(e) => setGongRule(e.target.value)} options={[{ label: '中气', value: 0 }, { label: '宿度（星宗）', value: 1 }, { label: '宿度（大成）', value: 2 }]} /></div>
           <BitRadio label="命主" o={bit(4)} a="命度主（星命溯源）" b="命宫主" />
           <BitRadio label="身主" o={bit(8)} a="身度主" b="身宫主（大成）" />
