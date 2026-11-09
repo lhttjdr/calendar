@@ -208,7 +208,8 @@ function LiuyaoPanel(props: { wasm: LunarBackend; lunar: { yearGz: number; month
   const [guaShen, setGuaShen] = useState(0)
   const [sanBian, setSanBian] = useState(0)
   const rnd = () => Math.floor(Math.random() * 1e9)
-  // 三钱一掷：一背为单（少阳 7）、二背为拆（少阴 8）、三背为重（老阳 9）、三字为交（老阴 6）（《火珠林》通行说，录文未入库，未核）
+  // 三钱一掷，舊法以无字之背为阳：一背单（少阳 7）、二背拆（少阴 8）、三背重（老阳 9）、三字交（老阴 6）。
+  // 項安世《項氏家說》卷二、《古今圖書集成·藝術典》卷五百四十四「以錢代蓍畫法」；朱子以有字为阳，反之（儲泳《祛疑說》）。见 doc/folk/liuyao.md
   const coin = () => { const bei = [0, 0, 0].reduce((t) => t + (Math.random() < 0.5 ? 1 : 0), 0); return [6, 7, 8, 9][bei]! }
   const d = useMemo((): LiuyaoData | null => {
     if (typeof props.wasm.liuyao_json !== 'function') return null
