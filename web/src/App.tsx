@@ -1,7 +1,14 @@
 import { useState, useEffect, useMemo, useRef, createContext, useContext, lazy, Suspense } from 'react'
 import { Button, Card, Select, Radio, Checkbox, Space, Flex, Typography, Tag, Spin, Alert, Modal, Tabs, InputNumber } from 'antd'
-import { LeftOutlined, RightOutlined, CalendarOutlined, SettingOutlined, ApartmentOutlined, EyeOutlined, GlobalOutlined, StarOutlined, ReadOutlined, CompassOutlined, AppstoreOutlined } from '@ant-design/icons'
+import { LeftOutlined, RightOutlined, CalendarOutlined, SettingOutlined, EyeOutlined } from '@ant-design/icons'
 import { getCurrentPosition } from './sensors'
+import { AppHeader, useIsNarrow, type ViewKey } from './AppHeader'
+import { parseHash, buildHash } from './urlState'
+
+/** 打开网页时网址所带的状态（视图、页签、时刻、地点） */
+const URL0 = parseHash(typeof window !== 'undefined' ? window.location.hash : '')
+/** 网址经纬度只到两位小数：与本机所存者相差不到 0.005° 时仍用本机所存（保留定位精度） */
+const fromUrl = (u: number | null, stored: number) => (u != null && Math.abs(u - stored) >= 0.005 ? u : stored)
 // 日历以外的页面按需加载：首屏只下载日历所需代码
 const TransformGraphPage = lazy(() => import('./TransformGraphPage').then((m) => ({ default: m.TransformGraphPage })))
 const EclipseMapPage = lazy(() => import('./EclipseMapPage').then((m) => ({ default: m.EclipseMapPage })))
@@ -302,14 +309,16 @@ function App() {
     setCalendarMode(m)
     return m
   })
-  const [year, setYear] = useState(today.year)
-  const [month, setMonth] = useState(today.month)
-  const [selectedDate, setSelectedDate] = useState<{ year: number; month: number; day: number }>(today)
+  const [year, setYear] = useState(URL0.t?.year ?? today.year)
+  const [month, setMonth] = useState(URL0.t?.month ?? today.month)
+  const [selectedDate, setSelectedDate] = useState<{ year: number; month: number; day: number }>(() =>
+    URL0.t ? { year: URL0.t.year, month: URL0.t.month, day: URL0.t.day } : today)
   const [selectedTime, setSelectedTime] = useState(() => {
+    if (URL0.t) return { hour: URL0.t.hour, minute: URL0.t.minute, second: 0 }
     const n = new Date()
     return { hour: n.getHours(), minute: n.getMinutes(), second: n.getSeconds() }
   })
-  const [isLiveMode, setIsLiveMode] = useState(true)
+  const [isLiveMode, setIsLiveMode] = useState(URL0.t == null)
   const [yearDataList, setYearDataList] = useState<YearData[]>([])
   /** 左侧面板「显示日期」所在月的岁数据；当显示日期与日历视图同月时用 yearDataList，否则单独拉取 */
   const [displayDateYearDataList, setDisplayDateYearDataList] = useState<YearData[]>([])
@@ -320,9 +329,9 @@ function App() {
   const [optionsPanelOpen, setOptionsPanelOpen] = useState(false)
   /** 时柱所用钟点：0=时区钟点 1=当地平太阳时 2=当地真太阳时；经度为东经度数 */
   const [hourClockMode, setHourClockMode] = useState(0)
-  const [observerLongitude, setObserverLongitude] = useState(() => readStoredNumber('observer-longitude', 116.4))
+  const [observerLongitude, setObserverLongitude] = useState(() => fromUrl(URL0.lon, readStoredNumber('observer-longitude', 116.4)))
   /** 更点：观测地纬度（北纬为正）与方法 0=清台官法 1=元授时法 */
-  const [observerLatitude, setObserverLatitude] = useState(() => readStoredNumber('observer-latitude', 39.92))
+  const [observerLatitude, setObserverLatitude] = useState(() => fromUrl(URL0.lat, readStoredNumber('observer-latitude', 39.92)))
   const [gengdianMethod, setGengdianMethod] = useState(0)
   const [displayLayersPanelOpen, setDisplayLayersPanelOpen] = useState(false)
   /** 仅小时变化时更新，用于年月日时与农历/八字；不每秒更新避免整页重算 */
@@ -332,7 +341,11 @@ function App() {
   /** 一周起始日：0=周日 1=周一 … 6=周六 */
   const [weekStart, setWeekStart] = useState(1)
   /** 当前视图：日历 | 视位置变换图 */
-  const [view, setView] = useState<'calendar' | 'graph' | 'eclipse' | 'stars' | 'zeri' | 'paipan'>('calendar')
+  const [view, setView] = useState<ViewKey>(URL0.view)
+  /** 窄屏（手机）：日历两侧栏改流式全宽 */
+  const narrow = useIsNarrow()
+  /** 排盘页签（奇门、六壬……），记入网址 */
+  const [paipanTab, setPaipanTab] = useState<string>(URL0.view === 'paipan' && URL0.tab ? URL0.tab : 'qimen')
   /** Real 后端：twofloat=高精度，f64=体积/速度；切换后重新加载 WASM */
   const [realBackendVariant, setRealBackendVariant] = useState<RealBackendVariant>(getStoredRealBackend)
   const [ephemerisSource, setEphemerisSource] = useState<EphemerisDataSource | null>(null)
@@ -814,37 +827,97 @@ function App() {
     { label: '自定义', value: 4 },
   ]
 
-  const viewNav = (
-    <Flex align="center" gap={12} style={{ marginBottom: 16 }}>
-      <Button type={view === 'calendar' ? 'primary' : 'link'} icon={<CalendarOutlined />} onClick={() => setView('calendar')}>
-        日历
-      </Button>
-      <Button type={view === 'graph' ? 'primary' : 'link'} icon={<ApartmentOutlined />} onClick={() => setView('graph')}>
-        视位置变换图
-      </Button>
-      <Button type={view === 'eclipse' ? 'primary' : 'link'} icon={<GlobalOutlined />} onClick={() => setView('eclipse')}>
-        日月食图
-      </Button>
-      <Button type={view === 'stars' ? 'primary' : 'link'} icon={<StarOutlined />} onClick={() => setView('stars')}>
-        星图
-      </Button>
-      <Button type={view === 'zeri' ? 'primary' : 'link'} icon={<CompassOutlined />} onClick={() => setView('zeri')}>
-        择日
-      </Button>
-      <Button type={view === 'paipan' ? 'primary' : 'link'} icon={<AppstoreOutlined />} onClick={() => setView('paipan')}>
-        排盘
-      </Button>
-      {/* 文档站（VitePress）由 pages.yml 构建后放在应用站 docs/ 子路径；本地 dev 需另起 doc/ 的 npm run dev */}
-      <Button type="link" icon={<ReadOutlined />} href={`${import.meta.env.BASE_URL}docs/`}>
-        文档
-      </Button>
-    </Flex>
+  // ---------- 常驻顶栏与网址状态（doc/engineering/ui-interaction.md） ----------
+  const pad2 = (n: number) => String(n).padStart(2, '0')
+  const yearText = (y: number) => (y <= 0 ? `前${1 - y}年` : `${y}年`)
+  /** 关实时：停在此刻（所选日期时刻取当前所示者） */
+  const freezeNow = () => {
+    setYear(civilY)
+    setMonth(civilM)
+    setSelectedDate({ year: civilY, month: civilM, day: civilD })
+    setSelectedTime({ hour: displayHour, minute: displayMinute, second: displaySecond })
+    setIsLiveMode(false)
+  }
+  const jumpTo = (v: { year: number; month: number; day: number; hour: number; minute: number }) => {
+    setYear(v.year)
+    setMonth(v.month)
+    setSelectedDate({ year: v.year, month: v.month, day: clampCivilDay(v.year, v.month, v.day) })
+    setSelectedTime({ hour: v.hour, minute: v.minute, second: 0 })
+    setIsLiveMode(false)
+  }
+  const setPlace = (lat: number, lon: number) => {
+    setObserverLatitude(lat)
+    setObserverLongitude(lon)
+    try { localStorage.setItem('observer-longitude', String(lon)); localStorage.setItem('observer-latitude', String(lat)) } catch {}
+  }
+  const urlTab = view === 'paipan' ? paipanTab : null
+  const lastNavRef = useRef(`${URL0.view}/${URL0.view === 'paipan' ? (URL0.tab ?? 'qimen') : ''}`)
+  useEffect(() => {
+    const h = buildHash({
+      view,
+      tab: urlTab,
+      t: isLiveMode ? null : { year: sel.year, month: sel.month, day: sel.day, hour: selectedTime.hour, minute: selectedTime.minute },
+      lat: observerLatitude,
+      lon: observerLongitude,
+    })
+    if (h === window.location.hash) return
+    const nav = `${view}/${urlTab ?? ''}`
+    // 换页、换页签进浏览历史（可后退）；改时刻、地点只替换当前记录
+    if (nav !== lastNavRef.current) {
+      window.history.pushState(null, '', h)
+      lastNavRef.current = nav
+    } else window.history.replaceState(null, '', h)
+  }, [view, urlTab, isLiveMode, sel.year, sel.month, sel.day, selectedTime.hour, selectedTime.minute, observerLatitude, observerLongitude])
+  const applyUrlRef = useRef<(h: string) => void>(() => {})
+  applyUrlRef.current = (h: string) => {
+    const u = parseHash(h)
+    lastNavRef.current = `${u.view}/${u.tab ?? ''}`
+    setView(u.view)
+    if (u.view === 'paipan' && u.tab) setPaipanTab(u.tab)
+    if (u.t) jumpTo(u.t)
+    else if (!isLiveMode) goToday()
+    if (u.lat != null && u.lon != null) {
+      if (Math.abs(u.lat - observerLatitude) >= 0.005) setObserverLatitude(u.lat)
+      if (Math.abs(u.lon - observerLongitude) >= 0.005) setObserverLongitude(u.lon)
+    }
+  }
+  useEffect(() => {
+    const on = () => applyUrlRef.current(window.location.hash)
+    window.addEventListener('popstate', on)
+    return () => window.removeEventListener('popstate', on)
+  }, [])
+
+  const stepDay = { label: '日', prev: () => shiftSelected(-1, 0), next: () => shiftSelected(1, 0) }
+  const stepMonth = { label: '月', prev, next }
+  const stepShichen = { label: '时辰', prev: () => shiftSelected(0, -2), next: () => shiftSelected(0, 2) }
+  const header = (
+    <AppHeader
+      view={view}
+      onView={setView}
+      showTime={view === 'calendar' || view === 'zeri' || view === 'paipan'}
+      title={`${yearText(civilY)}${civilM}月${civilD}日 ${pad2(displayHour)}:${pad2(displayMinute)}`}
+      titleShort={`${civilY === today.year ? '' : yearText(civilY)}${civilM}月${civilD}日 ${pad2(displayHour)}:${pad2(displayMinute)}`}
+      subtitle={[
+        selectedLunarSlot ? `农历${selectedLunarSlot.isLeapMonth === 1 ? '閏' : ''}${selectedLunarSlot.lunarMonth}月${selectedLunarSlot.dayOfMonth}日` : '',
+        dayPillar ? `${dayPillar}日${hourGanzhi ? hourGanzhi + '时' : ''}` : '',
+      ].filter(Boolean).join(' · ')}
+      steps={view === 'paipan' ? [stepDay, stepShichen] : view === 'calendar' || view === 'zeri' ? [stepMonth, stepDay] : []}
+      isLive={isLiveMode}
+      onLive={(on) => (on ? goToday() : freezeNow())}
+      value={{ year: civilY, month: civilM, day: civilD, hour: displayHour, minute: displayMinute }}
+      onJump={jumpTo}
+      latitude={observerLatitude}
+      longitude={observerLongitude}
+      declination={magneticDeclination}
+      onPlace={setPlace}
+      onLocate={locate}
+    />
   )
 
   if (view === 'graph') {
     return (
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24, overflow: 'visible' }}>
-        {viewNav}
+      <div className="page">
+        {header}
         <Suspense fallback={pageFallback}><TransformGraphPage wasm={wasm} /></Suspense>
       </div>
     )
@@ -852,26 +925,23 @@ function App() {
 
   if (view === 'stars') {
     return (
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24, overflow: 'visible' }}>
-        {viewNav}
+      <div className="page">
+        {header}
         <Suspense fallback={pageFallback}><StarChartPage /></Suspense>
       </div>
     )
   }
 
-  const pageDateLabel = `${displayY}年${displayM}月${displayD}日 ${String(displayHour).padStart(2, '0')}:${String(displayMinute).padStart(2, '0')}${selectedLunarSlot ? ` · 农历${selectedLunarSlot.isLeapMonth === 1 ? '閏' : ''}${selectedLunarSlot.lunarMonth}月${selectedLunarSlot.dayOfMonth}日` : ''}${dayPillar ? ` · ${dayPillar}日${hourGanzhi ? hourGanzhi + '时' : ''}` : ''}`
   if (view === 'zeri') {
     return (
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24, overflow: 'visible' }}>
-        {viewNav}
+      <div className="page">
+        {header}
         <Suspense fallback={pageFallback}><ZeRiPage
           wasm={wasm}
           ear={getCachedVsop87Ear()}
           jd={wasm ? wasm.gregorian_to_jd(displayY, displayM, displayD) + 0.5 : 0}
-          dateLabel={pageDateLabel}
           shensha={folkDay?.shensha ?? ''}
           jianchu={folkDay?.jianchu ?? ''}
-          onShiftDay={(n) => shiftSelected(n, 0)}
           latitude={observerLatitude}
           longitude={observerLongitude}
           onLocate={locate}
@@ -884,8 +954,8 @@ function App() {
   }
   if (view === 'paipan') {
     return (
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24, overflow: 'visible' }}>
-        {viewNav}
+      <div className="page">
+        {header}
         <Suspense fallback={pageFallback}><PaiPanPage
           wasm={wasm}
           ear={getCachedVsop87Ear()}
@@ -897,9 +967,6 @@ function App() {
             const g = '甲乙丙丁戊己庚辛壬癸'.indexOf(hourGanzhi[0]!), z = '子丑寅卯辰巳午未申酉戌亥'.indexOf(hourGanzhi[1]!)
             return g < 0 || z < 0 ? null : ([...Array(60).keys()].find((k) => k % 10 === g && k % 12 === z) ?? null)
           })()}
-          dateLabel={pageDateLabel}
-          onShiftHour={(n) => shiftSelected(0, n)}
-          onShiftDay={(n) => shiftSelected(n, 0)}
           latitude={observerLatitude}
           longitude={observerLongitude}
           onLocate={locate}
@@ -908,7 +975,8 @@ function App() {
           monthZhi={selectedGanzhi?.monthName && selectedGanzhi.monthName.length === 2 ? '子丑寅卯辰巳午未申酉戌亥'.indexOf(selectedGanzhi.monthName[1]!) : null}
           ganzhiYear={(() => { const yn = selectedGanzhi?.yearName; if (!yn || yn.length !== 2) return displayY; const g = '甲乙丙丁戊己庚辛壬癸'.indexOf(yn[0]!), z = '子丑寅卯辰巳午未申酉戌亥'.indexOf(yn[1]!); const idx = [...Array(60).keys()].find((k) => k % 10 === g && k % 12 === z); return idx != null && ((displayY - 4) % 60 + 60) % 60 === idx ? displayY : displayY - 1 })()}
           isLive={isLiveMode}
-          onSetLive={(on) => (on ? goToday() : setIsLiveMode(false))}
+          tab={paipanTab}
+          onTab={setPaipanTab}
         /></Suspense>
       </div>
     )
@@ -916,23 +984,23 @@ function App() {
 
   if (view === 'eclipse') {
     return (
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24, overflow: 'visible' }}>
-        {viewNav}
+      <div className="page">
+        {header}
         <Suspense fallback={pageFallback}><EclipseMapPage /></Suspense>
       </div>
     )
   }
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24, overflow: 'visible' }}>
-      {viewNav}
+    <div className="page">
+      {header}
       <Spin spinning={!!loading} tip={loading ? `加载${loading}…` : undefined}>
         {error && <Alert type="error" message={error} showIcon style={{ marginBottom: 16 }} />}
 
         <Flex gap={24} align="flex-start" wrap="wrap">
           {/* 左侧：单日信息（合并）。LiveTimeProvider 使实时模式下各行时刻共用同一时间源 */}
           <LiveTimeProvider enabled={isLiveMode}>
-          <Flex vertical gap={12} style={{ width: 260, flexShrink: 0, overflow: 'visible' }}>
+          <Flex vertical gap={12} style={{ width: narrow ? '100%' : 260, flexShrink: 0, overflow: 'visible' }}>
             <Card size="small" style={{ width: '100%', overflow: 'visible' }} styles={{ body: { padding: 0, overflow: 'visible' } }}>
               {/* 顶部：只保留公历年月 */}
               <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(0,0,0,0.06)', textAlign: 'center' }}>
@@ -1236,7 +1304,7 @@ function App() {
           </div>
 
           {/* 右侧：日期时间 / 时区与语言 选项卡 + 选项 */}
-          <Flex vertical gap={16} style={{ width: 260, flexShrink: 0 }}>
+          <Flex vertical gap={16} style={{ width: narrow ? '100%' : 260, flexShrink: 0 }}>
             <Card size="small" style={{ width: '100%' }}>
               <Tabs
                 size="small"

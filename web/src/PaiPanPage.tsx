@@ -3,8 +3,7 @@
  * 与日历共用所选时刻；日柱、时支取日历所示四柱。图依古式南上北下、东左西右。
  * 规则与出处见知识库 doc/folk/liuren.md、taiyi.md、qimen.md。
  */
-import { Button, Flex, InputNumber, Radio, Switch, Tabs, Typography } from 'antd'
-import { LeftOutlined, RightOutlined } from '@ant-design/icons'
+import { Button, Flex, InputNumber, Radio, Tabs, Typography } from 'antd'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import type { LunarBackend } from './lunar-backend-types'
 import { CompassSpin, useCompassBar, type CompassSpinSource, type LocationProps } from './CompassBar'
@@ -935,7 +934,9 @@ export function PaiPanPage(props: LocationProps & {
   lunar: { yearGz: number; month: number; leap: boolean; day: number } | null
   /** 实时：盘随当前时刻（到下一时辰自动换局） */
   isLive: boolean
-  onSetLive: (on: boolean) => void
+  /** 当前页签（记入网址） */
+  tab: string
+  onTab: (k: string) => void
   ear: string | null
   jdUt: number
   dayGz: number | null
@@ -945,9 +946,6 @@ export function PaiPanPage(props: LocationProps & {
   /** 月柱之支（月建，以节换月）；干支年（立春分，玄空定运用） */
   monthZhi?: number | null
   ganzhiYear?: number
-  dateLabel: string
-  onShiftHour: (n: number) => void
-  onShiftDay: (n: number) => void
 }) {
   const { wasm, ear, dayGz, hourZhi } = props
   const { bar: compassBar, trueHeading, spin } = useCompassBar(props)
@@ -963,21 +961,13 @@ export function PaiPanPage(props: LocationProps & {
   const sanyuan = summary.split('\n').find((l) => l.startsWith('三元')) ?? ''
   return (
     <div>
-      <Flex align="center" gap={8} wrap style={{ marginBottom: 12 }}>
-        <Button size="small" icon={<LeftOutlined />} onClick={() => props.onShiftDay(-1)}>前一日</Button>
-        <Button size="small" onClick={() => props.onShiftHour(-2)}>前一时辰</Button>
-        <Text strong>{props.dateLabel}</Text>
-        <Button size="small" onClick={() => props.onShiftHour(2)}>后一时辰</Button>
-        <Button size="small" onClick={() => props.onShiftDay(1)}>后一日 <RightOutlined /></Button>
-        <span style={{ marginLeft: 8 }}>实时</span>
-        <Switch size="small" checked={props.isLive} onChange={props.onSetLive} />
-        <Text type="secondary" style={{ fontSize: 12 }}>与日历所选时刻同步；日柱、时辰从日历四柱；实时则到时辰交界自动换局</Text>
-      </Flex>
       {compassBar}
       {!ready ? (
         <Text type="secondary">加载历表后显示（需 VSOP87 历表与四柱）</Text>
       ) : (
         <Tabs
+          activeKey={props.tab}
+          onChange={props.onTab}
           items={[
             {
               key: 'qimen', label: '奇门遁甲',

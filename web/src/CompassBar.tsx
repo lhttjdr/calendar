@@ -1,10 +1,10 @@
 /**
- * 定位与罗盘控件（择日、排盘页共用）：GPS 定位写回观测地；罗盘开时给出整盘应转的角度，
+ * 罗盘控件（择日、排盘页共用；定位已移常驻顶栏）：罗盘开时给出整盘应转的角度，
  * 使南上北下的盘图与实地方位相合（磁北经 WMM 磁偏角改为真北；平放检测、精度提示）。见 doc/engineering/web-folk-pages.md。
  */
-import { Button, Flex, Switch, Typography } from 'antd'
-import { AimOutlined, CompassOutlined } from '@ant-design/icons'
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { Flex, Switch, Typography } from 'antd'
+import { CompassOutlined } from '@ant-design/icons'
+import { useEffect, useMemo, useRef, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { useCompassHeading } from './sensors'
 
 const { Text } = Typography
@@ -81,21 +81,15 @@ export function useCompassBar(p: LocationProps): { rotate: number; bar: ReactNod
   const compass = useCompassHeading()
   const decl = p.declination ?? 0
   const spin = useMemo(() => ({ headingRef: compass.headingRef, declination: decl, active: compass.active }), [compass.headingRef, decl, compass.active])
-  const [locMsg, setLocMsg] = useState('')
   const trueHeading = compass.heading == null ? null : compass.heading + (p.declination ?? 0)
   const rotate = trueHeading == null ? 0 : -trueHeading - 180
   const bar = (
     <Flex align="center" gap={8} wrap style={{ marginBottom: 12 }}>
-      <Button size="small" icon={<AimOutlined />} onClick={() => { setLocMsg('定位中…'); p.onLocate().then(setLocMsg, (e) => setLocMsg(String(e?.message ?? e))) }}>
-        定位
-      </Button>
-      <Text style={{ fontSize: 12 }}>
-        {`北纬 ${p.latitude.toFixed(4)}° 东经 ${p.longitude.toFixed(4)}°`}
-        {p.declination != null ? ` · 磁偏角 ${p.declination >= 0 ? '东' : '西'}${Math.abs(p.declination).toFixed(1)}°` : ''}
-      </Text>
-      {locMsg && <Text type="secondary" style={{ fontSize: 12 }}>{locMsg}</Text>}
-      <span style={{ marginLeft: 8 }}><CompassOutlined /> 罗盘</span>
       <Switch size="small" checked={compass.active} onChange={(on) => (on ? compass.start() : compass.stop())} />
+      <span><CompassOutlined /> 罗盘（手机：盘随设备转至实地方位）</span>
+      {compass.active && p.declination != null && (
+        <Text type="secondary" style={{ fontSize: 12 }}>{`磁偏角 ${p.declination >= 0 ? '东' : '西'}${Math.abs(p.declination).toFixed(1)}°`}</Text>
+      )}
       {compass.active && trueHeading != null && (
         <Text style={{ fontSize: 12 }}>{`设备朝向 真北 ${((trueHeading % 360) + 360) % 360 | 0}°（磁北 ${compass.heading! | 0}°）`}</Text>
       )}

@@ -3,7 +3,6 @@
  * 与日历共用所选日期；图依古图南上北下、东左西右。
  */
 import { Button, Card, Checkbox, Flex, InputNumber, Radio, Typography } from 'antd'
-import { LeftOutlined, RightOutlined } from '@ant-design/icons'
 import { memo, useMemo, useRef, useState } from 'react'
 import type { LunarBackend } from './lunar-backend-types'
 import { useCompassBar, useSpinDriver, type CompassSpinSource } from './CompassBar'
@@ -364,11 +363,9 @@ export function ZeRiPage(props: {
   ear: string | null
   /** 所选民用日（任一时刻）的 JD */
   jd: number
-  dateLabel: string
   /** shensha_day_wasm 的输出（吉凶神、宜、忌、時憲書宜、時憲書朱字），无则空 */
   shensha: string
   jianchu: string
-  onShiftDay: (n: number) => void
   latitude: number
   longitude: number
   /** 定位：取 GPS 经纬度写回观测者位置 */
@@ -391,12 +388,6 @@ export function ZeRiPage(props: {
   }, [wasm, ear, jd])
   return (
     <div>
-      <Flex align="center" gap={8} wrap style={{ marginBottom: 12 }}>
-        <Button size="small" icon={<LeftOutlined />} onClick={() => props.onShiftDay(-1)}>前一日</Button>
-        <Text strong>{props.dateLabel}</Text>
-        <Button size="small" onClick={() => props.onShiftDay(1)}>后一日 <RightOutlined /></Button>
-        <Text type="secondary" style={{ fontSize: 12 }}>与日历所选日期同步</Text>
-      </Flex>
       {compassBar}
       {!data ? (
         <Text type="secondary">加载历表后显示（需 VSOP87 历表）</Text>

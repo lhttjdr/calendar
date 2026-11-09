@@ -1,0 +1,41 @@
+/* 全局版式：常驻顶栏、手机底栏。设计见 doc/engineering/ui-interaction.md */
+:root {
+  --hdr-bg: rgba(255, 255, 255, 0.94);
+  --hdr-border: #f0f0f0;
+  --nav-active: #1677ff;
+  --text-sub: rgba(0, 0, 0, 0.45);
+}
+body { margin: 0; background: #fff; }
+.page { max-width: 1200px; margin: 0 auto; padding: 0 24px 24px; box-sizing: border-box; }
+.hdr {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--hdr-bg); backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--hdr-border);
+  padding: 10px 0 8px; margin-bottom: 16px;
+}
+.hdr-time {
+  display: inline-flex; flex-direction: column; align-items: flex-start;
+  border: 1px solid transparent; border-radius: 6px; background: none;
+  padding: 2px 8px; cursor: pointer; font: inherit; text-align: left; min-width: 0;
+}
+.hdr-time:hover { border-color: #d9d9d9; }
+.hdr-time-main { font-weight: 600; font-size: 14px; white-space: nowrap; }
+.hdr-time-sub { font-size: 12px; color: var(--text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.bottom-nav { display: none; }
+@media (max-width: 767px) {
+  .page { padding: 0 12px calc(64px + env(safe-area-inset-bottom)); }
+  .hdr { margin: 0 -12px 12px; padding: 6px 8px; }
+  .hdr-narrow .hdr-time { flex: 1 1 auto; overflow: hidden; }
+  .hdr-narrow .hdr-time-main { font-size: 13px; }
+  .bottom-nav {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 100;
+    background: #fff; border-top: 1px solid var(--hdr-border);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .bottom-nav button {
+    flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 2px;
+    border: none; background: none; padding: 6px 0 4px; font-size: 11px; color: rgba(0, 0, 0, 0.65); cursor: pointer;
+  }
+  .bottom-nav button .anticon { font-size: 18px; }
+  .bottom-nav button.active { color: var(--nav-active); }
+}

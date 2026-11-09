@@ -63,6 +63,7 @@
 | [pipeline-graph-taxonomy.md](engineering/pipeline-graph-taxonomy.md) | 管线图：节点与边的分类与抽象（OriginRole、TransitionKind/Form） |
 | [ci.md](engineering/ci.md) | 持续集成：Pages 部署与覆盖率工作流的 LFS 数据、DE406 缓存、工具版本、本地模拟 CI |
 | [web-folk-pages.md](engineering/web-folk-pages.md) | 网页择日页（年神二十四山罗盘图、神煞宜忌）与排盘页（奇门九宫、六壬天地盘、太乙盘）；GPS 定位、罗盘（磁北经 WMM 磁偏角改真北、平放检测） |
+| [ui-interaction.md](engineering/ui-interaction.md) | 网页交互设计：全站一份时空上下文（时刻、地点）常驻顶栏、网址即状态、每页「结论→依据→设置」三层、盘面与文字联动、手机底栏；现状问题与分期 |
 | [site-writing-guide.md](engineering/site-writing-guide.md) | 读者站写作规范：原理推导、源流、各家并列、原典核对与存放、生成页处理、多会话协作 |
 
 ## 四、案例分析（`case-studies/`）
