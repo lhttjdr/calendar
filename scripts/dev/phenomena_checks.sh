@@ -138,7 +138,7 @@ run_tests "$REAL" "${TESTS[@]}" || status=1
 echo "== 史书日月食（historical_eclipses，f64；有 site_lon/site_lat 列者逐行取都城，余按书给定）"
 for f in data/phenomena/*_solar_eclipses.csv data/phenomena/*_lunar_eclipses.csv; do
   b=$(basename "$f" .csv); mode=${b%_eclipses}; mode=${mode##*_}
-  case $b in hanshu_*) ll="108.94 34.27" ;; houhanshu_*) ll="112.62 34.73" ;; qingshigao_*) ll="116.39 39.91" ;; *) ll="0 0" ;; esac
+  case $b in hanshu_*) ll="108.88 34.30" ;; houhanshu_*) ll="112.62 34.73" ;; qingshigao_*) ll="116.39 39.91" ;; *) ll="0 0" ;; esac
   # shellcheck disable=SC2086
   (cd rust && cargo run --release -p lunar-core --example historical_eclipses --no-default-features --features real-f64 -- \
     "$mode" "../$f" "../data/phenomena/${b}_check.csv" $ll >/dev/null) || { echo "失败：$b" >&2; status=1; }
