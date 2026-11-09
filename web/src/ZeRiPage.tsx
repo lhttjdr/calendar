@@ -4,6 +4,7 @@
  */
 import { Button, Card, Checkbox, Flex, InputNumber, Radio, Typography } from 'antd'
 import { memo, useMemo, useRef, useState } from 'react'
+import { Notes, OptionsFold, useOpt, useOptGroup } from './fold'
 import type { LunarBackend } from './lunar-backend-types'
 import { useCompassBar, useSpinDriver, type CompassSpinSource } from './CompassBar'
 import { ensureLiShu, LISHU_FAMILY } from './Wheels'
@@ -153,15 +154,16 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
   const [wengGu, setWengGu] = useState(true)
   const [fuMu, setFuMu] = useState(true)
   const [naXu, setNaXu] = useState(false)
-  const [useYue, setUseYue] = useState(false)
-  const [xieji, setXieji] = useState(0)
-  const [zt, setZt] = useState(0)
-  const [useXiong, setUseXiong] = useState(false)
+  const g = useOptGroup('jiaqu')
+  const [useYue, setUseYue] = useOpt(g, 'useYue', false, '女命行嫁月')
+  const [xieji, setXieji] = useOpt(g, 'xieji', 0, '协纪月表')
+  const [zt, setZt] = useOpt(g, 'zt', 0, '嫁娶周堂')
+  const [useXiong, setUseXiong] = useOpt(g, 'useXiong', false, '类编凶神')
   const [onlyOk, setOnlyOk] = useState(false)
-  const [zhiHua, setZhiHua] = useState(false)
-  const [aoTou, setAoTou] = useState(false)
-  const [chiKou, setChiKou] = useState(0)
-  const [hengTian, setHengTian] = useState(false)
+  const [zhiHua, setZhiHua] = useOpt(g, 'zhiHua', false, '制化')
+  const [aoTou, setAoTou] = useOpt(g, 'aoTou', false, '鳌头白虎')
+  const [chiKou, setChiKou] = useOpt(g, 'chiKou', 0, '赤口')
+  const [hengTian, setHengTian] = useOpt(g, 'hengTian', false, '橫天朱雀')
   const nvGz = (((nvYear - 4) % 60) + 60) % 60
   const m = props.monthLunar
   const [err, setErr] = useState<string | null>(null)
@@ -184,8 +186,10 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
         <Checkbox checked={wengGu} onChange={(e) => setWengGu(e.target.checked)}>翁姑在</Checkbox>
         <Checkbox checked={fuMu} onChange={(e) => setFuMu(e.target.checked)}>女父母在</Checkbox>
         <Checkbox checked={naXu} onChange={(e) => setNaXu(e.target.checked)}>纳婿</Checkbox>
+        <Checkbox checked={onlyOk} onChange={(e) => setOnlyOk(e.target.checked)}>只看可用之日</Checkbox>
       </Flex>
-      <Flex gap={12} wrap align="center" style={{ marginBottom: 8 }}>
+      <OptionsFold g={g} title="取舍规则" defaultNote="依协纪：月表须宜嫁娶、协纪周堂">
+      <Flex gap={12} wrap align="center">
         <span>协纪月表 <Radio.Group size="small" value={xieji} onChange={(e) => setXieji(e.target.value)} optionType="button"
           options={[{ label: '须宜嫁娶', value: 0 }, { label: '只避忌嫁娶', value: 1 }, { label: '不用', value: 2 }]} /></span>
         <span>嫁娶周堂 <Radio.Group size="small" value={zt} onChange={(e) => setZt(e.target.value)} optionType="button"
@@ -197,8 +201,9 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
           options={[{ label: '不用（协纪）', value: 0 }, { label: '类编（凡赤口）', value: 1 }, { label: '祛疑说（值寅巳酉戌）', value: 2 }, { label: '兀日起法（协纪所述：阳年起小吉、阴年起留連）', value: 3 }]} /></span>
         <Checkbox checked={hengTian} onChange={(e) => setHengTian(e.target.checked)}>橫天朱雀否决（鳌头：初一）</Checkbox>
         <Checkbox checked={zhiHua} onChange={(e) => setZhiHua(e.target.checked)}>用制化（周堂回避、白虎禳法；协纪不录）</Checkbox>
-        <Checkbox checked={onlyOk} onChange={(e) => setOnlyOk(e.target.checked)}>只看可用之日</Checkbox>
       </Flex>
+      </OptionsFold>
+      <div style={{ height: 8 }} />
       {!list ? <Text type="secondary">{`无法判定${err ? `：${err}` : '（wasm 无此函数）'}`}</Text> : (
         <div style={{ fontSize: 12, lineHeight: 1.7 }}>
           {list.map((d, i) => (onlyOk && !d.ok ? null : (
@@ -219,9 +224,9 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
           )))}
         </div>
       )}
-      <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 8 }}>
+      <Notes>
         可用与否全依上面所选的规则：每条规则可单独取舍，每日列出否决它的规则与出处。缺省选协纪诸项（月表加铺注须宜嫁娶、协纪嫁娶周堂），因协纪为清代官定；协纪于女命大利月诸说「奏准刪除」，故缺省只列不否决。《类编历法通书大全》卷七之女命行嫁月、周堂、嫁娶凶神表，鳌头之白虎与橫天朱雀，赤口（类编卷十五小六壬，协纪不立；或依协纪卷三十六所述兀日起法，即类编卷二六輪兀，值下兀为赤口；闰月皆从本月起），以及周堂回避、白虎禳法等制化，皆为可选。阴阳不将只作标注（协纪歷例表与类编法两家）；类编卷七逐月求婚、下定、嫁娶吉日表所列之日亦只作标注。只算到规则给出的结果，不论吉凶应验。
-      </Text>
+      </Notes>
     </Card>
   )
 }
@@ -304,22 +309,34 @@ const QILI_ITEMS: { key: string; label: string; opts: string[] }[] = [
 ]
 const QILI_LEIBIAN: Record<string, number> = { tianDe: 1, tianHuo: 1, mingFei: 1, mingFeiDui: 1, fuRi: 1, huangWu: 2, tianZei: 1, canMing: 1 }
 
-function QiLiPanel(props: { wasm: LunarBackend; ear: string; jd: number }) {
-  const [o, setO] = useState<Record<string, number>>({})
+/** 神煞起例：part=controls 为起例区内的选择，part=diff 为当日结果区「较协纪多／少」 */
+function QiLiPanel(props: { wasm: LunarBackend; ear: string; jd: number; o: Record<string, number>; setO: (o: Record<string, number>) => void; part: 'controls' | 'diff' }) {
+  const { o, setO } = props
   const [open, setOpen] = useState(false)
   const v = (k: string) => o[k] ?? 0
   const r = useMemo(() => {
-    if (typeof props.wasm.qili_shen_day_json !== 'function') return null
+    if (props.part !== 'diff' || typeof props.wasm.qili_shen_day_json !== 'function') return null
     try {
       return JSON.parse(props.wasm.qili_shen_day_json(props.jd, props.ear, v('tianDe'), v('tianHuo'), v('mingFei'), v('mingFeiDui'), v('fuRi'), v('huangWu'), v('canMing'), v('tianZei'))) as {
         add: [string, boolean][]; remove: [string, boolean][]; canMing: { xieji: string; sel: string }
       }
     } catch { return null }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.wasm, props.ear, props.jd, o])
+  }, [props.wasm, props.ear, props.jd, o, props.part])
   const all = Object.values(o).every((x) => x === 0) ? 'xieji' : QILI_ITEMS.every((it) => v(it.key) === QILI_LEIBIAN[it.key]) ? 'leibian' : 'mix'
+  if (props.part === 'diff') return r && all !== 'xieji' ? (
+    <div style={{ marginTop: 6, fontSize: 13 }}>
+      {r.add.length + r.remove.length === 0 ? <Text type="secondary">所选起例下，本日所值之神与协纪同</Text> : (
+        <>
+          {r.add.length > 0 && <div>{'较协纪多：'}{r.add.map(([n, j]) => <span key={n} style={{ color: j ? '#237804' : '#a8071a', marginRight: 6 }}>{n}</span>)}</div>}
+          {r.remove.length > 0 && <div>{'较协纪少：'}{r.remove.map(([n, j]) => <span key={n} style={{ color: j ? '#237804' : '#a8071a', marginRight: 6, textDecoration: 'line-through' }}>{n}</span>)}</div>}
+        </>
+      )}
+      {r.canMing.sel !== r.canMing.xieji && <div>{`蠶命：协纪在${r.canMing.xieji}，所选在${r.canMing.sel}`}</div>}
+    </div>
+  ) : null
   return (
-    <div style={{ marginTop: 10, fontSize: 13 }}>
+    <div style={{ fontSize: 13 }}>
       <Flex align="center" gap={8} wrap>
         <Text>神煞起例依：</Text>
         <Radio.Group size="small" value={all} onChange={(e) => { if (e.target.value === 'xieji') setO({}); else if (e.target.value === 'leibian') setO({ ...QILI_LEIBIAN }); else setOpen(true) }}>
@@ -340,20 +357,9 @@ function QiLiPanel(props: { wasm: LunarBackend; ear: string; jd: number }) {
           ))}
         </div>
       )}
-      {r && all !== 'xieji' && (
-        <div style={{ marginTop: 6 }}>
-          {r.add.length + r.remove.length === 0 ? <Text type="secondary">本日所值之神与协纪同</Text> : (
-            <>
-              {r.add.length > 0 && <div>{'较协纪多：'}{r.add.map(([n, j]) => <span key={n} style={{ color: j ? '#237804' : '#a8071a', marginRight: 6 }}>{n}</span>)}</div>}
-              {r.remove.length > 0 && <div>{'较协纪少：'}{r.remove.map(([n, j]) => <span key={n} style={{ color: j ? '#237804' : '#a8071a', marginRight: 6, textDecoration: 'line-through' }}>{n}</span>)}</div>}
-            </>
-          )}
-          {r.canMing.sel !== r.canMing.xieji && <div>{`蠶命：协纪在${r.canMing.xieji}，所选在${r.canMing.sel}`}</div>}
-          <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>
-            只改所列当日之神，宜忌仍依协纪月表。类编为元末《類編曆法通書大全》，协纪按语所斥「通書」诸说多见于此（鸣吠、复日、天火、蚕命等；天贼两说无一日同）；乾隆三十年时宪书蚕命从协纪。
-          </Text>
-        </div>
-      )}
+      <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
+        只改所列当日之神，宜忌仍依协纪月表。类编为元末《類編曆法通書大全》，协纪按语所斥「通書」诸说多见于此（鸣吠、复日、天火、蚕命等；天贼两说无一日同）；乾隆三十年时宪书蚕命从协纪。
+      </Text>
     </div>
   )
 }
@@ -377,7 +383,10 @@ export function ZeRiPage(props: {
 }) {
   const { wasm, ear, jd } = props
   const { bar: compassBar, spin } = useCompassBar(props)
-  const [yiJiSrc, setYiJiSrc] = useState<'xieji' | 'dong'>('xieji')
+  const g = useOptGroup('zeriDay')
+  const [yiJiSrc, setYiJiSrc] = useOpt<'xieji' | 'dong'>(g, 'yiJiSrc', 'xieji', '宜忌依董公')
+  const [qili, setQili] = useState<Record<string, number>>({})
+  g.items.push({ label: '神煞起例', changed: Object.values(qili).some((x) => x !== 0), reset: () => setQili({}) })
   const data = useMemo((): NianShenData | null => {
     if (!wasm || ear == null || typeof wasm.nian_shen_json !== 'function') return null
     try {
@@ -395,9 +404,9 @@ export function ZeRiPage(props: {
         <Flex gap={16} wrap align="flex-start">
           <Card size="small" title={`年神方位（${data.year}年，立春换年）`} style={{ flex: '1 1 420px', maxWidth: 600 }}>
             <ShanWheel data={data} spin={spin} />
-            <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>
+            <Notes>
               据《协纪辨方书》卷三；南上北下，东左西右。打开罗盘（手机），盘随设备转动，图上方位与实地相合（磁北经磁偏角改为真北；磁偏角未知时按磁北）。绿为吉神（岁德、奏书、博士），红为太岁、岁破、大将军、三煞。时宪书附言：「惟奏書博士宜向之，餘各有所忌」。
-            </Text>
+            </Notes>
           </Card>
           <Card size="small" title="当日" style={{ flex: '1 1 320px' }}>
             {props.jianchu && <div style={{ marginBottom: 8 }}>{props.jianchu}</div>}
@@ -413,20 +422,13 @@ export function ZeRiPage(props: {
               {`日遊神${data.riYou} · 鶴神${data.heShen}`}
               {data.taiSuiYou ? ` · 太歲${data.taiSuiYou}遊` : ''}
             </div>
-            {wasm && ear != null && <QiLiPanel wasm={wasm} ear={ear} jd={jd} />}
-            <Flex align="center" gap={8} wrap style={{ marginBottom: 8 }}>
-              <Text>宜忌依：</Text>
-              <Radio.Group size="small" value={yiJiSrc} onChange={(e) => setYiJiSrc(e.target.value)}>
-                <Radio.Button value="xieji">协纪（缺省）</Radio.Button>
-                <Radio.Button value="dong">董公</Radio.Button>
-              </Radio.Group>
-            </Flex>
+            {wasm && ear != null && <QiLiPanel wasm={wasm} ear={ear} jd={jd} o={qili} setO={setQili} part="diff" />}
             {yiJiSrc === 'dong' && wasm && ear != null ? (
               <>
                 <DongGongYiJi wasm={wasm} ear={ear} jd={jd} />
-                <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 8 }}>
+                <Notes>
                   据《董公選擇日要覽》（嘉庆二十二年蒋云抄传本，维基文库录文，未以书影校）：每月以建除分十二条，条内分举日干支；月建按节。与协纪月表相合约五成五，神煞（煞集中宮、紅沙、黃羅紫檀、到州星等协纪所不立）与吉凶相抵之法皆不同，作并列之说，不与协纪互补；董公无宜忌之文之日不以协纪填补。「諸事」为泛言（原文「百事不宜」「次吉」等不举事项者），〔〕内为原文所设条件。只录宜忌，不录「犯之……」应验之语。逐日判定经人工逐条校订，存疑者注「未核」。
-                </Text>
+                </Notes>
               </>
             ) : (
               <>
@@ -435,11 +437,21 @@ export function ZeRiPage(props: {
                 ) : (
                   <Text type="secondary">神煞宜忌需农历与岁数据，加载后显示</Text>
                 )}
-                <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 8 }}>
+                <Notes>
                   据《协纪辨方书》月表加卷十铺注（反支、上朔、四離四絕、晦日、二至二分、土王用事、伏社、朔弦望、月忌、人神、長短星、氣往亡、無祿），并依时宪书体例计嫁娶周堂、交节日；「時憲書宜」为民用三十七事；「時憲書朱字」为底栏朱字应值之神（含钦天监沿用的通书之神荒蕪、枯焦、四不祥、天獄）。日遊神、鶴神、太歲出遊见卷三。
-                </Text>
+                </Notes>
               </>
             )}
+            <OptionsFold g={g} defaultNote="宜忌、神煞皆依协纪">
+              <Flex align="center" gap={8} wrap>
+                <Text style={{ fontSize: 13 }}>宜忌依：</Text>
+                <Radio.Group size="small" value={yiJiSrc} onChange={(e) => setYiJiSrc(e.target.value)}>
+                  <Radio.Button value="xieji">协纪（缺省）</Radio.Button>
+                  <Radio.Button value="dong">董公</Radio.Button>
+                </Radio.Group>
+              </Flex>
+              {wasm && ear != null && <QiLiPanel wasm={wasm} ear={ear} jd={jd} o={qili} setO={setQili} part="controls" />}
+            </OptionsFold>
           </Card>
         </Flex>
       )}

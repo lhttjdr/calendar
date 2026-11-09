@@ -39,3 +39,17 @@ body { margin: 0; background: #fff; }
   .bottom-nav button .anticon { font-size: 18px; }
   .bottom-nav button.active { color: var(--nav-active); }
 }
+
+/* 起例区与说明区（fold.tsx） */
+.opt-fold { border: 1px solid #f0f0f0; border-radius: 8px; margin-top: 10px; }
+.opt-fold-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px; }
+.opt-fold-toggle { display: flex; align-items: center; gap: 6px; border: none; background: none; padding: 4px 0; cursor: pointer; font: inherit; text-align: left; min-width: 0; }
+.opt-fold-toggle .anticon { font-size: 10px; color: rgba(0, 0, 0, 0.45); }
+.opt-fold-title { font-weight: 600; font-size: 13px; white-space: nowrap; }
+.opt-fold-toggle > .ant-typography { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opt-fold-body { display: flex; flex-direction: column; gap: 6px; padding: 4px 8px 10px; border-top: 1px dashed #f0f0f0; }
+.opt-fold-body .ant-radio-group { display: flex; flex-wrap: wrap; row-gap: 4px; }
+.notes { margin-top: 8px; }
+.notes-toggle { border: none; background: none; padding: 2px 0; cursor: pointer; font: inherit; font-size: 12px; color: rgba(0, 0, 0, 0.45); }
+.notes-toggle .anticon { font-size: 10px; }
+.notes-body { font-size: 11px; color: rgba(0, 0, 0, 0.45); line-height: 1.6; }
