@@ -10,8 +10,9 @@
 
 | 项 | 说明 | 文档 |
 |----|------|------|
-| 三大域 | 天文（astronomy）→ 历法（calendar）→ 民俗（folk，未实现），依赖单向 | [doc/architecture/three-domains.md](https://github.com/lhttjdr/calendar/blob/master/doc/architecture/three-domains.md) |
+| 三大域 | 天文（astronomy）→ 历法（calendar）→ 民俗（folk），依赖单向（民俗直接取天文的节气朔望时刻、视位置，也取历法的日期干支农历） | [doc/architecture/three-domains.md](https://github.com/lhttjdr/calendar/blob/master/doc/architecture/three-domains.md) |
 | 历法域四层 | 1 独立基础层（儒略历/格里历/古历推步）→ 2 聚合实算层（现算或查表得岁数据）→ 3 派生层（政权年号）→ 4 仲裁路由层（该用哪种历法实现） | [doc/calendar/calendar-layers.md](https://github.com/lhttjdr/calendar/blob/master/doc/calendar/calendar-layers.md) |
+| 民俗域四层 | 1 独立基础层（纳音、值宿、九星、建除、神煞、月表宜忌、年神、杂节气、更点、周易、六爻、紫微）→ 2 聚合实算层（逐日铺注 `puzhu`；奇门、六壬、太乙、七政四余、玄空排盘）→ 3 派生层（婚嫁择吉、各盘格局标记、星命、黄金策诸象）→ 4 流派层（各模块具名选项，协纪或主书为缺省） | [doc/architecture/three-domains.md](doc/architecture/three-domains.md)「民俗域」、[doc/folk/yuanliu.md](doc/folk/yuanliu.md) |
 | 主表 | 《三千五百年历日天象》按各朝颁历**据历还原**推步得到的连续朔闰表；**非**书中某一历法名，属历法域第 2 层 | [data/calendar/README_shuori.md](https://github.com/lhttjdr/calendar/blob/master/data/calendar/README_shuori.md)、[historical-calendar.md](doc/calendar/historical-calendar.md) |
 | 历法总表 id | `zhongyuan_shili` → 主表（据历还原）；`lifa_summary.csv` 另有格里高利、儒略、现代农历、历法通志各历 | [data/calendar/汇总/lifa_summary.csv](https://github.com/lhttjdr/calendar/blob/master/data/calendar/汇总/lifa_summary.csv) |
 
@@ -123,6 +124,7 @@
 |----|------|------|
 | 天文基础 | [index.md](doc/index.md) 所列 `astronomy/` | 时间尺度、标架、岁差章动、历表、光行差、视位置、月相节气 |
 | 农历编算 | [index.md](doc/index.md) 所列 `calendar/` | 农历编算、实历模块、古历复原、各朝推步与历术表 |
+| 民俗 | [index.md](doc/index.md) 所列 `folk/`（总论 [yuanliu.md](doc/folk/yuanliu.md)） | 干支历四柱、纳音值宿、建除神煞宜忌、通书对照、婚嫁、奇门、六壬、太乙、七政四余、紫微、六爻、周易、玄空 |
 | 工程实现 | [index.md](doc/index.md) 所列 `engineering/` | 项目实现、WASM、二进制、数据路径、管线图 |
 | 案例分析 | [de406-solar-term-failure-analysis.md](doc/case-studies/de406-solar-term-failure-analysis.md) | DE406 定气节气分析 |
 
@@ -158,10 +160,34 @@
 |----|------|
 | `rust/wasm-lib` | 年号、实历、天文接口等 |
 | `web/` | React 应用；年号展示含改元 `gaiyuan_prev_*` |
+| 民俗页 | 择日页（宜忌、神煞起例、董公、婚嫁择吉、年神罗盘）、排盘页（奇门、六壬、太乙、七政四余、紫微、六爻·周易、玄空）；wasm `*_json`，七政经星图 Worker `SkyEngine::qizheng`；见 [doc/engineering/web-folk-pages.md](doc/engineering/web-folk-pages.md) |
 
 ---
 
-## 十、待办（按优先级，2026-10-29 整理）
+## 十、待办（按优先级，2026-11-09 整理）
+
+**2026-10-29 以后已完成（据 git log 归纳）**
+- [x] 天文：以 DE431 为日、月历表与 ΔT 配套枢纽，ΔT 改 MS2021；ELPMPP02 常数集照 Fortran 导出、按论文两步法拟合 DE441 并加 Chapront 式残差改正；章动基本角两处符号订正；库缺省改 f64；管线补站心到视地平、折射缺省光线追迹；变换图改网络；视位置加太阳引力光线偏折（对 SOFA 18 例差 0）
+- [x] 天象与星图：日月食年表对 NASA 目录批量检验、日食图与影子轮廓、月食图与月面实况、计算提速 3—4 倍；3D 星空（地形、4K 银河、日月光晕）；石氏星表与三家星官检验
+- [x] 史书天象：先秦日躔中星按岁差检验（月令、尧典）、《左传》卜偃与《国语》伐纣天象；汉代日食宿度溯源（太初前三统、光武后四分）及诸假设排除；春秋日食刘歆分野
+- [x] 历法：唐宋金元明诸历定朔复原与《历代历法总录》（含表逐格对点校本）；平气按当时行用历推算（太初至两宋、五代钦天、元初重修大明历，`pingqi_check`）；古六历书朔逐历分析；清代本纪核验
+- [x] 干支历四柱：授时大统平气与当地太阳时时柱，冬至换年、夜子时、立春换年据原典
+- [x] 日历显示：民用历（1582-10-15 前儒略历）、罗马实历九种、按时代显示行用之历、年号附君主本名、时区与古代日期
+- [x] 民俗择日：纳音、值宿七曜、紫白九星、杂节气、更点、建除黄道百忌；月家日神煞；协纪月表宜忌 720 日逐页核毕（存疑十九日以殿本校）；铺注层与乾隆三十年时宪书 384 日核对、他年复核；年神方位
+- [x] 民俗通书对照：类编、董公（144 条复核、逐日判定表）、鳌头（十二星断、婚姻四表）、宗镜通读、类编卷十一 720 日逐日表；神煞起例可选协纪、类编或逐神
+- [x] 民俗婚嫁：协纪为纲、类编并列，制化三态、周堂白虎、赤口、类编逐月吉日表、横天朱雀
+- [x] 民俗式占命理筮法风水：奇门（定局、飞盘、格局、方位格、年家、逐宫标记）、六壬（天将、课体课格、日墓、出狱、昼夜）、太乙（诸神、定计、格局、八门、算和、十精、阳九百六、章岁法）、紫微两派、七政四余（宫度宿度、星命、限法、神煞、时宪书比对）、六爻（纳甲、京房飞伏、黄金策诸象、增删卜易 298 例）、周易大衍考变占、玄空（飞星、零正、兼向、大卦、三针、日时紫白）
+- [x] 网页：择日页、排盘页（多层罗盘、随时刻转盘、GPS 与 WMM2025 磁偏角罗盘）；首屏按需加载；部署拉取 LFS 数据表并查指针
+- [x] 读者站：按 数学→天文→历法→民俗 分篇，各章重写并核原文书目；民俗篇总论与九章
+
+**民俗待做（摘自各 doc/folk/*.md「待做」，按优先级）**
+- [ ] P1 择日通书：鳌头卷二至卷五各门吉日表与凶神起例录出、读卷六补复日等起例（[tongshu_yiji.md](doc/folk/tongshu_yiji.md) 第十一节）；类编天贼作选项、鳌头中查天愿地囊四击枯焦天狱（[tongshu.md](doc/folk/tongshu.md) 第九节）；董公录文以书影校
+- [ ] P1 时宪书：「不宜」取舍规则；交节界限按《历象考成后编》推当年交节时刻；协纪四库录文以影印本校（[shensha.md](doc/folk/shensha.md) 第三节）
+- [ ] P2 式占：奇门飞盘阴遁与九神飞布原典、年家年界、日家月家顺飞、白奸（[qimen.md](doc/folk/qimen.md) 第七节）；六壬未做课格十二种、平气换将与恒星过宫、土旺四季（[liuren.md](doc/folk/liuren.md) 第七节）；太乙交至加时起门、十精立成图、飞符、章岁法闰月（[taiyi.md](doc/folk/taiyi.md) 第十六节）
+- [ ] P2 命理：七政授时过宫度表余八宫 240 格、鄭氏星案命例、紫炁历元、罗计改年（[qizheng.md](doc/folk/qizheng.md) 第五节）；紫微明刻全书书影核庙旺与 27 处异、整盘命例（[ziwei.md](doc/folk/ziwei.md)）；十八飞星庙乐旺表（[ziwei18.md](doc/folk/ziwei18.md)）
+- [ ] P2 风水筮法：沈氏玄空原刊、章仲山原书、无常派并列（[xuankong.md](doc/folk/xuankong.md) 第八节）；《黄金策》原书与 298 例断语结构化比对（[liuyao.md](doc/folk/liuyao.md)）；《啟蒙》三十二图影印本（[zhouyi.md](doc/folk/zhouyi.md)）
+- [ ] P3 婚嫁：协纪兀日赤口起法、男女禁婚年、鳌头卷六制煞法（[jiaqu.md](doc/folk/jiaqu.md) 第七节）
+- [ ] 待用户定：子平命理是否立章；读者站通书异同是否单列一章；合婚是否作通书说选项（[yuanliu.md](doc/folk/yuanliu.md)「民俗篇待做」）
 
 **P0 合并前**
 - [x] 全量重跑 `scripts/dev/phenomena_checks.sh`（含 `compare`，两构建逐格一致）与 `cargo test -p lunar-core`（270 过、0 败），2026-10-29

@@ -12,7 +12,7 @@
 | 原典 | `vendor/folk/wikisource/太乙金鏡式經/`（唐王希明，四库本）；`vendor/folk/wikisource/古今圖書集成藝術典/第687卷.txt`（《太乙淘金歌》）、`第688卷.txt`（《太乙局》）、`第689卷.txt`；`vendor/folk/wikisource/太乙秘書/` |
 | 测试 | `taiyi::tests`：淘金歌岁计十例、集成卷六八八四计四例、金镜卷一诸例（积年、日计、时计、六纪表）、太乙秘书万历戊子阴阳二遁、三元九运、章岁法；`bamen::tests`、`suanshu::tests`（淘金歌算例十二、秘書七十二局和否与门具对照）、`shijing::tests`（阳九百六十一例、十精周期） |
 
-网页、wasm 尚未接入。
+网页、wasm 已接入：wasm `taiyi_json`（字段与 `opts` 位见第九节）供排盘页太乙盘，`paipan_wasm` 供民俗栏摘要，见本文「网页」一节与 doc/engineering/web-folk-pages.md。
 
 ## 一、入局数
 
