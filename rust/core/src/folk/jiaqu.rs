@@ -196,7 +196,8 @@ pub fn leibian_xiong(month_ord: u8, month_gan: u8, day_gz: u8, jdn: i64) -> Vec<
     if ["戊辰", "丁丑", "丙戌", "乙未", "甲辰", "癸丑", "壬戌"].iter().any(|g| gz_index(g) == day_gz) {
         v.push(("大殺白虎入中宮", ""));
     }
-    // 雷霆白虎入中宮日：按月干（书作「甲己月」「乙庚月」「丙辛戊癸月」「丁壬月」；「月」指月干抑年干，原文未明，此取月建之干，未核）
+    // 雷霆白虎入中宮日：按月建之干。类编（第 39 页）、鳌头卷三（第 4 册 PDF 第 14 页）皆作「甲己月」「乙庚月」「丙辛戊癸月」「丁壬月」，
+    // 而同表上朔作「甲年丁亥乙年己巳……」，一表之内年、月分书，故「月」是月干而非年干之讹（两书诸日全同）。
     // 干合五组：甲己 0、乙庚 1、丙辛 2、丁壬 3、戊癸 4；书以丙辛、戊癸同一行
     let lt: &[&str] = match month_gan % 5 {
         0 => &["丁卯", "丙子", "乙酉", "甲午", "癸卯", "壬子", "辛酉"],
@@ -211,8 +212,112 @@ pub fn leibian_xiong(month_ord: u8, month_gan: u8, day_gz: u8, jdn: i64) -> Vec<
 }
 
 /// 类编「論嫁娶凶日」所列（第 49 页）：月厭、厭對、歸忌、赤口、天賊、月破、四離、四絶、五亥日、大殺白虎入中宫日、
-/// 雷霆白虎入中宫日、人民離日。赤口（小六壬留連赤口）未实现。受死书云「今人多不忌」，月忌日书云「不忌嫁娶」，只作附注。
+/// 雷霆白虎入中宫日、人民離日。赤口按农历月日起（[`xiao_liu_ren`]），不在此表，另以 [`ChiKouRule`] 取舍。
+/// 受死书云「今人多不忌」，月忌日书云「不忌嫁娶」，只作附注。
 pub const LEIBIAN_XIONG_RI: [&str; 10] = ["月厭", "厭對", "歸忌", "天賊", "月破", "亥日", "大殺白虎入中宮", "雷霆白虎入中宮", "人民離", "披麻殺"];
+
+// ───────────────────────── 赤口（小六壬） ─────────────────────────
+
+/// 小六壬六位（类编卷十五「六壬赤口日」：大安百無不利、留連淹延久遠、速喜利濟欣順、赤口是非口舌、小吉無凶有吉、空亡萬事無成）
+pub const XIAO_LIU_REN: [&str; 6] = ["大安", "留連", "速喜", "赤口", "小吉", "空亡"];
+
+/// 农历某月某日所值小六壬之位。
+///
+/// 类编卷十五「六壬赤口日」（`02094410.cn` PDF 第 90—91 页）：「正七初一起留連，二八却從速喜先，三九月初逢赤口，
+/// 四十之月小吉傳，五十一月空亡上，六十二月大安前。假如正月初一日起留連，初二日速喜，初三日赤口，初四日小吉，
+/// 初五日空亡，初六日大安，逐日順數去，其餘倣此」。即位序 = (月 + 日 − 1) mod 6（大安 0）。
+/// 《田家五行》卷下「赤口日」：「以月建上起初一日，順數加辰戌二位是」，所推全同（正月寅起初一，初三至辰、初九至戌……）。
+/// 闰月从本月之数（书未言，未核）。
+pub fn xiao_liu_ren(lunar_month: u8, lunar_day: u8) -> &'static str {
+    XIAO_LIU_REN[(lunar_month as usize + lunar_day as usize + 5) % 6]
+}
+
+/// 赤口之用
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChiKouRule {
+    /// 不用（缺省）：协纪不立赤口；卷三十六「上兀下兀」谓兀日「不過小六壬之留連赤口日耳……毫無深義」
+    BuYong,
+    /// 类编：「論嫁娶凶日」忌赤口，凡赤口日否决
+    LeiBian,
+    /// 儲泳《祛疑説》「赤口煞」：「用之亦活法，不可以此小害遽廢良日，如赤口值寅巳酉戌則不可用，餘皆無害」。
+    /// 「值寅巳酉戌」读作赤口日之日支（推读，未核）
+    QuYi,
+}
+
+/// 鳌头卷三嫁娶门（第 4 册 PDF 第 14 页）「橫天朱雀」：「每月初一日是，若值初一行嫁主再娶」（农历初一，类编卷七不载）
+pub fn heng_tian_zhu_que(lunar_day: u8) -> bool {
+    lunar_day == 1
+}
+
+// ───────────────────────── 类编逐月吉日表 ─────────────────────────
+
+/// 类编卷七逐月吉日表录文（`02094406.cn` PDF 第 42—48 页，书影目读）：求婚、下定、嫁娶、嫁娶結親備急用
+const JIRI_CSV: &str = include_str!("../../../../data/folk/leibian_jiaqu_jiri.csv");
+
+/// 类编卷七之吉日表
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum JiriBiao {
+    /// 「逐月求婚吉日」（第 42—43 页）；表末「右吉日不犯魁罡約[勾]絞月破受死九空九土鬼人隔陰陽錯日」
+    QiuHun,
+    /// 「逐月下定吉日」（第 43—45 页）
+    XiaDing,
+    /// 「逐月嫁娶吉日」（第 45—46 页），注上吉、係不將、合季分、人民合等；表末「右吉日不犯魁罡月厭厭對月破天賊受死紅沙吟神人民離四忌五窮陰陽錯往亡亥日」
+    JiaQu,
+    /// 「嫁娶結親吉日備急用」（第 46—48 页），注不將、三合、五合、六合、月德合等；表末「依大全曆取其三合五合月德合不將六合日為吉，以備卒急用」
+    BeiJi,
+}
+
+impl JiriBiao {
+    pub const ALL: [JiriBiao; 4] = [JiriBiao::QiuHun, JiriBiao::XiaDing, JiriBiao::JiaQu, JiriBiao::BeiJi];
+    pub fn name(self) -> &'static str {
+        match self {
+            JiriBiao::QiuHun => "求婚",
+            JiriBiao::XiaDing => "下定",
+            JiriBiao::JiaQu => "嫁娶",
+            JiriBiao::BeiJi => "嫁娶備急",
+        }
+    }
+}
+
+/// 吉日表一条：(表, 月 1—12, 干支序, 注, 页, 校)
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct JiriEntry {
+    pub biao: JiriBiao,
+    pub month: u8,
+    pub gz: u8,
+    pub zhu: &'static str,
+    pub page: u8,
+    pub jiao: &'static str,
+}
+
+/// 吉日表全部条目（同月重出者照录）
+pub fn jiri_entries() -> &'static [JiriEntry] {
+    static T: std::sync::OnceLock<Vec<JiriEntry>> = std::sync::OnceLock::new();
+    T.get_or_init(|| {
+        JIRI_CSV
+            .lines()
+            .skip(1)
+            .filter(|l| !l.trim().is_empty())
+            .map(|l| {
+                let f: Vec<&'static str> = l.split(',').collect();
+                let biao = *JiriBiao::ALL.iter().find(|b| b.name() == f[0]).expect("表名");
+                JiriEntry { biao, month: f[1].parse().unwrap(), gz: gz_index(f[3]), zhu: f[4], page: f[5].parse().unwrap(), jiao: f[6] }
+            })
+            .collect()
+    })
+}
+
+/// 某月（月建序，寅月 0）某干支见于何表：(表, 注)。表以月为目，书不言节气抑月分；
+/// 其注不將、披麻皆以月建论，故按节气月查（未核）
+pub fn leibian_jiri(month_ord: u8, day_gz: u8) -> Vec<(JiriBiao, &'static str)> {
+    let mut v: Vec<(JiriBiao, &'static str)> = Vec::new();
+    for e in jiri_entries() {
+        if e.month == month_ord % 12 + 1 && e.gz == day_gz && !v.iter().any(|(b, _)| *b == e.biao) {
+            v.push((e.biao, e.zhu));
+        }
+    }
+    v
+}
 
 // ───────────────────────── 周堂 ─────────────────────────
 
@@ -308,6 +413,10 @@ pub struct JiaquOptions {
     pub zhi_hua: bool,
     /// 阴阳不将之戊己寄法（仅作附注；协纪逐月表另列）
     pub wuji: WuJiJi,
+    /// 赤口（小六壬）之用——缺省不用，只作附注
+    pub chi_kou: ChiKouRule,
+    /// 用鳌头「橫天朱雀」（初一）否决——缺省 false：只作附注
+    pub heng_tian_zhu_que: bool,
 }
 
 impl Default for JiaquOptions {
@@ -320,6 +429,8 @@ impl Default for JiaquOptions {
             bai_hu: BaiHuRule::LeiBian,
             zhi_hua: false,
             wuji: WuJiJi::LeiBian,
+            chi_kou: ChiKouRule::BuYong,
+            heng_tian_zhu_que: false,
         }
     }
 }
@@ -356,6 +467,10 @@ pub struct JiaquDay {
     pub jiang: Jiang,
     /// 类编凶神 (名, 所忌)
     pub leibian_xiong: Vec<(&'static str, &'static str)>,
+    /// 小六壬之位（类编卷十五；值「赤口」者为赤口日）
+    pub xiao_liu_ren: &'static str,
+    /// 类编卷七逐月吉日表所列：(表, 注)
+    pub leibian_jiri: Vec<(JiriBiao, &'static str)>,
     /// 不可制（或未用制化）之否决
     pub reasons: Vec<String>,
     /// 经制化之否决：(所制之忌, 制法与出处)。仅「用制化」时有
@@ -470,6 +585,35 @@ pub fn judge_day(d: &PuzhuDay, inp: &JiaquInput, o: &JiaquOptions) -> JiaquDay {
     if lx.iter().any(|(n, _)| *n == "受死") {
         notes.push(format!("受死：{JIE_SHOU_SI}"));
     }
+    // 赤口（类编卷十五小六壬；不可制）
+    let lr = xiao_liu_ren(d.lunar.month, d.lunar.day);
+    if lr == "赤口" {
+        let ck_bad = match o.chi_kou {
+            ChiKouRule::BuYong => false,
+            ChiKouRule::LeiBian => true,
+            ChiKouRule::QuYi => matches!(gz % 12, 2 | 5 | 9 | 10),
+        };
+        if ck_bad {
+            veto.push((format!("赤口（{}）", if o.chi_kou == ChiKouRule::QuYi { "祛疑説：值寅巳酉戌" } else { "类编" }), None));
+        } else {
+            notes.push("赤口（类编卷十五小六壬；协纪不立）".into());
+        }
+    }
+    // 橫天朱雀（鳌头卷三；不可制）
+    if heng_tian_zhu_que(d.lunar.day) {
+        if o.heng_tian_zhu_que {
+            veto.push(("鳌头：橫天朱雀（初一）".into(), None));
+        } else {
+            notes.push("橫天朱雀（鳌头：初一行嫁主再娶）".into());
+        }
+    }
+    let jiri = leibian_jiri(d.month_ord, gz);
+    if !jiri.is_empty() {
+        notes.push(format!(
+            "类编吉日表：{}",
+            jiri.iter().map(|(b, z)| if z.is_empty() { b.name().to_string() } else { format!("{}（{z}）", b.name()) }).collect::<Vec<_>>().join("、")
+        ));
+    }
     let bjx = bu_jiang_xieji(d.month_ord, gz);
     let jg = jiang(d.month_ord, gz, o.wuji);
     if bjx || jg == Jiang::BuJiang {
@@ -510,6 +654,8 @@ pub fn judge_day(d: &PuzhuDay, inp: &JiaquInput, o: &JiaquOptions) -> JiaquDay {
         bu_jiang_xieji: bjx,
         jiang: jg,
         leibian_xiong: lx,
+        xiao_liu_ren: lr,
+        leibian_jiri: jiri,
         reasons,
         jie,
         notes,
@@ -679,6 +825,127 @@ mod tests {
         let free = choose(&vsop, &elp, None, j0, j0 + 364, &JiaquInput { has_weng_gu: false, ..inp }, &JiaquOptions::default());
         assert!(free.iter().all(|d| !d.reasons.iter().any(|r| r.contains("有翁姑"))));
     }
+
+    /// 赤口：类编卷十五歌诀与例，及《田家五行》「月建上起初一日，順數加辰戌二位」所推全同
+    #[test]
+    fn chi_kou_xiao_liu_ren() {
+        assert_eq!(xiao_liu_ren(1, 1), "留連");
+        assert_eq!(xiao_liu_ren(1, 2), "速喜");
+        assert_eq!(xiao_liu_ren(1, 3), "赤口");
+        assert_eq!(xiao_liu_ren(1, 6), "大安");
+        // 正七留連、二八速喜、三九赤口、四十小吉、五十一空亡、六十二大安（初一）
+        for (m, s) in [(1, "留連"), (7, "留連"), (2, "速喜"), (8, "速喜"), (3, "赤口"), (9, "赤口"), (4, "小吉"), (10, "小吉"), (5, "空亡"), (11, "空亡"), (6, "大安"), (12, "大安")] {
+            assert_eq!(xiao_liu_ren(m, 1), s, "{m}月初一");
+        }
+        for m in 1..=12u8 {
+            for d in 1..=30u8 {
+                let tian_jia = (m as u32 + 1 + d as u32 - 1) % 12; // 月建（正月寅）上起初一顺数
+                assert_eq!(xiao_liu_ren(m, d) == "赤口", tian_jia == 4 || tian_jia == 10, "{m}月{d}日");
+            }
+        }
+        assert!(heng_tian_zhu_que(1) && !heng_tian_zhu_que(2));
+    }
+
+    /// 类编卷七逐月吉日表（录文 data/folk/leibian_jiaqu_jiri.csv）与 jiaqu 诸判据逐条比对（按月建、干支，不涉具体年日）。
+    /// 设环境变量 `JIAQU_JIRI_CHECKS` 时写出逐条结果 data/folk/leibian_jiaqu_jiri_checks.csv（工作目录须为 rust/core）。
+    #[test]
+    fn leibian_jiri_vs_rules() {
+        use super::super::yiji::yuebiao_day;
+        let es = jiri_entries();
+        let cnt = |b: JiriBiao| es.iter().filter(|e| e.biao == b).count();
+        assert_eq!((cnt(JiriBiao::QiuHun), cnt(JiriBiao::XiaDing), cnt(JiriBiao::JiaQu), cnt(JiriBiao::BeiJi)), (113, 100, 54, 67));
+        // 凶神：不随年变者（雷霆白虎随月干、伏斷随值宿，不入此比）
+        const VETO: [&str; 19] = ["月厭", "厭對", "歸忌", "天賊", "月破", "亥日", "大殺白虎入中宮", "人民離", "披麻殺", "天寡", "地寡", "紅沙殺", "天罡勾絞", "河魁勾絞", "往亡", "無翹", "陰錯", "陽錯", "受死"];
+        let mut out = String::from("表,月,干支,注,協紀月表宜,協紀歷例不將,類編法不將,類編凶神,類編所列他神,注與推算\n");
+        let mut stat: Vec<(JiriBiao, [usize; 6])> = JiriBiao::ALL.iter().map(|b| (*b, [0; 6])).collect();
+        for e in es {
+            let m = e.month - 1;
+            let ev = match e.biao {
+                JiriBiao::QiuHun => "結婚姻",
+                JiriBiao::XiaDing => "納采問名",
+                _ => "嫁娶",
+            };
+            let yi = yuebiao_day(m, e.gz).yi.as_ref().is_some_and(|v| v.iter().any(|x| x == ev));
+            let bjx = bu_jiang_xieji(m, e.gz);
+            let bjl = jiang(m, e.gz, WuJiJi::LeiBian) == Jiang::BuJiang;
+            let all: Vec<&str> = leibian_xiong(m, 0, e.gz, 0).into_iter().map(|(n, _)| n).filter(|n| !["雷霆白虎入中宮", "伏斷"].contains(n)).collect();
+            let xs: Vec<&str> = all.iter().copied().filter(|n| VETO.contains(n)).collect();
+            let other: Vec<&str> = all.iter().copied().filter(|n| !VETO.contains(n)).collect();
+            // 注云不將者，推算是否不將（任一家）
+            let zhu_bj = e.zhu.contains("不將");
+            let agree = if zhu_bj { if bjx || bjl { "注不將，推算合" } else { "注不將，推算非不將" } } else { "" };
+            let s = &mut stat.iter_mut().find(|(b, _)| *b == e.biao).unwrap().1;
+            s[0] += 1;
+            s[1] += yi as usize;
+            s[2] += bjx as usize;
+            s[3] += bjl as usize;
+            s[4] += (!xs.is_empty()) as usize;
+            s[5] += (zhu_bj && !(bjx || bjl)) as usize;
+            out += &format!(
+                "{},{},{},{},{},{},{},{},{},{}\n",
+                e.biao.name(),
+                e.month,
+                GZ60[e.gz as usize],
+                e.zhu,
+                if yi { "宜" } else { "" },
+                if bjx { "是" } else { "" },
+                if bjl { "是" } else { "" },
+                xs.join(" "),
+                other.join(" "),
+                agree
+            );
+        }
+        for (b, s) in &stat {
+            eprintln!("{}：{} 条，协纪月表宜{} {}，协纪不将 {}，类编法不将 {}，犯类编凶神 {}，注不将而推算非 {}", b.name(), s[0], match b {
+                JiriBiao::QiuHun => "結婚姻",
+                JiriBiao::XiaDing => "納采問名",
+                _ => "嫁娶",
+            }, s[1], s[2], s[3], s[4], s[5]);
+        }
+        if std::env::var("JIAQU_JIRI_CHECKS").is_ok() {
+            std::fs::write("../../data/folk/leibian_jiaqu_jiri_checks.csv", out).unwrap();
+        }
+    }
+
+    /// 2026 年逐日：类编嫁娶吉日表所列之日在诸规则下之判，及赤口、橫天朱雀之选项于可用日之影响（女命乙巳，翁姑、女父母俱在）
+    #[test]
+    fn jiri_and_chi_kou_2026() {
+        use crate::astronomy::ephemeris::{load_all, load_earth_vsop87_from_repo, Elpmpp02Correction};
+        use crate::calendar::gregorian::Gregorian;
+        use crate::math::real::RealOps;
+        let vsop = load_earth_vsop87_from_repo().unwrap();
+        let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT).unwrap();
+        let j0 = (Gregorian::to_julian_day(2026, 1, 1).as_f64() + 0.5).floor() as i64;
+        let inp = JiaquInput { nv_year_gz: 41, has_weng_gu: true, has_nv_fu_mu: true, na_xu: false };
+        let lb = JiaquOptions { leibian_xiong: true, zhou_tang: ZhouTangRule::LeiBian, ..JiaquOptions::default() };
+        let cases = [
+            ("协纪（缺省）", JiaquOptions::default()),
+            ("协纪 + 赤口类编", JiaquOptions { chi_kou: ChiKouRule::LeiBian, ..JiaquOptions::default() }),
+            ("协纪 + 赤口祛疑説", JiaquOptions { chi_kou: ChiKouRule::QuYi, ..JiaquOptions::default() }),
+            ("协纪 + 橫天朱雀", JiaquOptions { heng_tian_zhu_que: true, ..JiaquOptions::default() }),
+            ("类编凶神 + 类编周堂", lb),
+            ("类编凶神 + 类编周堂 + 赤口类编 + 橫天朱雀", JiaquOptions { chi_kou: ChiKouRule::LeiBian, heng_tian_zhu_que: true, ..lb }),
+            ("只用类编凶神（协纪月表、周堂不用）", JiaquOptions { xieji_yiji: XieJiYiJi::BuYong, zhou_tang: ZhouTangRule::BuYong, leibian_xiong: true, ..JiaquOptions::default() }),
+        ];
+        let mut ck_days = 0;
+        for (name, o) in cases {
+            let v = choose(&vsop, &elp, None, j0, j0 + 364, &inp, &o);
+            ck_days = v.iter().filter(|d| d.xiao_liu_ren == "赤口").count();
+            let ok = v.iter().filter(|d| d.usable()).count();
+            let in_jq: Vec<&JiaquDay> = v.iter().filter(|d| d.leibian_jiri.iter().any(|(b, _)| *b == JiriBiao::JiaQu)).collect();
+            let in_bj = v.iter().filter(|d| d.leibian_jiri.iter().any(|(b, _)| *b == JiriBiao::BeiJi)).count();
+            let jq_ok = in_jq.iter().filter(|d| d.usable()).count();
+            let ok_in_any = v.iter().filter(|d| d.usable() && d.leibian_jiri.iter().any(|(b, _)| matches!(b, JiriBiao::JiaQu | JiriBiao::BeiJi))).count();
+            eprintln!("{name}：可用 {ok}；嫁娶表之日 {} 中可用 {jq_ok}；備急表之日 {in_bj}；可用日见于嫁娶或備急表 {ok_in_any}", in_jq.len());
+        }
+        eprintln!("2026 年赤口日 {ck_days}");
+        // 赤口日约占六分之一
+        assert!((55..=67).contains(&ck_days), "{ck_days}");
+    }
+
+    const GZ60: [&str; 60] = [
+        "甲子", "乙丑", "丙寅", "丁卯", "戊辰", "己巳", "庚午", "辛未", "壬申", "癸酉", "甲戌", "乙亥", "丙子", "丁丑", "戊寅", "己卯", "庚辰", "辛巳", "壬午", "癸未", "甲申", "乙酉", "丙戌", "丁亥", "戊子", "己丑", "庚寅", "辛卯", "壬辰", "癸巳", "甲午", "乙未", "丙申", "丁酉", "戊戌", "己亥", "庚子", "辛丑", "壬寅", "癸卯", "甲辰", "乙巳", "丙午", "丁未", "戊申", "己酉", "庚戌", "辛亥", "壬子", "癸丑", "甲寅", "乙卯", "丙辰", "丁巳", "戊午", "己未", "庚申", "辛酉", "壬戌", "癸亥",
+    ];
 
     #[test]
     fn huang_dao_hours() {

@@ -490,4 +490,69 @@ mod tests {
         assert!(names.contains(&"天德") && names.contains(&"五合") && names.contains(&"官日"), "{names:?}");
         assert_eq!(MONTH_SHEN.len(), 63);
     }
+
+    /// 类编卷十一逐月日表（`data/folk/leibian_juan11_days.csv`，02094408.cn 逐页转录）与本模块起例逐日互校。
+    /// 卷十一名 → 本模块名（同位异名）；比对 720 日，打印各神合与不合，并断言不合者只是已在 CSV 备注中注明的刻漏。
+    /// `cargo test -p lunar-core leibian_juan11 -- --nocapture` 打印比对表（doc/folk/tongshu.md 第七节）。
+    #[test]
+    fn leibian_juan11() {
+        const DAYS: &str = include_str!("../../../../data/folk/leibian_juan11_days.csv");
+        // (卷十一名, 本模块名, 依类编选项 true / 依协纪缺省 false)
+        let pairs: [(&str, &str, bool); 27] = [
+            ("月德", "月德", false), ("月德合", "月德合", false), ("月空", "月空", false), ("月恩", "月恩", false),
+            ("天德", "天德", true), ("天德合", "天德合", true), ("天赦", "天赦", false), ("母倉", "母倉", false),
+            ("天恩", "天恩", false), ("要安", "要安", false), ("玉堂", "玉宇", false), ("金堂", "金堂", false),
+            ("敬心", "敬安", false), ("普護", "普護", false), ("福生", "福生", false), ("聖心", "聖心", false),
+            ("益後", "益後", false), ("續世", "續世", false), ("六合", "六合", false), ("游禍", "遊禍", false),
+            ("月殺", "月煞", false), ("天火", "天火", true), ("焦坎", "九坎", false), ("飛廉", "大煞", false),
+            ("歸忌", "歸忌", false), ("荒蕪", "荒蕪", true), ("正四廢", "四廢", false),
+        ];
+        // 卷十一刻漏（CSV 备注已注）：(月, 干支, 卷十一名)
+        let known_omit = [(3u8, "丁亥", "刀砧"), (6, "庚子", "荒蕪"), (9, "辛亥", "荒蕪"), (9, "庚子", "土瘟")];
+        let gz_idx = |s: &str| (0..60u8).find(|&k| name60(k) == s).unwrap();
+        let lb = ShenshaOptions::leibian();
+        let xj = ShenshaOptions::default();
+        let mut stat = vec![(0usize, 0usize, Vec::<String>::new()); pairs.len()];
+        let mut rows = 0;
+        for l in DAYS.lines().skip(1).filter(|l| !l.trim().is_empty()) {
+            let f: Vec<&str> = l.split(',').collect();
+            let m: u8 = f[0].parse().unwrap();
+            let d = gz_idx(f[1]);
+            let names: Vec<&str> = f[4].split(' ').chain(f[5].split(' ')).filter(|s| !s.is_empty()).collect();
+            rows += 1;
+            let ours_lb: Vec<String> = shen_for_day_with(m - 1, d, &lb).into_iter().map(|x| x.0).collect();
+            let ours_xj: Vec<String> = shen_for_day_with(m - 1, d, &xj).into_iter().map(|x| x.0).collect();
+            for (k, (a, b, use_lb)) in pairs.iter().enumerate() {
+                let ours = if *use_lb { &ours_lb } else { &ours_xj };
+                let theirs = names.contains(a);
+                let mine = ours.iter().any(|n| n == b);
+                if theirs == mine {
+                    stat[k].0 += 1;
+                } else {
+                    stat[k].1 += 1;
+                    stat[k].2.push(format!("{m}月{}{}", f[1], if theirs { "卷十一有" } else { "卷十一無" }));
+                }
+            }
+        }
+        assert_eq!(rows, 720);
+        println!("| 卷十一 | 本项目 | 起例 | 合 | 不合 | 不合之日 |");
+        println!("|---|---|---|---|---|---|");
+        for (k, (a, b, use_lb)) in pairs.iter().enumerate() {
+            println!("| {a} | {b} | {} | {} | {} | {} |", if *use_lb { "类编" } else { "协纪" }, stat[k].0, stat[k].1, stat[k].2.join(" "));
+            if *a == "荒蕪" {
+                // 不合只许是 CSV 已注的两处漏刻
+                for e in &stat[k].2 {
+                    assert!(known_omit.iter().any(|(mm, g, n)| *n == "荒蕪" && e == &format!("{mm}月{g}卷十一無")), "{e}");
+                }
+            } else if *a == "天德" || *a == "天德合" || *a == "天火" {
+                assert_eq!(stat[k].1, 0, "{a}");
+            }
+        }
+        // 協紀起例之神除已知异说外逐日全合
+        for (k, (a, _, use_lb)) in pairs.iter().enumerate() {
+            if !use_lb {
+                assert_eq!(stat[k].1, 0, "{a}: {:?}", stat[k].2);
+            }
+        }
+    }
 }
