@@ -116,11 +116,13 @@ pub enum ShenZhuTable {
 pub struct ZiweiExtraOptions {
     pub huo_ling: SiYouChouHuoLing,
     pub shen_zhu: ShenZhuTable,
+    /// 加排韩国藏写本第 9、11 页诸星（全书无，见 [`xie_ben_stars`]）；缺省不排
+    pub xie_ben_xing: bool,
 }
 
 impl Default for ZiweiExtraOptions {
     fn default() -> Self {
-        Self { huo_ling: SiYouChouHuoLing::QuanShu, shen_zhu: ShenZhuTable::QuanShu }
+        Self { huo_ling: SiYouChouHuoLing::QuanShu, shen_zhu: ShenZhuTable::QuanShu, xie_ben_xing: false }
     }
 }
 
@@ -399,6 +401,9 @@ pub fn chart_with(inp: &ZiweiInput, o: &ZiweiOptions, x: &ZiweiExtraOptions) -> 
     stars.push(Star { name: "旬空", zhi: m12(k0 as i32 + 1) });
     // 解神：从戌上起子，逆数至当生年太岁（全书「安天德月德解神訣」）
     stars.push(Star { name: "解神", zhi: m12(10 - yzi) });
+    if x.xie_ben_xing {
+        stars.extend(xie_ben_stars(inp.year_gz));
+    }
 
     let sh = si_hua(yg, o.si_hua);
     let si_hua = vec![("化祿", sh[0]), ("化權", sh[1]), ("化科", sh[2]), ("化忌", sh[3])];
@@ -598,6 +603,115 @@ impl Chart {
     pub fn brightness(&self, name: &str) -> Option<MiaoWang> {
         self.star(name).and_then(|z| miao_wang(name, z))
     }
+}
+
+/// 韩国藏写本《紫微斗數方書》第 9、11 页所载、全书所无之星（按生年干支）。逐字依写本：
+/// - 第 9 页：天官「甲人未，乙人辰，丙人巳，丁人寅，戊人卯，己辛人酉，庚人亥，壬人戌，癸人午」；
+///   天福「甲人酉，乙人申，丙人子，丁人亥，戊人卯，己人寅，庚壬人午，辛癸人巳」；
+///   華蓋「申子辰居辰，寅午戌居戌，亥卯未在未，巳酉丑在丑」；桃花殺「寅午戌兔，申子辰鷄，亥卯未鼠，巳酉丑馬」；
+///   孤辰寡宿「寅卯辰人安巳丑，巳午未人怕申辰，申酉戌人居亥未，亥子丑人寅戌嗔」（先孤后寡）；
+///   破碎殺「子午卯酉蛇，寅申巳亥鷄，辰戌丑未牛」；劫殺（与天马同条）「申子辰生……劫巳，寅午戌生……劫亥，巳酉丑……劫寅，
+///   亥卯未生……劫申」；大耗殺「鼠忌羊，牛嗔馬，虎嫌鷄，兔恐猴，龍憎猪，蛇驚犬，互見」。
+/// - 第 11 页：天廚「甲丙生巳宮，乙丁生午，戊生申，己生酉，庚生亥，辛生子宮，壬生寅，癸生卯」；
+///   太極貴人「甲年子宮，乙年午，丙年卯，丁年酉，戊年巳，己年午宮，庚年寅，辛年亥，壬年亥，癸年申」；
+///   科名（「星即貴」）「甲乙寅，丙丁亥，戊己巳，庚辛申，壬癸巳」；文星貴「甲未，乙辰，丙巳，丁寅，戊丑，己戌，庚午，辛申，壬癸卯」；
+///   山河節度「甲戊丙寅，乙己丁未，庚壬亥，辛癸丑」；福星貴「甲丙寅子，乙癸丑，丁亥，戊申，己未，庚午，辛巳，壬辰」
+///   （「甲丙寅子」读作甲、丙俱寅子二宫，与《三命通會》卷八「甲丙相邀入虎鄉」、卷五「甲人見丙寅丙子」合；读作甲寅丙子亦通，**未核**）。
+/// 写本页中另有流殺、祿倒、馬倒诸条，非本命之星，未取。
+pub fn xie_ben_stars(year_gz: u8) -> Vec<Star> {
+    let g = (year_gz % 10) as usize;
+    let z = year_gz % 12;
+    let grp = san_he_group(z); // 0 寅午戌 1 申子辰 2 巳酉丑 3 亥卯未
+    let mut v = vec![
+        Star { name: "天官", zhi: [7u8, 4, 5, 2, 3, 9, 11, 9, 10, 6][g] },
+        Star { name: "天福", zhi: [9u8, 8, 0, 11, 3, 2, 6, 5, 6, 5][g] },
+        Star { name: "華蓋", zhi: [10u8, 4, 1, 7][grp] },
+        Star { name: "桃花殺", zhi: [3u8, 9, 6, 0][grp] },
+        Star { name: "劫殺", zhi: [11u8, 5, 2, 8][grp] },
+        Star { name: "破碎", zhi: [5u8, 9, 1][[0usize, 2, 1, 0, 2, 1][z as usize % 6]] },
+        Star { name: "大耗", zhi: [7u8, 6, 9, 8, 11, 10, 1, 0, 3, 2, 5, 4][z as usize] },
+        Star { name: "天廚", zhi: [5u8, 6, 5, 6, 8, 9, 11, 0, 2, 3][g] },
+        Star { name: "太極貴人", zhi: [0u8, 6, 3, 9, 5, 6, 2, 11, 11, 8][g] },
+        Star { name: "科名", zhi: [2u8, 2, 11, 11, 5, 5, 8, 8, 5, 5][g] },
+        Star { name: "文星貴", zhi: [7u8, 4, 5, 2, 1, 10, 6, 8, 3, 3][g] },
+        Star { name: "山河節度", zhi: [2u8, 7, 2, 7, 2, 7, 11, 1, 11, 1][g] },
+    ];
+    // 孤辰寡宿：寅卯辰（方）巳丑、巳午未申辰、申酉戌亥未、亥子丑寅戌
+    let fang = ((z as usize + 10) % 12) / 3; // 寅卯辰 0、巳午未 1、申酉戌 2、亥子丑 3
+    let (gu, gua) = [(5u8, 1u8), (8, 4), (11, 7), (2, 10)][fang];
+    v.push(Star { name: "孤辰", zhi: gu });
+    v.push(Star { name: "寡宿", zhi: gua });
+    match g {
+        0 | 2 => {
+            v.push(Star { name: "福星貴", zhi: 2 });
+            v.push(Star { name: "福星貴", zhi: 0 });
+        }
+        _ => v.push(Star { name: "福星貴", zhi: [0u8, 1, 0, 11, 8, 7, 6, 5, 4, 1][g] }),
+    }
+    v
+}
+
+/// 某宫之三方四正：本宫、对宫、两三合宫
+pub fn san_fang_si_zheng(zhi: u8) -> [u8; 4] {
+    let z = zhi as i32;
+    [m12(z), m12(z + 6), m12(z + 4), m12(z + 8)]
+}
+
+/// 小限：某虚岁所在之宫（一岁为 `xiao_xian_start`，一年一宫）
+pub fn xiao_xian_at(c: &Chart, age: u32) -> u8 {
+    let k = (age.max(1) - 1) as i32;
+    m12(c.xiao_xian_start as i32 + if c.xiao_xian_forward { k } else { -k })
+}
+
+/// 大限：某虚岁所在之宫（未及起限之岁为 None）
+pub fn da_xian_at(c: &Chart, age: u32) -> Option<u8> {
+    c.da_xian.iter().find(|(a, b, _)| (*a as u32..=*b as u32).contains(&age)).map(|x| x.2)
+}
+
+/// 流年限上之格（只取原书有明文、可据星位判定者）：
+/// - 「羊陀迭並」（全书卷三「論羊陀迭並」）：命宫三方四正原有擎羊或陀羅，流年又遇流羊或流陀于命宫三方四正。
+///   书例「庚年生人，命在卯宮，遷移在酉宮……流年亦庚祿居申，流羊在酉，流陀在未」。
+/// - 「七殺重逢」（全书卷三「論七殺重逢」）：「命中三合原有七殺守照，而流年又遇流羊流陀沖照」——七杀与流羊或流陀俱在命宫三方四正。
+/// - 「小限羊陀重逢」「重逢七殺」（写本第 11—12 页）：「如甲子生人安命在巳，小限又行在亥，擎羊又在卯宮，却是三方四正俱見羊陀，
+///   又見重逢七殺，正遭毒禍」——小限宫三方四正兼见本命羊陀与流羊流陀为重逢，又见七杀则「正遭毒禍」。
+/// - 「竹羅三限」（写本第 12 页「定竹羅三限」）：「大小二限三方四正遇七殺破軍貪狼三星并巨暗及流年太歲諸凶殺曜交會」——
+///   此只判三星俱见（三星恒相三合，见一即见三），巨门与流年凶曜另列于判语之后。
+/// 「三方四正」之「冲合」取本宫、对宫、三合（[`san_fang_si_zheng`]）。诸格判定方式为本项目之读法，**未核**。
+pub fn liu_nian_ge(c: &Chart, liu: &LiuNian, age: u32) -> Vec<String> {
+    let has = |zs: &[u8; 4], names: &[&str], liu_side: bool| -> bool {
+        names.iter().any(|n| {
+            let z = if liu_side { liu.star(n) } else { c.star(n) };
+            z.is_some_and(|z| zs.contains(&z))
+        })
+    };
+    let mut out = Vec::new();
+    let ming = san_fang_si_zheng(c.ming);
+    let ben_yt = has(&ming, &["擎羊", "陀羅"], false);
+    let liu_yt = has(&ming, &["流羊", "流陀"], true);
+    if ben_yt && liu_yt {
+        out.push("羊陀迭並".to_string());
+    }
+    if has(&ming, &["七殺"], false) && liu_yt {
+        out.push("七殺重逢".to_string());
+    }
+    let xx = san_fang_si_zheng(xiao_xian_at(c, age));
+    if has(&xx, &["擎羊", "陀羅"], false) && has(&xx, &["流羊", "流陀"], true) {
+        out.push(if has(&xx, &["七殺"], false) { "小限羊陀重逢七殺".to_string() } else { "小限羊陀重逢".to_string() });
+    }
+    let xiong = ["流羊", "流陀", "喪門", "白虎", "弔客", "官符"];
+    for (nm, zx) in [("大限", da_xian_at(c, age)), ("小限", Some(xiao_xian_at(c, age)))] {
+        let Some(zx) = zx else { continue };
+        let zs = san_fang_si_zheng(zx);
+        if has(&zs, &["七殺"], false) && has(&zs, &["破軍"], false) && has(&zs, &["貪狼"], false) {
+            let mut extra: Vec<&str> = Vec::new();
+            if has(&zs, &["巨門"], false) {
+                extra.push("巨門");
+            }
+            extra.extend(xiong.iter().copied().filter(|n| has(&zs, &[n], true)));
+            out.push(if extra.is_empty() { format!("{nm}竹羅三限") } else { format!("{nm}竹羅三限（并{}）", extra.join("、")) });
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -848,4 +962,75 @@ mod tests {
         assert_eq!(chart_with(&chen, &o, &ZiweiExtraOptions { shen_zhu: ShenZhuTable::KoreanMs, ..Default::default() }).shen_zhu, "文曲");
     }
 
+
+    /// 写本第 9、11 页诸星：逐条依写本（甲子、己丑、庚寅诸年）
+    #[test]
+    fn xie_ben_xing() {
+        let at = |gz: u8, n: &str| -> Vec<u8> { xie_ben_stars(gz).iter().filter(|s| s.name == n).map(|s| s.zhi).collect() };
+        // 甲子年：天官未、天福酉、華蓋辰、桃花酉、劫殺巳、破碎巳、大耗未、天廚巳、太極子、科名寅、文星貴未、山河寅、孤寅寡戌、福星寅子
+        assert_eq!(at(0, "天官"), [z("未")]);
+        assert_eq!(at(0, "天福"), [z("酉")]);
+        assert_eq!(at(0, "華蓋"), [z("辰")]);
+        assert_eq!(at(0, "桃花殺"), [z("酉")]);
+        assert_eq!(at(0, "劫殺"), [z("巳")]);
+        assert_eq!(at(0, "破碎"), [z("巳")]);
+        assert_eq!(at(0, "大耗"), [z("未")]);
+        assert_eq!(at(0, "天廚"), [z("巳")]);
+        assert_eq!(at(0, "太極貴人"), [z("子")]);
+        assert_eq!(at(0, "科名"), [z("寅")]);
+        assert_eq!(at(0, "文星貴"), [z("未")]);
+        assert_eq!(at(0, "山河節度"), [z("寅")]);
+        assert_eq!((at(0, "孤辰"), at(0, "寡宿")), (vec![z("寅")], vec![z("戌")]));
+        assert_eq!(at(0, "福星貴"), [z("寅"), z("子")]);
+        // 己丑年（25）：破碎丑、大耗午、孤寅寡戌、華蓋丑、劫殺寅、桃花午
+        assert_eq!(at(25, "破碎"), [z("丑")]);
+        assert_eq!(at(25, "大耗"), [z("午")]);
+        assert_eq!(at(25, "華蓋"), [z("丑")]);
+        // 庚寅年（26）：破碎酉、孤巳寡丑、天官亥、福星午
+        assert_eq!(at(26, "破碎"), [z("酉")]);
+        assert_eq!((at(26, "孤辰"), at(26, "寡宿")), (vec![z("巳")], vec![z("丑")]));
+        assert_eq!(at(26, "福星貴"), [z("午")]);
+        // 缺省命盘不排写本诸星，选项排之
+        let inp = ZiweiInput { year_gz: 0, lunar_month: 1, is_leap_month: false, lunar_day: 1, hour_zhi: 0, male: true };
+        assert!(chart(&inp, &ZiweiOptions::default()).star("天官").is_none());
+        let x = ZiweiExtraOptions { xie_ben_xing: true, ..Default::default() };
+        assert_eq!(chart_with(&inp, &ZiweiOptions::default(), &x).star("天官"), Some(z("未")));
+    }
+
+    /// 流年限上之格：写本第 11 页甲子生人、小限亥、己丑流年例；全书卷三羊陀迭并庚年命卯例
+    #[test]
+    fn liu_nian_ge_examples() {
+        // 甲子男：小限申子辰人自戌宫起、男顺；己丑年虚岁二十六，小限在亥（写本「小限又行在亥」）
+        let o = ZiweiOptions::default();
+        let mut found = None;
+        for m in 1..=12u8 {
+            for h in 0..12u8 {
+                let inp = ZiweiInput { year_gz: 0, lunar_month: m, is_leap_month: false, lunar_day: 1, hour_zhi: h, male: true };
+                let c = chart(&inp, &o);
+                if c.ming == z("巳") {
+                    found = Some((inp, c));
+                }
+            }
+        }
+        let (inp, c) = found.unwrap();
+        assert_eq!(xiao_xian_at(&c, 26), z("亥"));
+        assert_eq!(c.star("擎羊"), Some(z("卯")));
+        let liu = liu_nian(&inp, &c, 25);
+        assert_eq!((liu.star("流羊"), liu.star("流陀")), (Some(z("未")), Some(z("巳"))));
+        let ge = liu_nian_ge(&c, &liu, 26);
+        assert!(ge.iter().any(|g| g.starts_with("小限羊陀重逢")), "{ge:?}");
+        // 全书例：庚年生、命卯，擎羊酉；庚年流羊酉、流陀未
+        for m in 1..=12u8 {
+            for h in 0..12u8 {
+                let inp = ZiweiInput { year_gz: 6, lunar_month: m, is_leap_month: false, lunar_day: 1, hour_zhi: h, male: true };
+                let c = chart(&inp, &o);
+                if c.ming == z("卯") {
+                    assert_eq!(c.star("擎羊"), Some(z("酉")));
+                    let liu = liu_nian(&inp, &c, 6);
+                    assert_eq!((liu.star("流羊"), liu.star("流陀")), (Some(z("酉")), Some(z("未"))));
+                    assert!(liu_nian_ge(&c, &liu, 1).contains(&"羊陀迭並".to_string()));
+                }
+            }
+        }
+    }
 }

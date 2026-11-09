@@ -227,7 +227,8 @@ pub const XIAO_LIU_REN: [&str; 6] = ["大安", "留連", "速喜", "赤口", "�
 /// 四十之月小吉傳，五十一月空亡上，六十二月大安前。假如正月初一日起留連，初二日速喜，初三日赤口，初四日小吉，
 /// 初五日空亡，初六日大安，逐日順數去，其餘倣此」。即位序 = (月 + 日 − 1) mod 6（大安 0）。
 /// 《田家五行》卷下「赤口日」：「以月建上起初一日，順數加辰戌二位是」，所推全同（正月寅起初一，初三至辰、初九至戌……）。
-/// 闰月从本月之数（书未言，未核）。
+/// 闰月从本月之数：卷十五、《田家五行》皆未言；类编卷二「六輪兀」（同为小六壬之轮，见 [`liu_lun_wu`]）明言「逢閏月亦於本月上起日」，
+/// 他说（如闰月从下月）未见原典。
 pub fn xiao_liu_ren(lunar_month: u8, lunar_day: u8) -> &'static str {
     XIAO_LIU_REN[(lunar_month as usize + lunar_day as usize + 5) % 6]
 }
@@ -242,6 +243,45 @@ pub enum ChiKouRule {
     /// 儲泳《祛疑説》「赤口煞」：「用之亦活法，不可以此小害遽廢良日，如赤口值寅巳酉戌則不可用，餘皆無害」。
     /// 「值寅巳酉戌」读作赤口日之日支（推读，未核）
     QuYi,
+    /// 协纪卷三十六「上兀下兀」所述起法：「陽年正月初一日起小吉，隂年正月初一日起留連，按日順數」，兀日即小六壬之
+    /// 留連（上兀）、赤口（下兀）。即类编卷二「六輪兀」（沈括本，[`liu_lun_wu`]）：值下兀（赤口）之日否决，上兀只作附注。
+    /// 阴年与 [`ChiKouRule::LeiBian`] 逐日全同，阳年赤口移后三位
+    XieJiWu,
+}
+
+/// 类编卷二「六輪兀」六位（后天八卦去震兑，顺行）：乾、坎、艮三白日、離九紫日吉，巽四緑上兀日凶，坤二黑下兀日凶
+pub const LIU_LUN: [&str; 6] = ["乾", "坎", "艮", "巽", "離", "坤"];
+
+/// 类编卷二上官门「六輪兀」（`02094404.cn` PDF 第 27—29 页，起例与陽年、陰年上下兀日两表）：
+/// 「右甲丙戊庚壬五陽年正月起乾，乙丁己辛癸五陰年正月起巽，並順行一月一位到所用之月，月上起初一亦順行，
+/// 如遇閏月仍就本月上起初一數到所用之日。艮坎乾為三白日，離為九紫日吉，巽為四緑上兀日凶，坤為二黑下兀日凶」；
+/// 又「年上起月，月上起日，大抵只取本年月分起初一，卻不論節氣，逢閏月亦於本月上起日」；「右六輪兀用沈學士存中本」。
+/// `yang_nian`：农历年之干为阳（甲丙戊庚壬）；`lunar_month` 闰月取本月之数。返回六位之一。
+///
+/// 协纪卷三十六所述（阳年起小吉、阴年起留連）与此一一对应：乾↔小吉、坎↔空亡、艮↔大安、巽↔留連、離↔速喜、坤↔赤口。
+pub fn liu_lun_wu(yang_nian: bool, lunar_month: u8, lunar_day: u8) -> &'static str {
+    let start = if yang_nian { 0 } else { 3 };
+    LIU_LUN[(start + lunar_month as usize - 1 + lunar_day as usize - 1) % 6]
+}
+
+/// 协纪卷三十六所述兀日起法下的小六壬之位：阳年正月初一起小吉、阴年起留連，月进一位，按日顺数（闰月从本月，据类编卷二）。
+/// 值「留連」为上兀、值「赤口」为下兀
+pub fn xiao_liu_ren_wu(yang_nian: bool, lunar_month: u8, lunar_day: u8) -> &'static str {
+    let k = LIU_LUN.iter().position(|x| *x == liu_lun_wu(yang_nian, lunar_month, lunar_day)).unwrap();
+    // 乾 0 ↔ 小吉 4
+    XIAO_LIU_REN[(k + 4) % 6]
+}
+
+/// 农历年干支序（正月初一为界）。`PuzhuDay::year_gz` 以立春为界，此按农历月与节月之差校正：
+/// 农历十一、十二月而节月已入寅卯（立春后、春节前）属上一农历年；农历正、二月而节月尚在子丑（春节后、立春前）属下一农历年
+pub fn lunar_year_gz(year_gz_lichun: u8, lunar_month: u8, month_ord: u8) -> u8 {
+    if lunar_month >= 11 && month_ord <= 1 {
+        (year_gz_lichun + 59) % 60
+    } else if lunar_month <= 2 && month_ord >= 10 {
+        (year_gz_lichun + 1) % 60
+    } else {
+        year_gz_lichun % 60
+    }
 }
 
 /// 鳌头卷三嫁娶门（第 4 册 PDF 第 14 页）「橫天朱雀」：「每月初一日是，若值初一行嫁主再娶」（农历初一，类编卷七不载）
@@ -469,6 +509,8 @@ pub struct JiaquDay {
     pub leibian_xiong: Vec<(&'static str, &'static str)>,
     /// 小六壬之位（类编卷十五；值「赤口」者为赤口日）
     pub xiao_liu_ren: &'static str,
+    /// 协纪卷三十六所述兀日（类编卷二六輪兀）：值巽为「上兀」（留連）、值坤为「下兀」（赤口），余为 None
+    pub wu_ri: Option<&'static str>,
     /// 类编卷七逐月吉日表所列：(表, 注)
     pub leibian_jiri: Vec<(JiriBiao, &'static str)>,
     /// 不可制（或未用制化）之否决
@@ -587,9 +629,25 @@ pub fn judge_day(d: &PuzhuDay, inp: &JiaquInput, o: &JiaquOptions) -> JiaquDay {
     }
     // 赤口（类编卷十五小六壬；不可制）
     let lr = xiao_liu_ren(d.lunar.month, d.lunar.day);
-    if lr == "赤口" {
+    // 兀日（协纪卷三十六所述、类编卷二六輪兀）：按农历年阴阳起
+    let yang_nian = lunar_year_gz(d.year_gz, d.lunar.month, d.month_ord) % 2 == 0;
+    let wu_ri = match liu_lun_wu(yang_nian, d.lunar.month, d.lunar.day) {
+        "巽" => Some("上兀"),
+        "坤" => Some("下兀"),
+        _ => None,
+    };
+    if o.chi_kou == ChiKouRule::XieJiWu {
+        match wu_ri {
+            Some("下兀") => veto.push(("赤口（协纪所述兀日起法：下兀）".into(), None)),
+            Some(w) => notes.push(format!("{w}（留連；协纪所述兀日，六輪兀巽位）")),
+            None => {}
+        }
+        if lr == "赤口" && wu_ri != Some("下兀") {
+            notes.push("赤口（类编卷十五小六壬；兀日起法不值）".into());
+        }
+    } else if lr == "赤口" {
         let ck_bad = match o.chi_kou {
-            ChiKouRule::BuYong => false,
+            ChiKouRule::BuYong | ChiKouRule::XieJiWu => false,
             ChiKouRule::LeiBian => true,
             ChiKouRule::QuYi => matches!(gz % 12, 2 | 5 | 9 | 10),
         };
@@ -655,6 +713,7 @@ pub fn judge_day(d: &PuzhuDay, inp: &JiaquInput, o: &JiaquOptions) -> JiaquDay {
         jiang: jg,
         leibian_xiong: lx,
         xiao_liu_ren: lr,
+        wu_ri,
         leibian_jiri: jiri,
         reasons,
         jie,
@@ -846,6 +905,93 @@ mod tests {
         assert!(heng_tian_zhu_que(1) && !heng_tian_zhu_que(2));
     }
 
+    /// 协纪卷三十六兀日起法 / 类编卷二「六輪兀」：与类编卷二起例图（02094404:27）、陽年陰年上下兀日两表（02094404:28—29）逐格比对。
+    /// `cargo test -p lunar-core liu_lun_wu_tables -- --nocapture` 打印比对表（写入 doc/folk/jiaqu.md）
+    #[test]
+    fn liu_lun_wu_tables() {
+        // 起例图：各卦所值之月（初一所起）。(卦, 陽年月, 陰年月)
+        let tu: [(&str, [u8; 2], [u8; 2]); 6] = [
+            ("乾", [1, 7], [4, 10]),
+            ("坎", [2, 8], [5, 11]),
+            ("艮", [3, 9], [6, 12]),
+            ("巽", [4, 10], [1, 7]),
+            ("離", [5, 11], [2, 8]),
+            ("坤", [6, 12], [3, 9]),
+        ];
+        let mut tu_ok = 0;
+        for (g, ym, nm) in tu {
+            for m in ym {
+                tu_ok += (liu_lun_wu(true, m, 1) == g) as usize;
+            }
+            for m in nm {
+                tu_ok += (liu_lun_wu(false, m, 1) == g) as usize;
+            }
+        }
+        // 两表：月组（正七、二八……六十二）上兀、下兀之首日，其后每六日一见（表中五日）
+        let yang: [(u8, u8); 6] = [(4, 6), (3, 5), (2, 4), (1, 3), (6, 2), (5, 1)];
+        let yin: [(u8, u8); 6] = [(1, 3), (6, 2), (5, 1), (4, 6), (3, 5), (2, 4)];
+        let mut rows = Vec::new();
+        for (label, yn, tab) in [("陽年", true, yang), ("陰年", false, yin)] {
+            let (mut n, mut ok) = (0, 0);
+            for m in 1..=12u8 {
+                let (s, x) = tab[((m - 1) % 6) as usize];
+                for d in 1..=30u8 {
+                    let want = if (d as i32 - s as i32).rem_euclid(6) == 0 {
+                        Some("巽")
+                    } else if (d as i32 - x as i32).rem_euclid(6) == 0 {
+                        Some("坤")
+                    } else {
+                        None
+                    };
+                    let got = match liu_lun_wu(yn, m, d) {
+                        g @ ("巽" | "坤") => Some(g),
+                        _ => None,
+                    };
+                    n += 1;
+                    ok += (want == got) as usize;
+                }
+            }
+            rows.push((label, n, ok));
+        }
+        // 协纪：阳年正月初一起小吉、阴年起留連；兀日即留連（上兀）赤口（下兀）
+        assert_eq!(xiao_liu_ren_wu(true, 1, 1), "小吉");
+        assert_eq!(xiao_liu_ren_wu(false, 1, 1), "留連");
+        let mut map_ok = 0;
+        let mut yin_same = 0;
+        let mut yang_diff = 0;
+        for m in 1..=12u8 {
+            for d in 1..=30u8 {
+                for yn in [true, false] {
+                    let (g, x) = (liu_lun_wu(yn, m, d), xiao_liu_ren_wu(yn, m, d));
+                    map_ok += ((g == "巽") == (x == "留連") && (g == "坤") == (x == "赤口")) as usize;
+                }
+                yin_same += (xiao_liu_ren_wu(false, m, d) == xiao_liu_ren(m, d)) as usize;
+                yang_diff += ((xiao_liu_ren_wu(true, m, d) == "赤口") != (xiao_liu_ren(m, d) == "赤口")) as usize;
+            }
+        }
+        println!("| 比对 | 格 | 合 | 不合 |\n|---|---|---|---|");
+        println!("| 起例图（各卦所值月之初一） | 24 | {tu_ok} | {} |", 24 - tu_ok);
+        for (l, n, ok) in &rows {
+            println!("| {l}上下兀日表（12 月 × 30 日） | {n} | {ok} | {} |", n - ok);
+        }
+        println!("| 巽↔留連、坤↔赤口（协纪所述，两年 × 12 月 × 30 日） | 720 | {map_ok} | {} |", 720 - map_ok);
+        println!("| 阴年兀日起法 vs 类编卷十五小六壬 | 360 | {yin_same} | {} |", 360 - yin_same);
+        println!("| 阳年赤口日与类编卷十五赤口日相异之日 | 360 | — | {yang_diff} |");
+        assert_eq!(tu_ok, 24);
+        for (l, n, ok) in rows {
+            assert_eq!(n, ok, "{l}");
+        }
+        assert_eq!(map_ok, 720);
+        assert_eq!(yin_same, 360);
+        // 阳年赤口移三位，与类编赤口无一日同：每月 5 日类编赤口 + 5 日兀日赤口
+        assert_eq!(yang_diff, 120);
+        // 农历年：2026-02-10 农历十二月廿三、节月寅（立春后），立春年丙午（42）→ 农历年乙巳（41）；
+        // 2025-01-30 农历正月初二、节月丑，立春年甲辰（40）→ 农历年乙巳（41）
+        assert_eq!(lunar_year_gz(42, 12, 0), 41);
+        assert_eq!(lunar_year_gz(40, 1, 11), 41);
+        assert_eq!(lunar_year_gz(42, 3, 1), 42);
+    }
+
     /// 类编卷七逐月吉日表（录文 data/folk/leibian_jiaqu_jiri.csv）与 jiaqu 诸判据逐条比对（按月建、干支，不涉具体年日）。
     /// 设环境变量 `JIAQU_JIRI_CHECKS` 时写出逐条结果 data/folk/leibian_jiaqu_jiri_checks.csv（工作目录须为 rust/core）。
     #[test]
@@ -922,6 +1068,7 @@ mod tests {
             ("协纪（缺省）", JiaquOptions::default()),
             ("协纪 + 赤口类编", JiaquOptions { chi_kou: ChiKouRule::LeiBian, ..JiaquOptions::default() }),
             ("协纪 + 赤口祛疑説", JiaquOptions { chi_kou: ChiKouRule::QuYi, ..JiaquOptions::default() }),
+            ("协纪 + 赤口兀日起法", JiaquOptions { chi_kou: ChiKouRule::XieJiWu, ..JiaquOptions::default() }),
             ("协纪 + 橫天朱雀", JiaquOptions { heng_tian_zhu_que: true, ..JiaquOptions::default() }),
             ("类编凶神 + 类编周堂", lb),
             ("类编凶神 + 类编周堂 + 赤口类编 + 橫天朱雀", JiaquOptions { chi_kou: ChiKouRule::LeiBian, heng_tian_zhu_que: true, ..lb }),
@@ -939,6 +1086,24 @@ mod tests {
             eprintln!("{name}：可用 {ok}；嫁娶表之日 {} 中可用 {jq_ok}；備急表之日 {in_bj}；可用日见于嫁娶或備急表 {ok_in_any}", in_jq.len());
         }
         eprintln!("2026 年赤口日 {ck_days}");
+        // 兀日起法：春节（2026-02-17）前为乙巳阴年，下兀与类编赤口同日；春节后丙午阳年，无一日同
+        let cj = (Gregorian::to_julian_day(2026, 2, 17).as_f64() + 0.5).floor() as i64;
+        let v = choose(&vsop, &elp, None, j0, j0 + 364, &inp, &JiaquOptions { chi_kou: ChiKouRule::XieJiWu, ..JiaquOptions::default() });
+        let xia: Vec<&JiaquDay> = v.iter().filter(|d| d.wu_ri == Some("下兀")).collect();
+        eprintln!("2026 年下兀日 {}，上兀日 {}", xia.len(), v.iter().filter(|d| d.wu_ri == Some("上兀")).count());
+        for d in &v {
+            let ck = d.xiao_liu_ren == "赤口";
+            let xw = d.wu_ri == Some("下兀");
+            if d.jdn < cj {
+                assert_eq!(ck, xw, "{}", d.jdn);
+            } else {
+                assert!(!(ck && xw), "{}", d.jdn);
+            }
+            if xw {
+                assert!(d.reasons.iter().any(|r| r.contains("下兀")));
+            }
+        }
+        assert!((55..=67).contains(&xia.len()), "{}", xia.len());
         // 赤口日约占六分之一
         assert!((55..=67).contains(&ck_days), "{ck_days}");
     }

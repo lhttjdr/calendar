@@ -74,6 +74,38 @@ pub fn yue_jiang(vsop: &Vsop87, jd_tt: Real, rule: JiangRule) -> u8 {
     }
 }
 
+/// 卷十一「太陽過宫」所列各宫宫首宿度（地支序 子…亥；宿下标角 0，入宿古度）：「立春前九日有竒日躔子分女初度……驚蟄前十日日躔亥分
+/// 在危十二度……清明前八日日躔戌分在奎初度……立夏前六日日躔酉分在胃三度……芒種前五日日躔申分在畢六度……小暑前五日日躔未分在井八度……
+/// 立秋前六日日躔午分在栁三度……白露前五日日躔已分在張十四度……寒露前三日日躔辰分在軫九度……立冬前一日有竒日躔夘分在氐一度……
+/// 大雪前三日日躔寅分在尾二度……小寒前六日日躔丑分在斗三度」。同卷歌「角亢氐一總在辰　氐二房心尾夘存……」以各宫首度为氐二、尾三、
+/// 斗四、女二……，较此表多一度（歌言宫内第一整度，表言宫界），从表
+pub const GONG_JIE_DAQUAN: [(usize, f64); 12] =
+    [(9, 0.0), (7, 3.0), (5, 2.0), (2, 1.0), (27, 9.0), (25, 14.0), (23, 3.0), (21, 8.0), (18, 6.0), (16, 3.0), (14, 0.0), (11, 12.0)];
+
+/// 古法黄道宿度之界：二十八宿距星赤经圈与黄道交点之黄经（°，tan λ = tan α ／ cos ε）。古以赤道宿度经黄赤道差化为黄道宿度，
+/// 宿界即距星赤经圈所过之黄道点，非距星本身之黄经（二者于斗、女、危等远黄道之宿差至数度）。卷十一宫界日数以此最合（见文档）
+pub fn mansion_gu_huang_dao(frame: &crate::astronomy::sky_culture::chinese::MansionFrame, t: crate::astronomy::time::TimePoint) -> [Real; 28] {
+    use crate::astronomy::frame::nutation::{nutation_for_model, NutationModel};
+    use crate::astronomy::frame::precession::mean_obliquity;
+    use crate::astronomy::time::TimeScale;
+    use crate::math::real::{real, RealOps};
+    let c = (t.to_scale(TimeScale::TT).jd - real(2451545.0)) / real(36525.0);
+    let eps = mean_obliquity(c).rad() + nutation_for_model(c, NutationModel::IAU2000A).1.rad();
+    let r2d = real(180.0 / core::f64::consts::PI);
+    core::array::from_fn(|i| {
+        let a = frame.ra[i];
+        let l = a.sin().atan2(a.cos() * eps.cos()) * r2d;
+        if l < real(0.0) { l + real(360.0) } else { l }
+    })
+}
+
+/// 恒星过宫之月将：太阳视黄经 `sun_lon`（°）按卷十一宿度宫界（[`GONG_JIE_DAQUAN`]）所在之宫即月将。`mansion_lons` 二十八宿宿界黄经
+/// （古法黄道宿度 [`mansion_gu_huang_dao`]；亦可传距星黄经 [`crate::folk::qizheng::mansion_longitudes`]）。卷二「以太陽纒度過宫而言則登眀為首逆布，逆布者謂之月将」，卷十一以宿度列太阳过宫，
+/// 二者相合即此说；卷二各神注又以中气言之（「雨水後日纒娵訾」），即 [`JiangRule::ZhongQi`]。二说并存，缺省中气
+pub fn yue_jiang_xiu(sun_lon: Real, mansion_lons: &[Real; 28]) -> u8 {
+    crate::folk::qizheng::gong_of_xiu(mansion_lons, sun_lon, &GONG_JIE_DAQUAN).0
+}
+
 /// 天盘：地盘某支之上所临的天盘神（月将加占时）
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TianPan {
@@ -673,6 +705,104 @@ mod tests {
         // 按节：清明（k=1）后辰月，酉将；惊蛰（k=23）后卯月，戌将
         assert_eq!(yue_jiang(&vsop, t[1] + eps, JiangRule::Jie), z("酉"));
         assert_eq!(yue_jiang(&vsop, t[0] + eps, JiangRule::Jie), z("戌"));
+    }
+
+    /// 恒星过宫（卷十一「太陽過宫」）：以授时（元）距星、卷十一宿度宫界，求某年太阳入各宫之日距所注节气之日数，与书「某節前若干日」比。
+    /// 节气用当时行用历之平气（授时、大统）。宿界三读：距星本身之黄经、赤道宿度（赤经）、古法黄道宿度（距星赤经圈交黄道）；
+    /// 对 1550（明）各算，古法另算 1280（授时）。逐宫之差见 doc/folk/liuren.md 第一节
+    #[test]
+    fn heng_xing_guo_gong() {
+        use crate::astronomy::apparent::{sun_apparent_ecliptic_longitude, ApparentPipelineOptions};
+        use crate::astronomy::frame::nutation::try_init_full_nutation_from_repo;
+        use crate::astronomy::pipeline::Vsop87Planets;
+        use crate::astronomy::sky_culture::chinese::{load_lunar_mansion_systems_from_repo, MansionFrame};
+        use crate::astronomy::stars::load_hipparcos_bright_from_repo;
+        use crate::astronomy::time::{TimePoint, TimeScale};
+        use crate::math::real::RealOps;
+        let _ = try_init_full_nutation_from_repo();
+        let vsop = crate::astronomy::ephemeris::load_earth_vsop87_from_repo().unwrap();
+        let eph = Vsop87Planets { earth: &vsop, planets: vec![] };
+        let cat = load_hipparcos_bright_from_repo().unwrap();
+        let sys = load_lunar_mansion_systems_from_repo().unwrap().into_iter().find(|s| s.id == "yuan").unwrap();
+        // (宫, 书中所注节气序（JIE_QI：0 春分…23 驚蟄）, 书言节前日数)
+        let book: [(u8, usize, f64); 12] = [
+            (0, 21, 9.0),
+            (11, 23, 10.0),
+            (10, 1, 8.0),
+            (9, 3, 6.0),
+            (8, 5, 5.0),
+            (7, 7, 5.0),
+            (6, 9, 6.0),
+            (5, 11, 5.0),
+            (4, 13, 3.0),
+            (3, 15, 1.0),
+            (2, 17, 3.0),
+            (1, 19, 6.0),
+        ];
+        let mut rows = Vec::new();
+        let mut summary: Vec<(usize, i32, f64, f64)> = Vec::new();
+        for (chi_dao, year) in [(0, 1550), (1, 1550), (2, 1280), (2, 1550)] {
+            // 冬至前后一年：自上年十一月至本年十二月，步长 0.05 日找太阳入宫之时
+            let mid = Gregorian::to_julian_day(year, 7, 1);
+            let t_mid = TimePoint::new(TimeScale::TT, mid);
+            let frame = MansionFrame::new(&eph, &cat, &sys, t_mid, &ApparentPipelineOptions::default()).unwrap();
+            let r2d = real(180.0 / core::f64::consts::PI);
+            let ml = match chi_dao {
+                1 => core::array::from_fn(|i| frame.ra[i] * r2d),
+                // 古法黄道宿度：距星赤经圈交黄道之点的黄经（tan λ = tan α / cos ε）
+                2 => mansion_gu_huang_dao(&frame, t_mid),
+                _ => crate::folk::qizheng::mansion_longitudes(&frame, t_mid),
+            };
+            let terms: Vec<(Real, usize)> = [year - 1, year, year + 1]
+                .iter()
+                .flat_map(|y| {
+                    solar_term_jds_for_year_cached(&vsop, *y)
+                        .into_iter()
+                        .enumerate()
+                        // 当时行用历之平气（授时、大统），见 calendar::pingqi
+                        .map(|(k, t)| (crate::calendar::pingqi::pingqi_tt(t, (k as i32 + 6) % 24).map_or(t, |x| x.1), k))
+                        .collect::<Vec<_>>()
+                })
+                .collect();
+            let start = Gregorian::to_julian_day(year, 1, 1);
+            let lon = |jd: Real| {
+                let t = TimePoint::new(TimeScale::TT, jd);
+                if chi_dao == 1 {
+                    let (a, _) = crate::astronomy::apparent::right_ascension_declination(&crate::astronomy::apparent::sun_apparent_equatorial(&vsop, t, &ApparentPipelineOptions::default()));
+                    a.wrap_to_2pi().rad() * r2d
+                } else {
+                    sun_apparent_ecliptic_longitude(&vsop, t).wrap_to_2pi().rad() * r2d
+                }
+            };
+            let mut prev = yue_jiang_xiu(lon(start), &ml);
+            let mut jd = start;
+            let mut entry: [Option<Real>; 12] = [None; 12];
+            let mut diffs: Vec<f64> = Vec::new();
+            while jd < start + real(366.0) {
+                jd += real(0.25);
+                let g = yue_jiang_xiu(lon(jd), &ml);
+                if g != prev {
+                    entry[g as usize] = Some(jd);
+                    prev = g;
+                }
+            }
+            for (g, k, want) in book {
+                let e = entry[g as usize].unwrap();
+                // 入宫之后最近的该节气
+                let jie = terms.iter().filter(|(t, kk)| *kk == k && *t > e - real(20.0)).map(|(t, _)| *t).fold(real(f64::MAX), |a, b| if b < a { b } else { a });
+                let before = (jie - e).as_f64();
+                rows.push(format!("| {} | {year} | {} | {}前{want}日 | {before:.1} | {:+.1} |", ["黄道（距星黄经）", "赤道", "黄道（赤经圈交黄道）"][chi_dao], ZHI[g as usize], super::super::qimen::JIE_QI[k], before - want));
+                diffs.push(before - want);
+            }
+            let mean = diffs.iter().sum::<f64>() / 12.0;
+            let range = diffs.iter().fold(f64::MIN, |a, b| a.max(*b)) - diffs.iter().fold(f64::MAX, |a, b| a.min(*b));
+            summary.push((chi_dao, year, mean, range));
+        }
+        eprintln!("| 宿度 | 年 | 宫 | 书 | 推算（日） | 差 |\n|---|---|---|---|---|---|\n{}", rows.join("\n"));
+        eprintln!("{summary:?}");
+        let r = |m: usize, y: i32| summary.iter().find(|x| x.0 == m && x.1 == y).unwrap().3;
+        // 古法黄道宿度、平气：十二宫之差近乎一常数（岁差所积），远较以距星黄经、赤道宿度为齐
+        assert!(r(2, 1550) < 4.5 && r(2, 1550) < r(0, 1550), "{summary:?}");
     }
 
     /// 《六壬大全》卷五、卷六课例所注三传天将（逐例：卷、日、时、将、三传、三传所乘之将、书中所用为昼贵否）。

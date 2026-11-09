@@ -13,7 +13,7 @@
 //!   小限（[`xiao_xian`]、按生日 [`xiao_xian_sui`]）、月限（[`yue_xian`]）、流年變曜（[`liu_nian_bian_yao`]）；
 //!   以宿度分宫的旧法见 [`GongRule`]。
 //! - 神煞（[`shen_sha`]）：以生年干支、节月、生时、命宫起例之化曜与宫位神煞；限法（[`xian_fa`]）：洞微飛限、竹羅三限；
-//!   《欽天監校正授時過宮度圖》部分转录（[`guo_gong`]）。
+//!   《欽天監校正授時過宮度圖》全表转录与推算比对（[`guo_gong`]）。
 //!
 //! 原典、实测核对与各说出处见 doc/folk/qizheng.md。
 
@@ -81,12 +81,25 @@ pub enum ZiQiRule {
     /// 清时宪书：自道光十三年七政经纬躔度时宪书逐旬紫炁宿度反推之匀速运动（周期 28 年、历元黄经见 [`ZIQI_SHIXIAN`]）。
     /// 推法原文未见，属据实物反推。缺省
     ShiXian,
+    /// 朝鲜南相吉《推步捷例》（1861）上「求紫氣宿度」：「紫氣每日平行爲一百二十六秒七二○七七七……以乾隆甲子爲元……
+    /// 又加紫氣應七宮十七度五十分十四秒五三爲年根」，见 [`ZIQI_TUIBU`]。与道光十三年反推之 [`ShiXian`](Self::ShiXian) 差 0′—6′，对宣統二、三年时宪书皆差 +1′、+3′
+    TuiBuJieLi,
     /// 不用紫炁（汤若望新法删之；《明史》卷三十一「天行無紫氣……知為妄增」）
     None,
 }
 
 /// 时宪书紫炁：(历元 JD(TT), 该时刻视黄经 °, 周期 日)。由道光十三年（1833）正月至四月逐旬宿度反推（见文档）
 pub const ZIQI_SHIXIAN: (f64, f64, f64) = (2390598.5, 204.10, 28.0 * 365.2422);
+
+/// 《推步捷例》紫氣：(历元 JD, 历元平黄经 °, 周期 日)。历元取乾隆甲子（1744）天正冬至（1743-12-22）次日北京子正
+/// （年根取冬至次日子正，系《曆象考成後編》通例，本书未明言，未核；取冬至当日子正则早一日，差 2′）；
+/// 「紫氣應七宮十七度五十分十四秒五三」自冬至起宫，平黄经 = 270° + 7×30° + 17°50′14.53″ = 137.8374°；
+/// 日行 126.7207777″（周期 360°×3600／126.7207777 = 10227.2 日 = 28.001 年）
+pub const ZIQI_TUIBU: (f64, f64, f64) = (
+    2358033.5 - 116.4 / 360.0,
+    270.0 + 7.0 * 30.0 + 17.0 + 50.0 / 60.0 + 14.53 / 3600.0 - 360.0,
+    360.0 * 3600.0 / 126.7207777,
+);
 
 /// 命宫之法
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -108,6 +121,9 @@ pub enum GongRule {
     /// 以宿度分宫：《星學大成》卷一「氐一過卯尾三寅，斗三度兮丑中陳，女至一度方過子……張十四巳軫九辰」，
     /// 与星宗差一度者四（斗、女、張、軫），见 [`GONG_JIE_DACHENG`]
     XiuDuDaCheng,
+    /// 以宿度分宫：《元史》卷五十四《授時曆經上》「黃道十二次宿度」原数（危十二度六十四分九十一秒入娵訾……），
+    /// 带分秒，见 [`GONG_JIE_SHOUSHI`]。星宗、大成二表皆此表之取整（差一度四处即取整之异，见 doc/folk/qizheng.md §4.2）
+    XiuDuShouShi,
 }
 
 /// 命度之法（卯上起命 [`MingRule::SunOnHour`] 时用；上升点法命度即上升点）。
@@ -118,11 +134,12 @@ pub enum GongRule {
 /// 横列一度至三十度、竖列十二宫，同列即相對之度（书影）。中气分宫各宫等宽，二法相同；宿度分宫宫宽不等时有别。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MingDuRule {
-    /// 自宫首（黄经小之一端，与相貌宫相接）量同度。安命度法二例用授时赤道宿度：虛六距子宫首（女二）15.35 度、
-    /// 星五距午宫首（柳三）15.30 度，女三、柳四各 1 度，皆合（差 0.05 度）。缺省
+    /// 自宫首（黄经小之一端，与相貌宫相接）量同度。授时黄道宿度、授时十二次宫界下：安命度法二例合（星 5.92、柳 4.80），
+    /// 《星學大成》卷三翼十度例得十五（书十三）不合。（旧用授时赤道宿度、星宗宫界，安命度法二例亦合，而定限度法星五得十六不合）
     FromStart,
     /// 自宫尾（黄经大之一端）量同度：授時過宮度圖每宫「一度」在宫尾（子宫一度危十一、午宫一度張十四……）。
-    /// 安命度法二例皆差 1.3 度
+    /// 授时黄道宿度、授时十二次宫界下：安命度法二例合（子午宫宽 30.71、30.70 几等，二法同），大成卷三翼十度例
+    /// （巳宫宽 32.70、丑宫 28.67）翼 10.0—10.48 得十三合、其后得十四。缺省（见 doc/folk/qizheng.md §4.3.1）
     FromEnd,
 }
 
@@ -193,6 +210,32 @@ pub const GONG_JIE_XINGZONG: [(usize, f64); 12] =
 /// 宿度分宫宫界，《星學大成》卷一（宫界歌）
 pub const GONG_JIE_DACHENG: [(usize, f64); 12] =
     [(9, 1.0), (7, 3.0), (5, 3.0), (2, 1.0), (27, 9.0), (25, 14.0), (23, 3.0), (21, 8.0), (18, 6.0), (16, 3.0), (14, 1.0), (11, 12.0)];
+/// 宿度分宫宫界，《元史》卷五十四《授時曆經上》「黃道十二次宿度」（古度，百分为度、百秒为分）：
+/// 女二度六分三十八秒入玄枵（子）、斗三度七十六分八十五秒入星紀（丑）……危十二度六十四分九十一秒入娵訾（亥）
+pub const GONG_JIE_SHOUSHI: [(usize, f64); 12] = [
+    (9, 2.0638),
+    (7, 3.7685),
+    (5, 3.0115),
+    (2, 1.1452),
+    (27, 10.0797),
+    (25, 15.2606),
+    (23, 3.8680),
+    (21, 8.3494),
+    (18, 6.8805),
+    (16, 3.7456),
+    (14, 1.7363),
+    (11, 12.6491),
+];
+/// 授时黄道宿度（古度，《元史》卷五十四「黃道宿度」，角起；虛「九分空太」作 9.0075），与 data/sky_culture/ecliptic_lodge_widths.csv `yuan_1280` 同
+pub const SHOUSHI_HUANGDAO_XIU: [f64; 28] = [
+    12.87, 9.56, 16.40, 5.48, 6.27, 17.95, 9.59, 23.47, 6.90, 11.12, 9.0075, 15.95, 18.32, 9.34, 17.87, 12.36, 15.81, 11.08, 16.50, 0.05,
+    10.28, 31.03, 2.11, 13.00, 6.31, 17.79, 20.09, 18.75,
+];
+/// 授时赤道宿度（古度，《元史》卷五十四《授時曆經上》「赤道宿度」），角起
+pub const SHOUSHI_CHIDAO_XIU: [f64; 28] = [
+    12.1, 9.2, 16.3, 5.6, 6.5, 19.1, 10.4, 25.2, 7.2, 11.35, 8.9575, 15.4, 17.1, 8.6, 16.6, 11.8, 15.6, 11.3, 17.4, 0.05, 11.1, 33.3,
+    2.2, 13.3, 6.3, 17.25, 18.75, 17.3,
+];
 
 /// 古度 / 度（周天 365¼ 古度）
 const GU_DU: f64 = 365.25 / 360.0;
@@ -516,7 +559,7 @@ impl Default for QizhengOptions {
             miao_wang: MiaoWangRule::Lun,
             qiang_ruo: QiangRuoRule::DaCheng,
             da_xian: DaXianYears::XingZong,
-            ming_du: MingDuRule::FromStart,
+            ming_du: MingDuRule::FromEnd,
             yue_xian: YueXianRule::XiaoXian,
             nian_jie: NianJie::LiChun,
             shen_sha: ShenShaOptions::default(),
@@ -725,6 +768,7 @@ pub fn chart<P: EphemerisProvider>(
     let jie = match (o.gong, mlon.is_some()) {
         (GongRule::XiuDuXingZong, true) => Some(&GONG_JIE_XINGZONG),
         (GongRule::XiuDuDaCheng, true) => Some(&GONG_JIE_DACHENG),
+        (GongRule::XiuDuShouShi, true) => Some(&GONG_JIE_SHOUSHI),
         _ => None,
     };
     let gong_fn = |lon: Real| match (jie, mlon.as_ref()) {
@@ -771,9 +815,13 @@ pub fn chart<P: EphemerisProvider>(
     yao.push(mk("羅睺", luo, None, true));
     yao.push(mk("計都", ji, None, true));
     yao.push(mk("月孛", apogee, None, false));
-    if o.zi_qi == ZiQiRule::ShiXian {
-        let (j0, l0, p) = ZIQI_SHIXIAN;
-        yao.push(mk("紫炁", real(l0) + real(360.0) * (jd - real(j0)) / real(p), None, false));
+    let zq = match o.zi_qi {
+        ZiQiRule::ShiXian => Some(ZIQI_SHIXIAN),
+        ZiQiRule::TuiBuJieLi => Some(ZIQI_TUIBU),
+        ZiQiRule::None => None,
+    };
+    if let Some((j0, l0, p)) = zq {
+        yao.push(mk("紫炁", norm360(real(l0) + real(360.0) * (jd - real(j0)) / real(p)), None, false));
     }
     let sun_gong = yao[0].gong;
     let (ming, ming_lon) = match (o.ming, lst_lat) {
@@ -1136,16 +1184,107 @@ mod tests {
 
     /// 授时赤道宿度（古度，《元史·曆志》）造一套等效距星黄经，用于按书中宿度检验量天尺与童限
     fn shoushi_mansions() -> [Real; 28] {
-        const W: [f64; 28] = [
-            12.1, 9.2, 16.3, 5.6, 6.5, 19.1, 10.4, 25.2, 7.2, 11.35, 8.9575, 15.4, 17.1, 8.6, 16.6, 11.8, 15.6, 11.3, 17.4, 0.05, 11.1,
-            33.3, 2.2, 13.3, 6.3, 17.25, 18.75, 17.3,
-        ];
-        let mut acc = 0.0;
+        mansions_from(&SHOUSHI_CHIDAO_XIU)
+    }
+    /// 由宿度（古度）造等效距星黄经
+    fn mansions_from(w: &[f64; 28]) -> [Real; 28] {
+        let mut acc = real(0.0);
         core::array::from_fn(|i| {
-            let v = acc / GU_DU;
-            acc += W[i];
-            real(v)
+            let v = acc / real(GU_DU);
+            acc += real(w[i]);
+            v
         })
+    }
+
+    /// 各宫宽（古度）对《星學大成》卷二《論干神妙用》「子之一宫有三十一度半……亥宫三十二度半」：
+    /// 授时十二次 + 黄道宿度差之和 11.7，+ 赤道宿度 21.0；星宗宫界 + 星宗「玉關歌」注整度宿宽（合 350）10.0
+    #[test]
+    fn gong_kuan_vs_dacheng() {
+        const BOOK: [f64; 12] = [31.5, 27.75, 28.5, 29.5, 30.75, 30.0, 30.0, 27.5, 28.0, 27.5, 32.0, 32.5];
+        const YUGUAN: [f64; 28] =
+            [12.0, 9.0, 16.0, 5.0, 6.0, 18.0, 9.0, 24.0, 6.0, 10.0, 9.0, 15.0, 17.0, 9.0, 18.0, 12.0, 15.0, 10.0, 16.0, 1.0, 10.0, 31.0, 2.0, 12.0, 6.0, 16.0, 19.0, 17.0];
+        let kuan = |w: &[f64; 28], jie: &[(usize, f64); 12]| -> [f64; 12] {
+            let tot: f64 = w.iter().sum();
+            let mut acc = [0.0; 29];
+            for i in 0..28 {
+                acc[i + 1] = acc[i] + w[i];
+            }
+            let st = |z: usize| acc[jie[z % 12].0] + jie[z % 12].1;
+            core::array::from_fn(|z| (st(z + 11) - st(z)).rem_euclid(tot))
+        };
+        for (name, w, jie, want) in [
+            ("黄道", &SHOUSHI_HUANGDAO_XIU, &GONG_JIE_SHOUSHI, 11.7),
+            ("赤道", &SHOUSHI_CHIDAO_XIU, &GONG_JIE_SHOUSHI, 21.0),
+            ("玉關歌", &YUGUAN, &GONG_JIE_XINGZONG, 10.0),
+        ] {
+            let k = kuan(w, jie);
+            let err: f64 = k.iter().zip(BOOK).map(|(a, b)| (a - b).abs()).sum();
+            eprintln!("{name}：{}；差之和 {err:.2}", k.iter().map(|x| format!("{x:.2}")).collect::<Vec<_>>().join(" "));
+            assert!((err - want).abs() < 0.06, "{name} {err}");
+        }
+    }
+
+    /// 授时黄道宿度 + 授时黄道十二次（[`GONG_JIE_SHOUSHI`]）下的量天尺与童限诸例：
+    /// 安命度法二例、定限度法、《星學大成》卷三「八月十四日太陽在巳翼十度……十三嵗出童限」
+    #[test]
+    fn liang_tian_chi_huangdao() {
+        let m = mansions_from(&SHOUSHI_HUANGDAO_XIU);
+        let jie = &GONG_JIE_SHOUSHI;
+        let starts = gong_starts(Some(jie), Some(&m));
+        let at = |x: &str, d: f64| norm360(m[xiu_idx(x)] + real(d / GU_DU));
+        let gu = |lon: Real| {
+            let (x, d) = xiu_of(&m, lon);
+            (MANSIONS[x], d.as_f64() * GU_DU)
+        };
+        // 宫宽（古度）：子 30.71……戌 32.24、亥 32.70；丑 28.67、巳 32.70
+        let w = |z: usize| norm360(starts[(z + 11) % 12] - starts[z]).as_f64() * GU_DU;
+        assert!((w(0) - 30.71).abs() < 0.02 && (w(1) - 28.67).abs() < 0.02 && (w(5) - 32.70).abs() < 0.02 && (w(11) - 32.70).abs() < 0.02);
+        // 安命度法：虛六（子）對午宫星五、女三對柳四：自宫首、自宫尾皆合（子午宫宽 30.71、30.70）
+        for ((sx, sd), (mx, md)) in [(("虚", 6.0), ("星", 5)), (("女", 3.0), ("柳", 4))] {
+            let s = at(sx, sd);
+            assert_eq!(gong_of_xiu(&m, s, jie).0, 0);
+            for rule in [MingDuRule::FromStart, MingDuRule::FromEnd] {
+                let (x, d) = gu(liang_tian_chi(&starts, s, 0, 6, rule));
+                eprintln!("黄道 安命度法 {sx}{sd} {rule:?}：{x}{d:.2}（书 {mx}{md}）");
+                assert_eq!((x, d.floor() as i32), (mx, md));
+            }
+        }
+        // 定限度法（命在午，入宿整度）：柳四、五 → 十一；星五 → 十五（赤道宿度得十六，黄道合）；張十二、十三 → 二十；張十一 → 十九（书二十）
+        let tong_at = |x: &str, d: f64| {
+            let (g, dd) = gong_of_xiu(&m, at(x, d), jie);
+            assert_eq!(g, 6);
+            tong_xian(dd * real(GU_DU)).as_f64()
+        };
+        assert_eq!(gong_of_xiu(&m, at("柳", 3.0), jie).0, 7); // 柳三之始在未宫（午宫首柳 3.87）
+        assert_eq!(tong_at("柳", 4.0), 11.0);
+        assert_eq!(tong_at("柳", 5.0), 11.0);
+        assert_eq!(tong_at("星", 5.0), 15.0);
+        assert_eq!(tong_at("张", 11.0), 19.0);
+        assert_eq!(tong_at("张", 12.0), 20.0);
+        assert_eq!(tong_at("张", 13.0), 20.0);
+        // 大成卷三：太陽巳宫翼十度，命丑，十三嵗出童限：自宫尾量，翼十度前半（10.0—10.48）得十三；自宫首量得十五
+        for (d, start, end) in [(10.0, 15.0, 13.0), (10.4, 15.0, 13.0), (10.6, 15.0, 14.0)] {
+            let s = at("翼", d);
+            assert_eq!(gong_of_xiu(&m, s, jie).0, 5);
+            let tong = |rule| {
+                let l = liang_tian_chi(&starts, s, 5, 1, rule);
+                let (g, dd) = gong_of_xiu(&m, l, jie);
+                assert_eq!(g, 1);
+                eprintln!("黄道 大成卷三例 翼{d} {rule:?}：命度 {:?} 童限 {}", gu(l), tong_xian(dd * real(GU_DU)).as_f64());
+                tong_xian(dd * real(GU_DU)).as_f64()
+            };
+            assert_eq!(tong(MingDuRule::FromStart), start);
+            assert_eq!(tong(MingDuRule::FromEnd), end);
+        }
+        // 星宗、大成宫界皆此表取整：星宗除斗（3.77 作四）外皆截整；大成女、軫、張少一（2.06、10.08、15.26），斗截整
+        for z in 0..12 {
+            let (x, d) = GONG_JIE_SHOUSHI[z];
+            assert_eq!(GONG_JIE_XINGZONG[z].0, x);
+            assert_eq!(GONG_JIE_DACHENG[z].0, x);
+            let fl = d.floor();
+            assert_eq!(GONG_JIE_XINGZONG[z].1 - fl, if z == 1 { 1.0 } else { 0.0 }, "{z}");
+            assert_eq!(GONG_JIE_DACHENG[z].1 - fl, if [0, 4, 5].contains(&z) { -1.0 } else { 0.0 }, "{z}");
+        }
     }
     fn xiu_idx(c: &str) -> usize {
         MANSIONS.iter().position(|m| *m == c).unwrap()
@@ -1512,7 +1651,30 @@ mod tests {
                 }
                 assert_eq!(ok, (lj == LuoJi::LuoAscending) == luo_asc, "{y} {lj:?}");
             }
+            // 紫炁两说（道光十三年反推、《推步捷例》乾隆甲子元）对宣統本
+            if let Some((x, d)) = zi {
+                for zq in [ZiQiRule::ShiXian, ZiQiRule::TuiBuJieLi] {
+                    let c = chart(&eph, t, Some(&frame), 0, None, &QizhengOptions { zi_qi: zq, ..Default::default() }, &opts);
+                    let (xi, du) = c.yao.iter().find(|q| q.name == "紫炁").unwrap().xiu.unwrap();
+                    let diff = (du.as_f64() - d) * 60.0;
+                    eprintln!("{y} 紫炁 {zq:?}: 书{x}{d:.2} 算{}{:.2} 差{diff:+.0}′", MANSIONS[xi], du.as_f64());
+                    assert!(MANSIONS[xi] == x && diff.abs() < 10.0, "{y} {zq:?}");
+                }
+            }
         }
+    }
+
+    /// 紫炁两说之差：《推步捷例》乾隆甲子元（[`ZIQI_TUIBU`]）与道光十三年反推（[`ZIQI_SHIXIAN`]）乾隆甲子历元处差 +6′，道光十三年 +3′，宣統二三年 0′（两周期差 0.4 日）
+    #[test]
+    fn zi_qi_tuibu_vs_shixian() {
+        let lon = |(j0, l0, p): (f64, f64, f64), jd: f64| norm360(real(l0) + real(360.0) * (real(jd) - real(j0)) / real(p)).as_f64();
+        for jd in [2358033.2, 2390598.5, 2418702.5, 2419086.5] {
+            let d = (lon(ZIQI_TUIBU, jd) - lon(ZIQI_SHIXIAN, jd) + 540.0).rem_euclid(360.0) - 180.0;
+            eprintln!("JD {jd}：推步捷例 {:.3}°，时宪反推 {:.3}°，差 {:+.1}′", lon(ZIQI_TUIBU, jd), lon(ZIQI_SHIXIAN, jd), d * 60.0);
+            assert!(d.abs() * 60.0 < 7.0);
+        }
+        // 历元：乾隆甲子天正冬至次日子正平黄经 137.837°
+        assert!((lon(ZIQI_TUIBU, ZIQI_TUIBU.0) - 137.8374).abs() < 1e-3);
     }
 
     #[test]

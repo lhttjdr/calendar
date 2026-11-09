@@ -22,6 +22,143 @@ pub const LIU_NIAN: [&str; 12] = ["太歲", "太陽", "喪門", "太陰", "官�
 pub const YANG_STARS: [&str; 9] = ["紫微", "文昌", "天福", "天祿", "天印", "天壽", "天杖", "天庫", "天姚"];
 pub const YIN_STARS: [&str; 9] = ["天貴", "紅鸞", "天異", "毛頭", "天虛", "天貫", "天刑", "天刃", "天哭"];
 
+/// 卷一「廟樂旺」图（刻本第 167 冊 PDF 第 26—27 页）逐格转录：`data/folk/ziwei18_miao_le_wang.csv`
+const MIAO_TU_CSV: &str = include_str!("../../../../data/folk/ziwei18_miao_le_wang.csv");
+/// 卷三诸星论「廟某旺某樂某」（维基文库录文，未以刻本校）：`data/folk/ziwei18_xing_lun_miao.csv`
+const XING_LUN_CSV: &str = include_str!("../../../../data/folk/ziwei18_xing_lun_miao.csv");
+
+/// 星之简称（图中所用）→ 星名
+fn abbr_star(c: char) -> Option<&'static str> {
+    Some(match c {
+        '紫' => "紫微",
+        '虗' | '虛' => "天虛",
+        '貴' => "天貴",
+        '印' => "天印",
+        '壽' => "天壽",
+        '紅' | '鸞' => "紅鸞",
+        '庫' => "天庫",
+        '貫' => "天貫",
+        '文' => "文昌",
+        '福' => "天福",
+        '禄' | '祿' => "天祿",
+        '杖' => "天杖",
+        '異' => "天異",
+        '毛' => "毛頭",
+        '刄' | '刃' => "天刃",
+        '刑' => "天刑",
+        '姚' => "天姚",
+        '哭' => "天哭",
+        _ => return None,
+    })
+}
+
+/// 庙、乐、旺三等
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MiaoLe {
+    Miao,
+    Le,
+    Wang,
+}
+
+impl MiaoLe {
+    pub fn name(self) -> &'static str {
+        ["廟", "樂", "旺"][self as usize]
+    }
+}
+
+/// 庙乐旺之表
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MiaoBiao {
+    /// 卷一「廟樂旺」图：十二宫各列廟、樂、旺三格之星（缺省，刻本逐格转录）
+    JuanYiTu,
+    /// 卷三诸星论「廟某旺某樂某身命宮」（录文；文昌、天哭不具，紅鸞只言廟）
+    JuanSanXingLun,
+}
+
+fn zhi_idx(c: char) -> Option<u8> {
+    ZHI.iter().position(|z| z.starts_with(c)).map(|p| p as u8)
+}
+
+/// （星, 支, 等）三元组表
+pub fn miao_le_wang_table(b: MiaoBiao) -> Vec<(&'static str, u8, MiaoLe)> {
+    let mut out = Vec::new();
+    let grades = [MiaoLe::Miao, MiaoLe::Le, MiaoLe::Wang];
+    match b {
+        MiaoBiao::JuanYiTu => {
+            for l in MIAO_TU_CSV.lines().skip(1) {
+                let f: Vec<&str> = l.split(',').collect();
+                let Some(z) = f[0].chars().next().and_then(zhi_idx) else { continue };
+                for (k, g) in grades.iter().enumerate() {
+                    for c in f[3 + k].chars() {
+                        if let Some(n) = abbr_star(c) {
+                            out.push((n, z, *g));
+                        }
+                    }
+                }
+            }
+        }
+        MiaoBiao::JuanSanXingLun => {
+            for l in XING_LUN_CSV.lines().skip(1) {
+                let f: Vec<&str> = l.split(',').collect();
+                let Some(n) = ALL18.iter().find(|x| **x == f[0]) else { continue };
+                for (k, g) in grades.iter().enumerate() {
+                    for c in f[1 + k].chars() {
+                        if let Some(z) = zhi_idx(c) {
+                            out.push((*n, z, *g));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
+/// 某星于某支之庙乐旺；表不载为 None
+pub fn miao_le_wang(star: &str, zhi: u8, b: MiaoBiao) -> Option<MiaoLe> {
+    miao_le_wang_table(b).into_iter().find(|(n, z, _)| *n == star && *z == zhi % 12).map(|x| x.2)
+}
+
+/// 十八星（九阳九阴）与天空
+const ALL18: [&str; 19] = [
+    "紫微", "文昌", "天福", "天祿", "天印", "天壽", "天杖", "天庫", "天姚", "天貴", "紅鸞", "天異", "毛頭", "天虛", "天貫", "天刑", "天刃", "天哭", "天空",
+];
+
+/// 星之五行两说
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WuXingShuo {
+    /// 卷一「十八星所屬」歌（刻本第 167 冊 PDF 第 100 页）：「哭刃鸞金火是刑，紫文杖祿木成林，毛姚虛水貴福土，印壽庫貫異土同」；
+    /// 卷一诸星条「天虛屬冰」「天刃……屬金」等与歌同（诸星条无紫微、天姚、天哭之属）。缺省
+    Ge,
+    /// 卷一「術天機」图（刻本 PDF 第 25 页）各星下注阴阳五行：与歌异者天刃作「陰土」、天姚作「陽木」；天刑、天哭、天空不注
+    TianJiTu,
+}
+
+/// 星之五行（"金"/"木"/"水"/"火"/"土"）；该说不注者 None
+pub fn wu_xing(star: &str, shuo: WuXingShuo) -> Option<&'static str> {
+    let ge = match star {
+        "天哭" | "天刃" | "紅鸞" => "金",
+        "天刑" => "火",
+        "紫微" | "文昌" | "天杖" | "天祿" => "木",
+        "毛頭" | "天姚" | "天虛" => "水",
+        "天貴" | "天福" | "天印" | "天壽" | "天庫" | "天貫" | "天異" => "土",
+        _ => return None,
+    };
+    match (shuo, star) {
+        (WuXingShuo::Ge, _) => Some(ge),
+        (WuXingShuo::TianJiTu, "天刃") => Some("土"),
+        (WuXingShuo::TianJiTu, "天姚") => Some("木"),
+        (WuXingShuo::TianJiTu, "天刑" | "天哭") => None,
+        (WuXingShuo::TianJiTu, _) => Some(ge),
+    }
+}
+
+/// 「術天機」图紫微一系十二星各注「某生」：「自子生起，順星逆」——子生紫微、丑生天祿、寅生天福……亥生天虛
+/// （生年支顺行，星依紫系逆布之序逆取）。原书未言其用，只列其配（见 doc/folk/ziwei18.md）。
+pub fn ben_ming_xing(year_zhi: u8) -> &'static str {
+    ZI_SERIES[((12 - year_zhi as usize % 12) % 12) as usize]
+}
+
 /// 十干阴阳之说（定大限、小限顺逆）
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GanYinYang {
@@ -64,11 +201,15 @@ pub struct Ziwei18Options {
     pub palace_dir: PalaceDir,
     pub shen: ShenReading,
     pub xiao_xian: XiaoXianRule,
+    /// 庙乐旺之表
+    pub miao: MiaoBiao,
+    /// 星之五行
+    pub wu_xing: WuXingShuo,
 }
 
 impl Default for Ziwei18Options {
     fn default() -> Self {
-        Self { gan_yin_yang: GanYinYang::YuanShu, palace_dir: PalaceDir::Ni, shen: ShenReading::ShenZhi, xiao_xian: XiaoXianRule::QiXiaoYun }
+        Self { gan_yin_yang: GanYinYang::YuanShu, palace_dir: PalaceDir::Ni, shen: ShenReading::ShenZhi, xiao_xian: XiaoXianRule::QiXiaoYun, miao: MiaoBiao::JuanYiTu, wu_xing: WuXingShuo::Ge }
     }
 }
 
@@ -338,6 +479,63 @@ mod tests {
         // 运限定论：本命宫起小限
         let o = Ziwei18Options { xiao_xian: XiaoXianRule::YunXianDingLun, ..Default::default() };
         assert_eq!(chart(&inp, &o).xiao_xian_start, z("子"));
+    }
+
+    /// 卷一「廟樂旺」图逐格转录：与卷一末诸星「喜某某」之宫、卷三星论「廟某旺某樂某」比对（结果见文档）
+    #[test]
+    fn miao_le_wang_tu() {
+        let t = miao_le_wang_table(MiaoBiao::JuanYiTu);
+        // 例：紫微廟巳酉、樂申亥、旺子（卷三紫微条「巳酉廟……申亥樂子旺」同）
+        assert_eq!(miao_le_wang("紫微", z("巳"), MiaoBiao::JuanYiTu), Some(MiaoLe::Miao));
+        assert_eq!(miao_le_wang("紫微", z("亥"), MiaoBiao::JuanYiTu), Some(MiaoLe::Le));
+        assert_eq!(miao_le_wang("紫微", z("子"), MiaoBiao::JuanYiTu), Some(MiaoLe::Wang));
+        assert_eq!(miao_le_wang("紫微", z("午"), MiaoBiao::JuanYiTu), None);
+        // 每颗星（除天空）图中皆见；同星同支不重出
+        for n in ALL18.iter().filter(|n| **n != "天空") {
+            assert!(t.iter().any(|x| x.0 == *n), "{n}");
+        }
+        for (i, a) in t.iter().enumerate() {
+            assert!(!t[i + 1..].iter().any(|b| a.0 == b.0 && a.1 == b.1), "{a:?}");
+        }
+        assert_eq!(t.len(), 71);
+        // 与卷三星论比对：同星同支等第相同者、等第不同者、一方独有者
+        let s3 = miao_le_wang_table(MiaoBiao::JuanSanXingLun);
+        let same = s3.iter().filter(|x| t.contains(x)).count();
+        let diff = s3.iter().filter(|x| t.iter().any(|y| y.0 == x.0 && y.1 == x.1 && y.2 != x.2)).count();
+        println!("卷三星论 {} 格：与卷一图同 {same}，等第异 {diff}，图无 {}", s3.len(), s3.len() - same - diff);
+        assert_eq!((s3.len(), same, diff), (57, 45, 8));
+        // 卷一末诸星「喜」之宫（天姚卯辰戌亥、天哭丑申卯午、天杖子申亥未、天刃申巳午寅、天刑寅酉戌、紅鸞辰丑寅卯亥）与图之三等之宫全同
+        let zs = |n: &str| {
+            let mut v: Vec<u8> = t.iter().filter(|x| x.0 == n).map(|x| x.1).collect();
+            v.sort();
+            v
+        };
+        let zz = |s: &str| {
+            let mut v: Vec<u8> = s.chars().map(|c| zhi_idx(c).unwrap()).collect();
+            v.sort();
+            v
+        };
+        assert_eq!(zs("天姚"), zz("卯辰戌亥"));
+        assert_eq!(zs("天哭"), zz("丑申卯午"));
+        assert_eq!(zs("天杖"), zz("子申亥未"));
+        assert_eq!(zs("天刃"), zz("申巳午寅"));
+        assert_eq!(zs("紅鸞"), zz("辰丑寅卯亥"));
+        assert_eq!(zs("文昌"), zz("寅午戌"));
+        assert_eq!(zs("天祿"), zz("巳申"));
+        assert_eq!(zs("天印"), zz("子卯辰亥"));
+    }
+
+    /// 星之五行：歌与「術天機」图只天刃、天姚相异
+    #[test]
+    fn wu_xing_two_sources() {
+        let diff: Vec<&str> = ALL18.iter().copied().filter(|n| {
+            let (a, b) = (wu_xing(n, WuXingShuo::Ge), wu_xing(n, WuXingShuo::TianJiTu));
+            a.is_some() && b.is_some() && a != b
+        }).collect();
+        assert_eq!(diff, ["天姚", "天刃"]);
+        assert_eq!(wu_xing("天虛", WuXingShuo::Ge), Some("水"));
+        // 本命星：子紫微、丑天祿、寅天福、未天空、亥天虛
+        assert_eq!([0u8, 1, 2, 7, 11].map(ben_ming_xing), ["紫微", "天祿", "天福", "天空", "天虛"]);
     }
 
     #[test]

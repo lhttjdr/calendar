@@ -5,7 +5,7 @@
 //!   「年月日時直使同此法」。积年取演纪积年（「與小遊同」，以七百二十去之与卷一积年同余），故岁计八门不随淘金歌积年而变。
 //! - 直使（时计）：金鏡卷一「推八門用法」引张良：阳遁冬至甲日夜半甲子以后开门直使、丙日日中甲午以后生门、己日夜半甲子以后
 //!   惊门、辛日日中甲午以后休门，「三十時移門」；阴遁夏至杜、死、伤、景同。即时计积数以一百二十去之、三十约之。
-//!   王希明改以冬至、夏至加时起算（「不拘其甲丙己辛日」），本项目时计不以交至时刻起算，故从张良。
+//!   王希明改以冬至、夏至加时起算（「不拘其甲丙己辛日」），作选项 [`ShiMenFa::WangXiMing`]（[`zhi_shi_shi_wang`]，须交至时刻）。
 //! - 阴遁（岁月日计）：金鏡未言，取阳遁直门之冲（开↔杜、休↔景、生↔死、伤↔惊），与张良阴阳二遁四门互冲、淘金歌
 //!   「陰遁皆以杜門為直事」相应（**未核**）。
 //! - 布门：[`BuMenFa`]。
@@ -43,6 +43,32 @@ pub fn zhi_shi_shi(shi_ji_shu: i64, dun: Dun) -> ZhiShi {
         Dun::Yin => [4, 6, 3, 5],  // 杜、死、伤、景
     };
     ZhiShi { men: seq[(k / 30) as usize], ru: (k % 30 + 1) as u8 }
+}
+
+/// 时计直使之法
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ShiMenFa {
+    /// 张良：时计积数以一百二十去之、三十约之（门界恒在甲、丙、己、辛日之夜半、日中）。缺省
+    ZhangLiang,
+    /// 王希明：「臣今太乙冬至夏至初臨之時門則隨數起時盡則移不拘其甲丙己辛日也」；「推冬至加時所直門法」：
+    /// 「置天正時實以二百四十去之不盡以一百二十去之不盡以三十約之為門數命起開門以次而行即天正冬至加時所直門也」；
+    /// 夏至同（「以三十約之為門數」下阙数字，阴遁命起杜门**未核**）。见 [`zhi_shi_shi_wang`]
+    WangXiMing,
+}
+
+/// 王希明二至加时起门：`zhi_shi_shu` 为交至时刻所在时辰之时计积数（即「天正時實」「夏至時實」，以 [`super::shi_ji_shu`]
+/// 同法计，1 起），`since` 为自交至之时辰起已过之时辰数（交至之时辰为 0）。
+/// 至时之门依时实以一百二十去之、三十约之（阳遁开生惊休、阴遁杜死伤景，同张良之序）；门「隨數起」——自交至之时辰起
+/// 入门第一时，满三十时（「時盡」）移次门，故门界随交至之时而定，「不拘其甲丙己辛日」。
+/// 「隨數起」读作至时重起入门之数，系本项目之解读（若读作仍依时实之余数，则门界与张良全同，王氏之改无所施），**未核**。
+pub fn zhi_shi_shi_wang(zhi_shi_shu: i64, since: i64, dun: Dun) -> ZhiShi {
+    let k0 = (zhi_shi_shu - 1).rem_euclid(120) / 30;
+    let seq: [u8; 4] = match dun {
+        Dun::Yang => [0, 2, 7, 1],
+        Dun::Yin => [4, 6, 3, 5],
+    };
+    let s = since.max(0);
+    ZhiShi { men: seq[((k0 + s / 30) % 4) as usize], ru: (s % 30 + 1) as u8 }
 }
 
 /// 布门之法：八门各临何宫
@@ -155,6 +181,26 @@ mod tests {
         // 甲戌日夜半复为开门（一百二十时一周）
         assert_eq!(at(10, 0, Dun::Yang), 0);
         assert_eq!(at(2, 5, Dun::Yang), 0); // 丙寅日巳时仍为开门
+    }
+
+    /// 王希明二至加时起门：至时之门依时实，入门自至时起第一时，三十时一移，门界随至时
+    #[test]
+    fn wang_xi_ming_shi_men() {
+        // 冬至加时在甲子日子时：与张良同，开门第一时
+        assert_eq!(zhi_shi_shi_wang(shi_ji_shu(0, 0), 0, Dun::Yang), ZhiShi { men: 0, ru: 1 });
+        // 冬至加时在乙丑日卯时（时实 16）：门数 0（开门），张良入开门第十六时，王氏自此为开门第一时
+        let s0 = shi_ji_shu(1, 3);
+        assert_eq!(zhi_shi_shi(s0, Dun::Yang), ZhiShi { men: 0, ru: 16 });
+        assert_eq!(zhi_shi_shi_wang(s0, 0, Dun::Yang), ZhiShi { men: 0, ru: 1 });
+        // 张良丙寅日午时（至后十五时）已移生门，王氏至后三十时（丁卯日酉时）方移
+        assert_eq!(zhi_shi_shi(s0 + 15, Dun::Yang).men, 2);
+        assert_eq!(zhi_shi_shi_wang(s0, 15, Dun::Yang).men, 0);
+        assert_eq!(zhi_shi_shi_wang(s0, 29, Dun::Yang), ZhiShi { men: 0, ru: 30 });
+        assert_eq!(zhi_shi_shi_wang(s0, 30, Dun::Yang), ZhiShi { men: 2, ru: 1 });
+        // 四门一周一百二十时
+        assert_eq!(zhi_shi_shi_wang(s0, 120, Dun::Yang), ZhiShi { men: 0, ru: 1 });
+        // 夏至加时在己巳日子时（时实 61，门数 2）：阴遁伤门
+        assert_eq!(zhi_shi_shi_wang(shi_ji_shu(5, 0), 0, Dun::Yin), ZhiShi { men: 3, ru: 1 });
     }
 
     /// 淘金歌「八門起例」：第三丙子元辛丑年二十六局，太乙一宫，开门加乾，休坎、生艮、伤震、杜巽、景離、死坤、惊兌

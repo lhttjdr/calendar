@@ -150,6 +150,49 @@ pub fn yue_ji_zhang_sui(jdn: i64) -> u16 {
     r360(jing_shuo_yue(jdn).0 + 1)
 }
 
+/// 金鏡卷一「推太乙月計差法」：閏差二十、秒二十七（每月闰余所加，以章岁为母）
+pub const RUN_CHA: i64 = 20;
+pub const RUN_CHA_MIAO: i64 = 27;
+/// 秒法二百（同条「秒法二百」）
+pub const MIAO_FA: i64 = 200;
+/// 「或六百三十……以上無中氣者詳之」之限（闰余整数部分）
+pub const RUN_XIAN: i64 = 630;
+
+/// 章岁法推闰月之读法（金鏡卷一「推求閏月」：「置閏餘每月加閏差及秒滿法從閏餘滿章嵗則閏月所在或六百三十秒者以上無中氣者詳之」）
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RunYueFa {
+    /// 全句：闰余累加闰差满章岁即闰；未满而在六百三十以上者，「詳之」——以章岁法之平气平朔核其月有无中气
+    /// （中气去经朔 = 闰余 + 月数 × 章月/12 − 章岁，以章岁为母；无中气者闰）。缺省
+    XiangZhi,
+    /// 只取前半句：满章岁方闰，不「詳之」（闰差二十秒二十七略小于平率二十又六分之一，故偶有当闰而不闰）
+    ManZhangSui,
+}
+
+/// 章岁法一年之闰：所求年（干支年）天正十一月起，第 `k` 月（天正为第 0 月）无中气为闰月，即闰其前一月。
+/// 返回 `Some((k, 所闰之月))`，所闰之月 1—12（11、12 为前一年之十一、十二月）；无闰为 `None`。
+/// 闰余单位为章岁之一（657 为一月），闰差 20 + 27/200（[`RUN_CHA`]）。平率当为 (章月 − 12 章岁)/12 = 242/12 = 20 又 1/6，
+/// 合秒三十三有奇；书作「秒二十七」，故全句以「六百三十以上詳之」补其不足（见 doc/folk/taiyi.md 第十五节）。
+pub fn zhang_sui_run_yue(year: i32, school: JiNian, fa: RunYueFa) -> Option<(u8, u8)> {
+    let (_, r) = zhang_sui_ji_yue(year, school);
+    let man = ZHANG_SUI * MIAO_FA;
+    for k in 1..=12i64 {
+        let a = r * MIAO_FA + k * (RUN_CHA * MIAO_FA + RUN_CHA_MIAO);
+        let run = if a >= man {
+            true
+        } else if fa == RunYueFa::XiangZhi && a / MIAO_FA >= RUN_XIAN {
+            // 平气平朔：第 k 中气去第 k 经朔 =（12r + 242k）/ 12 章岁分，满章岁则第 k 月无中气
+            12 * r + (ZHANG_YUE - 12 * ZHANG_SUI) * k >= 12 * ZHANG_SUI
+        } else {
+            false
+        };
+        if run {
+            let m = ((k - 1 + 10) % 12 + 1) as u8;
+            return Some((k as u8, m));
+        }
+    }
+    None
+}
+
 /// 日计积日与儒略日数之差：金鏡卷一举梁天监三年六月八日积日 707,501,061；以「积日减一、六十去之、命甲子」为日干支
 /// 定其日为甲申（JDN 1,905,331，儒略历 504-07-06）。集成卷六八八天启三年十一月初八甲子（1623-12-29）得 181 与此合。
 pub const RI_JI_OFFSET: i64 = 705_595_730;
@@ -613,6 +656,67 @@ mod tests {
         let r = yue_ji_zhang_sui(2_314_260);
         assert_ne!(r, 3);
         assert_eq!(r, 33);
+    }
+
+    /// 章岁法推闰月（金鏡卷一「推求閏月」）：
+    /// - 书例梁天监三年：天正闰余 334，至六月（第七月）累加闰差不满章岁、不及六百三十，无闰——与书以天正积月 + 7 求六月经朔相应；
+    /// - 「詳之」全句与章岁积月一致：某年有闰当且仅当次年天正积月多十三月；657 年中 242 闰；
+    /// - 只取「满章岁」者，因闰差秒二十七小于平率，有当闰而不闰之年。
+    #[test]
+    fn zhang_sui_run_yue_examples() {
+        let (_, r) = zhang_sui_ji_yue(504, JiNian::JinJing);
+        for k in 1..=7i64 {
+            let a = r * MIAO_FA + k * (RUN_CHA * MIAO_FA + RUN_CHA_MIAO);
+            assert!(a < ZHANG_SUI * MIAO_FA && a / MIAO_FA < RUN_XIAN);
+        }
+        assert_eq!(zhang_sui_run_yue(504, JiNian::JinJing, RunYueFa::XiangZhi), None);
+        let mut n_run = 0;
+        let mut n_miss = 0;
+        for y in 1000..1000 + 657 {
+            let thirteen = zhang_sui_ji_yue(y + 1, JiNian::JinJing).0 - zhang_sui_ji_yue(y, JiNian::JinJing).0 == 13;
+            let xz = zhang_sui_run_yue(y, JiNian::JinJing, RunYueFa::XiangZhi);
+            assert_eq!(xz.is_some(), thirteen, "{y}");
+            n_run += thirteen as u32;
+            let mz = zhang_sui_run_yue(y, JiNian::JinJing, RunYueFa::ManZhangSui);
+            if mz != xz {
+                n_miss += 1;
+            }
+        }
+        assert_eq!(n_run, 242);
+        println!("章岁法 657 年：闰 {n_run}；只取满章岁与全句不同 {n_miss} 年");
+        assert!(n_miss > 0);
+    }
+
+    /// 章岁法闰月与实历朔日表（ChineseCalendar 复原，非史实记录，只作对照）之闰月逐年比对，统计而已
+    #[test]
+    fn zhang_sui_run_yue_vs_shili() {
+        let p = crate::repo::repo_root().join("vendor/calendar/chinese_calendar/实历朔日表.csv");
+        let Ok(s) = std::fs::read_to_string(&p) else { return };
+        let mut shi: std::collections::BTreeMap<i32, u8> = Default::default();
+        for l in s.lines().skip(1) {
+            let f: Vec<&str> = l.split(',').collect();
+            if f.len() >= 6 && f[5] == "1" {
+                shi.insert(f[3].parse().unwrap(), f[4].parse().unwrap());
+            }
+        }
+        if shi.is_empty() {
+            return;
+        }
+        // 章岁年 y（干支年）之闰，所闰之月 11、12 属农历 y − 1 年
+        let (mut same, mut near, mut total) = (0, 0, 0);
+        for y in -100..1900 {
+            if let Some((_, m)) = zhang_sui_run_yue(y, JiNian::JinJing, RunYueFa::XiangZhi) {
+                let ly = if m >= 11 { y - 1 } else { y };
+                total += 1;
+                match shi.get(&ly) {
+                    Some(sm) if *sm == m => same += 1,
+                    Some(sm) if (*sm as i32 - m as i32).abs() <= 1 => near += 1,
+                    _ => {}
+                }
+            }
+        }
+        println!("章岁闰 {total} 次：与实历同年同月 {same}，差一月 {near}；实历闰 {}", shi.range(-101..1900).count());
+        assert!((same + near) * 2 > total);
     }
 
     #[test]

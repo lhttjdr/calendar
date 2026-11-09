@@ -70,6 +70,34 @@ pub fn you_qi(wx: u8, yue_jian: u8) -> bool {
     wang_shuai(wx, yue_jian) <= 1
 }
 
+/// 四时当令之行（旺相之所据）
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WangXiangRule {
+    /// 季月（辰未戌丑）全月土旺（卷五觀月經注「四季土旺」「季月金相」）。缺省
+    JiYue,
+    /// 土旺四季各十八日：四立前十八日土旺，季月其余日仍属本季（卷八雜狀課「土守中宫分旺四季毎季前各旺十八日總七十二日合而成嵗
+    /// 故辰中有餘木未有餘火戌中有餘金丑中有餘水各十二日」，又「春夏秋冬辰戌丑未月各寄旺十八日」；卷二太常注「土旺四季各十八日」）。
+    /// 起讫用土王用事（四立前十八日至四立前一日，与择日同，[`crate::folk::zajie::tu_wang`]），须调用方给出是否在其中
+    TuWang18,
+}
+
+/// 当令之行（0 木 1 火 2 土 3 金 4 水）。`tu_wang` 是否在土王用事期内（只 [`WangXiangRule::TuWang18`] 用）
+pub fn dang_ling(yue_jian: u8, rule: WangXiangRule, tu_wang: bool) -> u8 {
+    let y = (yue_jian % 12) as usize;
+    match rule {
+        WangXiangRule::JiYue => [4, 2, 0, 0, 2, 1, 1, 2, 3, 3, 2, 4][y],
+        WangXiangRule::TuWang18 if tu_wang => 2,
+        // 季月余日从本季：辰木、未火、戌金、丑水
+        WangXiangRule::TuWang18 => [4, 4, 0, 0, 0, 1, 1, 1, 3, 3, 3, 4][y],
+    }
+}
+
+/// 以当令之行定旺相休囚死（0 旺 1 相 2 休 3 囚 4 死）
+pub fn wang_shuai_ling(wx: u8, ling: u8) -> u8 {
+    let d = (wx as i32 - ling as i32).rem_euclid(5);
+    [0u8, 1, 4, 3, 2][d as usize]
+}
+
 /// 旬首之支：日干支 g（0 甲子…59 癸亥）所在之旬，甲所值之支
 pub fn xun_shou(day_gz: u8) -> u8 {
     m12((day_gz % 60) as i32 % 12 - (day_gz % 60) as i32 % 10)

@@ -8,7 +8,7 @@
 //! **起例选项**（[`ShenshaOptions`]，缺省全依协纪）：元末本《類編曆法通書大全》（题宋魯珍，北大藏，archive.org
 //! `02094403.cn`—`02094417.cn`，下称类编）与协纪起例不同、而类编自身前后一致的几神，可逐神改依类编：
 //! 天德天德合四仲月、天火顺行、鳴吠（十四日、安葬十二日）、鳴吠對（十一日、十日两表）、復日四说、荒蕪（协纪月家不列；
-//! 按季三支、类编表序一月一支、类编新增起例一月一支）。年神蠶命见 [`super::nianshen::NianShenOptions`]。
+//! 按季三支、类编表序一月一支、类编新增起例一月一支）、天賊（协纪正月丑逆行、类编正月辰每月进五辰）。年神蠶命见 [`super::nianshen::NianShenOptions`]。
 //! 逐神出处与逐日检验见 `doc/folk/tongshu.md`「类编选项」一节。选项只改所列之神，不改协纪月表宜忌（[`super::yiji`]）。
 
 use once_cell::sync::Lazy;
@@ -162,6 +162,10 @@ pub struct ShenshaOptions {
     pub ming_fei_dui: MingFeiDuiRule,
     pub fu_ri: FuRiRule,
     pub huang_wu: HuangWuRule,
+    /// 天賊。协纪卷六引李鼎祚「正月在丑逆行十二辰」（缺省）；类编正月辰、每月进五辰（辰酉寅未子巳戌卯申丑午亥），
+    /// 卷十五日凶神表（02094410.cn PDF 第 59 页）、卷十一逐月日表、卷七嫁娶凶神表同，卷五（02094405.cn 第 62 页）
+    /// 「滿日忌正四七十月犯天賊」「開日三六九十二月犯天賊」即孟月满日、仲月破日、季月开日。两说 720 日无一日同
+    pub tian_zei: QiLiYi,
 }
 
 impl ShenshaOptions {
@@ -174,7 +178,36 @@ impl ShenshaOptions {
             ming_fei_dui: MingFeiDuiRule::LeiBian11,
             fu_ri: FuRiRule::JiZheng,
             huang_wu: HuangWuRule::LeiBianBiao,
+            tian_zei: QiLiYi::LeiBian,
         }
+    }
+
+    /// 全依《增補鰲頭通書大全》（乾隆丙午重梓、上海廣益書局石印本，书影转录 `data/folk/aotou_shensha_qili.csv`、
+    /// `data/folk/aotou_anzang.csv`）。与类编同者：天德四仲依支（卷五日家吉神定局，第 6 册第 34 页；卷二第 3 册第 40 页）、
+    /// 天火顺行四仲（卷五日家凶神，第 6 册第 22 页）、天賊辰酉寅未（卷二第 3 册第 41 页）、復日取《集正》（同页）；
+    /// 与类编「全依」不同者：荒蕪取孟平仲破季收（卷二第 3 册第 27、41 页），鳴吠取安葬十二日（第 5 册第 92 页），
+    /// 鳴吠對取「發塚權曆」十日（第 5 册第 98 页）。见 doc/folk/tongshu_yiji.md 第十节第 3 小节
+    pub fn aotou() -> Self {
+        Self {
+            tian_de: QiLiYi::LeiBian,
+            tian_huo: QiLiYi::LeiBian,
+            ming_fei: MingFeiRule::LeiBianAnZang12,
+            ming_fei_dui: MingFeiDuiRule::LeiBian10,
+            fu_ri: FuRiRule::JiZheng,
+            huang_wu: HuangWuRule::LeiBianQiLi,
+            tian_zei: QiLiYi::LeiBian,
+        }
+    }
+}
+
+/// 天賊之支（支序）。月序 `month_ord`：寅月 = 0。
+/// - 协纪：卷六天賊條引李鼎祚「天賊者正月在丑逆行十二辰」，按语「天賊者月厭之收日也，常居厭後四辰」；
+/// - 类编：正月辰、每月进五辰，即孟月满日、仲月破日、季月开日（卷五「滿日忌正四七十月犯天賊」「開日三六九十二月犯天賊」）。
+pub fn tian_zei_zhi(month_ord: u8, rule: QiLiYi) -> u8 {
+    let m = (month_ord % 12) as i32;
+    match rule {
+        QiLiYi::XieJi => (1 - m).rem_euclid(12) as u8,
+        QiLiYi::LeiBian => ((4 + 5 * m) % 12) as u8,
     }
 }
 
@@ -261,6 +294,10 @@ pub fn shen_for_day_with(month_ord: u8, day_gz: u8, o: &ShenshaOptions) -> Vec<(
     }
     if huang_wu_zhi(month_ord, o.huang_wu).contains(&zhi_i) {
         out.push(("荒蕪".to_string(), false));
+    }
+    // 天賊：协纪月神 CSV（卷五、卷六按语定论之 63 神）未收，月表（卷二十至三十一）逐日有之；此按起例列出
+    if tian_zei_zhi(month_ord, o.tian_zei) == zhi_i {
+        out.push(("天賊".to_string(), false));
     }
     for (name, ji, list, _) in FIXED_SHEN.iter() {
         let hit = match *name {
@@ -471,13 +508,86 @@ mod tests {
     #[test]
     fn leibian_options_isolated() {
         let lb = ShenshaOptions::leibian();
-        let touched = ["天德", "天德合", "天火", "復日", "荒蕪", "鳴吠", "鳴吠對"];
+        let touched = ["天德", "天德合", "天火", "復日", "荒蕪", "鳴吠", "鳴吠對", "天賊"];
         for m in 0..12u8 {
             for d in 0..60u8 {
                 let strip = |v: Vec<(String, bool)>| -> Vec<String> {
                     v.into_iter().map(|(n, _)| n).filter(|n| !touched.contains(&n.as_str())).collect()
                 };
                 assert_eq!(strip(shen_for_day(m, d)), strip(shen_for_day_with(m, d, &lb)), "{m} {d}");
+            }
+        }
+    }
+
+    /// 鳌头选项与鳌头书影录文（`data/folk/aotou_shensha_qili.csv`、`aotou_anzang.csv`）逐日比对（12 月 × 60 日）。
+    /// 出行凶神表天賊十月作「酉」（同书第 41 页表作丑）为异文，只打印不断言。
+    /// `cargo test -p lunar-core aotou_options -- --nocapture` 打印比对表（doc/folk/tongshu_yiji.md 第十节第 3 小节）
+    #[test]
+    fn aotou_options() {
+        const QILI: &str = include_str!("../../../../data/folk/aotou_shensha_qili.csv");
+        const ANZANG: &str = include_str!("../../../../data/folk/aotou_anzang.csv");
+        let ao = ShenshaOptions::aotou();
+        // (表, 神) → 十二月之值
+        let row = |table: &str, god: &str| -> Vec<Vec<String>> {
+            let mut v = vec![Vec::new(); 12];
+            for l in QILI.lines().skip(1) {
+                let f: Vec<&str> = l.split(',').collect();
+                if f[0] == table && f[5] == god && !f[6].is_empty() {
+                    v[f[6].parse::<usize>().unwrap() - 1] = vec![f[7].to_string()];
+                }
+            }
+            assert!(v.iter().all(|x| !x.is_empty()), "{table} {god}");
+            v
+        };
+        let mut rows: Vec<(String, (usize, usize), bool)> = Vec::new();
+        for (t, g, p, strict) in [
+            ("日家吉神定局", "天德", "第 6 册第 34 页", true),
+            ("日家吉神定局", "天德合", "第 6 册第 34 页", true),
+            ("吉日月表", "天德", "第 3 册第 40 页", true),
+            ("吉日月表", "天德合", "第 3 册第 40 页", true),
+            ("日家凶神", "天火", "第 6 册第 22 页", true),
+            ("凶日月表", "復日", "第 3 册第 41 页", true),
+            ("凶日月表", "荒蕪", "第 3 册第 41 页", true),
+            ("出行凶神", "荒蕪", "第 3 册第 27 页", true),
+            ("凶日月表", "天賊", "第 3 册第 41 页", true),
+            ("出行凶神", "天賊", "第 3 册第 27 页", false),
+        ] {
+            rows.push((format!("{g}（{t}，{p}）"), compare_month_table(g, &row(t, g), &ao), strict));
+        }
+        // 鳴吠、鳴吠對：卷四安葬（第 5 册第 92、98 页）
+        let days = |table_prefix: &str| -> Vec<String> {
+            let mut v: Vec<String> = Vec::new();
+            for l in ANZANG.lines().skip(1) {
+                let f: Vec<&str> = l.split(',').collect();
+                if f[0].starts_with(table_prefix) && f[2] == "安葬" {
+                    v.push(f[5].to_string());
+                }
+            }
+            v
+        };
+        let mf: Vec<String> = days("安葬吉日（鳴吠歌吼）").into_iter().take(12).collect();
+        rows.push(("鳴吠（安葬吉日十二日，第 5 册第 92 页）".into(), compare_day_list("鳴吠", &mf, &ao), true));
+        rows.push(("鳴吠對（發塚權曆十日，第 5 册第 98 页）".into(), compare_day_list("鳴吠對", &days("發塚權曆"), &ao), true));
+        println!("| 神（鳌头出处） | 比对日数 | 合 | 不合 |\n|---|---|---|---|");
+        for (n, (t, ok), _) in &rows {
+            println!("| {n} | {t} | {ok} | {} |", t - ok);
+        }
+        for (n, (t, ok), strict) in &rows {
+            if *strict {
+                assert_eq!(t, ok, "{n}");
+            } else {
+                // 出行凶神天賊十月异文：只差十月两日（酉日应无而有、丑日应有而无）× 5
+                assert_eq!(t - ok, 10, "{n}");
+            }
+        }
+        // 鳌头选项只动七神
+        let touched = ["天德", "天德合", "天火", "復日", "荒蕪", "鳴吠", "鳴吠對", "天賊"];
+        for m in 0..12u8 {
+            for d in 0..60u8 {
+                let strip = |v: Vec<(String, bool)>| -> Vec<String> {
+                    v.into_iter().map(|(n, _)| n).filter(|n| !touched.contains(&n.as_str())).collect()
+                };
+                assert_eq!(strip(shen_for_day(m, d)), strip(shen_for_day_with(m, d, &ao)), "{m} {d}");
             }
         }
     }
@@ -554,5 +664,67 @@ mod tests {
                 assert_eq!(stat[k].1, 0, "{a}: {:?}", stat[k].2);
             }
         }
+    }
+
+    /// 天賊两说逐日检验（`cargo test -p lunar-core tian_zei_options -- --nocapture` 打印比对表，写入 doc/folk/tongshu.md）：
+    /// 协纪说 vs 协纪月表（`xieji_yuebiao.csv`，卷二十至三十一）720 日；类编说 vs 卷十一逐月日表（`leibian_juan11_days.csv`）720 日、
+    /// 卷十五日凶神表（02094410:59，影像录）与卷七嫁娶凶神表（[`crate::folk::jiaqu`]）十二月、卷五「孟满仲破季开」之述
+    #[test]
+    fn tian_zei_options() {
+        const YB: &str = include_str!("../../../../data/folk/xieji_yuebiao.csv");
+        const J11: &str = include_str!("../../../../data/folk/leibian_juan11_days.csv");
+        let gz_idx = |s: &str| (0..60u8).find(|&k| name60(k) == s).unwrap();
+        let lb = ShenshaOptions { tian_zei: QiLiYi::LeiBian, ..ShenshaOptions::default() };
+        let check = |csv: &str, col: usize, o: &ShenshaOptions| -> (usize, usize, Vec<String>) {
+            let (mut n, mut ok, mut bad) = (0, 0, Vec::new());
+            for l in csv.lines().skip(1).filter(|l| !l.trim().is_empty()) {
+                let f: Vec<&str> = l.split(',').collect();
+                let m: u8 = f[0].parse().unwrap();
+                let theirs = f[col].split(' ').any(|x| x == "天賊");
+                let mine = has(&shen_for_day_with(m - 1, gz_idx(f[1]), o), "天賊");
+                n += 1;
+                if theirs == mine {
+                    ok += 1;
+                } else {
+                    bad.push(format!("{m}月{}", f[1]));
+                }
+            }
+            (n, ok, bad)
+        };
+        let (n1, ok1, b1) = check(YB, 4, &ShenshaOptions::default());
+        let (n2, ok2, b2) = check(J11, 5, &lb);
+        // 交叉：协纪说对类编卷十一、类编说对协纪月表（两说无一日同，应各只合「两表皆无」之日）
+        let (_, x1, _) = check(J11, 5, &ShenshaOptions::default());
+        let (_, x2, _) = check(YB, 4, &lb);
+        // 卷十五日凶神表天賊一行（影像）、卷七嫁娶凶神表天賊一行
+        let juan15 = "辰酉寅未子巳戌卯申丑午亥";
+        // 卷七嫁娶凶神表（02094406.cn 第 37 页；jiaqu.rs `leibian_xiong` 表同）
+        let juan7 = "辰酉寅未子巳戌卯申丑午亥";
+        let zhi: Vec<char> = ZHI.chars().collect();
+        let ours: String = (0..12u8).map(|m| zhi[tian_zei_zhi(m, QiLiYi::LeiBian) as usize]).collect();
+        // 卷五：孟月满日（建 + 2）、仲月破日（建 + 6）、季月开日（建 + 10）
+        let man_po_kai: String = (0..12usize).map(|m| zhi[(m + 2 + [2, 6, 10][m % 3]) % 12]).collect();
+        // 协纪按语「天賊者月厭之收日也」：月厭正月戌逆行，以厌为建、随厌逆数至第十位（收）
+        let yan_shou: String = (0..12i32).map(|m| zhi[((10 - m) - 9).rem_euclid(12) as usize]).collect();
+        let xj: String = (0..12u8).map(|m| zhi[tian_zei_zhi(m, QiLiYi::XieJi) as usize]).collect();
+        println!("| 比对 | 日（月） | 合 | 不合 |\n|---|---|---|---|");
+        println!("| 协纪说 vs 协纪月表 | {n1} | {ok1} | {} |", n1 - ok1);
+        println!("| 类编说 vs 类编卷十一日表 | {n2} | {ok2} | {} |", n2 - ok2);
+        println!("| 协纪说 vs 类编卷十一（交叉） | {n2} | {x1} | {} |", n2 - x1);
+        println!("| 类编说 vs 协纪月表（交叉） | {n1} | {x2} | {} |", n1 - x2);
+        println!("| 类编说 vs 卷十五表 {juan15} | 12 | {} | |", (0..12).filter(|&k| ours.chars().nth(k) == juan15.chars().nth(k)).count());
+        println!("| 类编说 vs 卷七表 {juan7} | 12 | {} | |", (0..12).filter(|&k| ours.chars().nth(k) == juan7.chars().nth(k)).count());
+        println!("| 类编说 vs 卷五孟满仲破季开 {man_po_kai} | 12 | {} | |", (0..12).filter(|&k| ours.chars().nth(k) == man_po_kai.chars().nth(k)).count());
+        println!("| 协纪说 {xj} vs 按语月厭之收日 {yan_shou} | 12 | {} | |", (0..12).filter(|&k| xj.chars().nth(k) == yan_shou.chars().nth(k)).count());
+        assert_eq!((n1, ok1), (720, 720), "{b1:?}");
+        assert_eq!((n2, ok2), (720, 720), "{b2:?}");
+        // 两说无一月同支，故交叉只合两表皆无之日：每月 60 日中各 5 日不合 ×2 → 720 − 120
+        assert_eq!(x1, 600);
+        assert_eq!(x2, 600);
+        assert_eq!(ours, juan15);
+        assert_eq!(ours, juan7);
+        assert_eq!(ours, man_po_kai);
+        assert_eq!(xj, yan_shou);
+        assert!((0..12u8).all(|m| tian_zei_zhi(m, QiLiYi::XieJi) != tian_zei_zhi(m, QiLiYi::LeiBian)));
     }
 }
