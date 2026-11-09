@@ -29,7 +29,9 @@ pub mod guo_gong;
 pub mod shen_sha;
 pub mod xian_fa;
 pub use shen_sha::{GuiRenRule, KuiXingRule, NianJie, ShenSha, ShenShaOptions, TianJieRule};
-pub use xian_fa::{dong_wei_fei_xian, zhu_luo, zhu_luo_zhu, ZhuLuoRule, ZhuLuoXian};
+pub use xian_fa::{
+    dong_wei_by_rule, dong_wei_fei_xian, huang_quan_lu, huang_quan_xian, ji_jiao_xian, si_e_lin, si_sha_gong, zhu_luo, zhu_luo_zhu, DongWeiRule, ZhuLuoRule, ZhuLuoXian, ZhuLuoXing,
+};
 
 /// 十一曜之序：太阳、太阴、水、金、火、木、土、罗睺、计都、月孛、紫炁
 pub const YAO: [&str; 11] = ["太陽", "太陰", "水星", "金星", "火星", "木星", "土星", "羅睺", "計都", "月孛", "紫炁"];
@@ -452,6 +454,14 @@ pub struct XingMing {
     pub zhu_luo: Vec<ZhuLuoXian>,
     /// 竹羅三限逐岁之宫（下标 0 为一岁）
     pub zhu_luo_gong: Vec<u8>,
+    /// 急脚限一至一百岁之宫（下标 0 为一岁），见 [`ji_jiao_xian`]
+    pub ji_jiao: Vec<u8>,
+    /// 黄泉限一至一百岁之宫（急脚之逆，本项目读法），见 [`huang_quan_xian`]
+    pub huang_quan: Vec<u8>,
+    /// 生年納音四煞宫（沐浴、死、墓、絶），见 [`si_sha_gong`]
+    pub si_sha: [u8; 4],
+    /// 倒限之候：一至一百岁中，火羅孛土四曜皆照临某限之宫者，(岁, 限名)；限取洞微飛限、小限（按生日）、竹羅、急脚，见 [`si_e_lin`]
+    pub dao_xian: Vec<(u32, &'static str)>,
 }
 
 /// 五行关系：a 对 b（b 为主）
@@ -486,6 +496,10 @@ pub struct QizhengOptions {
     pub shen_sha: ShenShaOptions,
     /// 竹羅三方主寅午戌一组之异说
     pub zhu_luo: ZhuLuoRule,
+    /// 竹羅每节逆移宫数之异说
+    pub zhu_luo_xing: ZhuLuoXing,
+    /// 洞微飛限三合先后：照表或依歌之陰陽宫
+    pub dong_wei: DongWeiRule,
 }
 
 impl Default for QizhengOptions {
@@ -507,6 +521,8 @@ impl Default for QizhengOptions {
             nian_jie: NianJie::LiChun,
             shen_sha: ShenShaOptions::default(),
             zhu_luo: ZhuLuoRule::Ge,
+            zhu_luo_xing: ZhuLuoXing::QiShu,
+            dong_wei: DongWeiRule::Biao,
         }
     }
 }
@@ -781,11 +797,35 @@ pub fn chart<P: EphemerisProvider>(
     xing_ming.zhou = zhou_sheng(sun_lon, true_obliquity(t), hour_zhi, lst_lat);
     let inp = shen_sha::ShenShaInput { nian_gz: xing_ming.nian_gz, month: xing_ming.jie_yue, hour_zhi, zhou: xing_ming.zhou, ming, yao: &yao };
     xing_ming.shen_sha = shen_sha::shen_sha(&inp, &o.shen_sha);
-    xing_ming.dong_wei = (1..=100).filter_map(|s| dong_wei_fei_xian(ming, s)).collect();
+    xing_ming.dong_wei = match o.dong_wei {
+        DongWeiRule::Biao => (1..=100).filter_map(|s| dong_wei_fei_xian(ming, s)).collect(),
+        r => dong_wei_by_rule(ming, r),
+    };
     let stars = zhu_luo_zhu(ming, xing_ming.zhou, o.zhu_luo);
-    let (zl, zg) = zhu_luo(stars, stars.map(|k| yao[k].gong));
+    let (zl, zg) = zhu_luo(stars, stars.map(|k| yao[k].gong), o.zhu_luo_xing);
     xing_ming.zhu_luo = zl;
     xing_ming.zhu_luo_gong = zg;
+    // 急脚、黄泉、四煞、倒限之候（卷七）
+    xing_ming.ji_jiao = (1..=100).map(|s| ji_jiao_xian(ming, s)).collect();
+    xing_ming.huang_quan = (1..=100).map(|s| huang_quan_xian(ming, s)).collect();
+    xing_ming.si_sha = si_sha_gong(shen_sha::nayin_xing(xing_ming.nian_gz));
+    let gongs: Vec<u8> = yao.iter().map(|y| y.gong).collect();
+    let mut dao = Vec::new();
+    for s in 1..=100u32 {
+        let i = s as usize - 1;
+        let xs = [
+            ("飛限", xing_ming.dong_wei.get(i).copied()),
+            ("小限", Some(xiao_xian_sui(ming, s))),
+            ("竹羅", xing_ming.zhu_luo_gong.get(i).copied()),
+            ("急脚", Some(xing_ming.ji_jiao[i])),
+        ];
+        for (n, g) in xs {
+            if g.is_some_and(|g| si_e_lin(&gongs, g)) {
+                dao.push((s, n));
+            }
+        }
+    }
+    xing_ming.dao_xian = dao;
     QizhengChart { yao, ming, palaces, xing_ming }
 }
 
@@ -849,6 +889,10 @@ fn xing_ming(yao: &[YaoPos], ming: u8, ming_lon: Real, ming_gong_deg: Real, mlon
         dong_wei: Vec::new(),
         zhu_luo: Vec::new(),
         zhu_luo_gong: Vec::new(),
+        ji_jiao: Vec::new(),
+        huang_quan: Vec::new(),
+        si_sha: [0; 4],
+        dao_xian: Vec::new(),
     }
 }
 
@@ -1071,7 +1115,9 @@ mod tests {
                 assert_eq!(x.dong_wei[0], c.ming);
                 assert_eq!(x.zhu_luo.len(), 3);
                 assert_eq!(x.zhu_luo[0].yao, 5); // 寅命夜生：木日土
-                assert_eq!(x.zhu_luo_gong.len(), 30 + 28 + 26);
+                assert_eq!(x.zhu_luo_gong.len(), 2 + 30 + 2 + 28 + 5 + 26); // 停住：木前二、日前二、土前五
+                assert_eq!(x.ji_jiao[0], 5); // 寅命急脚起巳
+                assert_eq!(x.si_sha, si_sha_gong(4)); // 癸巳長流水
                 eprintln!("神煞 {} 项：{:?}", x.shen_sha.len(), x.shen_sha.iter().map(|s| format!("{}{}", s.name, s.gong.map(|g| g.to_string()).unwrap_or_default())).collect::<Vec<_>>());
                 // 宿度分宫：各曜宫与中气分宫至多差一宫
                 for g in [GongRule::XiuDuXingZong, GongRule::XiuDuDaCheng] {
@@ -1401,11 +1447,72 @@ mod tests {
                 c.yao[4].gong,
                 at69.map(|g| &ZHI_CH[g as usize * 3..g as usize * 3 + 3]).unwrap_or("-")
             );
-            if c.ming == 1 && !x.zhou && at69 == Some(2) {
+            // 「火命人限星到寅即長生限」：读作六十九岁所行为火限、限星火躔寅（戊子納音火，長生在寅），见 doc §4.10
+            let in_huo = x.zhu_luo.iter().any(|z| z.yao == 4 && (z.from..=z.to).contains(&69));
+            if c.ming == 1 && !x.zhou && in_huo && c.yao[4].gong == 2 {
                 hits.push(y);
             }
         }
         eprintln!("竹羅书例全合之年：{hits:?}");
+    }
+
+    /// 罗计、月孛、紫炁对乾隆四年（1739）、宣統二年（1910）、三年（1911）七政时宪书正月初一（书影见 doc/folk/qizheng.md §2）：
+    /// 乾隆四年罗睺在升交点（罗睺升交，同康熙九年），宣統二、三年计都在升交点（同道光十三年）；紫炁（道光十三年反推之匀速）对宣統本
+    #[test]
+    fn luo_ji_shixianshu_years() {
+        use crate::astronomy::ephemeris::elpmpp02::{load_all, Elpmpp02Correction};
+        use crate::astronomy::ephemeris::vsop87_patch::PatchTarget;
+        use crate::astronomy::ephemeris::{load_earth_vsop87_corrected_from_repo, load_planet_vsop87_corrected_from_repo};
+        use crate::astronomy::frame::nutation::try_init_full_nutation_from_repo;
+        use crate::astronomy::pipeline::{Vsop87Elp, Vsop87Planets};
+        use crate::astronomy::sky_culture::chinese::load_lunar_mansion_systems_from_repo;
+        use crate::astronomy::stars::load_hipparcos_bright_from_repo;
+        use crate::calendar::chinese_lunar::{compute_year_data, to_julian_day, tt_to_day_number_utc8, ChineseLunarDate};
+        use crate::quantity::angle::PlaneAngle;
+        let _ = try_init_full_nutation_from_repo();
+        let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::DEFAULT).unwrap();
+        let planets: Vec<_> = [Planet::Mercury, Planet::Venus, Planet::Mars, Planet::Jupiter, Planet::Saturn]
+            .iter()
+            .map(|&p| (p, load_planet_vsop87_corrected_from_repo(p, PatchTarget::DEFAULT).unwrap()))
+            .collect();
+        let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT).unwrap();
+        let eph = Vsop87Elp { planets: Vsop87Planets { earth: &earth, planets: planets.iter().map(|(p, v)| (*p, v)).collect() }, moon: &elp };
+        let cat = load_hipparcos_bright_from_repo().unwrap();
+        let sys = load_lunar_mansion_systems_from_repo().unwrap().into_iter().find(|s| s.id == "qing").unwrap();
+        let opts = ApparentPipelineOptions::pipeline_default();
+        // (年, 罗睺升交否, 月孛, 罗睺, 计都, 紫炁)：书之正月初一子正宿度
+        type Xd = (&'static str, f64);
+        let book: [(i32, bool, Xd, Xd, Xd, Option<Xd>); 3] = [
+            (1739, true, ("觜", 7.0 + 38.0 / 60.0), ("柳", 4.0 + 34.0 / 60.0), ("女", 3.0 + 7.0 / 60.0), None),
+            (1910, false, ("角", 3.0 + 28.0 / 60.0), ("房", 2.0 + 22.0 / 60.0), ("昴", 5.0 + 54.0 / 60.0), Some(("井", 19.0 + 41.0 / 60.0))),
+            (1911, false, ("房", 3.0 + 45.0 / 60.0), ("氐", 1.0 + 7.0 / 60.0), ("娄", 12.0 + 16.0 / 60.0), Some(("鬼", 1.0 + 40.0 / 60.0))),
+        ];
+        for (y, luo_asc, bei, luo, ji, zi) in book {
+            let yd = compute_year_data(&earth, &elp, y, PlaneAngle::from_rad(real(1e-9)), 30).unwrap();
+            let date = ChineseLunarDate { year: y, month: 1, day: 1, is_leap_month: false, days_in_month: 30 };
+            let dn = tt_to_day_number_utc8(to_julian_day(date, &yd).unwrap());
+            // 北京子正（地方平时）
+            let t = TimePoint::new(TimeScale::UT1, real(dn as f64 - 0.5 - 116.4 / 360.0)).to_scale(TimeScale::TT);
+            let frame = MansionFrame::new(&eph, &cat, &sys, t, &opts).unwrap();
+            for lj in [LuoJi::LuoAscending, LuoJi::JiAscending] {
+                let c = chart(&eph, t, Some(&frame), 0, None, &QizhengOptions { luo_ji: lj, ..Default::default() }, &opts);
+                let mut rows = vec![("月孛", bei), ("羅睺", luo), ("計都", ji)];
+                if let Some(z) = zi {
+                    rows.push(("紫炁", z));
+                }
+                let mut ok = true;
+                for (name, (x, d)) in rows {
+                    let yv = c.yao.iter().find(|q| q.name == name).unwrap();
+                    let (xi, du) = yv.xiu.unwrap();
+                    let hit = MANSIONS[xi] == x && (du.as_f64() - d).abs() < 1.0;
+                    eprintln!("{y} {lj:?} {name}: 书{x}{d:.2} 算{}{:.2} 差{:+.0}′", MANSIONS[xi], du.as_f64(), (du.as_f64() - d) * 60.0);
+                    if name == "羅睺" || name == "計都" {
+                        ok &= hit;
+                    }
+                }
+                assert_eq!(ok, (lj == LuoJi::LuoAscending) == luo_asc, "{y} {lj:?}");
+            }
+        }
     }
 
     #[test]

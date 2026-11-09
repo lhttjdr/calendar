@@ -396,6 +396,32 @@ pub fn san_sheng_wu_bu_ji(pan: &QimenPan) -> Vec<GeJu> {
     out
 }
 
+/// 寄宫避五（转盘）：直符所加（时干在中五）或直使所加之宫为五、借寄宫布之者，演义注「避五」。
+/// 演义卷三「竒遁佈局法」：「此寄宫終非正位，故遇直符直使在五則皆註避五於本時之下，恐人誤用之也」「凡遇寄宫終非正位，
+/// 雖得竒亦不宜用事」；直使在五另据湯謂「凡直使在五宮之時，利客不利主」（《集成》卷七百五「釋陰陽二遁」）。
+/// `gong` 为实际所寄之宫（随所选寄宫之说）。飞盘不寄（入中五即中五），此说不及，返回空。
+pub fn bi_wu(pan: &QimenPan) -> Vec<GeJu> {
+    if pan.options.method != super::pan::PanMethod::ZhuanPan {
+        return Vec::new();
+    }
+    const B: &str = "演义卷三「竒遁佈局法」：「此寄宫終非正位，故遇直符直使在五則皆註避五於本時之下」「凡遇寄宫終非正位，雖得竒亦不宜用事」";
+    let ji = pan.options.ji_gong.gong(pan.ju.yang);
+    let mut out = Vec::new();
+    if pan.zhi_fu_gong == 5 {
+        out.push(GeJu { name: "避五", gong: Some(ji), ji: false, basis: B, note: Some("直符在五（时干在中五，直符加寄宫）") });
+    }
+    if pan.zhi_shi_gong == 5 {
+        out.push(GeJu {
+            name: "避五",
+            gong: Some(ji),
+            ji: false,
+            basis: B,
+            note: Some("直使在五（加寄宫）；湯謂「凡直使在五宮之時，利客不利主」（《集成》卷七百五「釋陰陽二遁」）"),
+        });
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::pan::{pai_pan, DEFAULT_PAN};
@@ -598,6 +624,28 @@ mod tests {
             (at(&v, "五不擊", "天乙"), at(&v, "五不擊", "九天"), at(&v, "五不擊", "生門"), at(&v, "五不擊", "九地"), at(&v, "五不擊", "直使")),
             (Some(9), Some(2), Some(1), Some(7), Some(2))
         );
+    }
+
+    /// 寄宫避五：演义卷二原例中直符或直使在五者（人遁、月格、三胜五不击诸例）必报，并标所寄之宫；飞盘不报
+    #[test]
+    fn bi_wu_li() {
+        // 人遁「陽遁七局乙庚日丙子時天任為直符加時干六丙於五宫」：直符在五寄坤
+        let v = bi_wu(&pan(true, 7, "丙子"));
+        assert_eq!(v.iter().map(|g| (g.gong, g.note.unwrap().starts_with("直符"))).collect::<Vec<_>>(), vec![(Some(2), true)]);
+        // 三胜五不击「隂七局甲巳之日丙寅時……直使在五宫寄坤二宫」：直使在五
+        let v = bi_wu(&pan(false, 7, "丙寅"));
+        assert_eq!(v.iter().map(|g| (g.gong, g.note.unwrap().starts_with("直使"))).collect::<Vec<_>>(), vec![(Some(2), true)]);
+        // 月格「立春上元陽遁八局……丁邜時……以直符天任加六丁於五宫」；阳坤阴艮之说阴遁寄艮
+        assert_eq!(bi_wu(&pan(true, 8, "丁卯")).len(), 1);
+        use super::super::pan::{JiGong, PanMethod, PanOptions};
+        let sj = ShiJu { yang: false, ju: 7, term: 6, yuan: Yuan::Shang, run: false, chao: 0 };
+        let p = pai_pan(&sj, gz("丙寅"), PanOptions { ji_gong: JiGong::KunGen, ..DEFAULT_PAN });
+        assert_eq!(bi_wu(&p)[0].gong, Some(8));
+        // 直符直使皆不在五则不报（大寒上元陽三局丁夘時，直符臨九宫）
+        assert!(bi_wu(&pan(true, 3, "丁卯")).is_empty());
+        // 飞盘不寄，不报
+        let p = pai_pan(&sj, gz("丙寅"), PanOptions { method: PanMethod::FeiPan, ..DEFAULT_PAN });
+        assert!(bi_wu(&p).is_empty());
     }
 
     /// 三奇受制（原文无盘例）：遍历阴阳十八局六十时，凡天盘乙临六宫合惊门、丙临一宫合休门者必报，反之不报

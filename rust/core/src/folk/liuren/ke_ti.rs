@@ -1,9 +1,10 @@
 //! 大六壬课体：九宗门（卷一入手法九法）、本门课名（卷五各课），与可由盘面直接判定的常见课格（卷五至卷八）。
 //!
-//! 只收依日干支、四课、三传（及可选的十二天将、月建）即可判定者；须论旺相、岁月、年命、神煞吉凶的课格
-//! （三光、三陽、時泰、龍徳、官爵、富貴、軒蓋、鑄印、榮華、徳慶、天獄、天寇、殃咎等）未做，见 doc/folk/liuren.md。
+//! [`ke_ge`] 只依日干支、四课、三传（及可选的十二天将、月建）判定；[`ke_ge_ctx`] 另收须论旺相、太岁月建、年命、
+//! 神将吉凶的课格（三光、三陽、三陰、時泰、龍徳、官爵、富貴、軒蓋、鑄印、斵輪、引從、亨通、徳慶、斬闗、冲破、淫泆、侵害、
+//! 刑傷、天獄、天網、龍戰、殃咎、鬼墓、勵徳、盤珠、六純），以原文能判定者为限；未做者见 doc/folk/liuren.md。
 
-use super::shen_sha::{ding_ma, tian_ma, xun_shou};
+use super::shen_sha::{ding_ma, gan_mu, ri_ben, ri_de, tian_ma, xun_shou, you_qi, zhi_mu, MuRule};
 use super::{ke, m12, xing, Fa, KeShi, TianJiang, GAN_JI, GAN_WX, ZHI_WX};
 
 /// 九宗门（卷一「入手法」九法之名）
@@ -42,7 +43,7 @@ impl Fa {
         match self {
             Fa::ChongShen | Fa::YuanShou => ZongMen::ZeiKe,
             Fa::ZhiYi => ZongMen::BiYong,
-            Fa::SheHai | Fa::JianJi | Fa::ChaWei | Fa::ZhuiXia => ZongMen::SheHai,
+            Fa::SheHai | Fa::JianJi | Fa::ChaWei | Fa::ZhuiXia | Fa::BiYongGe => ZongMen::SheHai,
             Fa::HaoShi | Fa::DanShe => ZongMen::YaoKe,
             Fa::MaoXing => ZongMen::MaoXing,
             Fa::BieZe => ZongMen::BieZe,
@@ -102,8 +103,61 @@ fn is_ji(z: u8) -> bool {
     z % 3 == 1
 }
 
+/// 课格判定所需的盘外之数（无者为 None，则凡须之者不判）
+#[derive(Clone, Copy, Debug)]
+pub struct KeGeCtx<'a> {
+    pub tj: Option<&'a TianJiang>,
+    /// 月建地支（旺相、天马、天月德）
+    pub yue_jian: Option<u8>,
+    /// 太岁（占年地支）
+    pub tai_sui: Option<u8>,
+    /// 本命之支、行年之支
+    pub ben_ming: Option<u8>,
+    pub xing_nian: Option<u8>,
+    pub mu: MuRule,
+}
+
+/// 十二天将之五行（卷二各将注：贵人己丑土、螣蛇丁巳火、朱雀丙午火、六合乙卯木、勾陈戊辰土、青龙甲寅木、天空戊戌土、
+/// 白虎庚申金、太常己未土、玄武癸亥水、太阴辛酉金、天后壬子水）
+pub const JIANG_WX: [u8; 12] = [2, 1, 1, 0, 2, 0, 2, 3, 2, 4, 3, 4];
+/// 吉将（卷二：贵人、六合、青龙、太常、太阴、天后为吉将，余为凶将）
+pub fn ji_jiang(j: u8) -> bool {
+    matches!(j, 0 | 3 | 5 | 8 | 10 | 11)
+}
+
+fn sheng(a: u8, b: u8) -> bool {
+    (a + 1) % 5 == b
+}
+
+/// 破（卷一「破」：陽日破後四辰隂日破前四辰；午破卯、酉破子、辰破丑、亥破寅、申破巳……）
+fn po(z: u8) -> u8 {
+    if z % 2 == 0 {
+        m12(z as i32 - 3)
+    } else {
+        m12(z as i32 + 3)
+    }
+}
+
+/// 帝旺之神（亨通課「甲申日干上酉乃支之旺神支上卯乃干之旺神」）：木卯、火午、金酉、水子；土原书未举，不论
+fn wang_shen(wx: u8) -> Option<u8> {
+    match wx {
+        0 => Some(3),
+        1 => Some(6),
+        3 => Some(9),
+        4 => Some(0),
+        _ => None,
+    }
+}
+
 /// 由盘面判定常见课格。`tj` 十二天将（閉口、三交须用；无则不判此二者之将）；`yue_jian` 月建地支（遊子之天马、稼穡须用）
 pub fn ke_ge(k: &KeShi, day_gz: u8, tj: Option<&TianJiang>, yue_jian: Option<u8>) -> Vec<KeGe> {
+    ke_ge_ctx(k, day_gz, &KeGeCtx { tj, yue_jian, tai_sui: None, ben_ming: None, xing_nian: None, mu: MuRule::WuXing })
+}
+
+/// 课格全判：[`ke_ge`] 诸格，加须论旺相、岁月、年命、神将吉凶者
+pub fn ke_ge_ctx(k: &KeShi, day_gz: u8, ctx: &KeGeCtx) -> Vec<KeGe> {
+    let tj = ctx.tj;
+    let yue_jian = ctx.yue_jian;
     let mut v: Vec<KeGe> = Vec::new();
     let mut push = |name: &'static str, note: &'static str| v.push(KeGe { name, note });
     let g = day_gz % 10;
@@ -215,12 +269,239 @@ pub fn ke_ge(k: &KeShi, day_gz: u8, tj: Option<&TianJiang>, yue_jian: Option<u8>
     if [1u8, 4, 5, 7, 8].contains(&g) && is_zhong(zhi) && ((chu == 1 && is_zhong(pan.below(1))) || zhi_shang == 1) {
         push("九醜", "卷八九醜課：戊子戊午壬子壬午乙卯乙酉己卯己酉辛卯辛酉日，丑臨四仲發用或臨支上");
     }
+
+    // ———— 以下须论旺相、岁月、年命、神将 ————
+    let lin = pan.below(chu);
+    let mo = sc[2];
+    let cw = ZHI_WX[chu as usize];
+    let gang = g % 2 == 0;
+    let at = |s: u8| tj.map(|t| t.at[s as usize]);
+    let qi = |w: u8| yue_jian.map(|y| you_qi(w, y));
+    let ws = |w: u8| yue_jian.map(|y| super::shen_sha::wang_shuai(w, y));
+    // 贵人前后：顺布者地盘顺数、逆布者逆数，距贵人所临 1—5 为前、7—11 为后（卷二「前有五位……後有五位」）
+    let dist = |d: u8| tj.map(|t| if t.shun { m12(d as i32 - t.gui_lin as i32) } else { m12(t.gui_lin as i32 - d as i32) });
+    let front = |d: u8| dist(d).map_or(false, |x| (1..=5).contains(&x));
+    let behind = |d: u8| dist(d).map_or(false, |x| (7..=11).contains(&x));
+
+    // 三光（卷五三光課訂訛「日辰發用者旺相乘吉將」）：日、辰、初传旺相，初传乘吉将。日辰之旺相，觀月經注以干支本身论
+    // （「如春甲乙夏丙丁之類」），袖中金例（六月戊寅日午時寅將）寅本身不旺而书仍名三光；此处干支本身或其上神旺相即算
+    let ri_qi = qi(gw) == Some(true) || qi(ZHI_WX[gan_shang as usize]) == Some(true);
+    let chen_qi = qi(zw) == Some(true) || qi(ZHI_WX[zhi_shang as usize]) == Some(true);
+    if ri_qi && chen_qi && qi(cw) == Some(true) && at(chu).map_or(false, ji_jiang) {
+        push("三光", "卷五三光課訂訛：日、辰（干支或其上神）、發用三處旺相，乘吉將");
+    }
+    // 三陽（卷五三陽課訂訛「天乙順行日辰居前發用旺相」）
+    if tj.map_or(false, |t| t.shun) && front(ji) && front(zhi) && qi(cw) == Some(true) {
+        push("三陽", "卷五三陽課訂訛：天乙順行，日辰（干寄宫、日支）居貴人前，發用旺相");
+    }
+    // 三陰（卷七三陰課訂訛「貴人逆治日辰在後一也發用傳終名帶囚死二也將乘𤣥虎時克行年三也」）：须行年
+    if let (Some(t), Some(xn)) = (tj, ctx.xing_nian) {
+        let qs = ws(cw).map_or(false, |x| x == 3 || x == 4);
+        if !t.shun && behind(ji) && behind(zhi) && qs && matches!(t.at[chu as usize], 7 | 9) && ke(ZHI_WX[pan.shi as usize], ZHI_WX[xn as usize]) {
+            push("三陰", "卷七三陰課訂訛：貴人逆治、日辰在後，發用囚死乘玄武白虎，占時克行年");
+        }
+    }
+    // 時泰（卷五時泰課「用起太嵗月建乘青龍六合又帶財徳之神」；訂訛「太嵗月建作日財徳太嵗發用更佳入傳亦可」）
+    {
+        let jian = [ctx.tai_sui, yue_jian];
+        let hit = sc.iter().any(|&c| {
+            jian.contains(&Some(c)) && (ke(gw, ZHI_WX[c as usize]) || c == ri_de(g)) && matches!(at(c), Some(3) | Some(5))
+        });
+        if hit {
+            push("時泰", "卷五時泰課：太嵗或月建作日財、日徳入傳，乘青龍六合");
+        }
+    }
+    // 龍徳（卷五龍徳課「太嵗月將乘貴人發用」；心鏡「太嵗今朝作貴人立用還須月將神」）
+    if ctx.tai_sui == Some(chu) && at(chu) == Some(0) && in_sc(pan.jiang) {
+        push("龍徳", "卷五龍徳課：太嵗乘貴人發用，三傳見月將");
+    }
+    // 官爵（卷六官爵課「嵗月年命驛馬發用又天魁太常入傳」；訂訛「或驛馬發用印綬入傳或印綬發用驛馬入傳」）
+    if tj.is_some() {
+        let mut ma: Vec<u8> = vec![super::shen_sha::yi_ma(zhi)];
+        for x in [ctx.tai_sui, yue_jian, ctx.ben_ming, ctx.xing_nian].into_iter().flatten() {
+            ma.push(super::shen_sha::yi_ma(x));
+        }
+        let chang = sc.iter().any(|&c| at(c) == Some(8));
+        let a = ma.contains(&chu) && in_sc(10) && chang;
+        let b = chu == 10 && sc[1..].iter().any(|c| ma.contains(c)) && chang;
+        if a || b {
+            push("官爵", "卷六官爵課：驛馬（日、嵗、月、年命之馬）發用，天魁、太常入傳；或天魁發用、驛馬入傳");
+        }
+    }
+    // 富貴（卷六富貴課「天乙乘旺相氣上下相生更臨日辰年命發用」）
+    if at(chu) == Some(0) && qi(cw) == Some(true) {
+        let lw = ZHI_WX[lin as usize];
+        let lin_ok = lin == ji || lin == zhi || ctx.ben_ming == Some(lin) || ctx.xing_nian == Some(lin);
+        if (sheng(cw, lw) || sheng(lw, cw)) && lin_ok {
+            push("富貴", "卷六富貴課：天乙發用乘旺相，上下相生，臨日辰年命");
+        }
+    }
+    // 軒蓋（卷六「勝光為用遇太冲神后」；卷一「軒蓋三傳午夘子」）
+    if chu == 6 && sc[1..].contains(&3) && sc[1..].contains(&0) {
+        push("軒蓋", "卷六軒盖課、卷一課目：勝光發用，傳遇太冲神后（午卯子）");
+    }
+    // 鑄印（卷六鑄印課訂訛「三傳巳戌卯」）
+    if sc == [5, 10, 3] {
+        push("鑄印", "卷六鑄印課訂訛：三傳巳戌卯");
+    }
+    // 斵輪（卷六斵輪課訂訛「卯加庚辛申酉發用」：庚寄申、辛寄戌）
+    if chu == 3 && matches!(lin, 8 | 9 | 10) {
+        push("斵輪", "卷六斵輪課：卯加庚辛（申、戌）或申酉發用");
+    }
+    // 引從（卷六引從課訂訛「初末傳拱干……初末傳拱支」：初传临干支前一位、末传临后一位，如庚辰日初寅加酉、末子加未）
+    let lin_mo = pan.below(mo);
+    if lin == m12(ji as i32 + 1) && lin_mo == m12(ji as i32 - 1) {
+        push("引從", "卷六引從課：初傳臨干前、末傳臨干後，拱干");
+    }
+    if lin == m12(zhi as i32 + 1) && lin_mo == m12(zhi as i32 - 1) {
+        push("引從", "卷六引從課：初傳臨支前、末傳臨支後，拱支");
+    }
+    // 亨通（卷六亨通課訂訛：遞生、俱生、互生、俱旺、互旺）
+    {
+        let [w0, w1, w2] = sc.map(|c| ZHI_WX[c as usize]);
+        let gsw = ZHI_WX[gan_shang as usize];
+        let zsw = ZHI_WX[zhi_shang as usize];
+        let di = (sheng(w0, w1) && sheng(w1, w2) && sheng(w2, gw)) || (sheng(w2, w1) && sheng(w1, w0) && sheng(w0, gw));
+        let ju = sheng(gsw, gw) && sheng(zsw, zw);
+        let hu = sheng(gsw, zw) && sheng(zsw, gw);
+        let ju_w = wang_shen(gw) == Some(gan_shang) && wang_shen(zw) == Some(zhi_shang);
+        let hu_w = wang_shen(zw) == Some(gan_shang) && wang_shen(gw) == Some(zhi_shang);
+        let sub = if di {
+            Some("卷六亨通課：三傳遞生日干")
+        } else if ju {
+            Some("卷六亨通課：干上生干、支上生支（俱生）")
+        } else if hu {
+            Some("卷六亨通課：干上生支、支上生干（互生）")
+        } else if ju_w {
+            Some("卷六亨通課：干上干之旺神、支上支之旺神（俱旺）")
+        } else if hu_w {
+            Some("卷六亨通課：干上支之旺神、支上干之旺神（互旺）")
+        } else {
+            None
+        };
+        if let Some(n) = sub {
+            push("亨通", n);
+        }
+    }
+    // 徳慶（卷六徳慶課「日辰干支徳神及天月二徳發用……乘吉將」）
+    if let Some(a) = at(chu) {
+        let mut de = vec![ri_de(g), m12(zhi as i32 + 5)];
+        if let Some(y) = yue_jian {
+            let yi = m12(y as i32 - 2) as usize; // 正月 0
+            // 天德：正丁二坤三壬四辛五乾六甲七癸八艮九丙十乙十一巽十二庚（干取寄宫）
+            de.push([7, 8, 11, 10, 11, 2, 1, 2, 5, 4, 5, 8][yi]);
+            // 月德：寅午戌月丙、亥卯未月甲、申子辰月壬、巳酉丑月庚（取寄宫）
+            de.push([11, 8, 5, 2][(y % 4) as usize]);
+        }
+        if de.contains(&chu) && ji_jiang(a) {
+            push("徳慶", "卷六徳慶課：干徳、支徳（子日起巳順行）、天徳、月徳發用，乘吉將");
+        }
+    }
+    // 斬闗（卷六斬闗課「魁罡加日辰發用」）
+    if (chu == 4 || chu == 10) && (lin == ji || lin == zhi) {
+        push("斬闗", "卷六斬闗課：魁罡加日辰發用");
+    }
+    // 冲破（卷六冲破課「日辰之冲神加破為用」：如庚子日午加卯，午冲子，卯為午破）
+    if chu == m12(zhi as i32 + 6) && lin == po(chu) {
+        push("冲破", "卷六冲破課：日支之冲神加其破發用");
+    }
+    // 淫泆（卷六淫泆課「初傳卯酉為用將乘后合」；又「用起六合終於天后為狡童格」「用起天后神終傳六合神為泆女格」，
+    // 书举泆女例戊戌日辰時午將子加戌發用，不必卯酉）
+    match (at(chu), at(mo)) {
+        (Some(3), Some(11)) => push("淫泆", "卷六淫泆課：初傳六合、末傳天后（狡童格）"),
+        (Some(11), Some(3)) => push("淫泆", "卷六淫泆課：初傳天后、末傳六合（泆女格）"),
+        (Some(3) | Some(11), _) if chu == 3 || chu == 9 => push("淫泆", "卷六淫泆課：卯酉發用，乘天后六合"),
+        _ => {}
+    }
+    // 侵害（卷七侵害課訂訛「干支害神上下相加發用臨行年更的」）：初传与所临六害
+    if (chu as i32 + lin as i32) % 12 == 7 {
+        push("侵害", "卷七侵害課：六害上下相加發用（臨行年更的）");
+    }
+    // 刑傷（卷七刑傷課「三刑發用併行年」）：初传与所临相刑
+    if chu != lin && (xing(chu) == lin || xing(lin) == chu) {
+        push("刑傷", "卷七刑傷課：三刑上下相加發用（併行年更的）");
+    }
+    // 天獄（卷七天獄課「囚死墓神發用斗係日本」；訂訛「用死囚斗繫日本」）
+    {
+        let qs = ws(cw).map_or(false, |x| x == 3 || x == 4);
+        if (qs || chu == gan_mu(g, ctx.mu)) && pan.above(ri_ben(g)) == 4 {
+            push("天獄", "卷七天獄課：囚死或日墓發用，天罡加日本（日干長生）");
+        }
+    }
+    // 天網（卷一課目「天網時用俱尅日」）
+    if ke(cw, gw) && ke(ZHI_WX[pan.shi as usize], gw) {
+        push("天網", "卷一課目、卷七：占時與發用俱克日干");
+    }
+    // 龍戰（卷七龍戰課訂訛「夘酉日占夘酉上神發用」）
+    if (zhi == 3 || zhi == 9) && (chu == 3 || chu == 9 || lin == 3 || lin == 9) {
+        push("龍戰", "卷七龍戰課：卯酉日卯酉發用或卯酉上神發用（行年卯酉更的）");
+    }
+    // 殃咎（卷八殃咎課訂訛「遞克夾克外戰内戰乘墓坐墓皆是」）
+    {
+        let [w0, w1, w2] = sc.map(|c| ZHI_WX[c as usize]);
+        let di = (ke(w0, w1) && ke(w1, w2) && ke(w2, gw)) || (ke(w2, w1) && ke(w1, w0) && ke(w0, gw));
+        let gm = gan_mu(g, ctx.mu);
+        let zm = zhi_mu(zhi);
+        let cheng = gan_shang == gm && zhi_shang == zm;
+        let zuo = pan.below(ji) == gm && pan.below(zhi) == zm;
+        let jw = |c: u8| at(c).map(|j| JIANG_WX[j as usize]);
+        let jia = jw(chu).map_or(false, |j| ke(ZHI_WX[lin as usize], cw) && ke(j, cw));
+        let wai = sc.iter().all(|&c| jw(c).map_or(false, |j| ke(j, ZHI_WX[c as usize])));
+        let nei = sc.iter().all(|&c| jw(c).map_or(false, |j| ke(ZHI_WX[c as usize], j)));
+        for (ok, n) in [
+            (di, "卷八殃咎課：三傳遞克日干"),
+            (jia, "卷八殃咎課訂訛：夾克（用神坐下克上又受將克）"),
+            (wai, "卷八殃咎課訂訛：外戰（三傳皆將克神）"),
+            (nei, "卷八殃咎課訂訛：内戰（三傳皆神克將）"),
+            (cheng, "卷八殃咎課訂訛：干支乘墓（干上干墓、支上支墓）"),
+            (zuo, "卷八殃咎課訂訛：干支坐墓（干支各臨墓神）"),
+        ] {
+            if ok {
+                push("殃咎", n);
+                break;
+            }
+        }
+    }
+    // 鬼墓（卷八鬼墓課訂訛「干支上神發用或作干鬼干墓或作支鬼支墓」；鬼「陽見陽陰見陰」）
+    if chu == gan_shang || chu == zhi_shang {
+        let gui_of = |w: u8, yang: bool| ke(cw, w) && ((chu % 2 == 0) == yang);
+        let gm = chu == gan_mu(g, ctx.mu) || chu == zhi_mu(zhi);
+        if gm || gui_of(gw, gang) || gui_of(zw, zhi % 2 == 0) {
+            push("鬼墓", "卷八鬼墓課：干支上神發用，作干支之鬼（陽見陽陰見陰）或墓");
+        }
+    }
+    // 勵徳（卷八勵徳課「天乙立夘酉」）
+    if tj.map_or(false, |t| t.gui_lin == 3 || t.gui_lin == 9) {
+        push("勵徳", "卷八勵徳課：貴人臨卯酉");
+    }
+    // 盤珠（卷八盤珠課「太嵗月建及日時并三傳皆在四課之中」）
+    if let (Some(ts), Some(yj)) = (ctx.tai_sui, yue_jian) {
+        let mut ks: Vec<u8> = vec![zhi];
+        for x in &k.si_ke {
+            ks.push(x.shang);
+            ks.push(x.xia_zhi);
+        }
+        if [ts, yj, zhi, pan.shi].iter().chain(sc.iter()).all(|z| ks.contains(z)) {
+            push("盤珠", "卷八盤珠課：太嵗、月建、日、時與三傳皆在四課之中");
+        }
+    }
+    // 六純（卷八六純課「四課三傳俱陽……俱陰」）：日干、日支、四课上神、三传阴阳皆同
+    {
+        let par = g % 2;
+        let mut all: Vec<u8> = vec![zhi % 2];
+        all.extend(k.si_ke.iter().map(|x| x.shang % 2));
+        all.extend(sc.iter().map(|c| c % 2));
+        if all.iter().all(|&p| p == par) {
+            push("六純", if par == 0 { "卷八六純課：四課三傳俱陽" } else { "卷八六純課：四課三傳俱陰" });
+        }
+    }
     v
 }
 
 #[cfg(test)]
 mod tests {
     use super::super::{qi_ke, tian_jiang, GuiRule, GAN, ZHI};
+    use super::super::shen_sha::MuRule;
     use super::*;
 
     fn gz(s: &str) -> u8 {
@@ -317,6 +598,93 @@ mod tests {
             let got = ke_ge(&k, day, tj.as_ref(), yj.map(z));
             assert!(names(&got).contains(ge), "{src}: {:?} 三传 {:?}", names(&got), k.san_chuan);
         }
+    }
+
+    /// 须论旺相、岁月、年命、神将之课格：卷五至卷八各课所举之例（贵人用书中实用表、卯至酉为昼）。
+    /// (出处, 日, 时, 将, 月建, 太岁, 本命, 行年, 应有之格)
+    #[test]
+    fn ke_ge_ctx_examples() {
+        use super::super::{is_zhou_mao_zhi_you, tian_jiang, GuiRule, TianPan};
+        type C = (&'static str, &'static str, &'static str, &'static str, Option<&'static str>, Option<&'static str>, Option<&'static str>, Option<&'static str>, &'static str);
+        let cases: &[C] = &[
+            ("卷五三光袖中金 六月戊寅日午時寅將", "戊寅", "午", "寅", Some("未"), None, None, None, "三光"),
+            ("卷五三陽 乙丑日酉時戌將（天乙子臨亥順行）", "乙丑", "酉", "戌", Some("卯"), None, None, None, "三陽"),
+            ("卷五時泰 子年戌月戊寅日戌時卯將", "戊寅", "戌", "卯", Some("戌"), Some("子"), None, None, "時泰"),
+            ("卷五龍徳 癸巳年七月癸酉日酉時巳將", "癸酉", "酉", "巳", Some("申"), Some("巳"), None, None, "龍徳"),
+            ("卷六官爵 未年二月丁亥日巳時戌將（亥命行年午）", "丁亥", "巳", "戌", Some("卯"), Some("未"), Some("亥"), Some("午"), "官爵"),
+            ("卷六富貴 二月辛巳日丑時戌將（寅命行年巳）", "辛巳", "丑", "戌", Some("卯"), None, Some("寅"), Some("巳"), "富貴"),
+            ("卷六軒盖 甲子日卯時子將", "甲子", "卯", "子", None, None, None, None, "軒蓋"),
+            ("卷六鑄印 丙子日未時子將", "丙子", "未", "子", None, None, None, None, "鑄印"),
+            ("卷六斵輪 辛丑日辰時亥將（卯加申）", "辛丑", "辰", "亥", None, None, None, None, "斵輪"),
+            ("卷六引從 壬子日巳時戌將（巳加子、卯加戌）", "壬子", "巳", "戌", None, None, None, None, "引從"),
+            ("卷六亨通 丙戌日申時亥將（申亥寅遞生）", "丙戌", "申", "亥", None, None, None, None, "亨通"),
+            ("卷六徳慶 戊子日戌時卯將（巳為徳加子）", "戊子", "戌", "卯", Some("寅"), None, None, None, "徳慶"),
+            ("卷六斬闗 甲寅日亥時未將（戌加寅）", "甲寅", "亥", "未", None, None, None, None, "斬闗"),
+            ("卷六冲破 子年庚子日午加卯", "庚子", "卯", "午", None, Some("子"), None, None, "冲破"),
+            ("卷六淫泆 戊戌日辰時午將（泆女）", "戊戌", "辰", "午", None, None, None, None, "淫泆"),
+            ("卷七天獄 七月乙丑日巳加子", "乙丑", "子", "巳", Some("申"), None, None, None, "天獄"),
+            ("卷七龍戰 丁卯日辰時戌將（卯加酉）", "丁卯", "辰", "戌", None, None, None, None, "龍戰"),
+            ("卷八勵徳 戊子日申時午將（晝丑加卯）", "戊子", "申", "午", None, None, None, None, "勵徳"),
+        ];
+        let mut bad = Vec::new();
+        for (src, d, s, j, yj, ts, bm, xn, want) in cases {
+            let day = gz(d);
+            let k = qi_ke(day, z(j), z(s));
+            let tj = tian_jiang(&TianPan { jiang: z(j), shi: z(s) }, day % 10, is_zhou_mao_zhi_you(z(s)), GuiRule::DaQuan);
+            let ctx = KeGeCtx { tj: Some(&tj), yue_jian: yj.map(z), tai_sui: ts.map(z), ben_ming: bm.map(z), xing_nian: xn.map(z), mu: MuRule::WuXing };
+            let got = ke_ge_ctx(&k, day, &ctx);
+            if !names(&got).contains(want) {
+                bad.push(format!("{src}: {:?} 三传 {:?}", names(&got), k.san_chuan));
+            }
+        }
+        assert!(bad.is_empty(), "{bad:#?}");
+    }
+
+    /// 鬼墓訂訛「假如壬日辰加亥發用既作日鬼又作日墓」：六壬日中辰加亥而辰發用者皆判鬼墓
+    #[test]
+    fn gui_mu_example() {
+        let ctx = KeGeCtx { tj: None, yue_jian: None, tai_sui: None, ben_ming: None, xing_nian: None, mu: MuRule::WuXing };
+        let mut n = 0;
+        for d in ["壬子", "壬寅", "壬辰", "壬午", "壬申", "壬戌"] {
+            let k = qi_ke(gz(d), z("辰"), z("亥"));
+            if k.san_chuan[0] == z("辰") {
+                n += 1;
+                assert!(names(&ke_ge_ctx(&k, gz(d), &ctx)).contains(&"鬼墓"), "{d}");
+            }
+        }
+        assert!(n > 0);
+    }
+
+    /// 殃咎：卷八所举三传（时将未举，于 144 盘中取得此三传者判之）
+    #[test]
+    fn yang_jiu_examples() {
+        for (d, want) in [("己巳", "巳申寅"), ("丙子", "子未寅"), ("辛酉", "未子巳")] {
+            let day = gz(d);
+            let mut found = false;
+            for j in 0..12u8 {
+                for s in 0..12u8 {
+                    let k = qi_ke(day, j, s);
+                    if k.san_chuan == sc(want) {
+                        found = true;
+                        let ctx = KeGeCtx { tj: None, yue_jian: None, tai_sui: None, ben_ming: None, xing_nian: None, mu: MuRule::WuXing };
+                        assert!(names(&ke_ge_ctx(&k, day, &ctx)).contains(&"殃咎"), "{d}");
+                    }
+                }
+            }
+            assert!(found, "{d}");
+        }
+        // 殃咎訂訛：丙寅日丙上戌寅上未為乘墓
+        let day = gz("丙寅");
+        let k = qi_ke(day, z("戌"), z("巳")); // 戌加巳：干（巳）上戌、支（寅）上未
+        assert_eq!((k.si_ke[0].shang, k.si_ke[2].shang), (z("戌"), z("未")));
+        let ctx = KeGeCtx { tj: None, yue_jian: None, tai_sui: None, ben_ming: None, xing_nian: None, mu: MuRule::WuXing };
+        assert!(names(&ke_ge_ctx(&k, day, &ctx)).contains(&"殃咎"));
+        // 十干墓：丙墓亦戌，寅墓（支）未——两说同
+        let ctx2 = KeGeCtx { mu: MuRule::ShiGan, ..ctx };
+        assert!(names(&ke_ge_ctx(&k, day, &ctx2)).contains(&"殃咎"));
+        // 坐墓：丙寅日巳加戌、寅加未
+        let k = qi_ke(day, z("巳"), z("戌"));
+        assert!(names(&ke_ge_ctx(&k, day, &ctx)).contains(&"殃咎"));
     }
 
     /// 反例：不应判出之格

@@ -49,6 +49,63 @@ pub fn dayan_yao_from_random(r: [u32; 3]) -> u8 {
     (total / 4) as u8
 }
 
+/// 大衍一变之详（供逐变演示）
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DayanStep {
+    /// 第几变（1—18）、所成之爻（1—6，初至上）、爻中第几变（1—3）
+    pub n: u8,
+    pub yao: u8,
+    pub bian: u8,
+    /// 本变所用之策
+    pub total: u32,
+    /// 分而为二：左（天）、右（地）
+    pub left: u32,
+    pub right: u32,
+    /// 掛一（自右取一）后右余之策
+    pub right_after_gua: u32,
+    /// 揲之以四：左、右之奇（一至四）
+    pub left_qi: u32,
+    pub right_qi: u32,
+    /// 归奇于扐：本变所去（掛一 + 左奇 + 右奇）、余策
+    pub removed: u32,
+    pub remain: u32,
+    /// 三变之末（`bian == 3`）所成之爻数 6—9（余策 ÷ 4）
+    pub value: Option<u8>,
+}
+
+/// 十八变成卦，逐变返回详情。每变左手之分由调用方所给随机整数定（left = 1 + r mod (total − 2)），与 [`dayan_yao_from_random`] 同法：
+/// 以同一组 `r` 每三个调用 `dayan_yao_from_random`，所得六爻之数与本函数第 3、6……18 变之 `value` 相同。
+pub fn dayan_steps(r: [u32; 18]) -> [DayanStep; 18] {
+    let mut total = 49;
+    core::array::from_fn(|i| {
+        if i % 3 == 0 {
+            total = 49;
+        }
+        let left = 1 + r[i] % (total - 2);
+        let right = total - left;
+        let q = |n: u32| if n % 4 == 0 { 4 } else { n % 4 };
+        let (lq, rq) = (q(left), q(right - 1));
+        let removed = 1 + lq + rq;
+        let remain = total - removed;
+        let st = DayanStep {
+            n: i as u8 + 1,
+            yao: (i / 3) as u8 + 1,
+            bian: (i % 3) as u8 + 1,
+            total,
+            left,
+            right,
+            right_after_gua: right - 1,
+            left_qi: lq,
+            right_qi: rq,
+            removed,
+            remain,
+            value: (i % 3 == 2).then_some((remain / 4) as u8),
+        };
+        total = remain;
+        st
+    })
+}
+
 /// 大衍成爻之概率（以十六为分母）：设每变左手之余一至四等可能（通常之设），得 6:1、7:5、8:7、9:3（/16）。
 /// 掷三钱（每钱阴阳各半）则为 6:2、7:6、8:6、9:2（/16，即 1/8、3/8、3/8、1/8）。
 pub fn dayan_probabilities() -> [(u8, u32); 4] {
@@ -228,6 +285,57 @@ mod tests {
         assert_eq!(bits, (0..64).collect::<Vec<u8>>());
         assert_eq!(row(g("乾")).5, Some("用九：見羣龍无首，吉。"));
         assert_eq!(row(g("坤")).5, Some("用六：利永貞。"));
+    }
+
+    /// 三爻变二十卦之次：韩邦奇《啓蒙意見》「初二三三變……初五六三變，凡一。二三四三變……四五六三變，凡一」，
+    /// 即变位字典序（辛賢 2024 据之重构三十二图，乾例「否（123）、漸（124）、旅（125）、咸（126）、渙（134）、未濟（135）……泰（456）」）。
+    /// 前十卦皆含初爻，与 `SanBianZhu::ChuYaoZaiBian` 之推定合；《啟蒙》乾例「自否至恒為前十卦，自益至泰為後十卦」亦合
+    #[test]
+    fn san_bian_order_han_bangqi() {
+        let mut order = Vec::new();
+        for a in 1..=6u8 {
+            for b in a + 1..=6 {
+                for c in b + 1..=6 {
+                    order.push([a, b, c]);
+                }
+            }
+        }
+        assert_eq!(order.len(), 20);
+        let qian = 0b111111u8;
+        let names: Vec<&str> = order.iter().map(|t| name(t.iter().fold(qian, |g, &k| g ^ (1 << (k - 1))))).collect();
+        assert_eq!(&names[..6], ["否", "漸", "旅", "咸", "渙", "未濟"]);
+        assert_eq!((names[9], names[10], names[19]), ("恒", "益", "泰"));
+        for (i, t) in order.iter().enumerate() {
+            assert_eq!(t[0] == 1, i < 10);
+            let v: [u8; 6] = core::array::from_fn(|k| if t.contains(&(k as u8 + 1)) { 9 } else { 7 });
+            let z = kao_bian_zhan(v, ZhanOptions::default());
+            assert_eq!(z.readings[0].role == Role::Zhu, i < 10, "{}", names[i]);
+        }
+    }
+
+    #[test]
+    fn dayan_steps_same_as_yao() {
+        // 逐变与 dayan_yao_from_random 同法；每变所去：第一变五或九，二三变四或八；余策恒为四之倍数于三变之末
+        let mut seed = 12345u32;
+        for _ in 0..200 {
+            let r: [u32; 18] = core::array::from_fn(|_| {
+                seed = seed.wrapping_mul(1103515245).wrapping_add(12345);
+                seed
+            });
+            let st = dayan_steps(r);
+            for y in 0..6 {
+                let v = dayan_yao_from_random([r[3 * y], r[3 * y + 1], r[3 * y + 2]]);
+                assert_eq!(st[3 * y + 2].value, Some(v));
+                assert_eq!(st[3 * y].total, 49);
+                assert!([5, 9].contains(&st[3 * y].removed));
+                assert!([4, 8].contains(&st[3 * y + 1].removed) && [4, 8].contains(&st[3 * y + 2].removed));
+                for s in &st[3 * y..3 * y + 3] {
+                    assert_eq!(s.left + s.right, s.total);
+                    assert_eq!((s.left - s.left_qi) % 4 + (s.right_after_gua - s.right_qi) % 4, 0);
+                    assert_eq!(Some(s.removed), dayan_change(s.total, s.left));
+                }
+            }
+        }
     }
 
     #[test]

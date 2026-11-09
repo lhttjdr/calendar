@@ -3,8 +3,10 @@
 //! 依《六壬大全》（四库本，明，不著撰人；维基文库录文存 vendor/folk/wikisource/六壬大全/）：
 //! - 月将：卷二「十二神釋」各条「某中氣後日纒某次，某月將」（如「登明亥，雨水後日纒娵訾，正月將」），即太阳过宫、按中气换将。
 //! - 起课：卷一「入手法」十干寄宫与九法（賊尅、比用、渉害、遙尅、昴星、别責、八專、伏吟、返吟），细则依卷五各课「訂訛」。
-//! - 天乙贵人与十二天将：贵人起例两说并列（[`GuiRule`]：书中所沿俗例，缺省；协纪卷七引《考原》定法），
-//!   昼夜分界两说（卯酉为界、日出日入为界），顺逆以贵人所临地盘定（亥至辰顺、巳至戌逆）。见 doc/folk/liuren.md「天将」。
+//! - 天乙贵人与十二天将：贵人起例三说并列（[`GuiRule`]：曹震圭俗例；协纪卷七引《考原》定法；书中课例与明文实用之表），
+//!   昼夜分界（卯至申、卯至酉、当地日出日入 [`is_zhou_at`]），顺逆以贵人所临地盘定（亥至辰顺、巳至戌逆），临辰戌出狱二法（[`ChuYu`]）。
+//!   见 doc/folk/liuren.md「天将」。
+//! - 遥克俱比俱不比、渉害异说（尉山人、比用格）见 [`QiKeOpts`]。
 //! - 盘面标注（旬空、遁干、驿马丁马天马、日德日禄羊刃日鬼、本命行年）见 [`shen_sha`]；课体（九宗门、课名、常见课格）见 [`ke_ti`]。
 
 pub mod ke_ti;
@@ -140,6 +142,8 @@ pub enum Fa {
     FanYin,
     /// 返吟无克
     JingLan,
+    /// 渉害之比用格（卷五渉害課「用神畏日干所勝以比和者為用」）：只在 [`SheHaiRule::BiYongGe`] 下出现
+    BiYongGe,
 }
 
 impl Fa {
@@ -160,6 +164,7 @@ impl Fa {
             Fa::FuYin => "伏吟",
             Fa::FanYin => "返吟",
             Fa::JingLan => "井欄",
+            Fa::BiYongGe => "比用格",
         }
     }
 }
@@ -210,11 +215,57 @@ fn she_hai_depth(s: u8, d: u8, zei: bool) -> u32 {
     n
 }
 
-/// 起课：日干支序（0 甲子 … 59 癸亥）、月将支序、占时支序。
+/// 遥克二神以上俱比或俱不比时之取法（卷一只言「擇與日干比者用」）
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum YaoTie {
+    /// 卷五遥克課訂訛「遥克中克多論比渉害論深以後凢尅多者皆如此論」：比者仍多（或俱不比）则论渉害深浅，
+    /// 深浅相等依見機、察微、綴瑕之例。神克日（蒿矢）计神所克、日克神（弹射）计神受克。缺省
+    SheHai,
+    /// 卷五遥克課引觀月經「俱比俱不比先舉用為真」：四课先见者（二、三、四课次序）
+    XianJu,
+}
+
+/// 渉害之法
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SheHaiRule {
+    /// 卷五渉害訂訛：以地盘历数归本家受克深者；相等取临孟、临仲（以所临地盘论），再等刚干柔支先见。缺省
+    DingE,
+    /// 卷五渉害課首注「尉山人云上尅下取天盤孟仲為驗」：上克下者深浅相等时，孟仲以天盘上神本身论（下贼上仍以地盘）
+    WeiShanRen,
+    /// 卷五渉害課「凢渉害課用神畏日干所勝以比和者為用曰比用格」：所举诸例（戊子日午卯子舍寅鬼取午、甲戌日舍辰财取子等）
+    /// 皆舍克日、受日克者而取生日或与日同类者；此类只一个即用之（[`Fa::BiYongGe`]），多个则在其中论深浅，无则照常
+    BiYongGe,
+}
+
+/// 起课诸选项
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct QiKeOpts {
+    pub yao: YaoTie,
+    pub she_hai: SheHaiRule,
+}
+
+impl Default for QiKeOpts {
+    fn default() -> Self {
+        QiKeOpts { yao: YaoTie::SheHai, she_hai: SheHaiRule::DingE }
+    }
+}
+
+/// 起课：日干支序（0 甲子 … 59 癸亥）、月将支序、占时支序。诸选项取缺省（[`QiKeOpts::default`]）
 pub fn qi_ke(day_gz: u8, jiang: u8, shi: u8) -> KeShi {
+    qi_ke_with(day_gz, jiang, shi, QiKeOpts::default())
+}
+
+/// 五行 a 生 b
+fn sheng(a: u8, b: u8) -> bool {
+    (a + 1) % 5 == b
+}
+
+/// 起课（可选遥克、渉害异说）
+pub fn qi_ke_with(day_gz: u8, jiang: u8, shi: u8, opts: QiKeOpts) -> KeShi {
     let g = day_gz % 10;
     let zhi = day_gz % 12;
     let gang = g % 2 == 0; // 刚日（阳干）
+    let gw = GAN_WX[g as usize];
     let pan = TianPan { jiang, shi };
     let ji = GAN_JI[g as usize];
     let k1 = Ke { xia_wx: GAN_WX[g as usize], xia_zhi: ji, shang: pan.above(ji) };
@@ -254,16 +305,31 @@ pub fn qi_ke(day_gz: u8, jiang: u8, shi: u8) -> KeShi {
                 if bi.len() == 1 {
                     return Some((bi[0].shang, Fa::ZhiYi));
                 }
-                let pool = if bi.len() > 1 { bi } else { cand };
+                let mut pool = if bi.len() > 1 { bi } else { cand };
+                if opts.she_hai == SheHaiRule::BiYongGe {
+                    // 比用格：去日干所克者，取生日或同类者
+                    let he: Vec<&Ke> = pool.iter().copied().filter(|k| {
+                        let w = ZHI_WX[k.shang as usize];
+                        w == gw || sheng(w, gw)
+                    }).collect();
+                    if he.len() == 1 && pool.len() > 1 {
+                        return Some((he[0].shang, Fa::BiYongGe));
+                    }
+                    if he.len() > 1 {
+                        pool = he;
+                    }
+                }
                 let depth = |k: &Ke| she_hai_depth(k.shang, k.xia_zhi, zei);
                 let max = pool.iter().map(|k| depth(k)).max().unwrap();
                 let deep: Vec<&Ke> = pool.into_iter().filter(|k| depth(k) == max).collect();
                 if deep.len() == 1 {
                     return Some((deep[0].shang, Fa::SheHai));
                 }
+                // 孟仲之位：缺省以上神所临地盘论；尉山人说上克下以天盘上神本身论
+                let wei = opts.she_hai == SheHaiRule::WeiShanRen && !zei;
                 for (cls, fa) in [(2u8, Fa::JianJi), (0u8, Fa::ChaWei)] {
-                    // 孟（寅申巳亥）、仲（子午卯酉）以上神所临地盘论
-                    let on: Vec<&&Ke> = deep.iter().filter(|k| k.xia_zhi % 3 == cls).collect();
+                    // 孟（寅申巳亥）、仲（子午卯酉）
+                    let on: Vec<&&Ke> = deep.iter().filter(|k| (if wei { k.shang } else { k.xia_zhi }) % 3 == cls).collect();
                     if on.len() == 1 {
                         return Some((on[0].shang, fa));
                     }
@@ -299,26 +365,50 @@ pub fn qi_ke(day_gz: u8, jiang: u8, shi: u8) -> KeShi {
         let chu = if gang { m12(gan_shang as i32 + 2) } else { m12(k4.shang as i32 - 2) };
         return done([chu, gan_shang, gan_shang], Fa::BaZhuan);
     }
-    // 遥克：先神克日（蒿矢），无则日克神（弹射）；多者取与日比者
-    let gw = GAN_WX[g as usize];
-    let yao = |f: &dyn Fn(u8) -> bool| -> Option<u8> {
-        let mut c: Vec<u8> = Vec::new();
+    // 遥克：先神克日（蒿矢），无则日克神（弹射）；多者取与日比者，仍多或俱不比依 `opts.yao`
+    // shen_ke_ri：神克日（渉害计神所克，同上克下）；否则日克神（计神受克，同下贼上）
+    let yao = |f: &dyn Fn(u8) -> bool, shen_ke_ri: bool| -> Option<u8> {
+        let mut c: Vec<&Ke> = Vec::new();
         for k in &si_ke[1..] {
-            if f(k.shang) && !c.contains(&k.shang) {
-                c.push(k.shang);
+            if f(k.shang) && !c.iter().any(|x| x.shang == k.shang) {
+                c.push(k);
             }
         }
         match c.len() {
             0 => None,
-            1 => Some(c[0]),
-            // 取与日比者；俱比俱不比原书未言，取四课先见者（见文档）
-            _ => Some(c.iter().copied().find(|s| (s % 2 == 0) == gang).unwrap_or(c[0])),
+            1 => Some(c[0].shang),
+            _ => {
+                let bi: Vec<&Ke> = c.iter().copied().filter(|k| (k.shang % 2 == 0) == gang).collect();
+                if bi.len() == 1 {
+                    return Some(bi[0].shang);
+                }
+                let pool = if bi.len() > 1 { bi } else { c };
+                match opts.yao {
+                    YaoTie::XianJu => Some(pool[0].shang),
+                    YaoTie::SheHai => {
+                        let depth = |k: &Ke| she_hai_depth(k.shang, k.xia_zhi, !shen_ke_ri);
+                        let max = pool.iter().map(|k| depth(k)).max().unwrap();
+                        let deep: Vec<&Ke> = pool.into_iter().filter(|k| depth(k) == max).collect();
+                        if deep.len() == 1 {
+                            return Some(deep[0].shang);
+                        }
+                        for cls in [2u8, 0u8] {
+                            let on: Vec<&&Ke> = deep.iter().filter(|k| k.xia_zhi % 3 == cls).collect();
+                            if on.len() == 1 {
+                                return Some(on[0].shang);
+                            }
+                        }
+                        let order: [usize; 4] = if gang { [0, 1, 2, 3] } else { [2, 3, 0, 1] };
+                        order.iter().map(|&i| si_ke[i].shang).find(|s| deep.iter().any(|k| k.shang == *s))
+                    }
+                }
+            }
         }
     };
-    if let Some(s) = yao(&|s| ke(ZHI_WX[s as usize], gw)) {
+    if let Some(s) = yao(&|s| ke(ZHI_WX[s as usize], gw), true) {
         return done(chain(s), Fa::HaoShi);
     }
-    if let Some(s) = yao(&|s| ke(gw, ZHI_WX[s as usize])) {
+    if let Some(s) = yao(&|s| ke(gw, ZHI_WX[s as usize]), false) {
         return done(chain(s), Fa::DanShe);
     }
     // 别责（三课）：刚日干合（五合之干）寄宫上神，柔日支前三合；中末并干上
@@ -354,6 +444,12 @@ pub enum GuiRule {
     /// 阴贵出后天坤自申逆（己申庚未辛午壬巳癸卯甲丑乙子丙亥丁酉戊未）；昼用阳贵、夜用阴贵（「曹氏則以陽為隂以隂為陽」）。
     /// 与俗例相较，除戊日外昼夜对调
     KaoYuan,
+    /// 《六壬大全》书中实用（课例与明文所称昼夜）：昼贵 甲戊庚丑 乙己子 丙丁亥 辛午 壬癸巳，
+    /// 夜贵 甲戊庚未 乙己申 丙丁酉 辛寅 壬癸卯。各干昼夜二贵与俗例同为一对（「甲戊庚牛羊……六辛逢馬虎」），
+    /// 只丁、己、庚、癸四干昼夜之名与曹震圭相反。据：卷六引從課「丁酉日酉為夜貴……亥為晝貴」「庚辰日干上丑晝貴人」
+    /// 「庚午己酉日伏吟拱夜貴」、卷一「丁酉日陽貴干上亥」、卷十「丁卯日酉加丁旦乘朱雀」「己未日卯加未夜」乘虎等，
+    /// 卷五、卷六课例 49 则以卯至酉为昼全合（见 doc/folk/liuren.md「昼夜」）
+    DaQuan,
 }
 
 /// 昼夜分界
@@ -361,6 +457,8 @@ pub enum GuiRule {
 pub enum ZhouYe {
     /// 卯至申为昼、酉至寅为夜（以占时地支定）
     MaoYou,
+    /// 卯至酉为昼、戌至寅为夜（以占时地支定）：配 [`GuiRule::DaQuan`]，卷五、卷六课例 49 则全合
+    MaoZhiYou,
     /// 日出至日入为昼（协纪卷七《考原》「自當以日出入為定」）：须给当地视太阳时与昼半弧，见 [`is_zhou_by_sun`]
     RiChuRu,
 }
@@ -368,6 +466,35 @@ pub enum ZhouYe {
 /// 卯酉为界：占时地支卯、辰、巳、午、未、申为昼
 pub fn is_zhou_mao_you(shi: u8) -> bool {
     (3..=8).contains(&(shi % 12))
+}
+
+/// 卯至酉为昼（卯辰巳午未申酉）
+pub fn is_zhou_mao_zhi_you(shi: u8) -> bool {
+    (3..=9).contains(&(shi % 12))
+}
+
+/// 太阳视地平高度（度，不计折射）：`jd_ut` UT1 儒略日，`lat_deg` 北纬、`lon_deg` 东经。
+/// 时角 H = GAST + 东经 − 视赤经，sin h = sinφ sinδ + cosφ cosδ cosH（视位置取本项目视位置管线）
+pub fn sun_altitude_deg(vsop: &Vsop87, jd_ut: Real, lat_deg: Real, lon_deg: Real) -> Real {
+    use crate::astronomy::apparent::{right_ascension_declination, sun_apparent_equatorial, ApparentPipelineOptions};
+    use crate::astronomy::time::earth_rotation::gast;
+    use crate::astronomy::time::{ut1_to_tt_jd, TimePoint, TimeScale};
+    use crate::math::real::{real, RealOps};
+    use crate::quantity::angle::PlaneAngle;
+    let jd_tt = ut1_to_tt_jd(jd_ut);
+    let sun = sun_apparent_equatorial(vsop, TimePoint::new(TimeScale::TT, jd_tt), &ApparentPipelineOptions::pipeline_default());
+    let (ra, dec) = right_ascension_declination(&sun);
+    let phi = PlaneAngle::from_deg(lat_deg).rad();
+    let h = gast(jd_ut, jd_tt).rad() + PlaneAngle::from_deg(lon_deg).rad() - ra.rad();
+    let d = dec.rad();
+    let alt = (phi.sin() * d.sin() + phi.cos() * d.cos() * h.cos()).asin();
+    alt * real(180.0) / Real::pi()
+}
+
+/// 以当地日出日入定昼：太阳视高度高于 `horizon_deg` 为昼。`horizon_deg` 取 0 为日心在地平、不计折射
+/// （协纪卷十二、十三日出入之法，与 `gengdian` 同）；取 −50′（−0.8333°）为今天文日出没（上边缘、计蒙气差）
+pub fn is_zhou_at(vsop: &Vsop87, jd_ut: Real, lat_deg: Real, lon_deg: Real, horizon_deg: Real) -> bool {
+    sun_altitude_deg(vsop, jd_ut, lat_deg, lon_deg) > horizon_deg
 }
 
 /// 日出日入为界：`local_apparent_hours` 当地视太阳时（0—24），`half_arc_hours` 昼半弧（时，见 `gengdian::half_arc_hours`，地平取日心不计折射）
@@ -384,8 +511,13 @@ pub fn gui_ren(day_gan: u8, zhou: bool, rule: GuiRule) -> u8 {
     // 《考原》阳贵（先天坤自子顺）、阴贵（后天坤自申逆）
     const KY_YANG: [u8; 10] = [7, 8, 9, 11, 1, 0, 1, 2, 3, 5];
     const KY_YIN: [u8; 10] = [1, 0, 11, 9, 7, 8, 7, 6, 5, 3];
+    // 书中实用：昼 甲丑乙子丙亥丁亥戊丑己子庚丑辛午壬巳癸巳，夜 甲未乙申丙酉丁酉戊未己申庚未辛寅壬卯癸卯
+    const DQ_ZHOU: [u8; 10] = [1, 0, 11, 11, 1, 0, 1, 6, 5, 5];
+    const DQ_YE: [u8; 10] = [7, 8, 9, 9, 7, 8, 7, 2, 3, 3];
     let g = (day_gan % 10) as usize;
     match (rule, zhou) {
+        (GuiRule::DaQuan, true) => DQ_ZHOU[g],
+        (GuiRule::DaQuan, false) => DQ_YE[g],
         (GuiRule::SuLi, true) => SU_ZHOU[g],
         (GuiRule::SuLi, false) => SU_YE[g],
         (GuiRule::KaoYuan, true) => KY_YANG[g],
@@ -413,10 +545,39 @@ impl TianJiang {
     }
 }
 
+/// 贵人临辰戌（入狱）之处置（卷二「貴人從十干分晝治暮治獨不居辰戌之地……」下二条，注「二條論貴人出獄之法」）
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChuYu {
+    /// 不出狱：贵人仍在本神，临辰顺、临戌逆。卷五、卷六课例贵人临辰 4 则、临戌 6 则皆如此。缺省
+    Bu,
+    /// 「己上起子辰上起丑卯上起寅……午上見亥此謂太乙起子逆後尋也」：地盘 d 对天盘 5 − d（巳子、辰丑……午亥）。
+    /// 今读作：临辰者贵人移于地盘丑上之神，临戌者移于地盘未上之神（辰↔丑、戌↔未为此表所配），依新位定顺逆。读法未核
+    NiHouXun,
+    /// 「貴人臨辰戌者以冲為神臨辰冲申臨戌冲寅乃天乙所臨之位諸將併隨天乙順逆前後取之」：
+    /// 临辰者以地盘申为天乙所临（贵人移于申上之神，逆布），临戌者以寅（顺布）。辰申、戌寅即同条「四孟則斜冲」之配
+    ChongShen,
+}
+
 /// 布十二天将：贵人加于天盘神 `gui_ren(日干)`，依所临地盘定顺逆，诸将随天盘神依次布之
 pub fn tian_jiang(pan: &TianPan, day_gan: u8, zhou: bool, rule: GuiRule) -> TianJiang {
-    let gui = gui_ren(day_gan, zhou, rule);
-    let gui_lin = pan.below(gui);
+    tian_jiang_with(pan, day_gan, zhou, rule, ChuYu::Bu)
+}
+
+/// 布十二天将，可选贵人出狱之法
+pub fn tian_jiang_with(pan: &TianPan, day_gan: u8, zhou: bool, rule: GuiRule, chu_yu: ChuYu) -> TianJiang {
+    let mut gui = gui_ren(day_gan, zhou, rule);
+    let mut gui_lin = pan.below(gui);
+    if gui_lin == 4 || gui_lin == 10 {
+        let to = match chu_yu {
+            ChuYu::Bu => None,
+            ChuYu::NiHouXun => Some(m12(5 - gui_lin as i32)),
+            ChuYu::ChongShen => Some(if gui_lin == 4 { 8 } else { 2 }),
+        };
+        if let Some(d) = to {
+            gui_lin = d;
+            gui = pan.above(d);
+        }
+    }
     let shun = matches!(gui_lin, 11 | 0 | 1 | 2 | 3 | 4);
     let mut at = [0u8; 12];
     for z in 0..12u8 {
@@ -572,6 +733,9 @@ mod tests {
             ("卷六", "戊戌", "辰", "午", "子寅辰", ["天后", "螣蛇", "六合"], true),
         ];
         assert_eq!(cases.len(), 49);
+        let mut su_mao_you = 0;
+        // 贵人临辰戌之例数、出狱二法合者数
+        let (mut yu, mut yu_ok) = (0, 0);
         for (vol, d, shi, jiang, chuan, jiangs, zhou) in cases {
             let g = gz(d);
             let pan = TianPan { jiang: z(jiang), shi: z(shi) };
@@ -579,11 +743,157 @@ mod tests {
             let tj = tian_jiang(&pan, g % 10, *zhou, GuiRule::SuLi);
             let got: Vec<&str> = sc3.iter().map(|c| tj.name_of(*c)).collect();
             assert_eq!(got, jiangs.to_vec(), "{vol} {d}日{shi}時{jiang}將");
+            // 书中实用表 + 卯至酉为昼：由占时即可定，49 则全合
+            let dq = tian_jiang(&pan, g % 10, is_zhou_mao_zhi_you(z(shi)), GuiRule::DaQuan);
+            let got3: Vec<&str> = sc3.iter().map(|c| dq.name_of(*c)).collect();
+            assert_eq!(got3, jiangs.to_vec(), "书中实用 {vol} {d}日{shi}時{jiang}將");
+            // 贵人临辰戌者：不出狱合；二出狱法皆不合
+            if matches!(tj.gui_lin, 4 | 10) {
+                yu += 1;
+                for cy in [ChuYu::NiHouXun, ChuYu::ChongShen] {
+                    let t = tian_jiang_with(&pan, g % 10, *zhou, GuiRule::SuLi, cy);
+                    if sc3.iter().map(|c| t.name_of(*c)).collect::<Vec<_>>() == jiangs.to_vec() {
+                        yu_ok += 1;
+                    }
+                }
+            }
+            // 俗例 + 卯至申：只 35 则合
+            let su = tian_jiang(&pan, g % 10, is_zhou_mao_you(z(shi)), GuiRule::SuLi);
+            if sc3.iter().map(|c| su.name_of(*c)).collect::<Vec<_>>() == jiangs.to_vec() {
+                su_mao_you += 1;
+            }
             // 《考原》定法除戊日外昼夜对调，同一盘亦可由之得出：课例不能分辨两说
             let ky = tian_jiang(&pan, g % 10, if g % 10 == 4 { *zhou } else { !*zhou }, GuiRule::KaoYuan);
             let got2: Vec<&str> = sc3.iter().map(|c| ky.name_of(*c)).collect();
             assert_eq!(got2, jiangs.to_vec(), "考原 {vol} {d}日");
         }
+        assert_eq!(su_mao_you, 35);
+        assert_eq!((yu, yu_ok), (10, 0));
+    }
+
+    /// 书中明言昼（旦）夜（暮）而举所乘之将者（卷一、卷九、卷十）：(出处, 日干, 天盘神, 所临地盘（None 为不定，任一盘可得即算）, 昼否, 所乘)
+    /// 俗例 19/26、考原 13/26、书中实用 26/26
+    #[test]
+    fn book_explicit_zhou_ye() {
+        fn ji(gs: &str) -> u8 {
+            GAN_JI[GAN.iter().position(|x| *x == gs).unwrap()]
+        }
+        let cases: Vec<(&str, &str, &str, Option<u8>, bool, &str)> = vec![
+            ("卷十 六辛日丑加戌旦將乘白虎", "辛", "丑", Some(z("戌")), true, "白虎"),
+            ("卷十 乙亥日未加亥旦占乘白虎", "乙", "未", Some(z("亥")), true, "白虎"),
+            ("卷十 六己日卯加己夜", "己", "卯", Some(ji("己")), false, "白虎"),
+            ("卷十 六壬日戌加壬旦", "壬", "戌", Some(ji("壬")), true, "白虎"),
+            ("卷十 六壬日戌加壬夜", "壬", "戌", Some(ji("壬")), false, "白虎"),
+            ("卷十 六癸日戌加癸晝", "癸", "戌", Some(ji("癸")), true, "白虎"),
+            ("卷十 丙子日辰加子旦", "丙", "辰", Some(z("子")), true, "白虎"),
+            ("卷十 丁亥日辰加亥夜", "丁", "辰", Some(z("亥")), false, "白虎"),
+            ("卷十 壬子日戌加子旦", "壬", "戌", Some(z("子")), true, "白虎"),
+            ("卷十 丁丑日寅加丑夜", "丁", "寅", Some(z("丑")), false, "白虎"),
+            ("卷十 壬寅日返吟夜", "壬", "申", Some(z("寅")), false, "白虎"),
+            ("卷十 癸卯日申加卯夜", "癸", "申", Some(z("卯")), false, "白虎"),
+            ("卷十 壬午日返吟晝", "壬", "子", Some(z("午")), true, "白虎"),
+            ("卷十 乙未日卯加未夜", "乙", "卯", Some(z("未")), false, "白虎"),
+            ("卷十 己未日卯加未夜", "己", "卯", Some(z("未")), false, "白虎"),
+            ("卷十 丙申日午加申晝", "丙", "午", Some(z("申")), true, "白虎"),
+            ("卷十 癸亥日戌加亥旦", "癸", "戌", Some(z("亥")), true, "白虎"),
+            ("卷十 癸亥日戌加亥暮", "癸", "戌", Some(z("亥")), false, "白虎"),
+            ("卷十 丁卯日酉加丁旦乘朱雀", "丁", "酉", Some(ji("丁")), true, "朱雀"),
+            ("卷十 丙寅日申加巳夜乘蛇", "丙", "申", Some(z("巳")), false, "螣蛇"),
+            ("卷十 七月癸亥日辰作天后加亥夜", "癸", "辰", Some(z("亥")), false, "天后"),
+            ("卷一 辛亥日未加亥夜作白虎", "辛", "未", Some(z("亥")), false, "白虎"),
+            ("卷九 辛巳日晝將順行丑乗白虎", "辛", "丑", None, true, "白虎"),
+            ("卷九 辛夘日干上酉晝乗玄", "辛", "酉", Some(ji("辛")), true, "玄武"),
+            ("卷九 辛夘日干上酉夜乗虎", "辛", "酉", Some(ji("辛")), false, "白虎"),
+            ("卷九 六己日夜貴逆布朱雀乘午", "己", "午", None, false, "朱雀"),
+        ];
+        let count = |r: GuiRule| {
+            cases
+                .iter()
+                .filter(|(_, g, s, lin, zhou, want)| {
+                    let gi = GAN.iter().position(|x| x == g).unwrap() as u8;
+                    let s = z(s);
+                    let ok = |jiang: u8| {
+                        let pan = TianPan { jiang, shi: 0 };
+                        tian_jiang(&pan, gi, *zhou, r).name_of(s) == *want
+                    };
+                    match lin {
+                        // 天盘 s 临地盘 lin：jiang + lin − 0 = s
+                        Some(l) => ok(m12(s as i32 - *l as i32)),
+                        None => (0..12).any(ok),
+                    }
+                })
+                .count()
+        };
+        assert_eq!(cases.len(), 26);
+        assert_eq!(count(GuiRule::DaQuan), 26);
+        assert_eq!(count(GuiRule::SuLi), 19);
+        assert_eq!(count(GuiRule::KaoYuan), 13);
+        // 卷六引從課：丁酉日酉為夜貴、亥為晝貴；庚辰日丑晝貴；庚午、己酉日伏吟拱夜貴（未、申）；甲子日伏吟拱晝貴（丑）；
+        // 卷六富貴課訂訛：乙酉日子加申為晝貴坐夜貴；卷五六儀課：乙丑己巳日夜占、乙酉己丑日晝占旬首作簾幙（他一贵）
+        assert_eq!((gui_ren(3, false, GuiRule::DaQuan), gui_ren(3, true, GuiRule::DaQuan)), (z("酉"), z("亥")));
+        assert_eq!(gui_ren(6, true, GuiRule::DaQuan), z("丑"));
+        assert_eq!((gui_ren(6, false, GuiRule::DaQuan), gui_ren(5, false, GuiRule::DaQuan)), (z("未"), z("申")));
+        assert_eq!(gui_ren(0, true, GuiRule::DaQuan), z("丑"));
+        assert_eq!((gui_ren(1, true, GuiRule::DaQuan), gui_ren(1, false, GuiRule::DaQuan)), (z("子"), z("申")));
+        // 簾幙：夜占用昼贵作簾幙，乙丑、己巳（甲子旬首子）；昼占用夜贵，乙酉、己丑（甲申旬首申）
+        assert_eq!((gui_ren(1, true, GuiRule::DaQuan), gui_ren(5, true, GuiRule::DaQuan)), (z("子"), z("子")));
+        assert_eq!((gui_ren(1, false, GuiRule::DaQuan), gui_ren(5, false, GuiRule::DaQuan)), (z("申"), z("申")));
+        // 卷九兩貴引從：壬子日巳為晝貴、卯為夜貴
+        assert_eq!((gui_ren(8, true, GuiRule::DaQuan), gui_ren(8, false, GuiRule::DaQuan)), (z("巳"), z("卯")));
+        // 书中实用表与俗例同为一对
+        for g in 0..10u8 {
+            let mut a = [gui_ren(g, true, GuiRule::DaQuan), gui_ren(g, false, GuiRule::DaQuan)];
+            let mut b = [gui_ren(g, true, GuiRule::SuLi), gui_ren(g, false, GuiRule::SuLi)];
+            a.sort();
+            b.sort();
+            assert_eq!(a, b);
+        }
+    }
+
+    /// 遥克、渉害异说
+    #[test]
+    fn she_hai_options() {
+        let wsr = QiKeOpts { she_hai: SheHaiRule::WeiShanRen, ..QiKeOpts::default() };
+        let byg = QiKeOpts { she_hai: SheHaiRule::BiYongGe, ..QiKeOpts::default() };
+        // 书中渉害诸例：缺省皆合（见 book_examples）；尉山人说只改上克下相等者，庚戌日察微例（辰临子、申临辰？）
+        for (d, s, j) in [("庚子", "戌", "申"), ("庚戌", "辰", "申"), ("甲午", "辰", "午"), ("丁卯", "丑", "亥"), ("乙卯", "寅", "子")] {
+            let a = qi_ke(gz(d), z(j), z(s));
+            let b = qi_ke_with(gz(d), z(j), z(s), wsr);
+            println!("{d}日{s}時{j}將 訂訛 {:?} {:?}；尉山人 {:?} {:?}；比用格 {:?}", a.san_chuan, a.fa, b.san_chuan, b.fa, qi_ke_with(gz(d), z(j), z(s), byg).san_chuan);
+        }
+        // 比用格：卷五所举「戊子日午卯子壬戌日申丑午庚子日戌申午乙卯日亥酉未皆用比不用渉害」「甲辰三傳……當取子水……三傳子申辰」，
+        // 时将未举：于一日 144 盘中求比用格所得三传
+        for (d, want) in [("戊子", "午卯子"), ("壬戌", "申丑午"), ("庚子", "戌申午"), ("乙卯", "亥酉未"), ("甲辰", "子申辰")] {
+            let hits: Vec<(u8, u8, Fa, [u8; 3])> = (0..12u8)
+                .flat_map(|j| (0..12u8).map(move |s| (j, s)))
+                .filter_map(|(j, s)| {
+                    let k = qi_ke_with(gz(d), j, s, byg);
+                    (k.san_chuan == sc(want)).then(|| (j, s, k.fa, qi_ke(gz(d), j, s).san_chuan))
+                })
+                .collect();
+            println!("{d} {want}: {:?}", hits[0]);
+            // 每日恰一盘（将时差相同者同盘）
+            assert_eq!(hits.len(), 12, "{d}");
+            assert!(hits.iter().all(|h| h.2 == Fa::BiYongGe || d == "乙卯"), "{d}");
+        }
+    }
+
+    /// 以日出入定昼夜：北京（北纬 39.9°、东经 116.4°）2024 年夏至日，北京时 12 时太阳高约 73.5°，0 时在地平下
+    #[test]
+    fn zhou_by_sunrise() {
+        use crate::math::real::RealOps;
+        let vsop = crate::astronomy::ephemeris::load_earth_vsop87_from_repo().unwrap();
+        let jd = crate::calendar::gregorian::Gregorian::to_julian_day(2024, 6, 21); // 0h UT
+        let noon = jd + real(4.0 / 24.0); // 北京时 12 时
+        let alt = sun_altitude_deg(&vsop, noon, real(39.9), real(116.4)).as_f64();
+        assert!((alt - 73.5).abs() < 0.5, "{alt}");
+        assert!(is_zhou_at(&vsop, noon, real(39.9), real(116.4), real(0.0)));
+        assert!(!is_zhou_at(&vsop, jd - real(8.0 / 24.0), real(39.9), real(116.4), real(0.0)));
+        // 卯时初（5 时）夏至北京已出、冬至未出
+        let t5 = jd + real(-3.0 / 24.0);
+        assert!(is_zhou_at(&vsop, t5, real(39.9), real(116.4), real(0.0)));
+        let w = crate::calendar::gregorian::Gregorian::to_julian_day(2024, 12, 21) - real(3.0 / 24.0);
+        assert!(!is_zhou_at(&vsop, w, real(39.9), real(116.4), real(0.0)));
     }
 
     #[test]

@@ -251,6 +251,51 @@ const YUE_GONG: [(&str, &str, &str); 6] = [
 /// （「一說十一十二土星」）
 const ZHI_NAN: &str = "日日月月火羅水孛木炁金金";
 
+/// 血忌（按年支化曜）：大成卷三論血忌「丑寅土，子日，夘月，辰亥木，巳戌水，午酉火，未申金」；集成地支吉凶星例一表
+/// 「日土土月木水火金金火水木」同
+const XUE_JI: &str = "日土土月木水火金金火水木";
+
+/// 擎天（按生年干支取宫）：集成地支吉凶星例四表原录（「已上皆是擎天之位，遊奕對宮」），十宫各列所值之干支。
+/// 录文「丙戌」重出于子、未两格而缺丙辰：依表中六十花甲以子起、卯止之循环（丙戌为一轮之首当在子），未格之「丙戌」当作「丙辰」（本项目校改，未核）
+const QING_TIAN: [(char, &str); 10] = [
+    ('子', "甲子庚午乙亥辛巳丙戌壬辰丁酉戊申癸丑己未"),
+    ('卯', "己巳甲戌庚辰乙酉辛卯丙申壬寅丁未戊午癸亥"),
+    ('辰', "庚寅辛丑壬子"),
+    ('巳', "戊辰癸酉己卯甲申乙未丙午丁巳"),
+    ('午', "己丑庚子戊寅辛亥壬戌"),
+    ('未', "乙巳丁卯甲午丙辰癸未"),
+    ('申', "丙寅壬申丁丑戊子己亥庚戌辛酉"),
+    ('酉', "癸巳甲辰乙卯"),
+    ('戌', "乙丑辛未丙子壬午丁亥戊戌己酉甲寅庚申"),
+    ('亥', "癸卯"),
+];
+
+/// 擎天之宫（地支序）
+pub fn qing_tian(nian_gz: u8) -> Option<u8> {
+    const G: &str = "甲乙丙丁戊己庚辛壬癸";
+    let gc = G.chars().nth((nian_gz % 10) as usize)?;
+    let zc = ZHI_CH.chars().nth((nian_gz % 12) as usize)?;
+    QING_TIAN.iter().find_map(|(p, t)| {
+        let cs: Vec<char> = t.chars().collect();
+        cs.chunks(2).any(|w| w[0] == gc && w[1] == zc).then(|| ZHI_CH.chars().position(|x| x == *p).unwrap() as u8)
+    })
+}
+
+/// 与已有神煞同位之別名（集成地支吉凶星例表中「同前」者、大成卷三總論駕前神煞歌同宫并举者）：（名，年支顺数，出处）
+const JIA_QIAN_ALIAS: [(&str, u8, &str); 11] = [
+    ("伏尸", 0, "大成卷三總論駕前神煞歌「一太嵗劍鋒伏尸寄」；集成表太歲行「伏屍」"),
+    ("貫索", 3, "大成卷三駕前神煞歌「四太隂貫索勾絞具」；集成表貫索行（勾神同前）"),
+    ("五鬼", 4, "集成表五鬼行（官符、飛符、年符同前）；大成卷十三注「五鬼者五官符是也，假如甲子年五鬼在辰」"),
+    ("小耗", 5, "集成表月德行（死符、小耗同前）"),
+    ("大耗", 6, "集成表歲破行（大耗、闌干同前）"),
+    ("闌干", 6, "大成卷三駕前神煞歌「七嵗破月空欄干是」；集成表"),
+    ("龍德", 7, "大成卷三駕前神煞歌「八龍徳暴敗天厄至」；卷三流年十二神"),
+    ("天雄", 8, "集成表白虎行（天雄同前）"),
+    ("福星", 9, "大成卷三駕前神煞歌「十天徳福星卷舌係」"),
+    ("卷舌", 9, "大成卷三駕前神煞歌；集成表天德行（卷舌、絞殺同前）"),
+    ("驀越", 11, "大成卷三定驀越「駕後一位」；集成表「病符驀越」"),
+];
+
 fn zhi_at(s: &str, k: usize) -> u8 {
     let c = s.chars().nth(k).unwrap();
     ZHI_CH.chars().position(|x| x == c).unwrap() as u8
@@ -299,6 +344,11 @@ pub fn shen_sha(inp: &ShenShaInput, o: &ShenShaOptions) -> Vec<ShenSha> {
     let ma_gan = [0u8, 8, 6, 2][(zhi % 4) as usize];
     yao("天馬", "年支", hua_lu(ma_gan), "大成卷二論天馬地驛；集成卷568天馬地驛、地支吉凶星例一");
     yao("地驛", "年支", gan_yao(ma_gan), "同上");
+    // 產星：大成卷三論産星「申子辰年金，巳酉丑年水，寅午戌年木，亥卯未年火」；集成表「金水木火」循环同
+    yao("產星", "年支", [3usize, 2, 5, 4][(zhi % 4) as usize], "大成卷三論産星；集成卷568地支吉凶星例一、卷二十四「産星用二」");
+    // 血支：大成卷三論血支「丑寅土，子卯木，辰亥火，巳戌金，午酉水，未日，申月，即星盤所屬而移一位也」——前一支之宫主
+    yao("血支", "年支", gong_zhu((zhi + 11) % 12), "大成卷三論血支（星盤宫主移一位）；集成卷568地支吉凶星例一");
+    yao("血忌", "年支", yao_at(XUE_JI, zhi as usize), "大成卷三論血忌；集成卷568地支吉凶星例一");
     // 三、命宫起
     let ju = [4usize, 3, 1, 0][(ming % 4) as usize]; // 三合局五行：申子辰水、巳酉丑金、寅午戌火、亥卯未木
     yao("天元印", "命宫", XING_YAO[ju], "大成卷二定三元星「亥夘未為命宫者木為天元印火為地元禄」……；卷二十三印夀雙全「亥屬木故木為天元印，木生火故火為地元禄，火生土故土為人元夀」");
@@ -355,6 +405,18 @@ pub fn shen_sha(inp: &ShenShaInput, o: &ShenShaOptions) -> Vec<ShenSha> {
     for (n, s0, s) in JIA_HOU {
         gong(n, "年支", (s0 as i32 - zhi as i32).rem_euclid(12) as u8, s);
     }
+    for (n, k, s) in JIA_QIAN_ALIAS {
+        gong(n, "年支", zhi + k, s);
+    }
+    gong("浮沉", "年支", (10 - zhi as i32).rem_euclid(12) as u8, "大成卷三總論駕後神煞歌「血刃浮沈及解神，戌上分明」；集成表浮沉");
+    // 三刑：子卯相刑，丑戌未、寅巳申轉轉相刑，辰午酉亥自刑（大成卷三三刑歌注「寅刑巳巳刑申申刑寅」；卷十三注同）。
+    // 集成表「卯戌巳午辰申午丑寅酉未亥」卯年作午，与通例子不合，不从
+    gong("三刑", "年支", [3u8, 10, 5, 0, 4, 8, 6, 1, 2, 9, 7, 11][zhi as usize], "大成卷三三刑歌；集成卷568三刑、地支吉凶星例三");
+    // 擎天、遊奕：生年干支查集成表；遊奕為擎天對宫（大成卷三論擎天遊奕「擎天屬火遊奕屬水，數以六十花甲隔節布於十宫，起於子終於夘」）
+    if let Some(q) = qing_tian(inp.nian_gz) {
+        gong("擎天", "年干支", q, "集成卷568地支吉凶星例四擎天表；大成卷三論擎天遊奕");
+        gong("遊奕", "年干支", q + 6, "同上「遊奕對宮」");
+    }
     let tj = match o.tian_jie {
         TianJieRule::XuNi => (10 - zhi as i32).rem_euclid(12) as u8,
         TianJieRule::ChenShun => (4 + zhi) % 12,
@@ -382,7 +444,7 @@ fn gan_xing(gan: u8) -> usize {
 }
 
 /// 年干支之納音五行（木0 火1 土2 金3 水4）
-fn nayin_xing(gz: u8) -> usize {
+pub fn nayin_xing(gz: u8) -> usize {
     use crate::folk::nayin::{nayin_wuxing, WuXing};
     match nayin_wuxing(gz) {
         WuXing::Mu => 0,
@@ -701,5 +763,44 @@ mod tests {
         for m in ['卯', '子'] {
             assert_eq!(gong_zhu((z(m) + 5) % 12), 2);
         }
+    }
+
+    /// 產星、血支、血忌：大成卷三规则对集成地支吉凶星例一表；擎天、遊奕表之覆盖；三刑；別名同位
+    #[test]
+    fn chan_xue_qing_tian() {
+        let none: Vec<YaoPos> = Vec::new();
+        let run = |gz: u8| shen_sha(&ShenShaInput { nian_gz: gz, month: 0, hour_zhi: 0, zhou: true, ming: 0, yao: &none }, &ShenShaOptions::default());
+        let chan = "金水木火金水木火金水木火";
+        let xue_zhi = "木土土木火金水日月水金火";
+        let xue_ji = "日土土月木水火金金火水木";
+        let mut sanxing_bad = Vec::new();
+        for zhi in 0..12u8 {
+            let gz = (0..60u8).find(|g| g % 12 == zhi).unwrap();
+            let v = run(gz);
+            let y = |n: &str| v.iter().find(|s| s.name == n).and_then(|s| s.yao).unwrap();
+            assert_eq!(y("產星"), yao_at(chan, zhi as usize), "產星 {zhi}");
+            assert_eq!(y("血支"), yao_at(xue_zhi, zhi as usize), "血支 {zhi}");
+            assert_eq!(y("血忌"), yao_at(xue_ji, zhi as usize), "血忌 {zhi}");
+            let g = |n: &str| v.iter().find(|s| s.name == n).and_then(|s| s.gong).unwrap();
+            if g("三刑") != zhi_at("卯戌巳午辰申午丑寅酉未亥", zhi as usize) {
+                sanxing_bad.push(zhi);
+            }
+            assert_eq!(g("貫索"), g("勾神"));
+            assert_eq!(g("五鬼"), g("官符"));
+            assert_eq!(g("浮沉"), g("血刃"));
+        }
+        assert_eq!(sanxing_bad, vec![3]); // 集成表卯年作午
+        // 擎天：六十甲子各得一宫，不入丑寅；遊奕不入未申
+        let mut cnt = [0u32; 12];
+        for gz in 0..60u8 {
+            let q = qing_tian(gz).expect("擎天表缺");
+            assert!(q != 1 && q != 2);
+            cnt[q as usize] += 1;
+            let v = run(gz);
+            let g = |n: &str| v.iter().find(|s| s.name == n).and_then(|s| s.gong).unwrap();
+            assert_eq!(g("遊奕"), (q + 6) % 12);
+        }
+        assert_eq!(cnt.iter().sum::<u32>(), 60);
+        assert_eq!(cnt, [10, 0, 0, 10, 3, 7, 5, 5, 7, 3, 9, 1]);
     }
 }

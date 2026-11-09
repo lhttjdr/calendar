@@ -9,7 +9,9 @@
 //!   零神不問長何短，吉凶不同斷」（四库本影印第 22—24 页）。四库注以十二支为正神、八干四维为零神（双山三合之读，
 //!   [`si_ku_zheng_shen`]）；玄空家以当运之宫为正神、对宫为零神（沈氏；出处未核），二读并存。
 //! - 三元九运：协纪卷八「康熙二十三年甲子為上元」（[`super::taiyi::san_yuan_jiu_yun`]）。
-//! - 年、月紫白：协纪卷八（[`super::jiuxing`]）；入中顺飞。日、时紫白协纪未收，不提供。
+//! - 年、月紫白：协纪卷八（[`super::jiuxing`]）；入中顺飞。日、时紫白据《奇門遁甲統宗》「日冬至後用陽局一七四，夏至後用陰局九三六」
+//!   与协纪卷三十四「時家亦有三竒紫白，倣月例推」（[`ri_xing`]、[`shi_xing`]）。
+//! - 罗经三针（正针、中针、缝针）：协纪卷二、卷三十三（[`Zhen`]）。玄空大卦（六十四卦）另为一系统（[`gua_yun`] 等），不入飞星。
 //!
 //! 九宫以洛书数 1—9 为下标（`[u8; 9]` 的下标 k−1 对应洛书 k 宫：一坎北、二坤西南、三震东、四巽东南、五中、六乾西北、
 //! 七兑西、八艮东北、九离南）。飞布次序：中五 → 六 → 七 → 八 → 九 → 一 → 二 → 三 → 四（洛书数序）。
@@ -755,6 +757,270 @@ pub fn month_pans(ganzhi_year: i32) -> [[u8; 9]; 12] {
     r
 }
 
+// ───────────────────────────── 罗经三针 ─────────────────────────────
+//
+// 《欽定協紀辨方書》卷二「縫針三合五行」按：「地理家有三針：一曰正針，乃二十四山之正位，定向用之；一曰中針，其子位在
+// 正針壬子二位之中，格龍用之；一曰縫針，其子位在子癸二位之縫，消砂納水用之。」同卷图说「内層所列為縫針，其子位在正針
+// 子癸二位之間，比正針後半位」。卷三十三「羅經」：「通書以壬子之中為縫針，今謂之中針……地理家格龍用之；若定方向則用
+// 正針，消砂納水則用縫針」。名目古今不一（宋《因話錄》「子午丙壬間縫針」、《靈城精義》「壬子丙午為天盤」皆指今之中针
+// 位置），见 doc/folk/xuankong.md「九、罗经三针」。
+
+/// 罗经三针
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Zhen {
+    /// 正针（地盘）：二十四山正位，子中线 0°
+    Zheng,
+    /// 中针（今称人盘）：子位在正针壬子之间，各山中线较正针逆时针偏半山（−7.5°）
+    Zhong,
+    /// 缝针（今称天盘）：子位在正针子癸之缝，各山中线较正针顺时针偏半山（+7.5°，「比正針後半位」）
+    Feng,
+}
+
+impl Zhen {
+    pub const ALL: [Zhen; 3] = [Zhen::Zheng, Zhen::Zhong, Zhen::Feng];
+    pub fn name(self) -> &'static str {
+        match self {
+            Zhen::Zheng => "正針",
+            Zhen::Zhong => "中針",
+            Zhen::Feng => "縫針",
+        }
+    }
+    /// 今人盘名（地盘、人盘、天盘；协纪不用此名，《靈城精義》之「天盤」在壬子之间，与今名相反，见文档）
+    pub fn pan_name(self) -> &'static str {
+        match self {
+            Zhen::Zheng => "地盤",
+            Zhen::Zhong => "人盤",
+            Zhen::Feng => "天盤",
+        }
+    }
+    /// 各山中线相对正针之偏（度，顺时针为正）
+    pub fn offset_deg(self) -> Real {
+        match self {
+            Zhen::Zheng => real_const(0.0),
+            Zhen::Zhong => -half_w(),
+            Zhen::Feng => half_w(),
+        }
+    }
+    /// 协纪所载用法
+    pub fn yong_xie_ji(self) -> &'static str {
+        match self {
+            Zhen::Zheng => "定向",
+            Zhen::Zhong => "格龍",
+            Zhen::Feng => "消砂納水",
+        }
+    }
+}
+
+/// 某针某山之中线方位角（度）
+pub fn zhen_shan_center(shan: usize, zhen: Zhen) -> Real {
+    shan_center(shan) + zhen.offset_deg()
+}
+
+/// 方位角在某针上所落之山，与偏离该针本山中线之度数（−7.5—7.5）
+pub fn shan_of_azimuth_zhen(az_deg: Real, zhen: Zhen) -> (usize, Real) {
+    shan_of_azimuth(az_deg - zhen.offset_deg())
+}
+
+/// 三盘二十四山方位表：`[山][针]` = (lo, 中线, hi)，度数可负（中针子山 −15—0）
+pub fn san_zhen_table() -> [[[Real; 3]; 3]; 24] {
+    let mut t = [[[real_const(0.0); 3]; 3]; 24];
+    for (s, row) in t.iter_mut().enumerate() {
+        for (k, z) in Zhen::ALL.iter().enumerate() {
+            let c = zhen_shan_center(s, *z);
+            row[k] = [c - half_w(), c, c + half_w()];
+        }
+    }
+    t
+}
+
+// ───────────────────────────── 玄空大卦（六十四卦） ─────────────────────────────
+//
+// 与九星飞布不同之系统。原文可结构化者：
+// - 《天玉經》「江東一卦從來吉，八神四個一；江西一卦排龍位，八神四個二；南北八神共一卦，端的應無差」；四库本卷一注与
+//   吳公發揮读为「寅甲卯乙辰巽巳丙共為江東卦，申庚酉辛戌乾亥壬共為江西卦，午丁未坤子癸丑艮共為一卦」（[`jiang_san_gua`]）。
+// - 《天玉經外編》「四經五行」：乾丙乙子寅辰金（一龍）、坤壬辛午申戌木（二龍）、艮庚丁卯巳丑水（三龍）、巽甲癸亥酉未火（四龍）
+//   （[`si_jing_long`]）。
+// - 蒋大鸿《地理辨正》青囊序注批此二读皆「非」，而所倡「玄空大卦」排法不著于书（「有訣無書」）。
+// - 先天六十四卦圆图之序：《易學啟蒙》（胡方平通釋卷上）「內卦為乾，自乾至泰八卦……兊八卦自履至臨，離八卦自同人至明夷，
+//   震八卦自无妄至復，艮八卦自遯至謙，坎八卦自訟至師，㢲八卦自姤至升」，乾南坤北。
+// 今人（沈氏、谈养吾一系）之卦运、卦数及卦在二十四山之位，非蒋氏原书所载，出处未核（[`gua_yun`]、[`gua_shu`]、[`da_gua_at`]）。
+
+/// 先天八卦（三位，初爻最低位，阳为 1）之洛书数：乾九、兑四、离三、震八、巽二、坎七、艮六、坤一（先天配洛书；今人，未核）
+pub fn xian_tian_shu(tri: u8) -> u8 {
+    match tri & 7 {
+        0b111 => 9, // 乾
+        0b011 => 4, // 兌（初、二阳）
+        0b101 => 3, // 離
+        0b001 => 8, // 震
+        0b110 => 2, // 巽
+        0b010 => 7, // 坎
+        0b100 => 6, // 艮
+        _ => 1,     // 坤
+    }
+}
+
+/// 六十四卦（六位，初爻最低位，与 [`super::zhouyi::name`] 同）之卦数：内卦先天洛书数（今人，未核）
+pub fn gua_shu(gua: u8) -> u8 {
+    xian_tian_shu(gua & 7)
+}
+
+/// 卦运（1—4、6—9）：以内外卦逐爻比，不同之爻为阳、相同为阴，得一三画卦，取其先天洛书数。即八纯卦一运，
+/// 内外全反（泰否、损咸、既济未济、益恒）九运；只初爻异者（姤困旅豫小畜節賁復）八运（今人，未核）。
+pub fn gua_yun(gua: u8) -> u8 {
+    xian_tian_shu((gua & 7) ^ ((gua >> 3) & 7))
+}
+
+/// 先天八卦次序（乾兑离震巽坎艮坤）之三位
+const XT_ORDER: [u8; 8] = [0b111, 0b011, 0b101, 0b001, 0b110, 0b010, 0b100, 0b000];
+
+/// 先天六十四卦圆图，自北（坤、复之交）起顺时针（方位角增）之卦序。东半自复至乾：内卦震、离、兑、乾，各宫外卦坤艮坎巽震离兑乾；
+/// 西半自姤至坤：内卦巽、坎、艮、坤，各宫外卦乾兑离震巽坎艮坤（《易學啟蒙》）。
+pub fn yuan_tu() -> [u8; 64] {
+    let mut r = [0u8; 64];
+    let nei = [XT_ORDER[3], XT_ORDER[2], XT_ORDER[1], XT_ORDER[0], XT_ORDER[4], XT_ORDER[5], XT_ORDER[6], XT_ORDER[7]];
+    for (o, n) in nei.iter().enumerate() {
+        for j in 0..8 {
+            let wai = if o < 4 { XT_ORDER[7 - j] } else { XT_ORDER[j] };
+            r[o * 8 + j] = (wai << 3) | n;
+        }
+    }
+    r
+}
+
+/// 每卦所占度数 360/64
+pub fn da_gua_w() -> Real {
+    real_const(5.625)
+}
+
+/// 方位角所落之卦（六位）与在卦内之度数（0—5.625）。坤复之交置于正子（0°），今人之盘，未核
+pub fn da_gua_at(az_deg: Real) -> (u8, Real) {
+    let full = real_const(360.0);
+    let a = az_deg - (az_deg / full).floor() * full;
+    let k = (a / da_gua_w()).to_i32_floor().rem_euclid(64) as usize;
+    (yuan_tu()[k], a - da_gua_w() * real(k as i32))
+}
+
+/// 与方位区间 [lo, hi) 相交之卦：(卦, 卦起, 卦止)，度数与区间同一圈（可负）
+pub fn da_gua_in(lo: Real, hi: Real) -> Vec<(u8, Real, Real)> {
+    let w = da_gua_w();
+    let t = yuan_tu();
+    let mut v = Vec::new();
+    let mut k = (lo / w).to_i32_floor();
+    while w * real(k) < hi {
+        v.push((t[k.rem_euclid(64) as usize], w * real(k), w * real(k + 1)));
+        k += 1;
+    }
+    v
+}
+
+/// 《天玉經》江东、江西、南北三卦（四库本卷一注、吳公發揮之读）：0 江東（寅甲卯乙辰巽巳丙）、1 江西（申庚酉辛戌乾亥壬）、
+/// 2 南北（午丁未坤子癸丑艮）。蒋氏批为「非」
+pub fn jiang_san_gua(shan: usize) -> u8 {
+    match shan % 24 {
+        4..=11 => 0,
+        16..=23 => 1,
+        _ => 2,
+    }
+}
+
+/// 《天玉經外編》四經五行：返回 (龍序 1—4, 五行)。一龍金乾丙乙子寅辰，二龍木坤壬辛午申戌，三龍水艮庚丁卯巳丑，
+/// 四龍火巽甲癸亥酉未。蒋氏批为「非」
+pub fn si_jing_long(shan: usize) -> (u8, &'static str) {
+    match SHAN24[shan % 24] {
+        "乾" | "丙" | "乙" | "子" | "寅" | "辰" => (1, "金"),
+        "坤" | "壬" | "辛" | "午" | "申" | "戌" => (2, "木"),
+        "艮" | "庚" | "丁" | "卯" | "巳" | "丑" => (3, "水"),
+        _ => (4, "火"),
+    }
+}
+
+// ───────────────────────────── 日、时紫白 ─────────────────────────────
+//
+// 《奇門遁甲統宗》（维基文库简体录文，未注底本）末卷「陰陽二遁分三元」注：「年、月、日、時俱分三元，年、月俱用一四七。
+// 陰局則日冬至後用陽局一七四，夏至後用陰局九三六，陽順行陰逆行……即將年月干支所到宮之星，由入中宮順飛九宮」。
+// 即冬至后甲子日一白入中，日进一星，六十日后甲子七赤、再六十日四绿；夏至后甲子日九紫，日退一星，次甲子三碧、六白。
+// 时：协纪卷三十四「時家亦有三竒紫白，倣月例推」（月例按年支三组定正月之星），推之为子午卯酉日子时、辰戌丑未日子时、
+// 寅申巳亥日子时三组；数取时辰连续（六十时一周），阳一四七、阴九六三（数值系连续推得，原文未明列，未核）。
+
+/// 日紫白起例之甲子取法
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RiBaiRule {
+    /// 二至当日或其后第一个甲子日（「冬至後甲子」字面）。缺省
+    HouJiaZi,
+    /// 距二至最近之甲子（前后各三十日内；今人另说，未核）
+    JinJiaZi,
+}
+
+/// 日、时紫白之九宫飞法
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RiPanFei {
+    /// 入中顺飞（統宗「由入中宮順飛九宮」）。缺省
+    ShunFei,
+    /// 阴遁之日、时逆飞（今人另说，未核）
+    YinNi,
+}
+
+/// 日、时紫白选项
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RiShiOptions {
+    pub jia_zi: RiBaiRule,
+    pub fei: RiPanFei,
+}
+
+pub const DEFAULT_RI_SHI: RiShiOptions = RiShiOptions { jia_zi: RiBaiRule::HouJiaZi, fei: RiPanFei::ShunFei };
+
+fn day_gz_of(jdn: i64) -> u8 {
+    (jdn + 49).rem_euclid(60) as u8
+}
+
+/// 二至（民用日之儒略日数）后起例之甲子日
+pub fn er_zhi_jia_zi(zhi_jdn: i64, rule: RiBaiRule) -> i64 {
+    let after = zhi_jdn + (60 - day_gz_of(zhi_jdn) as i64) % 60;
+    match rule {
+        RiBaiRule::HouJiaZi => after,
+        RiBaiRule::JinJiaZi => {
+            if after - zhi_jdn > 30 { after - 60 } else { after }
+        }
+    }
+}
+
+/// 日紫白：`qi` 为二至表（民用日儒略日数, 是否冬至），升序。返回 (入中之星, 阳遁否, 起例甲子日)
+pub fn ri_xing(jdn: i64, qi: &[(i64, bool)], rule: RiBaiRule) -> Option<(u8, bool, i64)> {
+    let (s, yang) = qi.iter().map(|&(d, dong)| (er_zhi_jia_zi(d, rule), dong)).filter(|(s, _)| *s <= jdn).max_by_key(|x| x.0)?;
+    let n = (jdn - s) as i32;
+    Some((if yang { wrap9(1 + n) } else { wrap9(9 - n) }, yang, s))
+}
+
+/// 时紫白（入中之星）：`day_gz` 日干支序，`hour_zhi` 时支序（子 0），`yang` 阳遁否（随日紫白）
+pub fn shi_xing(day_gz: u8, hour_zhi: u8, yang: bool) -> u8 {
+    let g = (day_gz % 12 % 3) as usize;
+    let h = (hour_zhi % 12) as i32;
+    if yang { wrap9([1, 4, 7][g] + h) } else { wrap9([9, 6, 3][g] - h) }
+}
+
+/// 日、时紫白盘（九宫）
+pub fn ri_shi_pan(star: u8, yang: bool, o: &RiShiOptions) -> [u8; 9] {
+    fly(star, yang || o.fei == RiPanFei::ShunFei)
+}
+
+/// 某民用日前后之二至表（民用日儒略日数, 是否冬至），取东八区民用日（子正为界）
+pub fn er_zhi_around(vsop: &crate::astronomy::ephemeris::Vsop87, jdn: i64) -> Vec<(i64, bool)> {
+    use crate::astronomy::aspects::solar_term_jds_for_year_cached;
+    use crate::astronomy::time::{TimePoint, TimeScale};
+    let (y, _, _) = crate::calendar::gregorian::Gregorian::from_julian_day(real(jdn as i32));
+    let mut v = Vec::new();
+    for yy in (y - 2)..=y {
+        let t = solar_term_jds_for_year_cached(vsop, yy);
+        for (k, dong) in [(6usize, false), (18usize, true)] {
+            let ut = TimePoint::new(TimeScale::TT, t[k]).to_scale(TimeScale::UTC).jd;
+            let d = (ut + real_const(8.0) / real_const(24.0) + real_const(0.5)).to_i32_floor() as i64;
+            v.push((d, dong));
+        }
+    }
+    v.sort();
+    v
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1086,5 +1352,127 @@ mod tests {
         // 2026 丙午年：年星一白（协纪：1684 上元一白起，逐年逆转）→ 2024 三碧，2026 一白
         assert_eq!(year_pan(2026)[4], jiuxing::year_star(2026));
         assert_eq!(fly(1, true)[5], 2); // 一白入中，乾六宫二黑
+    }
+
+    #[test]
+    fn san_zhen() {
+        let r = |x: Real| x.as_f64();
+        // 协纪：中针子位在正针壬子之间，缝针子位在子癸之缝
+        assert_eq!(r(zhen_shan_center(idx("子"), Zhen::Zhong)), -7.5);
+        assert_eq!(r(zhen_shan_center(idx("子"), Zhen::Feng)), 7.5);
+        // 「中針與縫針差一位」：同一方位，中针所落之山恒为缝针所落之次山
+        for a in 0..720 {
+            let az = real(a) * real_const(0.5) + real_const(0.25);
+            let (z, oz) = shan_of_azimuth_zhen(az, Zhen::Zhong);
+            let (f, of) = shan_of_azimuth_zhen(az, Zhen::Feng);
+            assert_eq!(z, (f + 1) % 24);
+            assert!((r(oz) - r(of)).abs() < 1e-9);
+        }
+        assert_eq!(shan_of_azimuth_zhen(real(3), Zhen::Zhong).0, idx("癸"));
+        assert_eq!(shan_of_azimuth_zhen(real(3), Zhen::Feng).0, idx("子"));
+        assert_eq!(shan_of_azimuth_zhen(real(-3), Zhen::Zhong).0, idx("子"));
+        let t = san_zhen_table();
+        assert_eq!(r(t[idx("午")][1][1]), 172.5);
+        assert_eq!(r(t[idx("午")][2][1]), 187.5);
+    }
+
+    #[test]
+    fn da_gua() {
+        use crate::folk::zhouyi;
+        let t = yuan_tu();
+        // 《易學啟蒙》：坤北乾南；东半自复至乾，西半自姤至坤
+        assert_eq!(zhouyi::name(t[0]), "復");
+        assert_eq!(zhouyi::name(t[31]), "乾");
+        assert_eq!(zhouyi::name(t[32]), "姤");
+        assert_eq!(zhouyi::name(t[63]), "坤");
+        // 各宫首末（啟蒙：乾至泰、履至臨、同人至明夷、无妄至復、姤至升、訟至師、遯至謙、否至坤）
+        let ends: Vec<(&str, &str)> = (0..8).map(|o| (zhouyi::name(t[o * 8]), zhouyi::name(t[o * 8 + 7]))).collect();
+        for (o, (a, b)) in ends.iter().enumerate() {
+            let exp = [("復", "无妄"), ("明夷", "同人"), ("臨", "履"), ("泰", "乾"), ("姤", "升"), ("訟", "師"), ("遯", "謙"), ("否", "坤")][o];
+            assert!(a.contains(exp.0.chars().next().unwrap()) && b.contains(exp.1.chars().last().unwrap()), "{o}: {a} {b}");
+        }
+        let mut seen = [false; 64];
+        for g in t {
+            assert!(!seen[g as usize]);
+            seen[g as usize] = true;
+        }
+        // 卦运：八纯卦一运，泰否九运；每运八卦，无五运
+        assert_eq!((gua_yun(0), gua_yun(63), gua_yun(0b000_111), gua_yun(0b111_000)), (1, 1, 9, 9));
+        // 今人转述八运卦：姤、困、旅、豫、小畜、節、賁、復
+        let mut ba: Vec<&str> = (0..64u8).filter(|g| gua_yun(*g) == 8).map(zhouyi::name).collect();
+        ba.sort();
+        let mut exp = vec!["姤", "困", "旅", "豫", "小畜", "節", "賁", "復"];
+        exp.sort();
+        assert_eq!(ba, exp);
+        for y in [1u8, 2, 3, 4, 6, 7, 8, 9] {
+            assert_eq!((0..64u8).filter(|g| gua_yun(*g) == y).count(), 8);
+        }
+        // 卦数：内卦宫，自北顺时针为八、三、四、九、二、七、六、一
+        for (o, s) in [8u8, 3, 4, 9, 2, 7, 6, 1].iter().enumerate() {
+            assert!((0..8).all(|j| gua_shu(t[o * 8 + j]) == *s));
+        }
+        assert_eq!(zhouyi::name(da_gua_at(real(1)).0), "復");
+        assert_eq!(zhouyi::name(da_gua_at(real(-1)).0), "坤");
+        assert_eq!(da_gua_in(real_const(-7.5), real_const(7.5)).len(), 4);
+        // 原文两读
+        for k in 0..3 {
+            assert_eq!((0..24).filter(|s| jiang_san_gua(*s) == k).count(), 8);
+        }
+        assert_eq!(jiang_san_gua(idx("寅")), 0);
+        assert_eq!(jiang_san_gua(idx("丙")), 0);
+        assert_eq!(jiang_san_gua(idx("壬")), 1);
+        assert_eq!(jiang_san_gua(idx("艮")), 2);
+        for k in 1..=4 {
+            assert_eq!((0..24).filter(|s| si_jing_long(*s).0 == k).count(), 6);
+        }
+        // 地理辨正青囊序批：「子寅辰乾丙乙一龍……午申戌坤辛壬二龍……卯巳丑艮庚丁三龍……酉亥未巽癸甲四龍」
+        for (ss, n) in [("子寅辰乾丙乙", 1), ("午申戌坤辛壬", 2), ("卯巳丑艮庚丁", 3), ("酉亥未巽癸甲", 4)] {
+            for c in ss.chars() {
+                assert_eq!(si_jing_long(idx(&c.to_string())).0, n, "{c}");
+            }
+        }
+    }
+
+    #[test]
+    fn ri_shi_zi_bai() {
+        // 时：六十时一周连续；阳顺阴逆
+        for gz in 0..60u8 {
+            for h in 0..12u8 {
+                let n = gz as i32 * 12 + h as i32;
+                assert_eq!(shi_xing(gz, h, true), wrap9(1 + n));
+                assert_eq!(shi_xing(gz, h, false), wrap9(9 - n));
+            }
+        }
+        assert_eq!((shi_xing(0, 0, true), shi_xing(1, 0, true), shi_xing(2, 0, true)), (1, 4, 7));
+        assert_eq!((shi_xing(0, 0, false), shi_xing(1, 0, false), shi_xing(2, 0, false)), (9, 6, 3));
+        // 日：冬至后甲子一白、次甲子七赤、再次四绿；夏至后甲子九紫、次三碧、再次六白
+        let d = 2461031; // 2025-12-21 甲子，即冬至
+        assert_eq!(day_gz_of(d), 0);
+        let qi = [(d, true), (d + 182, false)];
+        let st = |j: i64| ri_xing(j, &qi, RiBaiRule::HouJiaZi).unwrap();
+        assert_eq!((st(d).0, st(d + 60).0, st(d + 120).0, st(d + 1).0), (1, 7, 4, 2));
+        assert_eq!(er_zhi_jia_zi(d + 182, RiBaiRule::HouJiaZi), d + 240);
+        assert_eq!(st(d + 240), (9, false, d + 240));
+        assert_eq!((st(d + 300).0, st(d + 360).0, st(d + 241).0), (3, 6, 8));
+        // 最近甲子：夏至后二日之前甲子
+        assert_eq!(er_zhi_jia_zi(d + 182, RiBaiRule::JinJiaZi), d + 180);
+        assert!(ri_xing(d - 1, &qi, RiBaiRule::HouJiaZi).is_none());
+        assert_eq!(ri_shi_pan(9, false, &DEFAULT_RI_SHI), fly(9, true));
+        assert_eq!(ri_shi_pan(9, false, &RiShiOptions { fei: RiPanFei::YinNi, ..DEFAULT_RI_SHI }), fly(9, false));
+    }
+
+    #[test]
+    fn ri_zi_bai_real_solstice() {
+        use crate::astronomy::ephemeris::load_earth_vsop87_from_repo;
+        let v = load_earth_vsop87_from_repo().unwrap();
+        let j = 2461042; // 2026-01-01
+        let qi = er_zhi_around(&v, j);
+        assert!(qi.contains(&(2461031, true))); // 2025 冬至 12-21（东八区）
+        assert!(qi.contains(&(2461213, false))); // 2026 夏至 6-21
+        assert_eq!(ri_xing(j, &qi, RiBaiRule::HouJiaZi), Some((3, true, 2461031)));
+        // 2026-08-01：字面「夏至後甲子」在 8-18，尚属阳遁；最近甲子法则已入阴遁（6-19 起）
+        let a = 2461254;
+        assert!(ri_xing(a, &qi, RiBaiRule::HouJiaZi).unwrap().1);
+        assert_eq!(ri_xing(a, &qi, RiBaiRule::JinJiaZi), Some((wrap9(9 - (a - 2461211) as i32), false, 2461211)));
     }
 }

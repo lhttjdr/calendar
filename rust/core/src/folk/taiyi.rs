@@ -24,7 +24,10 @@ pub const POS16: [&str; 16] = ["子", "丑", "艮", "寅", "卯", "辰", "巽", 
 /// 五元名
 pub const YUAN: [&str; 5] = ["甲子", "丙子", "戊子", "庚子", "壬子"];
 
+pub mod bamen;
 pub mod geju;
+pub mod shijing;
+pub mod suanshu;
 pub mod zhushen;
 
 /// 支序（子 = 0）在十六神中的位序
@@ -95,12 +98,56 @@ pub fn sui_ji(year: i32, school: JiNian) -> u16 {
 /// 月以节换（金鏡卷一「若有閏月只以逐月節氣時刻為正」），自天正十一月（子月）起数：积月 =（积年 − 1）× 12 + 第几月
 /// （集成卷六八八：天启四年正月丙寅，「另加十一月、十二月、正月三數」）。子、丑月属下一干支年之天正。
 pub fn yue_ji(year: i32, month_ord: u8, school: JiNian) -> u16 {
+    r360(yue_ji_shu(year, month_ord, school))
+}
+
+/// 月计积月（未以周纪法去之之数；八门直使用之，见 [`bamen`]）
+pub fn yue_ji_shu(year: i32, month_ord: u8, school: JiNian) -> i64 {
     let (t, k) = match month_ord {
         10 => (year + 1, 1),
         11 => (year + 1, 2),
         m => (year, m as i64 + 3),
     };
-    r360((ji_nian(t, school) - 1) * 12 + k)
+    (ji_nian(t, school) - 1) * 12 + k
+}
+
+// ---------------------------------------------------------------- 金鏡章岁法（经朔积月、积日）
+
+/// 金鏡卷一「推太乙月計差法」：章歲六百五十七
+pub const ZHANG_SUI: i64 = 657;
+/// 章月：录文作「八千七百二十六」，以十九年七闰之率 657 × (12 + 7/19) ≈ 8126 校正（8726/657 ≈ 13.28，一年十三月有余，不可通）
+pub const ZHANG_YUE: i64 = 8126;
+/// 金鏡卷一「推日計差法」：日法四十九
+pub const RI_FA: i64 = 49;
+/// 月法：录文作「二千四百四十七」，以朔策二十九日有余校正为 1447（1447/49 = 29.5306）；
+/// 同条「小餘三十六」亦当作二十六（1447 − 29 × 49 = 26）
+pub const YUE_FA: i64 = 1447;
+
+/// 章岁法所求年天正十一月经朔之积月与闰余：「置積年所求年以章月乘之章嵗而一為積月不盡為閏餘」。
+/// 积年取（积年 − 1），即所求年之前已过之年（与梁天监三年例相合，见 doc/folk/taiyi.md）。
+pub fn zhang_sui_ji_yue(year: i32, school: JiNian) -> (i64, i64) {
+    let a = (ji_nian(year, school) - 1) * ZHANG_YUE;
+    (a.div_euclid(ZHANG_SUI), a.rem_euclid(ZHANG_SUI))
+}
+
+/// 经朔积日与小余：「置積月以月法乘之日法而一為積日不盡為小餘」；积日以六十去之命甲子即经朔日干支（甲子 = 0）
+pub fn jing_shuo_ji_ri(ji_yue: i64) -> (i64, i64) {
+    let a = ji_yue * YUE_FA;
+    (a.div_euclid(RI_FA), a.rem_euclid(RI_FA))
+}
+
+/// 某日（儒略日数）在章岁法经朔之第几月：返回（已过之积月 m，月内第几日 1—30）。
+/// 日计积日 = 经朔积日 + 日（与 [`RI_JI_OFFSET`] 同：梁天监三年六月经朔积日 707,501,052 丙子，合实历朔日）。
+pub fn jing_shuo_yue(jdn: i64) -> (i64, i64) {
+    let d = jdn + RI_JI_OFFSET;
+    let m = (d * RI_FA - 1).div_euclid(YUE_FA);
+    (m, d - jing_shuo_ji_ri(m).0)
+}
+
+/// 月计入局数之章岁法：积月（含闰月）+ 1，以周纪法去之（金鏡卷一「推太乙月計所在」）。
+/// 与缺省「逐月節氣」之法不同：章岁积月计入闰月，故与集成卷六八八天启四年正月例不合（见 doc）。
+pub fn yue_ji_zhang_sui(jdn: i64) -> u16 {
+    r360(jing_shuo_yue(jdn).0 + 1)
 }
 
 /// 日计积日与儒略日数之差：金鏡卷一举梁天监三年六月八日积日 707,501,061；以「积日减一、六十去之、命甲子」为日干支
@@ -110,6 +157,11 @@ pub const RI_JI_OFFSET: i64 = 705_595_730;
 /// 日计入局数（`jdn` 为该日儒略日数）
 pub fn ri_ji(jdn: i64) -> u16 {
     r360(jdn + RI_JI_OFFSET)
+}
+
+/// 时计积数（日干支序 × 12 + 时序，1—720；八门直使用之）
+pub fn shi_ji_shu(day_gz: u8, hour_zhi: u8) -> i64 {
+    day_gz as i64 % 60 * 12 + hour_zhi as i64 % 12 + 1
 }
 
 /// 时计入局数：日干支序（甲子 = 0）× 12 + 时支序（子 = 1 … 亥 = 12）。冬至后用阳遁、夏至后用阴遁（调用方定 [`Dun`]）。
@@ -540,6 +592,27 @@ mod tests {
         for r in 1..=72u16 {
             println!("| {} | {} | {} |", r, cell(Dun::Yang, r), cell(Dun::Yin, r));
         }
+    }
+
+    /// 金鏡章岁法（录文讹字校正后）：梁天监三年六月经朔积日、干支合实历朔日；与月计节气法之差
+    #[test]
+    fn zhang_sui_fa() {
+        let (m0, run) = zhang_sui_ji_yue(504, JiNian::JinJing);
+        assert_eq!((m0, run), (23_958_218, 334));
+        // 天正十一月起第七月（六月）经朔积日 707,501,052，以六十去之余 12 命甲子为丙子；实历朔日表此月朔丙子（JDN 1,905,323）
+        let (d, _) = jing_shuo_ji_ri(m0 + 7);
+        assert_eq!(d, 707_501_052);
+        assert_eq!(d.rem_euclid(60), 12);
+        assert_eq!((1_905_323 + 49) % 60, 12);
+        // 初八（JDN 1,905,330，实历癸未）在第七月第八日；积日 707,501,060，书作 707,501,061（差一）
+        assert_eq!(jing_shuo_yue(1_905_330), (m0 + 7, 8));
+        assert_eq!(1_905_330 + RI_JI_OFFSET, 707_501_060);
+        // 录文「章月八千七百二十六」「月法二千四百四十七」不可通
+        assert!(8726 * 19 / 657 > 13 * 19 && YUE_FA * 100 / RI_FA == 2953);
+        // 月计章岁法计入闰月：天启四年正月（1624-02-19 后，JDN 2,314,260）与节气法之 3 不同
+        let r = yue_ji_zhang_sui(2_314_260);
+        assert_ne!(r, 3);
+        assert_eq!(r, 33);
     }
 
     #[test]

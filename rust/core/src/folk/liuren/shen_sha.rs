@@ -23,6 +23,53 @@ pub enum DunRule {
     WuZiDun,
 }
 
+/// 日墓之法（卷一「墓」）
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MuRule {
+    /// 五行墓：木墓未、火墓戌、金墓丑、水土墓辰（卷一「未為木墓戌為火墓丑為金墓辰為水圡墓此蓋單論五行土寄坤」）。
+    /// 书中诸例皆用此：卷一墓条「甲乙日未臨亥丙丁日戌臨寅戊己壬癸日辰臨申庚辛日丑臨巳」、卷七天獄「七月乙丑日……小吉加寅是正墓」、
+    /// 卷八鬼墓「丁夘日戌加夘為干墓臨支」、卷十「唯六辛日丑加戌旦將乘白虎作墓神……其餘干無此例」等（见文档）。缺省
+    WuXing,
+    /// 十干墓：甲癸未、乙丙戊戌、丁己庚丑、辛壬辰（卷一「未為甲癸之墓戌為丙戊乙之墓丑為庚丁己之墓辰為壬辛之墓……
+    /// 壬課重在日惟従十干墓不□五行墓」）
+    ShiGan,
+}
+
+/// 日干之墓（地支序）
+pub fn gan_mu(day_gan: u8, rule: MuRule) -> u8 {
+    match rule {
+        MuRule::WuXing => [7, 7, 10, 10, 4, 4, 1, 1, 4, 4][(day_gan % 10) as usize],
+        MuRule::ShiGan => [7, 10, 10, 1, 10, 1, 1, 4, 4, 7][(day_gan % 10) as usize],
+    }
+}
+
+/// 日支之墓（五行墓；土支墓辰，卷一「坐墓如亥子并辰戌丑未臨辰寅夘臨未申酉臨丑巳午臨戌」）
+pub fn zhi_mu(zhi: u8) -> u8 {
+    [4, 4, 7, 7, 4, 10, 10, 4, 1, 1, 4, 4][(zhi % 12) as usize]
+}
+
+/// 日本（日干五行长生）：木亥、火寅、金巳、水土申（卷七天獄「日本者干長生也」，例「七月乙丑日……天罡臨亥是斗繫日本」；
+/// 卷一「戊己壬癸日辰臨申」长生处同申）
+pub fn ri_ben(day_gan: u8) -> u8 {
+    [11, 2, 8, 5, 8][GAN_WX[(day_gan % 10) as usize] as usize]
+}
+
+/// 旺相休囚死（0 旺 1 相 2 休 3 囚 4 死）：以月建定四时，寅卯木、巳午火、申酉金、亥子水旺，辰未戌丑四季月土旺
+/// （卷五觀月經注「春木旺夏火旺秋金旺冬水旺四季土旺」「春火相夏土相秋水相冬木相季月金相」「春土死夏金死秋木死冬火死」）。
+/// 当令者旺、旺所生者相、生旺者休、克旺者囚、旺所克者死
+pub fn wang_shuai(wx: u8, yue_jian: u8) -> u8 {
+    let y = (yue_jian % 12) as usize;
+    let ling: u8 = [4, 2, 0, 0, 2, 1, 1, 2, 3, 3, 2, 4][y];
+    let d = (wx as i32 - ling as i32).rem_euclid(5);
+    // d：0 同（旺）1 旺所生（相）4 生旺（休）2 旺所克（死）3 克旺（囚）
+    [0u8, 1, 4, 3, 2][d as usize]
+}
+
+/// 有气：旺或相
+pub fn you_qi(wx: u8, yue_jian: u8) -> bool {
+    wang_shuai(wx, yue_jian) <= 1
+}
+
 /// 旬首之支：日干支 g（0 甲子…59 癸亥）所在之旬，甲所值之支
 pub fn xun_shou(day_gz: u8) -> u8 {
     m12((day_gz % 60) as i32 % 12 - (day_gz % 60) as i32 % 10)
@@ -118,10 +165,13 @@ pub struct PanBiao {
     pub ri_lu: u8,
     pub yang_ren: u8,
     pub ri_gui: Vec<u8>,
+    /// 日干之墓、日支之墓
+    pub gan_mu: u8,
+    pub zhi_mu: u8,
 }
 
 /// 盘面标注：`yue_jian` 月建地支（无则不出天马）
-pub fn pan_biao(pan: &TianPan, day_gz: u8, rule: DunRule, yue_jian: Option<u8>) -> PanBiao {
+pub fn pan_biao(pan: &TianPan, day_gz: u8, rule: DunRule, yue_jian: Option<u8>, mu: MuRule) -> PanBiao {
     let g = day_gz % 10;
     let mut dun = [None; 12];
     for d in 0..12u8 {
@@ -138,6 +188,8 @@ pub fn pan_biao(pan: &TianPan, day_gz: u8, rule: DunRule, yue_jian: Option<u8>) 
         ri_lu: ri_lu(g),
         yang_ren: yang_ren(g),
         ri_gui: ri_gui(g),
+        gan_mu: gan_mu(g, mu),
+        zhi_mu: zhi_mu(day_gz % 12),
     }
 }
 
@@ -246,6 +298,77 @@ mod tests {
         assert_eq!(ri_gui(g("己")), ["寅", "卯"].map(z).to_vec());
         // 卷一：「如壬子日未加夘發用三傳木局……貴勾常為鬼」，壬日鬼土；「庚辰日午加己發用」為鬼
         assert!(ri_gui(g("庚")).contains(&z("午")));
+    }
+
+    /// 日墓两说：书中所举干墓之例（卷一、卷七至卷十）。(出处, 日干, 书中所称干墓)；十干墓与五行墓不同者（乙丁戊己辛癸）全依五行墓
+    #[test]
+    fn mu_examples() {
+        let cases: &[(&str, &str, &str)] = &[
+            ("卷七天獄 七月乙丑日巳加子「小吉加寅是正墓」", "乙", "未"),
+            ("卷七白虎 正月癸巳日戌加癸「三傳又見天羅日之正墓」（三傳戌未辰）", "癸", "辰"),
+            ("卷八鬼墓 丁夘日戌加夘為干墓臨支", "丁", "戌"),
+            ("卷九 丁亥日干上戌「始棄干上之墓」", "丁", "戌"),
+            ("卷九祿被玄奪 辛夘日初傳丑「又是日墓」", "辛", "丑"),
+            ("卷九 辛亥日初傳丑「是日之墓神」", "辛", "丑"),
+            ("卷九有始無終 乙未日末傳未加夘「為干墓」", "乙", "未"),
+            ("卷十 己酉日干上辰「墓其干」", "己", "辰"),
+            ("卷十互坐邱墓 戊申日申加辰（支坐干墓）", "戊", "辰"),
+            ("卷十 乙亥日未為干墓臨支", "乙", "未"),
+            ("卷十 唯六辛日丑加戌乘白虎作墓神", "辛", "丑"),
+            ("卷八物類「以干之墓神為妾」戊已壬癸見辰", "己", "辰"),
+            ("卷一墓「日之長生處乗墓」庚辛日丑臨巳", "辛", "丑"),
+            ("卷一墓「日之長生處乗墓」甲乙日未臨亥", "甲", "未"),
+            ("卷一墓「日之長生處乗墓」丙丁日戌臨寅", "丙", "戌"),
+            ("卷一墓「日之長生處乗墓」壬癸日辰臨申", "壬", "辰"),
+        ];
+        let mut shi_gan = 0;
+        for (src, gs, want) in cases {
+            assert_eq!(gan_mu(g(gs), MuRule::WuXing), z(want), "{src}");
+            if gan_mu(g(gs), MuRule::ShiGan) == z(want) {
+                shi_gan += 1;
+            }
+        }
+        assert_eq!(cases.len(), 16);
+        // 十干墓只合甲、丙、壬三例（两说同墓之干），乙丁戊己辛癸十三例皆不合
+        assert_eq!(shi_gan, 3);
+        // 十干墓表：甲癸未、乙丙戊戌、丁己庚丑、辛壬辰
+        let sg: Vec<u8> = (0..10).map(|x| gan_mu(x, MuRule::ShiGan)).collect();
+        assert_eq!(sg, ["未", "戌", "戌", "丑", "戌", "丑", "丑", "辰", "辰", "未"].map(z).to_vec());
+        // 支墓：卷一「坐墓如亥子并辰戌丑未臨辰寅夘臨未申酉臨丑巳午臨戌」；卷十丙子日辰加子「支墓臨支」、丁亥日辰加亥
+        assert_eq!(zhi_mu(z("子")), z("辰"));
+        assert_eq!(zhi_mu(z("亥")), z("辰"));
+        assert_eq!(zhi_mu(z("未")), z("辰"));
+        assert_eq!(zhi_mu(z("寅")), z("未"));
+        assert_eq!(zhi_mu(z("酉")), z("丑"));
+        assert_eq!(zhi_mu(z("午")), z("戌"));
+        // 日本（长生）：卷七天獄乙日斗加亥
+        assert_eq!(ri_ben(g("乙")), z("亥"));
+        // 旺相：卯月木旺火相水休金囚土死；未月（季月）土旺金相火休木囚水死
+        assert_eq!([0u8, 1, 2, 3, 4].map(|w| wang_shuai(w, z("卯"))), [0, 1, 4, 3, 2]);
+        assert_eq!([2u8, 3, 1, 0, 4].map(|w| wang_shuai(w, z("未"))), [0, 1, 2, 3, 4]);
+    }
+
+    /// 卷十「干乘墓虎」：「唯六辛日丑加戌旦將乘白虎作墓神……外有六乙日晝貴順行雖是未乘白虎止有臨行年本命上者即無加干者也
+    /// ……其餘干無此例」。干上神为干墓且乘白虎者，五行墓配书中实用贵人只有辛日昼，十干墓则无一日
+    #[test]
+    fn gan_cheng_mu_hu() {
+        use super::super::{tian_jiang, GuiRule, TianPan, GAN_JI};
+        let has = |mu: MuRule| -> Vec<(u8, bool)> {
+            let mut v = Vec::new();
+            for gi in 0..10u8 {
+                let m = gan_mu(gi, mu);
+                let ji = GAN_JI[gi as usize];
+                let pan = TianPan { jiang: m12(m as i32 - ji as i32), shi: 0 };
+                for zhou in [true, false] {
+                    if tian_jiang(&pan, gi, zhou, GuiRule::DaQuan).name_of(m) == "白虎" {
+                        v.push((gi, zhou));
+                    }
+                }
+            }
+            v
+        };
+        assert_eq!(has(MuRule::WuXing), vec![(g("辛"), true)]);
+        assert!(has(MuRule::ShiGan).is_empty());
     }
 
     /// 卷六繁昌課觀月經注：夫四十九嵗行年甲寅、妻三十四嵗行年己亥

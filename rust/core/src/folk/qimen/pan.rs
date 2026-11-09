@@ -480,6 +480,63 @@ mod tests {
         assert_eq!(c.zhi_shi, "生門");
     }
 
+    /// 时干在中五（转盘）：诸书原例一律「直符加时干于五宫」即加所寄之宫、余星同转，无「直符不动」之说。
+    /// 以寄宫三说逐例衡之：寄坤全合；阳坤阴艮于阴遁例不合；阳巽阴震于阳遁例不合（出处与原文见 doc/folk/qimen.md「布盘」）
+    #[test]
+    fn shi_gan_zhong_wu() {
+        // (阴阳, 局, 时, 原例所言之项) → 判定
+        type Chk = fn(&QimenPan) -> bool;
+        let cases: [(&str, bool, u8, &str, Chk); 6] = [
+            // 演义卷二「人遁」：陽遁七局丙子時「天任為直符加時干六丙於五宫，生門為直使加臨一宫，即休門與六丁星竒下臨直符前二六宫太隂中」
+            ("演义人遁", true, 7, "丙子", |p| {
+                p.zhi_fu_gong == 5 && p.zhi_shi_gong == 1 && p.at(6).men == Some("休門") && p.at(6).tian_pan.contains(&"丁") && p.at(6).shen == Some("太陰")
+            }),
+            // 演义卷二「論月格」：陽遁八局丁邜時「以直符天任加六丁於五宫，即得天蓬為六庚下臨月朔干六己於九宫」
+            ("演义月格", true, 8, "丁卯", |p| p.at(9).xing.contains(&"天蓬") && p.at(9).tian_pan.contains(&"庚")),
+            // 演义卷二「熒入白」：陽遁五局戊戌時「以天任直符加時干六戊於五宫，得六丙下臨六庚於七宫」
+            ("演义熒入白", true, 5, "戊戌", |p| p.at(7).tian_pan.contains(&"丙") && p.at(7).di_pan[0] == "庚"),
+            // 演义卷二「伏錯休囚」：陽遁五局戊辰時「六戊在五宫寄坤二，以直符加時干，即六戊臨二宫」
+            ("演义六戊乘龍", true, 5, "戊辰", |p| p.at(2).tian_pan.contains(&"戊")),
+            // 《寶鑑》「注释烟波钓叟歌」：阳八局丁卯时「丁时干在中寄坤……天任为直符加坤……蓬庚到离」
+            ("寶鑑月格", true, 8, "丁卯", |p| p.at(2).xing.contains(&"天任") && p.at(9).tian_pan.contains(&"庚")),
+            // 演义卷三「夏至隂遁時竒起例」：阴三局丙申时「英星直符」，时干丙在中；禽丙到兑、心丁到坎、辅乙到离
+            ("演义卷三阴三局", false, 3, "丙申", |p| {
+                p.at(2).xing.contains(&"天英") && p.at(7).tian_pan.contains(&"丙") && p.at(1).tian_pan.contains(&"丁") && p.at(9).tian_pan.contains(&"乙")
+            }),
+        ];
+        let score = |jg: JiGong| -> Vec<bool> {
+            cases.iter().map(|(_, yang, ju, h, f)| f(&pai_pan(&sj(*yang, *ju), gz(h), PanOptions { ji_gong: jg, ..DEFAULT_PAN }))).collect()
+        };
+        assert!(score(JiGong::Kun).iter().all(|&b| b), "寄坤 {:?}", score(JiGong::Kun));
+        assert_eq!(score(JiGong::KunGen), vec![true, true, true, true, true, false]);
+        assert_eq!(score(JiGong::XunZhen), vec![false, false, false, false, false, false]);
+        for (name, yang, ju, h, _) in cases.iter() {
+            assert_eq!(zp(*yang, *ju, h).zhi_fu_gong, 5, "{name}");
+        }
+    }
+
+    /// 《奇門遁甲元靈經》卷一「奇門起例」二例（「以符頭加用時干上，如前法分布儀奇」，即飞布）以飞盘衡之：
+    /// 天盘干、直符所加（时干在中即加中宫，不寄）合；阴遁九星「逆布英、蓬」与直使「逐时数宫」二处与本库飞盘异（见文档）
+    #[test]
+    fn fei_pan_yuanling() {
+        let o = PanOptions { method: PanMethod::FeiPan, ..DEFAULT_PAN };
+        // 芒种下元阳九局丙辰时：「以中宫之癸加兑宫丙上为值符，依次顺布。又以天禽加兑，顺布心、柱……借坤宫死门加于兑宫，为值使」
+        let p = pai_pan(&sj(true, 9), gz("丙辰"), o);
+        assert!(p.at(7).tian_pan.contains(&"癸") && p.at(8).tian_pan.contains(&"丁") && p.at(9).tian_pan.contains(&"丙"));
+        assert_eq!((p.at(7).xing[0], p.at(8).xing[0], p.at(9).xing[0]), ("天禽", "天心", "天柱"));
+        assert_eq!((p.zhi_shi, p.zhi_shi_gong, p.at(7).men), ("死門", 7, Some("死門")));
+        // 霜降阴八局辛未时：「以艮宫戊加中宫辛为值符，依次逆布，又以天任加中」：时干辛在中，直符加中不寄
+        let p = pai_pan(&sj(false, 8), gz("辛未"), o);
+        assert_eq!(p.zhi_fu_gong, 5);
+        assert!(p.at(5).tian_pan.contains(&"戊") && p.at(4).tian_pan.contains(&"己") && p.at(3).tian_pan.contains(&"庚"));
+        assert_eq!(p.at(5).xing[0], "天任");
+        // 「逆布英、蓬」：本库按数平移，英到六、蓬到七（若读作逆飞则英四、蓬三），未核
+        assert_eq!((p.at(6).xing[0], p.at(7).xing[0]), ("天英", "天蓬"));
+        // 「自艮宫甲子逆数至辛未，在坎，即以艮宫生门加于坎为值使」：元灵经直使逐时数宫到坎；本库飞盘依寶鑑转述陶氏与直符同加时干之宫（五）
+        assert_eq!(p.zhi_shi_gong, 5);
+        assert_eq!(wrap9(8 - 7), 1);
+    }
+
     /// 飞盘：九星按数平移、中五不寄；伏吟时与地盘同
     #[test]
     fn fei_pan_basic() {
