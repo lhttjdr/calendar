@@ -5,7 +5,7 @@
  */
 import { Button, Flex, InputNumber, Radio, Switch, Tabs, Typography } from 'antd'
 import { LeftOutlined, RightOutlined } from '@ant-design/icons'
-import { memo, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import type { LunarBackend } from './lunar-backend-types'
 import { CompassSpin, useCompassBar, type CompassSpinSource, type LocationProps } from './CompassBar'
 import { LiurenWheel, QimenWheel, type QimenGongMarks, type QimenFangGe, QizhengWheel, TaiyiWheel, XuankongGrid, XuankongWheel, YAO_SHORT, type XuankongWheelData, type QizhengWheelData } from './Wheels'
@@ -26,6 +26,22 @@ type LiurenData = { jiang: string; shi: string; pan: string[]; siKe: { xia: stri
   benMing?: string | null; xingNian?: string | null; xingNianZhi?: string | null; xuSui?: number | null
   /** 日干之墓、日支之墓（卷一「墓」，五行墓／十干墓两说）；太岁；贵人所临地盘；是否因出狱移贵 */
   ganMu?: string; zhiMu?: string; taiSui?: string; guiLin?: string; chuYu?: boolean
+  /** 今日为四立、分至；是否土王用事；月宿（起月宿法）与其宫；配偶行年 */
+  siLi?: boolean; fenZhi?: boolean; tuWang?: boolean; yueSu?: string | null; yueSuZhi?: string | null; peiXingNian?: string | null
+}
+
+/** 恒星过宫之月将（卷十一宿度宫界）：要星表与距星，经星图 Worker 求，只在选此说时挂载 */
+function LiurenXiuJiang(props: { jdUt: number; onJiang: (j: number | null, err?: string) => void }) {
+  const call = useWorkerRpc<SkyRequest>(() => new Worker(new URL('./skyWorker.ts', import.meta.url), { type: 'module' }))
+  const { onJiang } = props
+  useEffect(() => {
+    let live = true
+    call<number>({ type: 'liurenJiangXiu', jdUt: props.jdUt })
+      .then((j) => { if (live) onJiang(j >= 0 ? j : null) })
+      .catch((e: Error) => { if (live) onJiang(null, e.message) })
+    return () => { live = false }
+  }, [call, props.jdUt, onJiang])
+  return null
 }
 /** 六壬盘上神煞简称：旬空、驿马、丁马、天马、日德、日禄、羊刃、日鬼（《六壬大全》卷一神煞） */
 function liurenExtra(d: LiurenData) {
@@ -55,6 +71,8 @@ type TaiyiData = {
   zhuSuanHe?: TySuan; keSuanHe?: TySuan
   shiJing?: { n: string; pos?: string; gong?: number; shu?: number; label: string }[]; shiJingHe?: string[]
   yangJiu?: TyELi; baiLiu?: TyELi
+  /** 金鏡章岁法所求干支年之闰月（11、12 为前一年冬月腊月），无闰 null */
+  zhangSuiRun?: number | null
 }
 type TyG = { gong: number; name?: string; zhi?: string; ruNian?: number } | null
 type TySuan = { he: boolean; ming: string[]; sanCai: string }
@@ -63,6 +81,8 @@ type TyELi = { di: number; ruNian: number; bang: string }
 type QimenData = {
   geju?: { n: string; gong: number | null; ji: boolean; basis: string; note: string | null }[]
   ju: string; xunShou: string; xunYi: string; zhiFu: string; zhiShi: string; zhiFuGong: number; zhiShiGong: number
+  /** 家名与局（时家、日家、月家、年家）；顺飞诸法之文字（遁年奇、遁月奇、统宗日家、演义休门） */
+  jia?: string; shunFei?: string[]
   gong: ({ di: string[]; tian: string[]; xing: string[]; men: string | null; shen: string | null } & QimenGongMarks)[]
   xunKong?: string[]; xu?: string[]; kongGong?: number[]; riXunKong?: string[]; ma?: string; maGong?: number | null; jieLuKong?: boolean
   /** 方位格（演义卷二）：月将、天門地戸私門天馬亭亭貴人登天門（系于地盘支）、三勝五不擊、寄宫避五（卷三） */
@@ -84,14 +104,17 @@ const QimenPanel = memo(function QimenPanel(props: { wasm: LunarBackend; ear: st
   const [ganMu, setGanMu] = useState(0)
   const [jiXing, setJiXing] = useState(0)
   const [kong, setKong] = useState(0)
+  /** 家：0 时家、1 日家、2 月家、3 年家；月家元局 0 演义、1 统宗 */
+  const [jia, setJia] = useState(0)
+  const [jiaRule, setJiaRule] = useState(0)
   const d = useMemo((): QimenData | null => {
     if (typeof props.wasm.qimen_json !== 'function') return null
-    try { return JSON.parse(props.wasm.qimen_json(props.jdUt, props.ear, props.hourGz, method, jiGong, shenMing, dingJu, source, props.dayGz, anGan, ganMu, jiXing, kong)) as QimenData } catch { return null }
-  }, [props.wasm, props.ear, props.jdUt, props.hourGz, props.dayGz, method, jiGong, shenMing, dingJu, source, anGan, ganMu, jiXing, kong])
+    try { return JSON.parse(props.wasm.qimen_json(props.jdUt, props.ear, props.hourGz, method, jiGong, shenMing, dingJu, source, props.dayGz, anGan, ganMu, jiXing, kong, jia, jiaRule)) as QimenData } catch { return null }
+  }, [props.wasm, props.ear, props.jdUt, props.hourGz, props.dayGz, method, jiGong, shenMing, dingJu, source, anGan, ganMu, jiXing, kong, jia, jiaRule])
   /** 时辰内插值（示意）：下一时辰之盘与本时辰已过比例（按所选时刻之民用钟点，时辰起于奇数时） */
   const [interp, setInterp] = useState(false)
   const next = useMemo(() => {
-    if (!interp || method !== 0 || typeof props.wasm.qimen_json !== 'function') return undefined
+    if (!interp || method !== 0 || jia !== 0 || typeof props.wasm.qimen_json !== 'function') return undefined
     const t = new Date((props.jdUt - 2440587.5) * 86400000)
     const h = t.getHours() + t.getMinutes() / 60 + t.getSeconds() / 3600
     const into = (((h + 1) % 2) + 2) % 2 // 本时辰已过之时数（0—2）
@@ -99,17 +122,17 @@ const QimenPanel = memo(function QimenPanel(props: { wasm: LunarBackend; ear: st
     const hourNext = (props.hourGz + 1) % 60
     const dayNext = hourNext % 12 === 0 ? (props.dayGz + 1) % 60 : props.dayGz // 入子时换日（与四柱缺省日界同）
     try {
-      const nd = JSON.parse(props.wasm.qimen_json(jdNext, props.ear, hourNext, method, jiGong, shenMing, dingJu, source, dayNext, anGan, ganMu, jiXing, kong)) as QimenData
+      const nd = JSON.parse(props.wasm.qimen_json(jdNext, props.ear, hourNext, method, jiGong, shenMing, dingJu, source, dayNext, anGan, ganMu, jiXing, kong, 0, jiaRule)) as QimenData
       return { d: nd, f: into / 2 }
     } catch { return undefined }
-  }, [interp, props.wasm, props.ear, props.jdUt, props.hourGz, props.dayGz, method, jiGong, shenMing, dingJu, source, anGan, ganMu, jiXing, kong])
+  }, [interp, props.wasm, props.ear, props.jdUt, props.hourGz, props.dayGz, method, jiGong, shenMing, dingJu, source, anGan, ganMu, jiXing, kong, jia, jiaRule])
   return (
     <Flex gap={16} wrap align="flex-start">
       <CompassSpin spin={props.spin} style={{ flex: '1 1 320px', maxWidth: 440 }}>{d ? <QimenWheel d={d} turn={method === 0} next={next} /> : <Text type="secondary">无法布盘</Text>}</CompassSpin>
       <div style={{ flex: '1 1 280px' }}>
         {d && (
           <div style={{ marginBottom: 10, lineHeight: 1.8 }}>
-            <div style={{ fontSize: 16 }}>{d.ju}</div>
+            <div style={{ fontSize: 16 }}>{d.jia ?? d.ju}</div>
             <div>{`旬首${d.xunShou}（遁${d.xunYi}）· 直符${d.zhiFu}加${d.zhiFuGong}宫 · 直使${d.zhiShi}加${d.zhiShiGong}宫`}</div>
             <div style={{ fontSize: 13 }}>{`时旬空${(d.xunKong ?? []).join('')}（落${(d.kongGong ?? []).join('、')}宫）· 驿马${d.ma ?? ''}（${d.maGong ?? ''}宫）${d.jieLuKong ? ' · 截路空亡' : ''}`}</div>
             {d.gong.some((c) => (c.keYing?.length ?? 0) > 0) && (
@@ -169,6 +192,19 @@ const QimenPanel = memo(function QimenPanel(props: { wasm: LunarBackend; ear: st
           </div>
         )}
         <Flex vertical gap={6}>
+          <Radio.Group size="small" value={jia} onChange={(e) => setJia(e.target.value)} optionType="button"
+            options={[{ label: '时家', value: 0 }, { label: '日家（统宗遁日奇）', value: 1 }, { label: '月家', value: 2 }, { label: '年家（演义）', value: 3 }]} />
+          {jia === 2 && (
+            <Radio.Group size="small" value={jiaRule} onChange={(e) => setJiaRule(e.target.value)} optionType="button"
+              options={[{ label: '月家元局·演义（孟上仲中季下）', value: 0 }, { label: '统宗（仲上孟中季下）', value: 1 }]} />
+          )}
+          {d?.shunFei && d.shunFei.length > 0 && (
+            <div style={{ fontSize: 12 }}>
+              <Text strong style={{ fontSize: 12 }}>年月日家顺飞诸法：</Text>
+              {d.shunFei.map((l, i) => <div key={i}>{l}</div>)}
+              <Text type="secondary" style={{ fontSize: 11 }}>统宗自谓「诸说纷纭，全无定见……姑备录之」；阴遁诸式原文无例，依「阳顺阴逆」推，未核</Text>
+            </div>
+          )}
           <Radio.Group size="small" value={method} onChange={(e) => setMethod(e.target.value)} optionType="button"
             options={[{ label: '转盘', value: 0 }, { label: '飞盘（未核）', value: 1 }]} />
           {method === 0 && (
@@ -205,6 +241,12 @@ type ZiweiData = {
   palaces: string[]; gan: string[]; stars: [string, number, string | null][]; siHua: [string, string][]
   ming: number; shen: number; ju: number; juName: string; mingZhu: string; shenZhu: string
   daXian: [number, number, number][]; changSheng: string[]; boShi: string[]
+  /** 十八飞星派：辅星亦标庙乐旺 */
+  minorMw?: boolean
+  /** 十八飞星派「術天機」图之本命星（生年支所配，原书未言其用） */
+  benMing?: string
+  /** 流年（ziwei_json opt_extra 位 8 起为流年干支序 + 1） */
+  liu?: { gz: number; age: number; xiaoXian: number; daXian: number | null; stars: [string, number][]; ge: string[] } | null
 }
 const MAIN14 = new Set(['紫微', '天機', '太陽', '武曲', '天同', '廉貞', '天府', '太陰', '貪狼', '巨門', '天相', '天梁', '七殺', '破軍'])
 
@@ -231,7 +273,7 @@ function ZiweiBoard({ d }: { d: ZiweiData }) {
             ))}
             {minor.map((n, i) => (
               <text key={n} x={x + s - 6} y={y + 15 + i * 13} fontSize={11} textAnchor="end" fill="#333">
-                {n}{hua.get(n) ? <tspan fill="#0958d9">{hua.get(n)}</tspan> : null}
+                {n}{d.minorMw && mw.get(n) ? <tspan fontSize={9} fill="#888">{mw.get(n)}</tspan> : null}{hua.get(n) ? <tspan fill="#0958d9">{hua.get(n)}</tspan> : null}
               </text>
             ))}
             <text x={x + 6} y={y + s - 22} fontSize={10} fill="#888">{`${d.changSheng[zi]} ${d.boShi[zi]}`}</text>
@@ -257,6 +299,11 @@ const ZiweiPanel = memo(function ZiweiPanel(props: { wasm: LunarBackend; lunar: 
   const [bingDing, setBingDing] = useState(0)
   const [siHua, setSiHua] = useState(0)
   const [cs, setCs] = useState(0)
+  /** 十八飞星派选项（ziwei18_json 之 opts 位）：1 庙乐旺用卷三星论、2 五行用術天機图 */
+  const [o18, setO18] = useState(0)
+  /** 十四主星派补充：写本诸星、流年（公历年，按干支年） */
+  const [xieBen, setXieBen] = useState(false)
+  const [liuYear, setLiuYear] = useState<number | null>(null)
   const { lunar } = props
   const d = useMemo((): ZiweiData | null => {
     if (typeof props.wasm.ziwei_json !== 'function') return null
@@ -264,12 +311,13 @@ const ZiweiPanel = memo(function ZiweiPanel(props: { wasm: LunarBackend; lunar: 
       if (school === 18) {
         if (typeof props.wasm.ziwei18_json !== 'function') return null
         // 十八飞星派：映射到同一命盘图（宫干、四化、局等此派无，留空；宫下小字为流年十二神）
-        const e = JSON.parse(props.wasm.ziwei18_json(lunar.yearGz, lunar.month, lunar.leap, lunar.day, props.hourZhi, male)) as { palaces: string[]; stars: [string, number][]; ming: number; shen: number; daXian: [number, number, number][]; liuNian: string[] }
-        return { palaces: e.palaces, gan: Array(12).fill(''), stars: e.stars.map(([n, z]) => [n, z, null]), siHua: [], ming: e.ming, shen: e.shen, ju: 0, juName: '十八飛星', mingZhu: '—', shenZhu: '—', daXian: e.daXian, changSheng: e.liuNian, boShi: Array(12).fill('') }
+        const e = JSON.parse(props.wasm.ziwei18_json(lunar.yearGz, lunar.month, lunar.leap, lunar.day, props.hourZhi, male, o18)) as { palaces: string[]; stars: [string, number, string | null, string | null][]; ming: number; shen: number; daXian: [number, number, number][]; liuNian: string[]; benMing?: string }
+        return { palaces: e.palaces, gan: Array(12).fill(''), stars: e.stars.map(([n, z, g]) => [n, z, g]), siHua: [], ming: e.ming, shen: e.shen, ju: 0, juName: '十八飛星', mingZhu: '—', shenZhu: '—', benMing: e.benMing, daXian: e.daXian, changSheng: e.liuNian, boShi: Array(12).fill(''), minorMw: true }
       }
-      return JSON.parse(props.wasm.ziwei_json(lunar.yearGz, lunar.month, lunar.leap, lunar.day, props.hourZhi, male, leap, xin, bingDing, siHua, cs)) as ZiweiData
+      const extra = (xieBen ? 1 : 0) | (liuYear == null ? 0 : (((liuYear - 4) % 60 + 60) % 60 + 1) << 8)
+      return JSON.parse(props.wasm.ziwei_json(lunar.yearGz, lunar.month, lunar.leap, lunar.day, props.hourZhi, male, leap, xin, bingDing, siHua, cs, extra)) as ZiweiData
     } catch { return null }
-  }, [props.wasm, lunar.yearGz, lunar.month, lunar.leap, lunar.day, props.hourZhi, male, leap, xin, bingDing, siHua, cs, school])
+  }, [props.wasm, lunar.yearGz, lunar.month, lunar.leap, lunar.day, props.hourZhi, male, leap, xin, bingDing, siHua, cs, school, o18, xieBen, liuYear])
   const G = '甲乙丙丁戊己庚辛壬癸', Z = '子丑寅卯辰巳午未申酉戌亥'
   return (
     <Flex gap={16} wrap align="flex-start">
@@ -294,12 +342,25 @@ const ZiweiPanel = memo(function ZiweiPanel(props: { wasm: LunarBackend; lunar: 
             options={[{ label: '辛魁午钺寅', value: 0 }, { label: '魁寅钺午', value: 1 }]} />
           <Radio.Group size="small" value={cs} onChange={(e) => setCs(e.target.value)} optionType="button"
             options={[{ label: '长生男顺女逆（全书）', value: 0 }, { label: '阳男阴女顺（未核）', value: 1 }]} />
+          <label style={{ fontSize: 12 }}><input type="checkbox" checked={xieBen} onChange={(e) => setXieBen(e.target.checked)} /> 加排写本诸星（天官、天福、华盖、孤寡、破碎、大耗、劫杀、桃花、天厨、太极、科名、文星、山河、福星；全书无）</label>
+          <div style={{ fontSize: 12 }}>流年 <InputNumber size="small" placeholder="公历年" min={-2000} max={3000} value={liuYear} onChange={(v) => setLiuYear(v == null ? null : Number(v))} style={{ width: 96 }} /></div>
+          {d?.liu && (
+            <div style={{ fontSize: 12 }}>
+              {`${G[d.liu.gz % 10]}${Z[d.liu.gz % 12]}年 虚岁${d.liu.age}：小限${Z[d.liu.xiaoXian]}${d.liu.daXian != null ? `、大限${Z[d.liu.daXian]}` : ''}；`}
+              {d.liu.stars.filter(([n]) => ['流祿', '流羊', '流陀', '流昌', '流曲'].includes(n)).map(([n, z]) => `${n}${Z[z]}`).join(' ')}
+              {d.liu.ge.length > 0 && <div><b>{d.liu.ge.join('、')}</b>（全书卷三、写本第 11—12 页；判法未核）</div>}
+            </div>
+          )}
+          </>)}
+          {school === 18 && (<>
+          <Radio.Group size="small" value={o18 & 1} onChange={(e) => setO18((o18 & ~1) | e.target.value)} optionType="button"
+            options={[{ label: '庙乐旺：卷一图', value: 0 }, { label: '卷三星论', value: 1 }]} />
           </>)}
         </Flex>
         <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 8 }}>
           {school === 14
             ? '十四主星派，据《紫微斗數全書》卷二（安身命、五局安紫微、诸星诀、四化、庙旺表），韩国国立中央图书馆藏写本《紫微斗數方書》旁证。红字主星，旁注小字为庙旺，蓝字四化；宫内下方为长生、博士十二神与大限岁数。各家异说并列，缺省取全书。'
-            : '十八飞星派，据《續道藏》本《紫微斗數》（题陈抟），以国家图书馆藏明万历三十五年内府刻本校。原书「甲丙戊庚壬属阴」与通例相反，照原书；宫下小字为流年十二神与大限岁数。'}
+            : `十八飞星派，据《續道藏》本《紫微斗數》（题陈抟），以国家图书馆藏明万历三十五年内府刻本校。原书「甲丙戊庚壬属阴」与通例相反，照原书；宫下小字为流年十二神与大限岁数；星旁小字为卷一「廟樂旺」图之等（卷三星论为选项，二者有异）。${d?.benMing ? `「術天機」图本命星：${d.benMing}（原书未言其用）。` : ''}`}
         </Text>
       </div>
     </Flex>
@@ -509,7 +570,7 @@ const LIUREN_CELLS: [string, number, number][] = [
 ]
 
 
-const LiurenPanel = memo(function LiurenPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; dayGz: number; hourZhi: number; spin: CompassSpinSource; latitude: number; longitude: number; live?: boolean }) {
+const LiurenPanel = memo(function LiurenPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; dayGz: number; hourZhi: number; spin: CompassSpinSource; latitude: number; longitude: number; live?: boolean; lunar: { month: number; day: number } | null }) {
   /** 天盘连续转（月将加时之连续形，示意）：缺省按时辰跳转 */
   const [contTurn, setContTurn] = useState(false)
   const [rule, setRule] = useState(0)
@@ -530,10 +591,20 @@ const LiurenPanel = memo(function LiurenPanel(props: { wasm: LunarBackend; ear: 
   const [birthYear, setBirthYear] = useState<number | null>(null)
   const [male, setMale] = useState(1)
   const benMingGz = birthYear == null ? -1 : (((birthYear - 4) % 60) + 60) % 60
+  /** 配偶出生年（繁昌课用，性别与本人相反） */
+  const [peiYear, setPeiYear] = useState<number | null>(null)
+  const peiGz = peiYear == null ? -1 : (((peiYear - 4) % 60) + 60) % 60
+  /** 旺相：0 季月土旺（缺省）、1 土旺四季各十八日（卷八） */
+  const [wangRule, setWangRule] = useState(0)
+  /** 恒星过宫之月将（rule 2 时由 Worker 求） */
+  const [xiuJiang, setXiuJiang] = useState<{ j: number | null; err?: string }>({ j: null })
+  const onXiuJiang = useCallback((j: number | null, err?: string) => setXiuJiang({ j, err }), [])
+  const jiangOverride = rule === 2 ? (xiuJiang.j ?? -1) : -1
+  const lm = props.lunar?.month ?? 0, ld = props.lunar?.day ?? 0
   const d = useMemo((): LiurenData | null => {
     if (typeof props.wasm.liuren_json !== 'function') return null
-    try { return JSON.parse(props.wasm.liuren_json(props.jdUt, props.ear, props.dayGz, props.hourZhi, rule, guiRule, zhou, dunRule, benMingGz, male, chuYu, muRule, yaoRule, sheHai, props.latitude, props.longitude)) as LiurenData } catch { return null }
-  }, [props.wasm, props.ear, props.jdUt, props.dayGz, props.hourZhi, rule, guiRule, zhou, dunRule, benMingGz, male, chuYu, muRule, yaoRule, sheHai, props.latitude, props.longitude])
+    try { return JSON.parse(props.wasm.liuren_json(props.jdUt, props.ear, props.dayGz, props.hourZhi, rule === 1 ? 1 : 0, guiRule, zhou, dunRule, benMingGz, male, chuYu, muRule, yaoRule, sheHai, props.latitude, props.longitude, wangRule, lm, ld, jiangOverride, peiGz)) as LiurenData } catch { return null }
+  }, [props.wasm, props.ear, props.jdUt, props.dayGz, props.hourZhi, rule, guiRule, zhou, dunRule, benMingGz, male, chuYu, muRule, yaoRule, sheHai, props.latitude, props.longitude, wangRule, lm, ld, jiangOverride, peiGz])
   if (!d) return <Text type="secondary">无法起课</Text>
   return (
     <Flex gap={16} wrap align="flex-start">
@@ -545,7 +616,9 @@ const LiurenPanel = memo(function LiurenPanel(props: { wasm: LunarBackend; ear: 
         <div style={{ marginBottom: 8 }}>
           <Text type="secondary" style={{ fontSize: 12 }}>换将</Text>{' '}
           <Radio.Group size="small" value={rule} onChange={(e) => setRule(e.target.value)} optionType="button"
-            options={[{ label: '中气（六壬大全）', value: 0 }, { label: '节（未核）', value: 1 }]} />
+            options={[{ label: '中气（六壬大全卷二）', value: 0 }, { label: '恒星过宫（卷十一宿度）', value: 2 }, { label: '节（未核）', value: 1 }]} />
+          {rule === 2 && <LiurenXiuJiang jdUt={props.jdUt} onJiang={onXiuJiang} />}
+          {rule === 2 && <div style={{ fontSize: 11, color: '#888' }}>{xiuJiang.err ? `恒星过宫求将失败（${xiuJiang.err}），暂按中气` : xiuJiang.j == null ? '加载星表求恒星过宫之将……（暂按中气）' : '太阳按卷十一「太陽過宫」宿度宫界（授时距星、古法黄道宿度）所在之宫为将'}</div>}
         </div>
         <div style={{ marginBottom: 8 }}>
           <Text type="secondary" style={{ fontSize: 12 }}>贵人</Text>{' '}
@@ -583,6 +656,7 @@ const LiurenPanel = memo(function LiurenPanel(props: { wasm: LunarBackend; ear: 
         </div>
         <div style={{ marginTop: 8 }}>
           <Text strong>课体</Text> {[d.zongMen, d.keMing].filter(Boolean).join('·')}
+          <div style={{ fontSize: 11, color: '#888' }}>{[d.siLi && '今日四立（天禍）', d.fenZhi && '今日分至（天寇）', d.tuWang && '土王用事', d.yueSu && `月宿${d.yueSu}（${d.yueSuZhi}，起月宿法）`].filter(Boolean).join('；')}</div>
           {d.keGe && d.keGe.length > 0 && <div style={{ fontSize: 12 }}>{d.keGe.map((g, i) => <div key={i}><b>{g.n}</b> <Text type="secondary" style={{ fontSize: 11 }}>{g.note}</Text></div>)}</div>}
         </div>
         <div style={{ marginTop: 8, fontSize: 12 }}>
@@ -613,6 +687,16 @@ const LiurenPanel = memo(function LiurenPanel(props: { wasm: LunarBackend; ear: 
           <InputNumber size="small" placeholder="出生年" min={-2000} max={3000} value={birthYear} onChange={(v) => setBirthYear(v == null ? null : Number(v))} style={{ width: 96 }} />{' '}
           <Radio.Group size="small" value={male} onChange={(e) => setMale(e.target.value)} optionType="button" options={[{ label: '男', value: 1 }, { label: '女', value: 0 }]} />
           <Text type="secondary" style={{ fontSize: 11 }}>{' '}按干支年，立春前生者填前一年；行年：男一岁丙寅顺行、女一岁壬申逆行（卷六）</Text>
+          <div style={{ marginTop: 4 }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>配偶本命</Text>{' '}
+            <InputNumber size="small" placeholder="出生年" min={-2000} max={3000} value={peiYear} onChange={(v) => setPeiYear(v == null ? null : Number(v))} style={{ width: 96 }} />
+            <Text type="secondary" style={{ fontSize: 11 }}>{` 繁昌课论夫妻行年${d.peiXingNian ? `；配偶行年${d.peiXingNian}` : ''}`}</Text>
+          </div>
+        </div>
+        <div style={{ marginTop: 8 }}>
+          <Text type="secondary" style={{ fontSize: 12 }}>旺相</Text>{' '}
+          <Radio.Group size="small" value={wangRule} onChange={(e) => setWangRule(e.target.value)} optionType="button"
+            options={[{ label: '季月土旺（觀月經注）', value: 0 }, { label: '土旺四季各十八日（卷八）', value: 1 }]} />
         </div>
       </div>
     </Flex>
@@ -632,7 +716,9 @@ const TaiyiPanel = memo(function TaiyiPanel(props: { wasm: LunarBackend; ear: st
   const [sanCai, setSanCai] = useState(0)
   const [eLi, setELi] = useState(0)
   const [yueFa, setYueFa] = useState(0)
-  const opts = buMen | (menJu << 2) | (heFa << 4) | (sanCai << 6) | (eLi << 8) | (yueFa << 9)
+  /** 时计八门：张良（缺省）／王希明二至加时起门 */
+  const [shiMen, setShiMen] = useState(0)
+  const opts = buMen | (menJu << 2) | (heFa << 4) | (sanCai << 6) | (eLi << 8) | (yueFa << 9) | (shiMen << 10)
   const d = useMemo((): TaiyiData | null => {
     if (typeof props.wasm.taiyi_json !== 'function') return null
     try { return JSON.parse(props.wasm.taiyi_json(props.jdUt, props.ear, props.dayGz, props.hourZhi, kind, school, dun, opts)) as TaiyiData } catch { return null }
@@ -676,6 +762,7 @@ const TaiyiPanel = memo(function TaiyiPanel(props: { wasm: LunarBackend; ear: st
               options={[{ label: '金镜积年', value: 0 }, { label: '淘金歌积年', value: 1 }]} />
           )}
           {kind === 1 && three(yueFa, setYueFa, '月计', ['逐月节气', '金镜章岁法（含闰）'])}
+          {kind === 3 && three(shiMen, setShiMen, '时计八门', ['张良（甲丙己辛日起）', '王希明（二至加时起，未核）'])}
           {three(buMen, setBuMen, '布门', ['直使加太乙', '开（杜）门加太乙', '八门定向'])}
           {three(menJu, setMenJu, '门具', ['金镜', '淘金歌', '秘书'])}
           {three(heFa, setHeFa, '算和', ['金镜', '淘金歌', '秘书'])}
@@ -698,6 +785,7 @@ const TaiyiPanel = memo(function TaiyiPanel(props: { wasm: LunarBackend; ear: st
             {d.zhiShiMen && <div style={{ fontSize: 13 }}><b>八门</b> {`${d.zhiShiMen}直使（入第${d.zhiShiRu}）· ${d.menJu ?? ''}`}</div>}
             {d.zhuSuanHe && <div style={{ fontSize: 13 }}>{`主算${suanText(d.zhuSuanHe)} · 客算${suanText(d.keSuanHe)}`}</div>}
             {d.shiJing && <div style={{ fontSize: 13 }}><b>十精</b> {d.shiJing.map((x) => `${x.n}${x.label}`).join('、')}{d.shiJingHe?.length ? `；${d.shiJingHe.join('、')}` : ''}</div>}
+            {kind === 1 && yueFa === 1 && d.zhangSuiRun !== undefined && <div style={{ fontSize: 13 }}>{`章岁法本年${d.zhangSuiRun == null ? '无闰' : `闰${['', '正', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二'][d.zhangSuiRun]}月${d.zhangSuiRun >= 11 ? '（前一年）' : ''}`}（閏差二十秒二十七）`}</div>}
             {d.yangJiu && <div style={{ fontSize: 13 }}>{`${d.suiNian ?? ''}岁：第${d.yangJiu.di}陽九第${d.yangJiu.ruNian}年（${d.yangJiu.bang}邦）· 第${d.baiLiu?.di}百六第${d.baiLiu?.ruNian}年（${d.baiLiu?.bang}邦）`}</div>}
           </div>
         )}
@@ -746,7 +834,7 @@ const QizhengPanel = memo(function QizhengPanel(props: { jdUt: number; hourZhi: 
           <div>交点：<Radio.Group size="small" value={meanNode} onChange={(e) => setMeanNode(e.target.value)} options={[{ label: '真交点', value: false }, { label: '平交点', value: true }]} /></div>
           <div>命宫：<Radio.Group size="small" value={ascendant} onChange={(e) => setAscendant(e.target.value)} options={[{ label: '太阳宫加时、卯上起命', value: false }, { label: '东方上升点', value: true }]} /></div>
           <BitRadio label="盘式" o={{ value: turn, onChange: setTurn }} a="宫居本位（静盘）" b="天盘随时转（地盘不动，卯上为命）" />
-          <div>分宫：<Radio.Group size="small" value={gongRule} onChange={(e) => setGongRule(e.target.value)} options={[{ label: '中气', value: 0 }, { label: '宿度（星宗）', value: 1 }, { label: '宿度（大成）', value: 2 }]} /></div>
+          <div>分宫：<Radio.Group size="small" value={gongRule} onChange={(e) => setGongRule(e.target.value)} options={[{ label: '中气', value: 0 }, { label: '宿度（星宗）', value: 1 }, { label: '宿度（大成）', value: 2 }, { label: '宿度（授时）', value: 3 }]} /></div>
           <BitRadio label="命主" o={bit(4)} a="命度主（星命溯源）" b="命宫主" />
           <BitRadio label="身主" o={bit(8)} a="身度主" b="身宫主（大成）" />
           <BitRadio label="庙旺" o={bit(16)} a="星论（三辰通载）" b="廟樂旺节（五星）" />
@@ -899,7 +987,7 @@ export function PaiPanPage(props: LocationProps & {
                   : <Text type="secondary">{qimenLine}</Text>
               ),
             },
-            { key: 'liuren', label: '大六壬', children: <LiurenPanel wasm={wasm!} ear={ear!} jdUt={jdUt} dayGz={dayGz!} hourZhi={hourZhi!} spin={spin} latitude={props.latitude} longitude={props.longitude} live={props.isLive} /> },
+            { key: 'liuren', label: '大六壬', children: <LiurenPanel wasm={wasm!} ear={ear!} jdUt={jdUt} dayGz={dayGz!} hourZhi={hourZhi!} spin={spin} latitude={props.latitude} longitude={props.longitude} live={props.isLive} lunar={props.lunar} /> },
             { key: 'taiyi', label: '太乙', children: <TaiyiPanel wasm={wasm!} ear={ear!} jdUt={jdUt} dayGz={dayGz!} hourZhi={hourZhi!} spin={spin} /> },
             {
               key: 'liuyao', label: '六爻·周易',

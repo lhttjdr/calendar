@@ -131,9 +131,9 @@ export interface LunarBackend {
   /** 择日页年神二十四山（JSON） */
   nian_shen_json?(jd: number, vsop87_ear: string): string
   /** 排盘页奇门（JSON） */
-  qimen_json?(jd_ut: number, vsop87_ear: string, hour_gz: number, method: number, ji_gong: number, shen_ming: number, ding_ju: number, source: number, day_gz: number, an_gan: number, gan_mu: number, ji_xing: number, kong: number): string
+  qimen_json?(jd_ut: number, vsop87_ear: string, hour_gz: number, method: number, ji_gong: number, shen_ming: number, ding_ju: number, source: number, day_gz: number, an_gan: number, gan_mu: number, ji_xing: number, kong: number, jia: number, jia_rule: number): string
   /** 排盘页紫微斗数（JSON） */
-  ziwei_json?(year_gz: number, lunar_month: number, is_leap: boolean, lunar_day: number, hour_zhi: number, male: boolean, leap: number, xin: number, bing_ding: number, si_hua: number, chang_sheng: number): string
+  ziwei_json?(year_gz: number, lunar_month: number, is_leap: boolean, lunar_day: number, hour_zhi: number, male: boolean, leap: number, xin: number, bing_ding: number, si_hua: number, chang_sheng: number, extra: number): string
   /** 六爻纳甲与周易考变占（JSON） */
   liuyao_json?(values: Uint8Array, yue_zhi: number, day_gz: number, gua_shen: number, san_bian: number): string
   meihua_time_values?(year_zhi: number, lunar_month: number, lunar_day: number, hour_zhi: number): Uint8Array
@@ -145,9 +145,9 @@ export interface LunarBackend {
   /** 玄空飞星（JSON） */
   xuankong_json?(year: number, zuo: number, ti: boolean, zuo_az: number, jd_ut?: number | null, vsop87_ear?: string | null): string
   /** 排盘页大六壬（JSON） */
-  liuren_json?(jd_ut: number, vsop87_ear: string, day_gz: number, hour_zhi: number, rule: number, gui_rule: number, zhou: number, dun_rule: number, ben_ming_gz: number, male: number, chu_yu: number, mu_rule: number, yao_rule: number, she_hai: number, lat_deg: number, lon_deg: number): string
+  liuren_json?(jd_ut: number, vsop87_ear: string, day_gz: number, hour_zhi: number, rule: number, gui_rule: number, zhou: number, dun_rule: number, ben_ming_gz: number, male: number, chu_yu: number, mu_rule: number, yao_rule: number, she_hai: number, lat_deg: number, lon_deg: number, wang_rule: number, lunar_month: number, lunar_day: number, jiang_override: number, pei_ben_ming_gz: number): string
   /** 紫微十八飞星派（JSON） */
-  ziwei18_json?(year_gz: number, lunar_month: number, is_leap: boolean, lunar_day: number, hour_zhi: number, male: boolean): string
+  ziwei18_json?(year_gz: number, lunar_month: number, is_leap: boolean, lunar_day: number, hour_zhi: number, male: boolean, opts: number): string
   /** 婚嫁择吉逐日（JSON） */
   jiaqu_days_json?(jd0: number, vsop87_ear: string, months: Uint8Array, days: Uint8Array, leaps: Uint8Array, dims: Uint8Array, phases: Int8Array, nv_year_gz: number, has_weng_gu: boolean, has_nv_fu_mu: boolean, na_xu: boolean, opts: number): string
   /** 排盘页太乙（JSON） */
@@ -159,7 +159,7 @@ export interface LunarBackend {
   shensha_day_wasm?(jd: number, vsop87_ear: string, lunar_month: number, lunar_day: number, is_leap: boolean, days_in_month: number, phase: number): string
   /** 择日页宜忌另一说：《董公選擇日要覽》（JSON；月建按节） */
   dong_gong_day_json?(jd: number, vsop87_ear: string): string
-  qili_shen_day_json?(jd: number, vsop87_ear: string, tian_de: number, tian_huo: number, ming_fei: number, ming_fei_dui: number, fu_ri: number, huang_wu: number, can_ming: number): string
+  qili_shen_day_json?(jd: number, vsop87_ear: string, tian_de: number, tian_huo: number, ming_fei: number, ming_fei_dui: number, fu_ri: number, huang_wu: number, can_ming: number, tian_zei: number): string
   /** 建除、日黄黑道、百忌 */
   jianchu_day_wasm?(jd: number, vsop87_ear: string): string
   /** 时黄黑道 */

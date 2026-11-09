@@ -438,9 +438,26 @@ pub fn get_era_name_parts_for_day(
 /// 公历 (y,m,d) 下各推步政权（蜀、吴等）的农历月日，返回 JSON 数组 [{ region, calendar_name, lunar_year, month, is_leap, day }]。主表由前端提供。
 #[wasm_bindgen(js_name = get_regimes_lunar_for_day)]
 pub fn get_regimes_lunar_for_day(g_year: i32, g_month: i32, g_day: i32) -> String {
-    let entries = lunar_core::calendar::push_calendar::gregorian_to_all_regimes_lunar(
+    let mut entries = lunar_core::calendar::push_calendar::gregorian_to_all_regimes_lunar(
         g_year, g_month, g_day,
     );
+    // 敦煌（吐蕃、归义军时期）：网页不载主表，只给出土历日有据之月（lifa::DunhuangFallback 见 doc/calendar/dunhuang-calendar.md）
+    {
+        use lunar_core::calendar::{dunhuang, lifa};
+        static DUNHUANG: Lazy<dunhuang::DunhuangCalendar> = Lazy::new(dunhuang::DunhuangCalendar::embedded);
+        let jdn = lunar_core::calendar::gregorian::gregorian_to_jdn(g_year, g_month, g_day);
+        if let Some(d) = lifa::resolve_dunhuang_day(&DUNHUANG, None, jdn, lifa::DunhuangFallback::EvidenceOnly) {
+            let basis = if d.basis == lifa::DunhuangMonthBasis::Original { "出土历日" } else { "据残历推算" };
+            entries.push(lunar_core::calendar::push_calendar::RegimeLunarEntry {
+                region: dunhuang::DUNHUANG_REGIME.to_string(),
+                calendar_name: format!("{}（{}）", d.calendar, basis),
+                lunar_year: d.lunar_year,
+                month: d.month,
+                is_leap: d.is_leap,
+                day: d.day,
+            });
+        }
+    }
     let parts: Vec<String> = entries
         .iter()
         .map(|e| {
@@ -812,9 +829,12 @@ pub fn nian_shen_json(jd: f64, vsop87_ear: &str) -> Result<String, JsValue> {
 /// "menGong"（迫制和義比|null）、"jiXing"、"ganMu"、"xingMu"、"menMu"、"keYing":[{"t","d","n","text"}]、"ge"（本宫格名）。
 /// 方位格（演义卷二，doc/folk/qimen.md「格局」）："yueJiang"（月将支，按中气换将）、"fangGe":[{"n","zhi","gong","ji","basis","note"}]
 ///（天門、地戸、地私門、天馬、亭亭、貴人登天門，系于地盘支）、"sanSheng":[{"n":"三勝"|"五不擊","who","gong","basis"}]；
-/// "biWu":[{"n":"避五","gong","basis","note"}]（转盘直符或直使在五，演义卷三）
+/// "biWu":[{"n":"避五","gong","basis","note"}]（转盘直符或直使在五，演义卷三）。
+/// `jia` 0 时家（缺省）1 日家（以日干支为时，局取本日子时之时家局；統宗「遁日奇法」、元靈經）2 月家（以月建干支为时，阴遁本元之局）
+/// 3 年家（三元年遁，演义卷一）；`jia_rule` 月家元局 0 演义（孟上一、仲中七、季下四）1 統宗（仲上一、孟中四、季下七）。
+/// 另出 "jia"（家名与局）、"shunFei":[string]（順飛诸法：遁年奇、遁月奇、統宗日家九星顺飞与局、演义日家月家休门）。年月以立春、交节（子平四柱）
 #[wasm_bindgen]
-pub fn qimen_json(jd_ut: f64, vsop87_ear: &str, hour_gz: u8, method: u8, ji_gong: u8, shen_ming: u8, ding_ju: u8, source: u8, day_gz: u8, an_gan: u8, gan_mu: u8, ji_xing: u8, kong: u8) -> Result<String, JsValue> {
+pub fn qimen_json(jd_ut: f64, vsop87_ear: &str, hour_gz: u8, method: u8, ji_gong: u8, shen_ming: u8, ding_ju: u8, source: u8, day_gz: u8, an_gan: u8, gan_mu: u8, ji_xing: u8, kong: u8, jia: u8, jia_rule: u8) -> Result<String, JsValue> {
     use lunar_core::folk::qimen;
     let vsop = vsop87_cached(vsop87_ear)?;
     let dj = match ding_ju {
@@ -833,9 +853,60 @@ pub fn qimen_json(jd_ut: f64, vsop87_ear: &str, hour_gz: u8, method: u8, ji_gong
         },
         shen_ming: if shen_ming == 1 { qimen::ShenMing::GouChenZhuQue } else { qimen::ShenMing::BaiHuXuanWu },
     };
-    let pan = qimen::pai_pan(&ju, hour_gz % 60, opts);
     // 格局（演义卷二）：日干支取页面日柱；年干支按立春；月朔干不给（月格不判）
     let year_gz = folk_year_gz(vsop.as_ref(), jd_ut);
+    // 年月日家（doc/folk/qimen.md 第六节）：年、月依子平四柱（立春、交节）
+    let (_, month_gz, _) = lunar_core::calendar::gan_zhi_options::ganzhi_from_jd_solar(vsop.as_ref(), jd_ut, &lunar_core::calendar::gan_zhi_options::preset_zi_ping_ba_zi());
+    let (gy, _, _) = lunar_core::calendar::gregorian::Gregorian::from_julian_day(real(jd_ut));
+    let g_year = if (gy - 4).rem_euclid(60) as u8 == year_gz { gy } else { gy - 1 };
+    let yr = if jia_rule == 1 { qimen::YueJiaRule::TongZong } else { qimen::YueJiaRule::YanYi };
+    let gzn = |x: u8| lunar_core::calendar::gan_zhi_options::gan_zhi_index_to_name(x % 60);
+    let (pan, jia_label) = match jia {
+        1 => {
+            // 本日子时之时家局
+            let s = qimen::shichen_index_from_ut(real(jd_ut));
+            let s0 = s - s.rem_euclid(12);
+            let sj = qimen::QiTable::around(vsop.as_ref(), s0.div_euclid(12), src).shi_ju(s0, dj);
+            (qimen::ri_jia_pan(&sj, day_gz % 60, opts), format!("日家 {}（{}日）", sj.describe(), gzn(day_gz)))
+        }
+        2 => {
+            let (yuan, j) = qimen::yue_jia_ju_with(year_gz, yr);
+            (qimen::yue_jia_pan(year_gz, month_gz, yr, opts), format!("月家 {} 隂遁{}局（{}年{}月，{}）", yuan.name(), j, gzn(year_gz), gzn(month_gz), if jia_rule == 1 { "統宗" } else { "演義" }))
+        }
+        3 => {
+            let (yuan, j) = qimen::nian_jia_ju(g_year);
+            (qimen::nian_jia_pan(g_year, opts), format!("年家 {} 隂遁{}局（{}年）", yuan.name(), j, gzn(year_gz)))
+        }
+        _ => (qimen::pai_pan(&ju, hour_gz % 60, opts), format!("時家 {}", ju.describe())),
+    };
+    // 顺飞诸法（各自成说，只作文字）：节气取当时所交之节气（定气）
+    let shun_fei = {
+        let jd_tt = jd_ut + lunar_core::astronomy::time::delta_t(real(jd_ut)).seconds().as_f64() / 86400.0;
+        let mut last: Option<(f64, usize)> = None;
+        for y in [gy - 1, gy] {
+            for (k, t) in lunar_core::astronomy::aspects::solar_term_jds_for_year_cached(vsop.as_ref(), y).into_iter().enumerate() {
+                let t = t.as_f64();
+                if t <= jd_tt && last.map_or(true, |(lt, _)| t > lt) {
+                    last = Some((t, k));
+                }
+            }
+        }
+        let term = last.map_or(18, |x| x.1);
+        let tn = qimen::JIE_QI[term];
+        let (nd, tou) = qimen::dun_nian_qi(year_gz, term);
+        let qi3 = |d: &[&str; 10]| ["乙", "丙", "丁"].iter().map(|q| format!("{q}{}", (1..=9).find(|&p| d[p] == *q).unwrap_or(0))).collect::<Vec<_>>().join("、");
+        let (ng, mg, _, mq) = qimen::dun_yue_qi(year_gz, term);
+        let mi = ((month_gz % 12) as usize + 10) % 12;
+        let xs = qimen::ri_jia_xing_tong_zong(day_gz % 60);
+        let xing = (0..9).map(|k| format!("{}{}", &qimen::JIU_XING_LUO_SHU[k][3..], xs[k])).collect::<Vec<_>>().join(" ");
+        let lines = [
+            format!("遁年奇（統宗，{tn}起{}宫）：{}年奇頭在{tou}宫；{}", qimen::ba_jie_gong(term), gzn(year_gz), qi3(&nd)),
+            format!("遁月奇（統宗）：{}年在{ng}宫，本月（{}）在{}宫；三奇之月到{}宫", gzn(year_gz), gzn(month_gz), mg[mi], mq.iter().map(|g| g.to_string()).collect::<Vec<_>>().join("、")),
+            format!("日家（統宗附日奇門）：{}{}局，九星順飛 {xing}", if qimen::is_yang(term) { "陽" } else { "隂" }, qimen::ri_jia_ju_tong_zong(day_gz % 60)),
+            format!("休門（演義）：日家在{}，月家在{}", qimen::ri_jia_xiu_men(day_gz % 60), qimen::yue_jia_xiu_men(month_gz)),
+        ];
+        json_arr(lines.iter().map(|l| json_str(l)))
+    };
     let gj = qimen::ge_ju(&pan, &qimen::GeJuContext { day_gz: day_gz % 60, year_gz: Some(year_gz), month_shuo_gan: None });
     let geju = json_arr(gj.iter().map(|g| {
         format!(
@@ -926,7 +997,9 @@ pub fn qimen_json(jd_ut: f64, vsop87_ear: &str, hour_gz: u8, method: u8, ji_gong
         )
     }));
     Ok(format!(
-        "{{\"ju\":{},\"xunShou\":{},\"xunYi\":{},\"zhiFu\":{},\"zhiShi\":{},\"zhiFuGong\":{},\"zhiShiGong\":{},\"gong\":{},\"geju\":{},\"xunKong\":{},\"xu\":{},\"kongGong\":{},\"riXunKong\":{},\"ma\":{},\"maGong\":{},\"jieLuKong\":{},\"yueJiang\":{},\"fangGe\":{},\"sanSheng\":{},\"biWu\":{}}}",
+        "{{\"jia\":{},\"shunFei\":{},\"ju\":{},\"xunShou\":{},\"xunYi\":{},\"zhiFu\":{},\"zhiShi\":{},\"zhiFuGong\":{},\"zhiShiGong\":{},\"gong\":{},\"geju\":{},\"xunKong\":{},\"xu\":{},\"kongGong\":{},\"riXunKong\":{},\"ma\":{},\"maGong\":{},\"jieLuKong\":{},\"yueJiang\":{},\"fangGe\":{},\"sanSheng\":{},\"biWu\":{}}}",
+        json_str(&jia_label),
+        shun_fei,
         json_str(&pan.ju.describe()),
         json_str(pan.xun_shou),
         json_str(pan.xun_yi),
@@ -954,7 +1027,9 @@ pub fn qimen_json(jd_ut: f64, vsop87_ear: &str, hour_gz: u8, method: u8, ji_gong
 /// 选项：`leap` 0 闰月作下月（缺省）1 作本月 2 十五日为界；`xin` 0 辛年魁午钺寅（缺省）1 魁寅钺午；`bing_ding` 0 丙丁钺酉（缺省）1 钺戌；
 /// `si_hua` 0 全书表（缺省）1 近人表；`chang_sheng` 0 男顺女逆（缺省）1 阳男阴女顺。
 /// 返回 {"palaces":[地支子…亥之宫名],"gan":[宫干],"stars":[[星,支]…],"siHua":[[化,星]…],"ming":支,"shen":支,"ju":数,"juName":"水二局",
-/// "mingZhu":"…","shenZhu":"…","daXian":[[起岁,止岁,支]…],"changSheng":[…],"boShi":[…]}
+/// "mingZhu":"…","shenZhu":"…","daXian":[[起岁,止岁,支]…],"changSheng":[…],"boShi":[…],"liu":null|{"gz":流年干支序,"age":虚岁,
+/// "xiaoXian":支,"daXian":支|null,"stars":[[星,支]…],"ge":["羊陀迭並",…]}}。
+/// `opt_extra` 位：1 加排韩国藏写本诸星（天官天福华盖等，见 doc/folk/ziwei.md）；位 8 起为流年干支序 + 1（0 不排流年）。
 #[wasm_bindgen]
 pub fn ziwei_json(
     year_gz: u8,
@@ -968,8 +1043,9 @@ pub fn ziwei_json(
     opt_bing_ding: u8,
     opt_si_hua: u8,
     opt_chang_sheng: u8,
+    opt_extra: u32,
 ) -> String {
-    use lunar_core::folk::ziwei::{chart, BingDingYue, ChangShengDir, LeapRule, SiHuaTable, XinKuiYue, ZiweiInput, ZiweiOptions};
+    use lunar_core::folk::ziwei::{chart_with, BingDingYue, ChangShengDir, LeapRule, SiHuaTable, XinKuiYue, ZiweiInput, ZiweiOptions};
     const GAN: [&str; 10] = ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"];
     let o = ZiweiOptions {
         leap: match opt_leap {
@@ -983,10 +1059,30 @@ pub fn ziwei_json(
         chang_sheng: if opt_chang_sheng == 1 { ChangShengDir::YangMaleYinFemaleForward } else { ChangShengDir::MaleForward },
     };
     let inp = ZiweiInput { year_gz: year_gz % 60, lunar_month, is_leap_month: is_leap, lunar_day, hour_zhi: hour_zhi % 12, male };
-    let c = chart(&inp, &o);
+    let x = lunar_core::folk::ziwei::ZiweiExtraOptions { xie_ben_xing: opt_extra & 1 == 1, ..Default::default() };
+    let c = chart_with(&inp, &o, &x);
     let strs = |v: &[&'static str]| json_arr(v.iter().map(|x| json_str(x)));
+    // 流年（全书「安流祿流羊流陀訣」诸条及卷三、写本诸格；虚岁按干支年差）
+    let liu = match opt_extra >> 8 {
+        0 => "null".to_string(),
+        g1 => {
+            use lunar_core::folk::ziwei::{da_xian_at, liu_nian, liu_nian_ge, xiao_xian_at};
+            let lg = ((g1 - 1) % 60) as u8;
+            let ln = liu_nian(&inp, &c, lg);
+            let age = (lg as i32 - inp.year_gz as i32).rem_euclid(60) as u32 + 1;
+            format!(
+                "{{\"gz\":{},\"age\":{},\"xiaoXian\":{},\"daXian\":{},\"stars\":{},\"ge\":{}}}",
+                lg,
+                age,
+                xiao_xian_at(&c, age),
+                da_xian_at(&c, age).map(|z| z.to_string()).unwrap_or_else(|| "null".into()),
+                json_arr(ln.stars.iter().map(|st| format!("[{},{}]", json_str(st.name), st.zhi))),
+                json_arr(liu_nian_ge(&c, &ln, age).iter().map(|g| json_str(g)))
+            )
+        }
+    };
     format!(
-        "{{\"palaces\":{},\"gan\":{},\"stars\":{},\"siHua\":{},\"ming\":{},\"shen\":{},\"ju\":{},\"juName\":{},\"mingZhu\":{},\"shenZhu\":{},\"daXian\":{},\"changSheng\":{},\"boShi\":{}}}",
+        "{{\"palaces\":{},\"gan\":{},\"stars\":{},\"siHua\":{},\"ming\":{},\"shen\":{},\"ju\":{},\"juName\":{},\"mingZhu\":{},\"shenZhu\":{},\"daXian\":{},\"changSheng\":{},\"boShi\":{},\"liu\":{}}}",
         strs(&c.palaces),
         json_arr(c.palace_gan.iter().map(|g| json_str(GAN[*g as usize % 10]))),
         json_arr(c.stars.iter().map(|st| format!(
@@ -1004,27 +1100,39 @@ pub fn ziwei_json(
         json_str(c.shen_zhu),
         json_arr(c.da_xian.iter().map(|(a, b, z)| format!("[{a},{b},{z}]"))),
         strs(&c.chang_sheng),
-        strs(&c.bo_shi)
+        strs(&c.bo_shi),
+        liu
     )
 }
 
-/// 排盘页紫微斗数十八飞星派（续道藏本，明万历刻本校）：缺省照原书。返回 {"palaces":[…],"stars":[[星,支]…],"ming":支,"shen":支,
-/// "daXian":[[起岁,止岁,支]…],"liuNian":[…]}
+/// 排盘页紫微斗数十八飞星派（续道藏本，明万历刻本校）：缺省照原书。返回 {"palaces":[…],"stars":[[星,支,"廟"|"樂"|"旺"|null,五行|null]…],
+/// "ming":支,"shen":支,"daXian":[[起岁,止岁,支]…],"liuNian":[…],"benMing":"紫微"}。
+/// `opts` 位：1 庙乐旺用卷三星论（缺省卷一「廟樂旺」图）、2 五行用「術天機」图（缺省卷一「十八星所屬」歌）。见 doc/folk/ziwei18.md
 #[wasm_bindgen]
-pub fn ziwei18_json(year_gz: u8, lunar_month: u8, is_leap: bool, lunar_day: u8, hour_zhi: u8, male: bool) -> String {
-    use lunar_core::folk::ziwei18::{chart, Ziwei18Input, Ziwei18Options};
-    let c = chart(
-        &Ziwei18Input { year_gz: year_gz % 60, lunar_month, is_leap_month: is_leap, lunar_day, hour_zhi: hour_zhi % 12, male },
-        &Ziwei18Options::default(),
-    );
+pub fn ziwei18_json(year_gz: u8, lunar_month: u8, is_leap: bool, lunar_day: u8, hour_zhi: u8, male: bool, opts: u32) -> String {
+    use lunar_core::folk::ziwei18::{ben_ming_xing, chart, miao_le_wang, wu_xing, MiaoBiao, WuXingShuo, Ziwei18Input, Ziwei18Options};
+    let o = Ziwei18Options {
+        miao: if opts & 1 == 1 { MiaoBiao::JuanSanXingLun } else { MiaoBiao::JuanYiTu },
+        wu_xing: if opts & 2 == 2 { WuXingShuo::TianJiTu } else { WuXingShuo::Ge },
+        ..Ziwei18Options::default()
+    };
+    let c = chart(&Ziwei18Input { year_gz: year_gz % 60, lunar_month, is_leap_month: is_leap, lunar_day, hour_zhi: hour_zhi % 12, male }, &o);
+    let opt = |x: Option<&str>| x.map(json_str).unwrap_or_else(|| "null".into());
     format!(
-        "{{\"palaces\":{},\"stars\":{},\"ming\":{},\"shen\":{},\"daXian\":{},\"liuNian\":{}}}",
+        "{{\"palaces\":{},\"stars\":{},\"ming\":{},\"shen\":{},\"daXian\":{},\"liuNian\":{},\"benMing\":{}}}",
         json_arr(c.palaces.iter().map(|x| json_str(x))),
-        json_arr(c.stars.iter().map(|st| format!("[{},{}]", json_str(st.name), st.zhi))),
+        json_arr(c.stars.iter().map(|st| format!(
+            "[{},{},{},{}]",
+            json_str(st.name),
+            st.zhi,
+            opt(miao_le_wang(st.name, st.zhi, o.miao).map(|m| m.name())),
+            opt(wu_xing(st.name, o.wu_xing))
+        ))),
         c.ming,
         c.shen,
         json_arr(c.da_xian.iter().map(|(a, b, z)| format!("[{a},{b},{z}]"))),
-        json_arr(c.liu_nian.iter().map(|x| json_str(x)))
+        json_arr(c.liu_nian.iter().map(|x| json_str(x))),
+        json_str(ben_ming_xing(year_gz % 12))
     )
 }
 
@@ -1032,8 +1140,8 @@ pub fn ziwei18_json(year_gz: u8, lunar_month: u8, is_leap: bool, lunar_day: u8, 
 /// 每日农历（月、日、闰、月大小）与朔弦望（0 朔 1 上弦 2 望 3 下弦，−1 无）由调用方按页面所示农历给出（与日历同源）。
 /// 女命生年干支序按立春分；`opts` 位：1 用女命行嫁月否决、2 周堂用类编、4 用类编凶神否决、8 用制化、16 白虎从鳌头（值门床堂路皆禳）、
 /// 32 协纪月表只避忌嫁娶、64 不用协纪月表、128 不用嫁娶周堂、256 赤口否决（类编卷十五小六壬）、512 赤口只忌值寅巳酉戌之日（《祛疑説》；与 256 并设时取此）、
-/// 1024 橫天朱雀（鳌头：初一）否决。可用与否全依所选规则。
-/// 返回逐日 JSON 数组；`verdict` 为「可用」「經制化可用」「不可用」，`jie` 为经制化之忌与制法出处，`liuRen` 为小六壬之位，`jiri` 为类编卷七吉日表所列（表名、注）。
+/// 1024 橫天朱雀（鳌头：初一）否决、2048 赤口依协纪卷三十六所述兀日起法（阳年起小吉、阴年起留連，即类编卷二六輪兀；值下兀否决，优先于 256、512）。可用与否全依所选规则。
+/// 返回逐日 JSON 数组；`verdict` 为「可用」「經制化可用」「不可用」，`jie` 为经制化之忌与制法出处，`liuRen` 为小六壬之位（类编卷十五），`wuRi` 为兀日（「上兀」「下兀」或 null），`jiri` 为类编卷七吉日表所列（表名、注）。
 #[wasm_bindgen]
 pub fn jiaqu_days_json(
     jd0: f64,
@@ -1078,7 +1186,9 @@ pub fn jiaqu_days_json(
         leibian_xiong: opts & 4 != 0,
         zhi_hua: opts & 8 != 0,
         bai_hu: if opts & 16 != 0 { lunar_core::folk::jiaqu::BaiHuRule::AoTou } else { lunar_core::folk::jiaqu::BaiHuRule::LeiBian },
-        chi_kou: if opts & 512 != 0 {
+        chi_kou: if opts & 2048 != 0 {
+            ChiKouRule::XieJiWu
+        } else if opts & 512 != 0 {
             ChiKouRule::QuYi
         } else if opts & 256 != 0 {
             ChiKouRule::LeiBian
@@ -1111,7 +1221,7 @@ pub fn jiaqu_days_json(
             Jiang::Neither => "",
         };
         format!(
-            "{{\"jdn\":{},\"ok\":{},\"verdict\":{},\"jie\":{},\"yi\":{},\"ji\":{},\"jieHunYin\":{},\"naCai\":{},\"nvMingYue\":{},\"zhouTang\":{},\"baiHu\":{},\"naXu\":{},\"buJiang\":{},\"jiang\":{},\"leibian\":{},\"liuRen\":{},\"jiri\":{},\"reasons\":{},\"notes\":{}}}",
+            "{{\"jdn\":{},\"ok\":{},\"verdict\":{},\"jie\":{},\"yi\":{},\"ji\":{},\"jieHunYin\":{},\"naCai\":{},\"nvMingYue\":{},\"zhouTang\":{},\"baiHu\":{},\"naXu\":{},\"buJiang\":{},\"jiang\":{},\"leibian\":{},\"liuRen\":{},\"wuRi\":{},\"jiri\":{},\"reasons\":{},\"notes\":{}}}",
             jdn,
             r.usable(),
             json_str(match r.verdict {
@@ -1132,6 +1242,7 @@ pub fn jiaqu_days_json(
             json_str(jiang),
             json_arr(r.leibian_xiong.iter().map(|(a, b)| format!("[{},{}]", json_str(a), json_str(b)))),
             json_str(r.xiao_liu_ren),
+            opt(r.wu_ri),
             json_arr(r.leibian_jiri.iter().map(|(a, b)| format!("[{},{}]", json_str(a.name()), json_str(b)))),
             strs(&r.reasons),
             strs(&r.notes)
@@ -1411,9 +1522,13 @@ pub fn xuankong_json(year: i32, zuo: u8, ti: bool, zuo_az: f64, jd_ut: Option<f6
 /// 选项：`gui_rule` 0 俗例（曹震圭）1 考原 2 书中实用（缺省之据见文档）；`zhou` 1 昼 0 夜，−1 卯至申、−2 卯至酉、
 /// −3 当地日出入（日心地平）、−4 当地日出入（−50′）——后二者须 `lat_deg`/`lon_deg`（北纬、东经，以 jd_ut 时刻之太阳视高度定）；
 /// `chu_yu` 贵人临辰戌 0 不出狱 1 太乙起子逆後尋 2 以冲為神；`mu_rule` 0 五行墓 1 十干墓；`yao_rule` 0 渉害论深 1 先舉；
-/// `she_hai` 0 訂訛 1 尉山人 2 比用格
+/// `she_hai` 0 訂訛 1 尉山人 2 比用格；`wang_rule` 旺相 0 季月土旺（缺省）1 土旺四季各十八日（卷八，四立前十八日）；
+/// `lunar_month`/`lunar_day` 农历月日（0 不给；起月宿法用，二煩、天寇、死奇）；`jiang_override` 0—11 以此为月将（恒星过宫由
+/// `SkyEngine::liuren_jiang_xiu` 求得后传入），−1 依 `rule`；`pei_ben_ming_gz` 配偶本命年干支序（−1 不给；性别与 `male` 相反，繁昌用）。
+/// 另出 "siLi"/"fenZhi"（今日为四立、分至，依东八区日界与日柱比对）、"tuWang"（是否在土王用事期）、"yueSu"（月宿名）、"yueSuZhi"、
+/// "peiXingNian"（配偶行年干支）
 #[wasm_bindgen]
-pub fn liuren_json(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8, rule: u8, gui_rule: u8, zhou: i8, dun_rule: u8, ben_ming_gz: i16, male: u8, chu_yu: u8, mu_rule: u8, yao_rule: u8, she_hai: u8, lat_deg: f64, lon_deg: f64) -> Result<String, JsValue> {
+pub fn liuren_json(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8, rule: u8, gui_rule: u8, zhou: i8, dun_rule: u8, ben_ming_gz: i16, male: u8, chu_yu: u8, mu_rule: u8, yao_rule: u8, she_hai: u8, lat_deg: f64, lon_deg: f64, wang_rule: u8, lunar_month: u8, lunar_day: u8, jiang_override: i8, pei_ben_ming_gz: i16) -> Result<String, JsValue> {
     use lunar_core::folk::liuren;
     use lunar_core::folk::liuren::{ke_ti, shen_sha};
     const ZHI: [&str; 12] = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"];
@@ -1429,7 +1544,8 @@ pub fn liuren_json(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8, rule:
             _ => liuren::SheHaiRule::DingE,
         },
     };
-    let k = liuren::qi_ke_with(day_gz % 60, liuren::yue_jiang(vsop.as_ref(), real(jd_tt), r), hour_zhi % 12, opts);
+    let jiang = if (0..12).contains(&jiang_override) { jiang_override as u8 } else { liuren::yue_jiang(vsop.as_ref(), real(jd_tt), r) };
+    let k = liuren::qi_ke_with(day_gz % 60, jiang, hour_zhi % 12, opts);
     let pan = json_arr((0..12u8).map(|d| json_str(ZHI[k.pan.above(d) as usize])));
     let gz = day_gz % 60;
     // 天将：贵人起例 0 俗例（缺省，《六壬大全》提要「尚沿俗例」）1 考原定法；昼夜 zhou −1 以占时卯至申为昼（缺省）、0 夜、1 昼
@@ -1473,6 +1589,26 @@ pub fn liuren_json(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8, rule:
     } else {
         None
     };
+    // 配偶行年（性别与本人相反）
+    let pei_xn = if (0..60).contains(&pei_ben_ming_gz) { Some(shen_sha::xing_nian(shen_sha::xu_sui(pei_ben_ming_gz as u8, nian_gz), male != 1)) } else { None };
+    // 四立、分至、土王用事：节气时刻（TT→UT 以同一 ΔT）按东八区取日，与日柱比对（日柱日界由页面定，此处只认干支相同之日）
+    let dt_day = jd_tt - jd_ut;
+    let jdn_of = |t_ut: f64| (t_ut + 8.0 / 24.0 + 0.5).floor() as i64;
+    let gz_of = |jdn: i64| (jdn + 49).rem_euclid(60) as u8;
+    let (gy, _, _) = lunar_core::calendar::gregorian::Gregorian::from_julian_day(real(jd_ut));
+    let mut terms: Vec<(i64, usize)> = Vec::new();
+    for y in [gy - 1, gy, gy + 1] {
+        for (kk, t) in lunar_core::astronomy::aspects::solar_term_jds_for_year_cached(vsop.as_ref(), y).into_iter().enumerate() {
+            terms.push((jdn_of(t.as_f64() - dt_day), kk));
+        }
+    }
+    let today = jdn_of(jd_ut);
+    let near = |ks: &[usize]| terms.iter().any(|(d, kk)| ks.contains(kk) && (d - today).abs() <= 1 && gz_of(*d) == gz);
+    let si_li = near(&[21, 3, 9, 15]);
+    let fen_zhi = near(&[0, 6, 12, 18]);
+    let tu_wang = terms.iter().any(|(d, kk)| [21, 3, 9, 15].contains(kk) && today >= lunar_core::folk::zajie::tu_wang(*d) && today < *d);
+    let wr = if wang_rule == 1 { shen_sha::WangXiangRule::TuWang18 } else { shen_sha::WangXiangRule::JiYue };
+    let yue_su = if (1..=12).contains(&lunar_month) && (1..=30).contains(&lunar_day) { Some(ke_ti::yue_su_qi_li(lunar_month, lunar_day)) } else { None };
     let ctx = ke_ti::KeGeCtx {
         tj: Some(&tj),
         yue_jian: Some(yue_jian),
@@ -1480,8 +1616,23 @@ pub fn liuren_json(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8, rule:
         ben_ming: ming.map(|m| m.0 % 12),
         xing_nian: ming.map(|m| m.2 % 12),
         mu,
+        ling: Some(shen_sha::dang_ling(yue_jian, wr, tu_wang)),
+        xing_nian_gz: ming.map(|m| m.2),
+        pei_xing_nian_gz: pei_xn,
+        si_li,
+        fen_zhi,
+        yue_su: yue_su.map(ke_ti::yue_su_zhi),
     };
     let ke_ge = ke_ti::ke_ge_ctx(&k, gz, &ctx);
+    let extra = format!(
+        "\"siLi\":{},\"fenZhi\":{},\"tuWang\":{},\"yueSu\":{},\"yueSuZhi\":{},\"peiXingNian\":{}",
+        si_li,
+        fen_zhi,
+        tu_wang,
+        yue_su.map_or("null".to_string(), |x| json_str(ke_ti::XIU28[x])),
+        yue_su.map_or("null".to_string(), |x| json_str(ZHI[ke_ti::yue_su_zhi(x) as usize])),
+        pei_xn.map_or("null".to_string(), |x| json_str(&format!("{}{}", GAN[(x % 10) as usize], ZHI[(x % 12) as usize])))
+    );
     let nian_ming = if let Some((bm, sui, xn)) = ming {
         format!("\"benMing\":{},\"xingNian\":{},\"xingNianZhi\":{},\"xuSui\":{}", zs(bm % 12), json_str(&gz_str(xn)), zs(xn % 12), sui)
     } else {
@@ -1512,7 +1663,7 @@ pub fn liuren_json(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8, rule:
         nian_ming
     );
     Ok(format!(
-        "{{\"jiang\":{},\"shi\":{},\"pan\":{},\"siKe\":{},\"sanChuan\":{},\"fa\":{},\"tianJiang\":{},\"gui\":{},\"shun\":{},\"zhou\":{},{}}}",
+        "{{\"jiang\":{},\"shi\":{},\"pan\":{},\"siKe\":{},\"sanChuan\":{},\"fa\":{},\"tianJiang\":{},\"gui\":{},\"shun\":{},\"zhou\":{},{},{}}}",
         json_str(ZHI[k.pan.jiang as usize]),
         json_str(ZHI[(hour_zhi % 12) as usize]),
         pan,
@@ -1523,7 +1674,8 @@ pub fn liuren_json(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8, rule:
         json_str(ZHI[tj.gui as usize]),
         tj.shun,
         is_zhou,
-        biao
+        biao,
+        extra
     ))
 }
 
@@ -1539,8 +1691,8 @@ pub fn liuren_json(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8, rule:
 /// "geJu":["主大將客大將關",…],"zhuJiangFa":bool,"keJiangFa":bool,
 /// "zhiShiMen":"開門","zhiShiRu":..,"men":[null,"開門",…],"menJu":"三門具","zhuMenJu":bool,"keMenJu":bool,
 /// "zhuSuanHe"/"keSuanHe":{"he":bool,"ming":["上和"],"sanCai":"無天"},"shiJing":[{"n":"天皇","pos":"申","label":"武德"},…],
-/// "shiJingHe":["飛鳥合太乙"],"yangJiu"/"baiLiu":{"di":..,"ruNian":..,"bang":"寅"}}。
-/// `opts` 位域（0 为缺省）：0—1 布门、2—3 门具、4—5 算和与算名、6—7 三才、8 阳九百六积年、9 月计章岁法（doc/folk/taiyi.md 第九节）
+/// "shiJingHe":["飛鳥合太乙"],"yangJiu"/"baiLiu":{"di":..,"ruNian":..,"bang":"寅"},"zhangSuiRun":所闰之月 1—12 或 null（金鏡章岁法，11、12 为前一年冬月腊月）}。
+/// `opts` 位域（0 为缺省）：0—1 布门、2—3 门具、4—5 算和与算名、6—7 三才、8 阳九百六积年、9 月计章岁法、10 时计八门王希明二至加时起门（doc/folk/taiyi.md 第九节）
 #[wasm_bindgen]
 pub fn taiyi_json(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8, kind: u8, school: u8, dun: u8, opts: u32) -> Result<String, JsValue> {
     use lunar_core::astronomy::aspects::solar_term_jds_for_year_cached;
@@ -1553,6 +1705,7 @@ pub fn taiyi_json(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8, kind: 
     let year = if (gy - 4).rem_euclid(60) as u8 == yi { gy } else { gy - 1 };
     let sch = if school == 1 { taiyi::JiNian::TaoJinGe } else { taiyi::JiNian::JinJing };
     let mut d = if dun == 1 { taiyi::Dun::Yin } else { taiyi::Dun::Yang };
+    let mut zhi_jd_ut: Option<f64> = None;
     let (name, r) = match kind {
         0 => ("歲計", taiyi::sui_ji(year, sch)),
         1 if opts >> 9 & 1 == 1 => ("月計", taiyi::yue_ji_zhang_sui((jd_ut + 8.0 / 24.0 + 0.5).floor() as i64)),
@@ -1565,7 +1718,10 @@ pub fn taiyi_json(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8, kind: 
                 zl.push((t[18].as_f64(), true));
                 zl.push((t[6].as_f64(), false));
             }
-            let yang = zl.iter().filter(|(t, _)| *t <= jd_tt).max_by(|a, b| a.0.partial_cmp(&b.0).unwrap()).map(|x| x.1).unwrap_or(true);
+            let last = zl.iter().filter(|(t, _)| *t <= jd_tt).max_by(|a, b| a.0.partial_cmp(&b.0).unwrap()).copied();
+            let yang = last.map(|x| x.1).unwrap_or(true);
+            // 交至时刻（TT → UT）：王希明二至加时起门用之（opts 位 10）
+            zhi_jd_ut = last.map(|x| x.0 - (jd_tt - jd_ut));
             d = if yang { taiyi::Dun::Yang } else { taiyi::Dun::Yin };
             ("時計", taiyi::shi_ji(day_gz % 60, hour_zhi % 12))
         }
@@ -1646,7 +1802,17 @@ pub fn taiyi_json(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8, kind: 
             2 => jdn + taiyi::RI_JI_OFFSET,
             _ => taiyi::shi_ji_shu(day_gz % 60, hour_zhi % 12),
         };
-        let zsm = if kind == 3 { bm::zhi_shi_shi(ji_shu, d) } else { bm::zhi_shi(ji_shu, d) };
+        // 时计直使：张良（缺省）或王希明二至加时起门（opts 位 10）。时辰序以东八区民用时计，子时（23 时）起日
+        let shi_chen = |t: f64| ((t + 8.0 / 24.0 + 1.0 / 24.0 + 0.5) * 12.0).floor() as i64;
+        let zsm = match (kind, zhi_jd_ut) {
+            (3, Some(zj)) if opts >> 10 & 1 == 1 => {
+                let t0 = shi_chen(zj);
+                let s0 = taiyi::shi_ji_shu(((t0.div_euclid(12) + 49).rem_euclid(60)) as u8, t0.rem_euclid(12) as u8);
+                bm::zhi_shi_shi_wang(s0, shi_chen(jd_ut) - t0, d)
+            }
+            (3, _) => bm::zhi_shi_shi(ji_shu, d),
+            _ => bm::zhi_shi(ji_shu, d),
+        };
         let bu = [bm::BuMenFa::ZhiShi, bm::BuMenFa::KaiMen, bm::BuMenFa::DingXiang][(opts & 3).min(2) as usize];
         let men = bm::bu_men(zsm, j.gong, d, bu);
         let mjf = [bm::MenJuFa::JinJing, bm::MenJuFa::TaoJinGe, bm::MenJuFa::MiShu][(opts >> 2 & 3).min(2) as usize];
@@ -1690,6 +1856,11 @@ pub fn taiyi_json(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8, kind: 
                 json_arr(sj::he_chong(ji_shu, d, j.gong).iter().map(|s| json_str(s))),
                 e(sj::yang_jiu(year, ef)),
                 e(sj::bai_liu(year, ef))
+            )
+            // 金鏡章岁法闰月（「閏差二十秒二十七」，詳之全句）：所求干支年天正以来所闰之月，无闰为 null
+            + &format!(
+                ",\"zhangSuiRun\":{}",
+                taiyi::zhang_sui_run_yue(year, taiyi::JiNian::JinJing, taiyi::RunYueFa::XiangZhi).map(|(_, m)| m.to_string()).unwrap_or_else(|| "null".into())
             )
     };
     Ok(format!(
@@ -1933,10 +2104,10 @@ pub fn shensha_day_wasm(
 /// noText 为真时 rules 为空（「董公无宜忌之文」），不回退协纪。见 doc/folk/tongshu_yiji.md。
 /// 择日页「起例依」：所选民用日之月家日神，协纪起例与所选诸说（类编等）对照。月以节换（子平四柱月支），日干支以 JDN。
 /// `tian_de`、`tian_huo` 0 协纪 1 类编；`ming_fei` 0 协纪 1 类编十四日 2 类编安葬十二日；`ming_fei_dui` 0 协纪 1 类编十一日 2 类编十日；
-/// `fu_ri` 0 协纪 1 集正 2 百忌 3 阴阳备用 4 百忌歌两干；`huang_wu` 0 不列 1 按季三支 2 类编表序 3 类编新增起例；`can_ming` 0 协纪 1 类编（年神蚕命）。
+/// `fu_ri` 0 协纪 1 集正 2 百忌 3 阴阳备用 4 百忌歌两干；`huang_wu` 0 不列 1 按季三支 2 类编表序 3 类编新增起例；`can_ming` 0 协纪 1 类编（年神蚕命）；`tian_zei` 0 协纪（正月丑逆行）1 类编（正月辰每月进五辰）。
 /// 返回 {"xieji":[[名,吉]…],"sel":[[名,吉]…],"add":[…],"remove":[…],"canMing":{"xieji":支,"sel":支}}。见 doc/folk/tongshu.md 第五节。
 #[wasm_bindgen]
-pub fn qili_shen_day_json(jd: f64, vsop87_ear: &str, tian_de: u8, tian_huo: u8, ming_fei: u8, ming_fei_dui: u8, fu_ri: u8, huang_wu: u8, can_ming: u8) -> Result<String, JsValue> {
+pub fn qili_shen_day_json(jd: f64, vsop87_ear: &str, tian_de: u8, tian_huo: u8, ming_fei: u8, ming_fei_dui: u8, fu_ri: u8, huang_wu: u8, can_ming: u8, tian_zei: u8) -> Result<String, JsValue> {
     use lunar_core::folk::nianshen::{nian_shen_with, NianShenOptions};
     use lunar_core::folk::shensha::{shen_for_day_with, FuRiRule, HuangWuRule, MingFeiDuiRule, MingFeiRule, QiLiYi, ShenshaOptions};
     let vsop = vsop87_cached(vsop87_ear)?;
@@ -1951,6 +2122,7 @@ pub fn qili_shen_day_json(jd: f64, vsop87_ear: &str, tian_de: u8, tian_huo: u8, 
         ming_fei_dui: match ming_fei_dui { 1 => MingFeiDuiRule::LeiBian11, 2 => MingFeiDuiRule::LeiBian10, _ => MingFeiDuiRule::XieJi },
         fu_ri: match fu_ri { 1 => FuRiRule::JiZheng, 2 => FuRiRule::BaiJi, 3 => FuRiRule::BeiYong, 4 => FuRiRule::BaiJiGe, _ => FuRiRule::XieJi },
         huang_wu: match huang_wu { 1 => HuangWuRule::AnJi, 2 => HuangWuRule::LeiBianBiao, 3 => HuangWuRule::LeiBianQiLi, _ => HuangWuRule::BuLie },
+        tian_zei: qly(tian_zei),
     };
     let base = shen_for_day_with(month_ord, dgz, &ShenshaOptions::default());
     let sel = shen_for_day_with(month_ord, dgz, &o);
@@ -3256,7 +3428,7 @@ impl SkyEngine {
             luo_ji: if luo_asc { qz::LuoJi::LuoAscending } else { qz::LuoJi::JiAscending },
             node: if mean_node { qz::NodeKind::Mean } else { qz::NodeKind::True },
             ming: if ascendant { qz::MingRule::Ascendant } else { qz::MingRule::SunOnHour },
-            gong: match flags & 3 { 1 => qz::GongRule::XiuDuXingZong, 2 => qz::GongRule::XiuDuDaCheng, _ => qz::GongRule::ZhongQi },
+            gong: match flags & 3 { 1 => qz::GongRule::XiuDuXingZong, 2 => qz::GongRule::XiuDuDaCheng, 3 => qz::GongRule::XiuDuShouShi, _ => qz::GongRule::ZhongQi },
             ming_zhu: if flags & 4 != 0 { qz::MingZhuRule::GongZhu } else { qz::MingZhuRule::DuZhu },
             shen_zhu: if flags & 8 != 0 { qz::ShenZhuRule::GongZhu } else { qz::ShenZhuRule::DuZhu },
             miao_wang: if flags & 16 != 0 { qz::MiaoWangRule::Jie } else { qz::MiaoWangRule::Lun },
@@ -3317,6 +3489,7 @@ impl SkyEngine {
         let jie = match (o.gong, mlon.is_some()) {
             (qz::GongRule::XiuDuXingZong, true) => Some(&qz::GONG_JIE_XINGZONG),
             (qz::GongRule::XiuDuDaCheng, true) => Some(&qz::GONG_JIE_DACHENG),
+            (qz::GongRule::XiuDuShouShi, true) => Some(&qz::GONG_JIE_SHOUSHI),
             _ => None,
         };
         let starts = qz::gong_starts(jie, mlon.as_ref());
@@ -3363,6 +3536,21 @@ impl SkyEngine {
             u8s(&x.si_sha),
             x.dao_xian.iter().map(|(s, n)| format!("{{\"sui\":{},\"xian\":{}}}", s, json_str(n))).collect::<Vec<_>>().join(",")
         )
+    }
+
+    /// 大六壬恒星过宫之月将（地支序）：太阳视黄经按《六壬大全》卷十一宿度宫界（授时距星、古法黄道宿度）所在之宫。
+    /// 排盘页六壬「换将：恒星过宫」时经 Worker 求得，再以 `liuren_json` 之 `jiang_override` 传入。见 doc/folk/liuren.md 第一节
+    pub fn liuren_jiang_xiu(&self, jd_tt: f64) -> i32 {
+        use lunar_core::astronomy::apparent::{sun_apparent_ecliptic_longitude, ApparentPipelineOptions};
+        use lunar_core::astronomy::sky_culture::chinese::MansionFrame;
+        use lunar_core::astronomy::time::{TimePoint, TimeScale};
+        let eph = Vsop87Planets { earth: &self.earth, planets: vec![] };
+        let t = TimePoint::new(TimeScale::TT, real(jd_tt));
+        let Some(sys) = self.mansions.iter().find(|m| m.id == "yuan") else { return -1 };
+        let Ok(frame) = MansionFrame::new(&eph, &self.catalog, sys, t, &ApparentPipelineOptions::default()) else { return -1 };
+        let ml = lunar_core::folk::liuren::mansion_gu_huang_dao(&frame, t);
+        let lon = sun_apparent_ecliptic_longitude(&self.earth, t).wrap_to_2pi().rad() * real(180.0 / core::f64::consts::PI);
+        lunar_core::folk::liuren::yue_jiang_xiu(lon, &ml) as i32
     }
 
     pub fn snapshot(&self, jd_tt: f64, delta_t_s: f64, lon_deg: f64, lat_deg: f64, height_m: f64, temperature_c: f64, pressure_kpa: f64, inversion_depth_m: f64, inversion_rise_k: f64, humidity: f64, city_nl: f64) -> String {

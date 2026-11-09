@@ -144,6 +144,7 @@
 | `calendar_data/qinhan_eval/qingshigao_eclipses.py` | 《清史稿》日食（时辰、食分、所次宿） |
 | `calendar_data/build_era_names_merged.py` | 合并年号表 `data/calendar/汇总/era_names_merged.csv`（主线 + 方诗铭并存政权） |
 | `calendar_data/check_dated_inscriptions.py` | 出土纪日对各历表核对 |
+| `calendar_data/build_dunhuang_shuori.py`、`calendar_data/dunhuang_checks_to_md.py`、`phenomena/dunhuang_fallback_check.py` | 敦煌朔日表生成（自邓文宽附录一比较表）、换算逐条检验写入 `doc/calendar/dunhuang-calendar.md`、原件之月对主表与实际合朔（定无据之月退回何表）；Rust 侧 `examples/dunhuang_check.rs` |
 | `calendar_data/check_dunhuang_calendar.py` | 敦煌北魏太平真君十一、十二年历日（`data/calendar/敦煌历日.csv`）对各历表与景初、玄始历重推（朔闰、节气） |
 | `calendar_data/check_lvli_epochs.py` | 《隋书·律历志》天和、大象历常数复核与天和年间闰位诸算法 |
 | `calendar_data/discriminating_records.py`、`phenomena/discriminating_records_sky.py` | 主表与同系推步表判断不一的史书天象记录与本纪纪日（`data/calendar/本纪纪日/`，`zhi_star_records.py` 的 `date_sections` 纪日模式），及以天象判定哪一历为真 |
@@ -197,8 +198,11 @@
   结论见 historical-calendar.md「以本纪核验主表」）；顺带订正北齐天保历实行年（push-algorithms.md §3.6）
 - [x] 五代以后本纪（两《五代史》、《宋史》《辽史》《金史》《元史》《明史》）同法核验主表：合 96%—99%；授时历废进朔得证；辽、金进朔与宋不同
 - [x] 敦煌唐五代历日：邓文宽 1996 附录一比较表 35 年转录（`data/calendar/敦煌历日_比较表.csv`），与主表逐月比较（main-table-checks.md 第三节）
-- [ ] 敦煌地方历接入换算：以 `敦煌历日_比较表.csv` 有据之月作「敦煌」政权历表（吐蕃、归义军），供敦煌文书纪日换算；
-  附录一未列之件（928 年北图新0836、978 年斯0612 等）据下编录文补
+- [x] 敦煌地方历接入换算：`data/calendar/敦煌朔日表.csv`（254 月）→ `calendar::dunhuang`（第 2 层）、`lifa::resolve_dunhuang_day`
+  （第 4 层，无据之月缺省退回主表，可选只认有据）、`era_names::dunhuang_year_name`（吐蕃地支、归义军奉中原年号）；比较表 257 格换算全部重现；
+  网页「历日」分政权一栏有据之日显示敦煌（`doc/calendar/dunhuang-calendar.md`）。下编查核：882 剑南印本、978 斯0612（宋应天历官本，正月丙戌朔、
+  355 日合主表）非敦煌自造之历，928 北图新0836 只存历序，均无逐月可录
+- [ ] 978 年斯0612 历序「六十相屬宫宿法」所列 919—978 年历年閏月与主表逐条核（第 1 级旁证）
 
 **P2**
 - [ ] 后秦、北凉、蜀推步表检验：《晋书》载记（卷一百十六至一百十九、一百二十九）、《魏书》卷九十五与九十九、《宋书》卷九十八均无「月+日干支」纪日，

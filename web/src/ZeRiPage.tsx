@@ -144,7 +144,7 @@ type MonthLunar = { jd0: number; months: number[]; days: number[]; leaps: number
 type JiaquDay = {
   jdn: number; ok: boolean; verdict?: string; jie?: [string, string][]; yi: boolean; ji: boolean; jieHunYin: boolean; naCai: boolean; nvMingYue: string
   zhouTang: string | null; baiHu: string | null; naXu: string | null; buJiang: boolean; jiang: string
-  leibian: [string, string][]; liuRen?: string; jiri?: [string, string][]; reasons: string[]; notes: string[]
+  leibian: [string, string][]; liuRen?: string; wuRi?: string | null; jiri?: [string, string][]; reasons: string[]; notes: string[]
 }
 const GZ_GAN = '甲乙丙丁戊己庚辛壬癸', GZ_ZHI = '子丑寅卯辰巳午未申酉戌亥'
 
@@ -170,7 +170,7 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
     if (typeof props.wasm.jiaqu_days_json !== 'function') return null
     try {
       setErr(null)
-      return JSON.parse(props.wasm.jiaqu_days_json(m.jd0, props.ear, Uint8Array.from(m.months), Uint8Array.from(m.days), Uint8Array.from(m.leaps), Uint8Array.from(m.dims), Int8Array.from(m.phases), nvGz, wengGu, fuMu, naXu, (useYue ? 1 : 0) | (zt === 1 ? 2 : zt === 2 ? 128 : 0) | (xieji === 1 ? 32 : xieji === 2 ? 64 : 0) | (useXiong ? 4 : 0) | (zhiHua ? 8 : 0) | (aoTou ? 16 : 0) | (chiKou === 1 ? 256 : chiKou === 2 ? 512 : 0) | (hengTian ? 1024 : 0))) as JiaquDay[]
+      return JSON.parse(props.wasm.jiaqu_days_json(m.jd0, props.ear, Uint8Array.from(m.months), Uint8Array.from(m.days), Uint8Array.from(m.leaps), Uint8Array.from(m.dims), Int8Array.from(m.phases), nvGz, wengGu, fuMu, naXu, (useYue ? 1 : 0) | (zt === 1 ? 2 : zt === 2 ? 128 : 0) | (xieji === 1 ? 32 : xieji === 2 ? 64 : 0) | (useXiong ? 4 : 0) | (zhiHua ? 8 : 0) | (aoTou ? 16 : 0) | (chiKou === 1 ? 256 : chiKou === 2 ? 512 : chiKou === 3 ? 2048 : 0) | (hengTian ? 1024 : 0))) as JiaquDay[]
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       console.error('jiaqu_days_json', e)
@@ -195,7 +195,7 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
         <Checkbox checked={useXiong} onChange={(e) => setUseXiong(e.target.checked)}>类编嫁娶凶神否决</Checkbox>
         <Checkbox checked={aoTou} onChange={(e) => setAoTou(e.target.checked)}>白虎从鳌头（值门床堂路）</Checkbox>
         <span>赤口 <Radio.Group size="small" value={chiKou} onChange={(e) => setChiKou(e.target.value)} optionType="button"
-          options={[{ label: '不用（协纪）', value: 0 }, { label: '类编（凡赤口）', value: 1 }, { label: '祛疑说（值寅巳酉戌）', value: 2 }]} /></span>
+          options={[{ label: '不用（协纪）', value: 0 }, { label: '类编（凡赤口）', value: 1 }, { label: '祛疑说（值寅巳酉戌）', value: 2 }, { label: '兀日起法（协纪所述：阳年起小吉、阴年起留連）', value: 3 }]} /></span>
         <Checkbox checked={hengTian} onChange={(e) => setHengTian(e.target.checked)}>橫天朱雀否决（鳌头：初一）</Checkbox>
         <Checkbox checked={zhiHua} onChange={(e) => setZhiHua(e.target.checked)}>用制化（周堂回避、白虎禳法；协纪不录）</Checkbox>
         <Checkbox checked={onlyOk} onChange={(e) => setOnlyOk(e.target.checked)}>只看可用之日</Checkbox>
@@ -214,13 +214,14 @@ function JiaquPanel(props: { wasm: LunarBackend; ear: string; monthLunar: MonthL
               {d.jie && d.jie.length > 0 && <Text type="warning">{` · 制化：${d.jie.map(([a, b]) => `${a}（${b}）`).join('；')}`}</Text>}
               {d.leibian.length > 0 && <Text type="secondary">{` · 类编凶神：${d.leibian.map(([a]) => a).join(' ')}`}</Text>}
               {d.liuRen ? <Text type="secondary">{` · 小六壬${d.liuRen}`}</Text> : null}
+              {d.wuRi ? <Text type="secondary">{` · ${d.wuRi}`}</Text> : null}
               {d.jiri && d.jiri.length > 0 && <Text type="success">{` · 类编吉日表：${d.jiri.map(([a, b]) => (b ? `${a}（${b}）` : a)).join('、')}`}</Text>}
             </div>
           )))}
         </div>
       )}
       <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 8 }}>
-        可用与否全依上面所选的规则：每条规则可单独取舍，每日列出否决它的规则与出处。缺省选协纪诸项（月表加铺注须宜嫁娶、协纪嫁娶周堂），因协纪为清代官定；协纪于女命大利月诸说「奏准刪除」，故缺省只列不否决。《类编历法通书大全》卷七之女命行嫁月、周堂、嫁娶凶神表，鳌头之白虎与橫天朱雀，赤口（类编卷十五小六壬，协纪不立），以及周堂回避、白虎禳法等制化，皆为可选。阴阳不将只作标注（协纪歷例表与类编法两家）；类编卷七逐月求婚、下定、嫁娶吉日表所列之日亦只作标注。只算到规则给出的结果，不论吉凶应验。
+        可用与否全依上面所选的规则：每条规则可单独取舍，每日列出否决它的规则与出处。缺省选协纪诸项（月表加铺注须宜嫁娶、协纪嫁娶周堂），因协纪为清代官定；协纪于女命大利月诸说「奏准刪除」，故缺省只列不否决。《类编历法通书大全》卷七之女命行嫁月、周堂、嫁娶凶神表，鳌头之白虎与橫天朱雀，赤口（类编卷十五小六壬，协纪不立；或依协纪卷三十六所述兀日起法，即类编卷二六輪兀，值下兀为赤口；闰月皆从本月起），以及周堂回避、白虎禳法等制化，皆为可选。阴阳不将只作标注（协纪歷例表与类编法两家）；类编卷七逐月求婚、下定、嫁娶吉日表所列之日亦只作标注。只算到规则给出的结果，不论吉凶应验。
       </Text>
     </Card>
   )
@@ -299,9 +300,10 @@ const QILI_ITEMS: { key: string; label: string; opts: string[] }[] = [
   { key: 'mingFeiDui', label: '鳴吠對', opts: ['协纪', '类编十一日', '类编十日'] },
   { key: 'fuRi', label: '復日', opts: ['协纪', '集正', '百忌', '阴阳备用', '百忌歌两干'] },
   { key: 'huangWu', label: '荒蕪', opts: ['不列（协纪：即五虚）', '按季三支', '类编表序', '类编新增起例'] },
+  { key: 'tianZei', label: '天賊', opts: ['协纪（正月丑逆行）', '类编（正月辰进五辰）'] },
   { key: 'canMing', label: '蠶命（年神）', opts: ['协纪', '类编'] },
 ]
-const QILI_LEIBIAN: Record<string, number> = { tianDe: 1, tianHuo: 1, mingFei: 1, mingFeiDui: 1, fuRi: 1, huangWu: 2, canMing: 1 }
+const QILI_LEIBIAN: Record<string, number> = { tianDe: 1, tianHuo: 1, mingFei: 1, mingFeiDui: 1, fuRi: 1, huangWu: 2, tianZei: 1, canMing: 1 }
 
 function QiLiPanel(props: { wasm: LunarBackend; ear: string; jd: number }) {
   const [o, setO] = useState<Record<string, number>>({})
@@ -310,7 +312,7 @@ function QiLiPanel(props: { wasm: LunarBackend; ear: string; jd: number }) {
   const r = useMemo(() => {
     if (typeof props.wasm.qili_shen_day_json !== 'function') return null
     try {
-      return JSON.parse(props.wasm.qili_shen_day_json(props.jd, props.ear, v('tianDe'), v('tianHuo'), v('mingFei'), v('mingFeiDui'), v('fuRi'), v('huangWu'), v('canMing'))) as {
+      return JSON.parse(props.wasm.qili_shen_day_json(props.jd, props.ear, v('tianDe'), v('tianHuo'), v('mingFei'), v('mingFeiDui'), v('fuRi'), v('huangWu'), v('canMing'), v('tianZei'))) as {
         add: [string, boolean][]; remove: [string, boolean][]; canMing: { xieji: string; sel: string }
       }
     } catch { return null }
@@ -349,7 +351,7 @@ function QiLiPanel(props: { wasm: LunarBackend; ear: string; jd: number }) {
           )}
           {r.canMing.sel !== r.canMing.xieji && <div>{`蠶命：协纪在${r.canMing.xieji}，所选在${r.canMing.sel}`}</div>}
           <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>
-            只改所列当日之神，宜忌仍依协纪月表。类编为元末《類編曆法通書大全》，协纪按语所斥「通書」诸说多见于此（鸣吠、复日、天火、蚕命等）；乾隆三十年时宪书蚕命从协纪。
+            只改所列当日之神，宜忌仍依协纪月表。类编为元末《類編曆法通書大全》，协纪按语所斥「通書」诸说多见于此（鸣吠、复日、天火、蚕命等；天贼两说无一日同）；乾隆三十年时宪书蚕命从协纪。
           </Text>
         </div>
       )}

@@ -41,23 +41,23 @@ declare module 'lunar-wasm' {
   export function ganzhi_preset_name(preset_index: number): string
   export function nayin_of_ganzhi_name(name: string): string
   export function nian_shen_json(jd: number, vsop87_ear: string): string
-  export function qimen_json(jd_ut: number, vsop87_ear: string, hour_gz: number, method: number, ji_gong: number, shen_ming: number, ding_ju: number, source: number, day_gz: number, an_gan: number, gan_mu: number, ji_xing: number, kong: number): string
-  export function ziwei_json(year_gz: number, lunar_month: number, is_leap: boolean, lunar_day: number, hour_zhi: number, male: boolean, leap: number, xin: number, bing_ding: number, si_hua: number, chang_sheng: number): string
+  export function qimen_json(jd_ut: number, vsop87_ear: string, hour_gz: number, method: number, ji_gong: number, shen_ming: number, ding_ju: number, source: number, day_gz: number, an_gan: number, gan_mu: number, ji_xing: number, kong: number, jia: number, jia_rule: number): string
+  export function ziwei_json(year_gz: number, lunar_month: number, is_leap: boolean, lunar_day: number, hour_zhi: number, male: boolean, leap: number, xin: number, bing_ding: number, si_hua: number, chang_sheng: number, extra: number): string
   export function liuyao_json(values: Uint8Array, yue_zhi: number, day_gz: number, gua_shen: number, san_bian: number): string
   export function meihua_time_values(year_zhi: number, lunar_month: number, lunar_day: number, hour_zhi: number): Uint8Array
   export function dayan_yao_wasm(r1: number, r2: number, r3: number): number
   export function dayan_steps_json(r: Uint32Array): string
   export function liuyao_marks_json(values: Uint8Array, yue_zhi: number, day_gz: number): string
   export function xuankong_json(year: number, zuo: number, ti: boolean, zuo_az: number, jd_ut?: number | null, vsop87_ear?: string | null): string
-  export function liuren_json(jd_ut: number, vsop87_ear: string, day_gz: number, hour_zhi: number, rule: number, gui_rule: number, zhou: number, dun_rule: number, ben_ming_gz: number, male: number, chu_yu: number, mu_rule: number, yao_rule: number, she_hai: number, lat_deg: number, lon_deg: number): string
-  export function ziwei18_json(year_gz: number, lunar_month: number, is_leap: boolean, lunar_day: number, hour_zhi: number, male: boolean): string
+  export function liuren_json(jd_ut: number, vsop87_ear: string, day_gz: number, hour_zhi: number, rule: number, gui_rule: number, zhou: number, dun_rule: number, ben_ming_gz: number, male: number, chu_yu: number, mu_rule: number, yao_rule: number, she_hai: number, lat_deg: number, lon_deg: number, wang_rule: number, lunar_month: number, lunar_day: number, jiang_override: number, pei_ben_ming_gz: number): string
+  export function ziwei18_json(year_gz: number, lunar_month: number, is_leap: boolean, lunar_day: number, hour_zhi: number, male: boolean, opts: number): string
   export function jiaqu_days_json(jd0: number, vsop87_ear: string, months: Uint8Array, days: Uint8Array, leaps: Uint8Array, dims: Uint8Array, phases: Int8Array, nv_year_gz: number, has_weng_gu: boolean, has_nv_fu_mu: boolean, na_xu: boolean, opts: number): string
   export function taiyi_json(jd_ut: number, vsop87_ear: string, day_gz: number, hour_zhi: number, kind: number, school: number, dun: number, opts: number): string
   export function paipan_wasm(jd_ut: number, vsop87_ear: string, day_gz: number, hour_zhi: number): string
   export function seed_solar_terms_wasm(years: Int32Array, jds: Float64Array): number
   export function shensha_day_wasm(jd: number, vsop87_ear: string, lunar_month: number, lunar_day: number, is_leap: boolean, days_in_month: number, phase: number): string
   export function dong_gong_day_json(jd: number, vsop87_ear: string): string
-  export function qili_shen_day_json(jd: number, vsop87_ear: string, tian_de: number, tian_huo: number, ming_fei: number, ming_fei_dui: number, fu_ri: number, huang_wu: number, can_ming: number): string
+  export function qili_shen_day_json(jd: number, vsop87_ear: string, tian_de: number, tian_huo: number, ming_fei: number, ming_fei_dui: number, fu_ri: number, huang_wu: number, can_ming: number, tian_zei: number): string
   export function jianchu_day_wasm(jd: number, vsop87_ear: string): string
   export function huanghei_hour_wasm(day_name: string, hour_name: string): string
   export function gengdian_wasm(jd: number, latitude_deg: number, longitude_deg: number, method: number, vsop87_ear: string): string
