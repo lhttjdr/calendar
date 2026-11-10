@@ -103,7 +103,7 @@ Schaefer B.E. 1987, Heliacal rise phenomena（*JHA* 18, Archaeoastronomy 11, S19
   - 年号由 `vendor/calendar/chinese_calendar/年号表.csv`（魏、晋主线）取元年，同名年号取不早于前文年份且最近者；
   - 「升平」在升平五年（361）后的记载为前凉沿用晋年号，照年号表连续计年。
 - 《宋书·天文志》（卷二十三至二十六全卷，`zhi_star_records.py songshu`）→ `songshu_star_records.csv`：魏、晋、宋（220—479），
-  魏晋部分与《晋书·天文志》多有重出，可互校；南朝宋按实历朔日表（主表此段即南朝历）；观测地 317 年前洛阳、其后建康。
+  魏晋部分与《晋书·天文志》多有重出，可互校；南朝宋按实历朔日表（张表此段即南朝历）；观测地 317 年前洛阳、其后建康。
 - 《魏书·天象志》（卷一百五之二「月」、之三、之四「五星」，`zhi_star_records.py weishu`）→ `weishu_star_records.csv`：北魏、东魏
   （386—550）。年号取并存政权表（`data/calendar/汇总/era_names_merged.csv` 的北魏、东魏）；日期按北朝推步历
   （`data/calendar/推步政权朔日表.csv`，398 年以前无表，该段日期不收）；观测地平城（494 年起洛阳），东魏邺。
@@ -204,7 +204,7 @@ Schaefer B.E. 1987, Heliacal rise phenomena（*JHA* 18, Archaeoastronomy 11, S19
 ## capitals.csv（都城，观测地）
 
 政权、起止年（天文纪年，含端点）、都城名、东经、北纬、`city`（同名异址时注城址，余空；网页都城点按名与坐标分点，同名者以此为标签）。凌犯检验（`tests_records.rs`）、日月食表生成（`zhi_star_records.py`
-写入逐行 `site_lon`、`site_lat`）、本纪书朔对合朔（`scripts/phenomena/main_table_shuo_sky.py`）共用。
+写入逐行 `site_lon`、`site_lat`）、本纪书朔对合朔（`scripts/phenomena/benji_shuo_sky.py`）共用。
 
 **同名异址**：长安、洛阳各有两座城，相距数公里至十余公里，按年代分取：
 
@@ -237,7 +237,7 @@ CHGIS 引用（其 EULA 允许取用部分数据并注明出处，不许整层�
 
 ## chunqiu_solar_eclipses.csv、chunqiu_zhang_3_1.csv
 
-《春秋》经文日食 37 条，由 `scripts/calendar_data/chunqiu_check.py` 生成（维基文库《春秋左氏傳》經节）。日期由上游春秋历换算，未书干支者取该月朔，观测地为曲阜。`chunqiu_zhang_3_1.csv` 是与张培瑜《中国古代历法》表 3-1 的逐条对照（`scripts/phenomena/chunqiu_table31.py`）。结果见 [main-table-checks.md](../../doc/calendar/main-table-checks.md) 第八节。
+《春秋》经文日食 37 条，由 `scripts/calendar_data/chunqiu_check.py` 生成（维基文库《春秋左氏傳》經节）。日期由上游春秋历换算，未书干支者取该月朔，观测地为曲阜。`chunqiu_zhang_3_1.csv` 是与张培瑜《中国古代历法》表 3-1 的逐条对照（`scripts/phenomena/chunqiu_table31.py`）。结果见 [benji-checks.md](../../doc/calendar/benji-checks.md) 第八节。
 
 ## lunar_eclipse_lodges.csv
 

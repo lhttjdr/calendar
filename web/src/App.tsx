@@ -46,6 +46,7 @@ import {
   type GanzhiResult,
   type GanzhiOptionsTuple,
   type RealBackendVariant,
+  setZhongyuanPreferTable,
 } from './useLunarWasm'
 import { utcFromLocalInZone, civilMonthDays, convertDisplayDateTime, displayCivilToJd, formatDateInTimeZone, civilToProleptic, clampCivilDay, displayCalendarName, isCalendarMode, isFullyGregorianMonth, jdToDisplayDate, localDate, ROMAN_SCHEMES, setCalendarMode, type CalendarMode } from './civilTime'
 import { EPHEMERIS_SOURCE_LABELS, EPHEMERIS_FORMAT_LABELS, type EphemerisDataSource } from './ephemerisSourceRegistry'
@@ -70,6 +71,18 @@ const CALENDAR_MODE_OPTIONS = [
     options: Object.entries(ROMAN_SCHEMES).map(([value, s]) => ({ label: s.label, value })),
   },
 ]
+
+/** 中原一线历日取法：'reckoning' 按术推步先于今人历表（缺省），'table' 张培瑜历表先于推步。见 doc/calendar/rili-sources.md */
+const ZHONGYUAN_PREF_STORAGE_KEY = 'zhongyuan-rili-preference'
+type ZhongyuanPref = 'reckoning' | 'table'
+function getStoredZhongyuanPref(): ZhongyuanPref {
+  let v: ZhongyuanPref = 'reckoning'
+  try {
+    if (localStorage.getItem(ZHONGYUAN_PREF_STORAGE_KEY) === 'table') v = 'table'
+  } catch {}
+  setZhongyuanPreferTable(v === 'table')
+  return v
+}
 
 function getStoredRealBackend(): RealBackendVariant {
   try {
@@ -355,6 +368,7 @@ function App() {
   const [paipanTab, setPaipanTab] = useState<string>(URL0.view === 'paipan' && URL0.tab ? URL0.tab : 'qimen')
   /** Real 后端：twofloat=高精度，f64=体积/速度；切换后重新加载 WASM */
   const [realBackendVariant, setRealBackendVariant] = useState<RealBackendVariant>(getStoredRealBackend)
+  const [zhongyuanPref, setZhongyuanPref] = useState<ZhongyuanPref>(getStoredZhongyuanPref)
   const [ephemerisSource, setEphemerisSource] = useState<EphemerisDataSource | null>(null)
   /** 章动表/地球改正加载状态（由 WASM get_repo_aux_* 提供，仅文本/混合路径有值；全二进制为 77 项+未加载） */
   const [repoAux, setRepoAux] = useState<{ nutationFull: boolean; earthPatch: boolean; elpCorrection: string } | null>(null)
@@ -499,7 +513,7 @@ function App() {
         }
       })
     return () => { cancelled = true }
-  }, [year, month, realBackendVariant, calendarMode])
+  }, [year, month, realBackendVariant, calendarMode, zhongyuanPref])
 
   // 当左侧显示日期与日历视图不同月时，单独拉取显示日期所在月的岁数据，否则农历年月日会因无对应气朔而显示为 —
   useEffect(() => {
@@ -518,7 +532,7 @@ function App() {
       if (!cancelled) setDisplayDateYearDataList(list)
     })
     return () => { cancelled = true }
-  }, [wasm, year, month, isLiveMode, nowForLunar, selectedDate.year, selectedDate.month, selectedDate.day, calendarMode, timeZone])
+  }, [wasm, year, month, isLiveMode, nowForLunar, selectedDate.year, selectedDate.month, selectedDate.day, calendarMode, timeZone, zhongyuanPref])
 
   // 切换时区时，将当前选中的日期时间从旧时区换算到新时区（同一时刻）
   useEffect(() => {
@@ -1093,6 +1107,13 @@ function App() {
                         {wasm?.get_calendar_name?.(selectedLunarSlot.lunarYear) ?? '农历'} {era} {monthDay}<LineTime format={timeOf} {...timeProps} />{hint}
                       </div>,
                     )
+                    if (selectedYearData?.riliSource) {
+                      lines.push(
+                        <div key="rili-source" style={{ marginBottom: 4 }}>
+                          <Text type="secondary" style={{ fontSize: 12 }}>历日：{selectedYearData.riliSource}</Text>
+                        </div>,
+                      )
+                    }
                   } else if (selectedLunar != null) {
                     lines.push(<div key="main" style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{selectedLunar}</div>)
                   } else {
@@ -1394,6 +1415,25 @@ function App() {
                     ]}
                     style={{ width: '100%', marginTop: 4 }}
                   />
+                </div>
+                <div>
+                  <Text type="secondary" style={{ fontSize: 12 }}>中原历日取法</Text>
+                  <Select
+                    value={zhongyuanPref}
+                    onChange={(v: ZhongyuanPref) => {
+                      setZhongyuanPreferTable(v === 'table')
+                      setZhongyuanPref(v)
+                      try { localStorage.setItem(ZHONGYUAN_PREF_STORAGE_KEY, v) } catch {}
+                    }}
+                    options={[
+                      { label: '按术推步优先（默认）', value: 'reckoning' },
+                      { label: '张培瑜历表优先', value: 'table' },
+                    ]}
+                    style={{ width: '100%', marginTop: 4 }}
+                  />
+                  <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
+                    实物历日总是优先；推步未覆盖之年取张培瑜《三千五百年历日天象》，再无则现算
+                  </Text>
                 </div>
                 <div>
                   <Text type="secondary" style={{ fontSize: 12 }}>西历写法</Text>

@@ -82,8 +82,19 @@ pub fn year_months(params: &LiParams, lunar_year: i32) -> Vec<(i64, u8, bool)> {
         .collect()
 }
 
+/// 按历名取已实现、并经术文核验（见 doc/calendar/calendar-compendium.md「平朔诸历：以术文核验」）的平朔推步参数。
+/// 名称与 `data/calendar/汇总/zhongyuan_calendar_periods.csv` 的历名一致；未实现的历返回 None，由第 4 层退到下一级来源。
+pub fn reckoner_for_lifa(name: &str) -> Option<LiParams> {
+    match name {
+        "四分历" => Some(sifen_params()),
+        "景初历" => Some(jingchu_params()),
+        "开皇历" => Some(kaihuang_params()),
+        _ => None,
+    }
+}
+
 /// 推步政权某岁各月 (朔日 JDN, 月序, 闰否)；返回所用历术名。政权或年份不在表内返回 None。
-/// 纯按历术推步，不改个别月份：实历朔日表与推步不合处（如 430 年二月）是另一份复原的结果，依据未核，不据以改动。
+/// 纯按历术推步，不改个别月份：张培瑜历表与推步不合处（如 430 年二月）是另一份复原的结果，依据未核，不据以改动。
 pub fn regime_year_months(regime: &str, lunar_year: i32) -> Option<(&'static str, Vec<(i64, u8, bool)>)> {
     let (_, _, _, pick) = regime_calendars().into_iter().find(|(r, y0, y1, _)| *r == regime && (*y0..=*y1).contains(&lunar_year))?;
     Some(pick(lunar_year))
@@ -368,7 +379,7 @@ fn wei_qi_params_for_year(g_year: i32) -> Option<(&'static str, LiParams)> {
     Some((name, params))
 }
 
-/// 公历 (y,m,d)（前推格里高利历，前端约定）下所有推步政权（不含主表）的农历月日。
+/// 公历 (y,m,d)（前推格里高利历，前端约定）下所有推步政权（不含中原一线）的农历月日。
 pub fn gregorian_to_all_regimes_lunar(g_year: i32, g_month: i32, g_day: i32) -> Vec<RegimeLunarEntry> {
     let jdn = gregorian::gregorian_to_jdn(g_year, g_month, g_day);
     let mut out = Vec::new();

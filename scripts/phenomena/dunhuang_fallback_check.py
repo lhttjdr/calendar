@@ -1,7 +1,7 @@
-"""敦煌无据之月退回何表：敦煌朔日表（data/calendar/敦煌朔日表.csv）原件之月，与主表朔、实际合朔所在日逐月比较。
+"""敦煌无据之月退回何表：敦煌朔日表（data/calendar/敦煌朔日表.csv）原件之月，与张表朔、实际合朔所在日逐月比较。
 
 实际合朔：DE441（无则 DE406）日月视黄经相等之时，换为敦煌地方平时（东经 94.66°）所在民用日；另记合朔地方时，
-看敦煌历是否有进朔之迹。主表朔取与敦煌朔相距 3 日内的主表月首。只用原件之月（括号推算格不计）。
+看敦煌历是否有进朔之迹。张表朔取与敦煌朔相距 3 日内的张表月首。只用原件之月（括号推算格不计）。
 输出 data/calendar/dunhuang_fallback_check.csv，汇总印出，结论写在 doc/calendar/dunhuang-calendar.md「无据之月」。
 
 用法（仓库根）：uv run --no-project --with skyfield python -I scripts/phenomena/dunhuang_fallback_check.py
@@ -43,7 +43,7 @@ def main():
     starts = sorted(s for _, _, _, s in g._months())
     with open(ROOT / "data/calendar/敦煌朔日表.csv", encoding="utf-8") as f:
         recs = list(csv.DictReader(line for line in f if not line.startswith("#")))
-    out, stat = [], defaultdict(lambda: {"主表": Counter(), "合朔": Counter()})
+    out, stat = [], defaultdict(lambda: {"张表": Counter(), "合朔": Counter()})
     for r in recs:
         if r["朔依据"] != "原件":
             continue
@@ -51,13 +51,13 @@ def main():
         main = min(starts, key=lambda s: abs(s - dh))
         day, hour = conjunction(dh)
         period = "吐蕃" if int(r["lunar_year"]) < 848 else "归义军"
-        stat[period]["主表"][dh - main] += 1
+        stat[period]["张表"][dh - main] += 1
         stat[period]["合朔"][dh - day] += 1
         out.append({"公元": r["lunar_year"], "敦煌月": ("閏" if r["is_leap"] == "1" else "") + str(r["lunar_month"]),
-                    "敦煌朔": r["朔干支"], "敦煌−主表": dh - main, "合朔日": g.ganzhi_of_jdn(day),
+                    "敦煌朔": r["朔干支"], "敦煌−张表": dh - main, "合朔日": g.ganzhi_of_jdn(day),
                     "敦煌−合朔日": dh - day, "合朔地方时": f"{hour:.1f}", "文书": r["文书"]})
     with open(ROOT / "data/calendar/dunhuang_fallback_check.csv", "w", encoding="utf-8", newline="") as f:
-        f.write("# 敦煌朔日表原件之月与主表朔、实际合朔（DE441，敦煌地方平时 94.66°E）逐月比较；"
+        f.write("# 敦煌朔日表原件之月与张表朔、实际合朔（DE441，敦煌地方平时 94.66°E）逐月比较；"
                 "scripts/phenomena/dunhuang_fallback_check.py 生成。\n")
         w = csv.DictWriter(f, fieldnames=list(out[0].keys()))
         w.writeheader()

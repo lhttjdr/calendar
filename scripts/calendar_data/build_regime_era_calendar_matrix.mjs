@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * 生成 data/calendar/汇总/regime_era_calendar_matrix.xlsx（主输出）及同内容的 .csv 备查。
- * 第一列：农历年；主表各政权分列；**五胡十六国** 十六列（存续年内占位「未知-年号待补（历法）」）；
+ * 第一列：农历年；张表各政权分列；**五胡十六国** 十六列（存续年内占位「未知-年号待补（历法）」）；
  * 再后为蜀/吴等并列政权列。格内格式「帝-年号（历法）」、改元用顿号。
  *
  * **南朝**：年号表.csv 中 regime_simp「南北朝」拆为南朝宋、南齐、南梁、南陈（按农历年分段）。
@@ -23,7 +23,7 @@ const outCsvPath = path.join(outDir, "regime_era_calendar_matrix.csv");
 const outXlsxPath = path.join(outDir, "regime_era_calendar_matrix.xlsx");
 
 /**
- * 主表政权列（史序）。「南北朝」在源 CSV 中仍为 regime_simp 一字段，此处拆成南朝四列；赵宋列名仍为「宋」。
+ * 张表政权列（史序）。「南北朝」在源 CSV 中仍为 regime_simp 一字段，此处拆成南朝四列；赵宋列名仍为「宋」。
  */
 const MAIN_TABLE_REGIMES = [
   "汉",
@@ -62,7 +62,7 @@ function southDynastyColumnForYear(y) {
 
 /**
  * 五胡十六国：列序与农历年存续区间（与通说公元约对齐；年号待补）。
- * 历法栏为简述（各族所行不一，主表未逐政权导出朔闰）。
+ * 历法栏为简述（各族所行不一，张表未逐政权导出朔闰）。
  */
 const SIXTEEN_KINGDOMS_META = [
   { col: "成汉", start: 304, end: 347, cal: "未知" },
@@ -138,10 +138,10 @@ function mainTableCalendar(y) {
   if (y < -721) return "春秋历";
   if (y < -222) return "古六历";
   if (y < -104) return "颛顼历";
-  return "主表（据历还原）";
+  return "张表（据历还原）";
 }
 
-function formatMainTableRegimeCell(row) {
+function formatZhongyuanRegimeCell(row) {
   const [, hasGaiyuan, , emperor, eraName, eraYear, prevName, prevYear] = row;
   const cal = mainTableCalendar(parseInt(row[0], 10));
   const emp = emperor || "未知";
@@ -203,7 +203,7 @@ const REGIME_META = [
   { col: "吴", start: 222, end: 280, fallbackCal: null },
   { col: "北朝西魏周隋", start: 398, end: 590, fallbackCal: "景初→玄始→正光→明克让→天和→大象→开皇" },
   { col: "东魏北齐", start: 534, end: 577, fallbackCal: "正光→兴和→天保" },
-  { col: "辽金元", start: 947, end: 1279, fallbackCal: "主表+辽金元修正、宣明/重修大明平气" },
+  { col: "辽金元", start: 947, end: 1279, fallbackCal: "张表+辽金元修正、宣明/重修大明平气" },
   { col: "南明", start: 1645, end: 1683, fallbackCal: "大统历平气、南明朔闰表" },
 ];
 
@@ -212,10 +212,10 @@ function cellForRegime(col, lunarYear, eraRow) {
     const r = eraRow[2];
     if (r === ERA_NAMES_NANBEICHAO) {
       return southDynastyColumnForYear(lunarYear) === col
-        ? formatMainTableRegimeCell(eraRow)
+        ? formatZhongyuanRegimeCell(eraRow)
         : "";
     }
-    return r === col ? formatMainTableRegimeCell(eraRow) : "";
+    return r === col ? formatZhongyuanRegimeCell(eraRow) : "";
   }
   if (SIXTEEN_KINGDOM_SET.has(col)) {
     const meta = SIXTEEN_KINGDOMS_META.find((m) => m.col === col);

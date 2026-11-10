@@ -9,7 +9,7 @@
 | 写本诸星 | `xie_ben_stars(生年干支)`；`ZiweiExtraOptions::xie_ben_xing` 为真时排入命盘（缺省不排） |
 | 庙旺 | `miao_wang(星, 支) -> Option<MiaoWang>`、`Chart::brightness(星)`：全书卷二七等表 |
 | 测试 | `ziwei::tests`（13 项，见「检验」） |
-| 输入 | 生年干支（农历正月初一换年）、农历月（含闰）、日、时辰（地支）、性别；农历日期由调用方按实历优先换算 |
+| 输入 | 生年干支（农历正月初一换年）、农历月（含闰）、日、时辰（地支）、性别；农历日期由调用方按中原一线历日换算（`lifa::resolve_year`） |
 
 ## 一、原典与版本
 

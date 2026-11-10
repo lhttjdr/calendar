@@ -1,4 +1,4 @@
-"""麟德历定朔（《新唐书·历志二》卷二十六），用以复核主表 665—728 年朔日与本纪明书朔日之异。
+"""麟德历定朔（《新唐书·历志二》卷二十六），用以复核张表 665—728 年朔日与本纪明书朔日之异。
 
 常数：总法 1340，朞实 489428，常朔实 39571，上元积年至麟德元年（664）269880 算；日躔表（各气先后率、盈朒积、消息总）、
 月离表（变日 1—28 增减率、迟速积），变周 443077、变奇法 12。
@@ -93,13 +93,13 @@ def epoch_offset():
 
 
 def main():
-    main_t = d.tables()["主表"]
+    main_t = d.tables()["张表"]
     off = epoch_offset()
     dz_day = QI * JI_664 // F
     print("664 年天正冬至", g.GANZHI[dz_day % 60], g.from_jdn(dz_day + off))
     moons = sorted({ding for y in range(664, 730) for _, ding in year_moons(y)})
     by_jdn = {v: k for k, v in main_t.items()}
-    # 1. 与主表逐月：主表比麟德定朔晚一日者是否都在定朔小余之后段（进朔）
+    # 1. 与张表逐月：张表比麟德定朔晚一日者是否都在定朔小余之后段（进朔）
     late = []
     same = n = 0
     for t in moons:
@@ -112,37 +112,37 @@ def main():
         same += k == j
         if k == j + 1:
             late.append(float((t % F) / F * 24))
-    print(f"665—728 年：麟德定朔与主表同日 {same}/{n}；主表晚一日 {len(late)} 月，其定朔小余 {min(late):.1f}—{max(late):.1f} 时")
-    # 2. 本纪明书朔日（main_table_check.csv，类非「其他」「差一月」）三说比较
+    print(f"665—728 年：麟德定朔与张表同日 {same}/{n}；张表晚一日 {len(late)} 月，其定朔小余 {min(late):.1f}—{max(late):.1f} 时")
+    # 2. 本纪明书朔日（benji_shuo_check.csv，类非「其他」「差一月」）三说比较
     def linde(jdn_hint, jinshuo):
         t = min(moons, key=lambda x: abs(int(x // F) + off - jdn_hint))
         h = float((t % F) / F * 24)
         return int(t // F) + off + (1 if jinshuo and h >= 18 else 0), h
     out = []
-    with open(ROOT / "data/calendar/main_table_check.csv", encoding="utf-8") as f:
+    with open(ROOT / "data/calendar/benji_shuo_check.csv", encoding="utf-8") as f:
         rows = list(csv.DictReader(line for line in f if not line.startswith("#")))
     for r in rows:
         y = int(r["年"])
-        if not 665 <= y <= 728 or not r["主表朔 JDN"] or r["类"] in ("其他", "差一月"):
+        if not 665 <= y <= 728 or not r["张表朔 JDN"] or r["类"] in ("其他", "差一月"):
             continue
-        rec, mt = int(r["本纪朔 JDN"]), int(r["主表朔 JDN"])
+        rec, mt = int(r["本纪朔 JDN"]), int(r["张表朔 JDN"])
         d0, h = linde(mt, False)
         d1, _ = linde(mt, True)
-        out.append({"书": r["书"], "年": y, "纪年": r["纪年"], "月": r["月"], "本纪朔": r["本纪朔"], "主表朔": g.ganzhi_of_jdn(mt),
+        out.append({"书": r["书"], "年": y, "纪年": r["纪年"], "月": r["月"], "本纪朔": r["本纪朔"], "张表朔": g.ganzhi_of_jdn(mt),
                     "麟德定朔": g.ganzhi_of_jdn(d0), "麟德定朔小余（时）": f"{h:.1f}", "麟德进朔（≥18 时）": g.ganzhi_of_jdn(d1),
-                    "本纪合主表": int(rec == mt), "本纪合麟德无进朔": int(rec == d0), "本纪合麟德进朔": int(rec == d1),
+                    "本纪合张表": int(rec == mt), "本纪合麟德无进朔": int(rec == d0), "本纪合麟德进朔": int(rec == d1),
                     "日食": r["日食"], "原文": r["原文"]})
     with open(ROOT / "data/calendar/linde_dingshuo_check.csv", "w", encoding="utf-8", newline="") as f:
-        f.write("# 665—728 年本纪明书朔日与麟德历定朔（scripts/calendar_data/linde_dingshuo.py，线性插值「速要」法）、主表比较。\n")
+        f.write("# 665—728 年本纪明书朔日与麟德历定朔（scripts/calendar_data/linde_dingshuo.py，线性插值「速要」法）、张表比较。\n")
         w = csv.DictWriter(f, fieldnames=list(out[0].keys()))
         w.writeheader()
         w.writerows(out)
     tot = len(out)
-    print(f"本纪明书朔日 {tot} 条：合主表 {sum(o['本纪合主表'] for o in out)}，合麟德无进朔 {sum(o['本纪合麟德无进朔'] for o in out)}，"
+    print(f"本纪明书朔日 {tot} 条：合张表 {sum(o['本纪合张表'] for o in out)}，合麟德无进朔 {sum(o['本纪合麟德无进朔'] for o in out)}，"
           f"合麟德进朔 {sum(o['本纪合麟德进朔'] for o in out)}")
     for o in out:
-        if not (o["本纪合主表"] and o["本纪合麟德无进朔"]):
-            print("  ", o["年"], o["月"], o["本纪朔"], "主表", o["主表朔"], "麟德", o["麟德定朔"], o["麟德定朔小余（时）"], "时", o["原文"][:16])
+        if not (o["本纪合张表"] and o["本纪合麟德无进朔"]):
+            print("  ", o["年"], o["月"], o["本纪朔"], "张表", o["张表朔"], "麟德", o["麟德定朔"], o["麟德定朔小余（时）"], "时", o["原文"][:16])
 
 
 if __name__ == "__main__":

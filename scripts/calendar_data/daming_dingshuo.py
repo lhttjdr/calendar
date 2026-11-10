@@ -1,4 +1,4 @@
-"""金重修大明历（赵知微，1182 年起行用）定朔、进朔，用以核验主表（宋历）与《金史》本纪明书朔日之异。
+"""金重修大明历（赵知微，1182 年起行用）定朔、进朔，用以核验张表（宋历）与《金史》本纪明书朔日之异。
 
 术文与日躔、月离两表据中华书局点校本《金史·历志》卷二十一、二十二（2013 精装版册二，表在页 451—453、479—481）；日出分表取
 《元史·历志》卷五十六耶律楚材庚午元历。两历诸表相同，但点校本校勘记多据庚午历改字，两者不是互相独立的证据。
@@ -149,14 +149,14 @@ def main():
         for jing, ding, jin, day, h, lim, near in year_moons(y):
             moons[day + off] = (jin + off, h, lim, near)
     cal_h = float(CALIB / F * 24)
-    main_t = d.tables()["主表"]
+    main_t = d.tables()["张表"]
     main_days = set(main_t.values())
 
     def nearest(j):
         k = min(moons, key=lambda x: abs(x - j))
         return k, moons[k]
 
-    # 1. 与主表（宋历）逐月
+    # 1. 与张表（宋历）逐月
     stat = {}
     for (y, m, lp), s in main_t.items():
         if not 1130 <= y <= 1234:
@@ -168,37 +168,37 @@ def main():
         st[1] += jin == s
         st[2] += k == s
     for per, (n, ok, ok0) in sorted(stat.items()):
-        print(f"{per}：主表（宋历）朔与重修大明进朔后同日 {ok}/{n}（不进朔 {ok0}/{n}）")
+        print(f"{per}：张表（宋历）朔与重修大明进朔后同日 {ok}/{n}（不进朔 {ok0}/{n}）")
     # 2. 本纪明书朔日
-    with open(ROOT / "data/calendar/main_table_check.csv", encoding="utf-8") as f:
+    with open(ROOT / "data/calendar/benji_shuo_check.csv", encoding="utf-8") as f:
         rows = list(csv.DictReader(line for line in f if not line.startswith("#")))
     out = []
     for r in rows:
-        if r["政权"] != "金" or not r["主表朔 JDN"] or r["类"] in ("其他", "差一月"):
+        if r["政权"] != "金" or not r["张表朔 JDN"] or r["类"] in ("其他", "差一月"):
             continue
-        y, rec, mt = int(r["年"]), int(r["本纪朔 JDN"]), int(r["主表朔 JDN"])
+        y, rec, mt = int(r["年"]), int(r["本纪朔 JDN"]), int(r["张表朔 JDN"])
         k, (jin, h, lim, near) = nearest(mt)
-        out.append({"书": r["书"], "年": y, "纪年": r["纪年"], "月": r["月"], "本纪朔": r["本纪朔"], "主表朔": g.ganzhi_of_jdn(mt),
+        out.append({"书": r["书"], "年": y, "纪年": r["纪年"], "月": r["月"], "本纪朔": r["本纪朔"], "张表朔": g.ganzhi_of_jdn(mt),
                     "大明定朔": g.ganzhi_of_jdn(k), "定朔小余（时）": f"{h:.2f}", "术文进朔限（时）": f"{lim:.2f}",
                     "术文进朔": g.ganzhi_of_jdn(k + (h >= lim)), "大明进朔（校准）": g.ganzhi_of_jdn(jin),
                     "临限": "是" if y < 1182 and 0 <= h - lim < 2 * cal_h else "", "距交（日）": f"{near:.1f}",
-                    "本纪合主表": int(rec == mt), "本纪合大明不进朔": int(rec == k), "本纪合术文进朔": int(rec == k + (h >= lim)),
+                    "本纪合张表": int(rec == mt), "本纪合大明不进朔": int(rec == k), "本纪合术文进朔": int(rec == k + (h >= lim)),
                     "本纪合大明进朔": int(rec == jin),
                     "日食": r["日食"], "原文": r["原文"]})
     with open(ROOT / "data/calendar/daming_dingshuo_check.csv", "w", encoding="utf-8", newline="") as f:
-        f.write("# 《金史》本纪明书朔日与重修大明历定朔（scripts/calendar_data/daming_dingshuo.py）、主表（宋历）比较；"
+        f.write("# 《金史》本纪明书朔日与重修大明历定朔（scripts/calendar_data/daming_dingshuo.py）、张表（宋历）比较；"
                 "1182 年前行杨级大明历（术不传），以重修大明历代推。大明进朔（校准）：1182 年前限加 0.25 时，其后同术文。距交 = 定朔加时距黄白交点日数（< 1.5 日方可有日食）。\n")
         w = csv.DictWriter(f, fieldnames=list(out[0].keys()))
         w.writeheader()
         w.writerows(out)
     for per, lo, hi in (("1137—1181（杨级历，试算）", 1137, 1181), ("1182—1234（重修大明历）", 1182, 1234)):
         sub = [o for o in out if lo <= o["年"] <= hi]
-        print(f"本纪明书朔日 {per} {len(sub)} 条：合主表 {sum(o['本纪合主表'] for o in sub)}，"
+        print(f"本纪明书朔日 {per} {len(sub)} 条：合张表 {sum(o['本纪合张表'] for o in sub)}，"
               f"合大明不进朔 {sum(o['本纪合大明不进朔'] for o in sub)}，合术文进朔 {sum(o['本纪合术文进朔'] for o in sub)}，"
               f"合大明进朔（校准）{sum(o['本纪合大明进朔'] for o in sub)}")
         for o in sub:
-            if not (o["本纪合主表"] and o["本纪合大明进朔"]):
-                print("  ", o["年"], o["月"], o["本纪朔"], "主表", o["主表朔"], "大明", o["大明定朔"], o["定朔小余（时）"], "限",
+            if not (o["本纪合张表"] and o["本纪合大明进朔"]):
+                print("  ", o["年"], o["月"], o["本纪朔"], "张表", o["张表朔"], "大明", o["大明定朔"], o["定朔小余（时）"], "限",
                       o["术文进朔限（时）"], "进", o["大明进朔（校准）"], "距交", o["距交（日）"], o["原文"][:18])
 
 

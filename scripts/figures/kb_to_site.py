@@ -90,7 +90,7 @@ def clean_line(ln: str) -> str:
     ln = re.sub(r"(脚本|数据|代码|测试|解析|结果见|见)\s+(?=[，,。；;）)]|$)", "", ln)
     ln = re.sub(r"(逐条|逐气|逐条结果)见\s*phenomena-checks\.md", r"\1见附录「天象逐条校验」", ln)
     ln = re.sub(r"phenomena-checks\.md", "附录「天象逐条校验」", ln)
-    ln = re.sub(r"main-table-checks\.md", "附录「以本纪核验主表」", ln)
+    ln = re.sub(r"benji-checks\.md", "附录「以本纪核验历日」", ln)
     ln = re.sub(r"^(\s*[-*]\s*)[：:]\s*", r"\1", ln)
     ln = re.sub(r"(\*\*[^*]+\*\*)[：:]\s*[、，,]*\s*[。.]?\s*$", r"\1", ln)
     ln = re.sub(r"(\*\*[^*]+\*\*)[：:]\s*[、，,]+\s*", r"\1：", ln)

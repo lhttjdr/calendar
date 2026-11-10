@@ -166,7 +166,7 @@ uv run --project scripts python scripts/calendar_data/build_era_names_merged.py
 ## regime_era_calendar_matrix.csv / .xlsx —— 宽表展示版（人工浏览用，不建议程序解析）
 
 由 `scripts/calendar_data/build_regime_era_calendar_matrix.mjs` 从 `vendor/calendar/chinese_calendar/年号表.csv`
-单独生成（未合并 fang_shiming 数据），单元格是拼接好的展示字符串（如"武帝-元封五年（主表）"），供人眼浏览/
+单独生成（未合并 fang_shiming 数据），单元格是拼接好的展示字符串（如"武帝-元封五年（张表）"），供人眼浏览/
 核对用。与 `era_names_merged.csv` 是两种不同定位：这个是"好看"，`era_names_merged.csv` 是"好解析"。
 
 ## lifa_summary.csv —— 历法总表

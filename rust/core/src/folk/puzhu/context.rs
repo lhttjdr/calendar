@@ -3,7 +3,7 @@
 //! 口径：
 //! - 日以东八区民用日计（[`tt_to_day_number_utc8`]）；月建以交节为界，交节当日属新月（同月表、建除）。
 //! - 年（上朔、年神）以立春为界。
-//! - 农历日期走「实历优先」（[`lifa::resolve_year_data`]）：有实历朔日表的年份用实历。
+//! - 农历日期按中原一线行用之历（[`lifa::resolve_year_data`]）：实物历日、按术推步、今人历表、现算依次取。
 //! - 伏：初伏、中伏、末伏三日（[`zajie::san_fu`]）；社：二分前後近戊（《協紀》卷十二引歷例，[`zajie::she_jin_wu`]）。
 //! - 土王用事：四立前十八日起至四立前一日（[`zajie::tu_wang`]）。
 //! - 氣往亡：「皆自交節日數之」，交节当日为第一日（见 [`QiWangWangCount`]）。
@@ -14,7 +14,7 @@ use crate::astronomy::aspects::{lunar_phase_jds_in_range, solar_term_jds_for_yea
 use crate::astronomy::ephemeris::{Elpmpp02Data, Vsop87};
 use crate::calendar::chinese_lunar::{from_day_number_in_year, tt_to_day_number_utc8, ChineseLunarDate};
 use crate::calendar::gregorian::Gregorian;
-use crate::calendar::historical::HistoricalCalendar;
+use crate::calendar::historical::ShuoriTable;
 use crate::calendar::lifa;
 use crate::folk::zajie;
 use crate::math::real::{real, RealOps};
@@ -166,7 +166,7 @@ impl TermTable {
 pub fn puzhu_days(
     vsop: &Vsop87,
     elp: &Elpmpp02Data,
-    historical: Option<&HistoricalCalendar>,
+    historical: Option<&ShuoriTable>,
     j0: i64,
     j1: i64,
     count: QiWangWangCount,

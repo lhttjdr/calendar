@@ -13,8 +13,8 @@
 | 三大域 | 天文（astronomy）→ 历法（calendar）→ 民俗（folk），依赖单向（民俗直接取天文的节气朔望时刻、视位置，也取历法的日期干支农历） | [doc/architecture/three-domains.md](https://github.com/lhttjdr/calendar/blob/master/doc/architecture/three-domains.md) |
 | 历法域四层 | 1 独立基础层（儒略历/格里历/古历推步）→ 2 聚合实算层（现算或查表得岁数据）→ 3 派生层（政权年号）→ 4 仲裁路由层（该用哪种历法实现） | [doc/calendar/calendar-layers.md](https://github.com/lhttjdr/calendar/blob/master/doc/calendar/calendar-layers.md) |
 | 民俗域四层 | 1 独立基础层（纳音、值宿、九星、建除、神煞、月表宜忌、年神、杂节气、更点、周易、六爻、紫微）→ 2 聚合实算层（逐日铺注 `puzhu`；奇门、六壬、太乙、七政四余、玄空排盘）→ 3 派生层（婚嫁择吉、各盘格局标记、星命、黄金策诸象）→ 4 流派层（各模块具名选项，协纪或主书为缺省） | [doc/architecture/three-domains.md](doc/architecture/three-domains.md)「民俗域」、[doc/folk/yuanliu.md](doc/folk/yuanliu.md) |
-| 主表 | 《三千五百年历日天象》按各朝颁历**据历还原**推步得到的连续朔闰表；**非**书中某一历法名，属历法域第 2 层 | [data/calendar/README_shuori.md](https://github.com/lhttjdr/calendar/blob/master/data/calendar/README_shuori.md)、[historical-calendar.md](doc/calendar/historical-calendar.md) |
-| 历法总表 id | `zhongyuan_shili` → 主表（据历还原）；`lifa_summary.csv` 另有格里高利、儒略、现代农历、历法通志各历 | [data/calendar/汇总/lifa_summary.csv](https://github.com/lhttjdr/calendar/blob/master/data/calendar/汇总/lifa_summary.csv) |
+| 张表 | 张培瑜《三千五百年历日天象》的历表（经 ChineseCalendar 转录，`实历朔日表.csv`）：今人历表，资料可靠性第 5 级。原称「主表」，2026-11-10 撤此概念；中原一线历日按实物历日 → 按术推步 → 张表 → 现算取 | [doc/calendar/rili-sources.md](doc/calendar/rili-sources.md) |
+| 中原一线 | 汉、魏、晋、南朝、隋、唐、五代、宋、元、明、清逐年行用之历：`data/calendar/汇总/zhongyuan_calendar_periods.csv`，`lifa::ZhongyuanCalendarPeriods`；历日来源 `lifa::resolve_year`/`RiliSource` | [doc/calendar/rili-sources.md](doc/calendar/rili-sources.md) |
 
 ---
 
@@ -56,9 +56,10 @@
 | `era_names` | 第 3 层（派生层）年号表解析 |
 | `gan_zhi` / `gan_zhi_options` | 干支 |
 | `gregorian` | 公历与 JD |
-| `historical` | 主表朔日 CSV → 岁数据 |
-| `lifa` | 第 4 层（仲裁/路由层）历法表解析，`LIFA_ID_ZHONGYUAN_SHILI` |
-| `month_labels` | 第 3 层：历史月序改制（新莽/景初建丑、武周/肃宗末建子）当时月名 ↔ 主表建寅月，`data/calendar/month_label_reforms.csv` |
+| `historical` | `ShuoriTable`：张表朔日 CSV；`year_data_from_months` 由逐月朔日构造岁数据 |
+| `artifacts` | 实物历日（《宝祐四年会天历》1256） |
+| `lifa` | 第 4 层（仲裁/路由层）：中原一线行用之历与历日来源次序（`resolve_year`、`ZhongyuanPreference`），敦煌逐月取舍，历法总表解析 |
+| `month_labels` | 第 3 层：历史月序改制（新莽/景初建丑、武周/肃宗末建子）当时月名 ↔ 张表建寅月，`data/calendar/month_label_reforms.csv` |
 | `push_calendar` | 平朔+无中气置闰（首个无中气月为闰），各历术 `LiParams` 预设；`regime_year_months` 导出 `data/calendar/推步政权朔日表.csv` |
 | `options` / `system` | 选项与历法系统 |
 
@@ -75,7 +76,7 @@
 
 ---
 
-## 五、纪年与朔日（主表）
+## 五、纪年与朔日（张表）
 
 | 文件 | 内容 |
 |------|------|
@@ -144,10 +145,10 @@
 | `calendar_data/qinhan_eval/qingshigao_eclipses.py` | 《清史稿》日食（时辰、食分、所次宿） |
 | `calendar_data/build_era_names_merged.py` | 合并年号表 `data/calendar/汇总/era_names_merged.csv`（主线 + 方诗铭并存政权） |
 | `calendar_data/check_dated_inscriptions.py` | 出土纪日对各历表核对 |
-| `calendar_data/build_dunhuang_shuori.py`、`calendar_data/dunhuang_checks_to_md.py`、`phenomena/dunhuang_fallback_check.py` | 敦煌朔日表生成（自邓文宽附录一比较表）、换算逐条检验写入 `doc/calendar/dunhuang-calendar.md`、原件之月对主表与实际合朔（定无据之月退回何表）；Rust 侧 `examples/dunhuang_check.rs` |
+| `calendar_data/build_dunhuang_shuori.py`、`calendar_data/dunhuang_checks_to_md.py`、`phenomena/dunhuang_fallback_check.py` | 敦煌朔日表生成（自邓文宽附录一比较表）、换算逐条检验写入 `doc/calendar/dunhuang-calendar.md`、原件之月对张表与实际合朔（定无据之月退回何表）；Rust 侧 `examples/dunhuang_check.rs` |
 | `calendar_data/check_dunhuang_calendar.py` | 敦煌北魏太平真君十一、十二年历日（`data/calendar/敦煌历日.csv`）对各历表与景初、玄始历重推（朔闰、节气） |
 | `calendar_data/check_lvli_epochs.py` | 《隋书·律历志》天和、大象历常数复核与天和年间闰位诸算法 |
-| `calendar_data/discriminating_records.py`、`phenomena/discriminating_records_sky.py` | 主表与同系推步表判断不一的史书天象记录与本纪纪日（`data/calendar/本纪纪日/`，`zhi_star_records.py` 的 `date_sections` 纪日模式），及以天象判定哪一历为真 |
+| `calendar_data/discriminating_records.py`、`phenomena/discriminating_records_sky.py` | 张表与同系推步表判断不一的史书天象记录与本纪纪日（`data/calendar/本纪纪日/`，`zhi_star_records.py` 的 `date_sections` 纪日模式），及以天象判定哪一历为真 |
 | `phenomena/record_date_shift.py` | 行星记录日期偏移、干支可落之月（skyfield + DE441/DE406） |
 | `phenomena/recorded_distances.py`、`lodge_degrees.py` | 所记尺寸、入宿度与推算对照 |
 | `phenomena/qingshigao_eclipse_compare.py`、`qingshigao_moon_fullday.py` | 清代日食时辰食分、相距书全天地心角距 |
@@ -194,15 +195,15 @@
 - [x] 全量重跑 `scripts/dev/phenomena_checks.sh`（含 `compare`，两构建逐格一致）与 `cargo test -p lunar-core`（270 过、0 败），2026-10-29
 
 **P1 价值最高**
-- [x] 以本纪核验主表：《三国志》至两《唐书》十二种本纪，明书朔日、实际合朔、閏月位置（`doc/calendar/main-table-checks.md`，
-  结论见 historical-calendar.md「以本纪核验主表」）；顺带订正北齐天保历实行年（push-algorithms.md §3.6）
-- [x] 五代以后本纪（两《五代史》、《宋史》《辽史》《金史》《元史》《明史》）同法核验主表：合 96%—99%；授时历废进朔得证；辽、金进朔与宋不同
-- [x] 敦煌唐五代历日：邓文宽 1996 附录一比较表 35 年转录（`data/calendar/敦煌历日_比较表.csv`），与主表逐月比较（main-table-checks.md 第三节）
+- [x] 以本纪核验历日：《三国志》至两《唐书》十二种本纪，明书朔日、实际合朔、閏月位置（`doc/calendar/benji-checks.md`，
+  结论见 historical-calendar.md「以本纪核验历日」）；顺带订正北齐天保历实行年（push-algorithms.md §3.6）
+- [x] 五代以后本纪（两《五代史》、《宋史》《辽史》《金史》《元史》《明史》）同法核验张表：合 96%—99%；授时历废进朔得证；辽、金进朔与宋不同
+- [x] 敦煌唐五代历日：邓文宽 1996 附录一比较表 35 年转录（`data/calendar/敦煌历日_比较表.csv`），与张表逐月比较（benji-checks.md 第三节）
 - [x] 敦煌地方历接入换算：`data/calendar/敦煌朔日表.csv`（254 月）→ `calendar::dunhuang`（第 2 层）、`lifa::resolve_dunhuang_day`
-  （第 4 层，无据之月缺省退回主表，可选只认有据）、`era_names::dunhuang_year_name`（吐蕃地支、归义军奉中原年号）；比较表 257 格换算全部重现；
+  （第 4 层，无据之月缺省退回中原历，可选只认有据）、`era_names::dunhuang_year_name`（吐蕃地支、归义军奉中原年号）；比较表 257 格换算全部重现；
   网页「历日」分政权一栏有据之日显示敦煌（`doc/calendar/dunhuang-calendar.md`）。下编查核：882 剑南印本、978 斯0612（宋应天历官本，正月丙戌朔、
-  355 日合主表）非敦煌自造之历，928 北图新0836 只存历序，均无逐月可录
-- [ ] 978 年斯0612 历序「六十相屬宫宿法」所列 919—978 年历年閏月与主表逐条核（第 1 级旁证）
+  355 日合张表）非敦煌自造之历，928 北图新0836 只存历序，均无逐月可录
+- [ ] 978 年斯0612 历序「六十相屬宫宿法」所列 919—978 年历年閏月与张表逐条核（第 1 级旁证）
 
 **P2**
 - [ ] 后秦、北凉、蜀推步表检验：《晋书》载记（卷一百十六至一百十九、一百二十九）、《魏书》卷九十五与九十九、《宋书》卷九十八均无「月+日干支」纪日，
@@ -217,15 +218,15 @@
 - [x] 辽历：贾俊大明历术不传；历象志所载祖冲之大明历平朔合本纪 71%（偶合率），定朔 95%——辽行定朔，暂按宋历（`liao_calendar_check.py`）；
   不合宋历之十条进朔两向皆有，不足以复原
 - [x] 《开元占经》卷一百五对勘（`开元占经_积年表.csv`）：玄始常数得证，平朔十一历全合；卷一百三《麟德历经》未与《新唐书》逐表对勘；PDF 暂未入库
-- [x] 《宝祐四年会天历》转录核验：主表 12/12（总录第八节）；PDF 暂未入库，待用户定
+- [x] 《宝祐四年会天历》转录核验：张表 12/12（总录第八节）；PDF 暂未入库，待用户定
 - [ ] 《俄藏黑水城文献》：第 2—5 册目录只见 TK269 无纪年残历；第 1 册目录与《俄藏敦煌文獻》第 1 册未查；世俗文书所在后续各册本地没有（是否在那里未核）
 - [ ] 用《中国古代历法》核对其余「本项目解释」（戊寅差法、观天公式等），只算第 5 级旁证；乾符四年（877）敦煌历待找
-- [x] 《吐鲁番出土高昌文献编年》：标题少干支，北凉无可检之条；高昌 11 条卅日中 4 条主表、玄始皆不合（`高昌_卅日.csv`）
+- [x] 《吐鲁番出土高昌文献编年》：标题少干支，北凉无可检之条；高昌 11 条卅日中 4 条张表、玄始皆不合（`高昌_卅日.csv`）
 - [ ] 高昌历：须《吐鲁番出土文书》、墓砖录文中的干支朔与闰位
 - [x] 授时、大统定朔复原：本纪 388/392（通轨应数）、179/181；元 1300 年十月、1335 年八月本纪与推算、天象皆不合，未解
-- [x] 两汉本纪纪日（太初后）与三统、四分推步：主表即纯推步（2321/2325、1681/1682）；本纪分不出高下
+- [x] 两汉本纪纪日（太初后）与三统、四分推步：张表即纯推步（2321/2325、1681/1682）；本纪分不出高下
 - [ ] 汉简历谱（居延、敦煌、尹湾等出土历日）转录：两汉唯一第 1 级证据
-- [x] 清时宪：不复原；本纪明书朔日 633/653，主表 3275/3303 月与北京真合朔同日，余皆在子夜前后 23 分钟内
+- [x] 清时宪：不复原；本纪明书朔日 633/653，张表 3275/3303 月与北京真合朔同日，余皆在子夜前后 23 分钟内
 - [x] 古六历积年核验（《开元占经》）：黄帝、夏、殷、周（占经脱「七」）一致；颛顼元日己巳、鲁历闰余一（积年作 2761514）已解
 - [x] 《春秋》经文检验：春秋历 333/386、书朔 26/29（今人排定，非独立）；古六历无一通贯；37 条日食 28 条当日确有，27 条曲阜可见
 - [x] 《左传》传文 177 条：夏正差两月此法验不出；襄二十七、昭二十二传文合王韬月序，不合张培瑜
@@ -235,10 +236,10 @@
 - [ ] 清初 1645—1673 距星以《灵台仪象志》近似（缺《崇祯历书》距星；已入库的故宫珍本丛刊第 382 册只含五纬表、五纬历指，无恒星表）
 - [ ] 《崇祯历书·五纬历指》卷九崇祯年间历局实测五星（`doc/references/calendar/[徐光启1634]崇祯历书_五纬表_五纬历指（故宫珍本丛刊382）.pdf`，书页 = PDF 页 − 4，约书页 300—313）：
   逐条录文（日期、实测宿度，并列大统、新法所推），以 DE441 检验实测，并比较大统、新法推算之误差；无文字层，须识读扫描
-- [ ] 古历复原：招差术（迟疾历、盈缩历、三次差内插）与定朔定气；唐麟德、大衍、宣明历定朔与进朔复算后，判定主表疑误之月
-  （戊寅、麟德、大衍、五纪、正元、宣明、崇玄已复原（总录 `doc/calendar/calendar-compendium.md`）：756、900 年《旧唐书》诸条皆不合其历，从主表；703 年九月未解；821 年属观象历，术不传）；891 年《旧唐书》三条早一日待查；宋历已复原崇天、明天、观天、纪元、统元至成天；应天至仪天读法未定，暂缓（总录 §7）
-  （武周长安三年九月三书皆庚寅朔而主表己丑，及《旧唐书》756、821、900 年四条，见 historical-calendar.md「以本纪核验主表」）
-- [ ] 《旧唐书》本纪明书朔日「其他」类 45 条（干支与主表差 3—28 日）逐条排查传写之误与纪日解析之误
+- [ ] 古历复原：招差术（迟疾历、盈缩历、三次差内插）与定朔定气；唐麟德、大衍、宣明历定朔与进朔复算后，判定张表疑误之月
+  （戊寅、麟德、大衍、五纪、正元、宣明、崇玄已复原（总录 `doc/calendar/calendar-compendium.md`）：756、900 年《旧唐书》诸条皆不合其历，从张表；703 年九月未解；821 年属观象历，术不传）；891 年《旧唐书》三条早一日待查；宋历已复原崇天、明天、观天、纪元、统元至成天；应天至仪天读法未定，暂缓（总录 §7）
+  （武周长安三年九月三书皆庚寅朔而张表己丑，及《旧唐书》756、821、900 年四条，见 historical-calendar.md「以本纪核验历日」）
+- [ ] 《旧唐书》本纪明书朔日「其他」类 45 条（干支与张表差 3—28 日）逐条排查传写之误与纪日解析之误
 - [ ] 古历复原：ziOffset 建正映射与春秋历、HanZhuanXu 完整 Rust 移植
 - [ ] 与 `实历朔日表.csv` 批量对历验证脚本
 - [ ] `push_calendar` 与 `ancient_restore` 分数版结果对照测试

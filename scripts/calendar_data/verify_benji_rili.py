@@ -1,12 +1,12 @@
-"""以本纪的一手日期核验主表（实历朔日表，据张培瑜等复原）：
+"""以本纪的一手日期核验张表（实历朔日表，据张培瑜等复原）：
 
-1. 明书朔日：本纪「某月某干支朔」（data/calendar/本纪纪日/<书>.csv 中 position = 朔）与主表该月朔日逐条比对，不合者记日差；
+1. 明书朔日：本纪「某月某干支朔」（data/calendar/本纪纪日/<书>.csv 中 position = 朔）与张表该月朔日逐条比对，不合者记日差；
    有同系推步表者（北朝、吴蜀等，discriminating_records.FAMILY）一并比对；
-2. 闰位：本纪「閏月」所接之月（<书>_閏月.csv）与主表当年闰位比对（本纪常略书月份，閏月只保证在所记最后一月之后，主表闰位更晚者为略书相容）。
-本纪月份更替常不书，故不用「在月率」评主表；明书朔日与闰位不受此影响。
-输出 data/calendar/main_table_check.csv（逐条）与 main_table_leaps.csv，并按朝代汇总。
+2. 闰位：本纪「閏月」所接之月（<书>_閏月.csv）与张表当年闰位比对（本纪常略书月份，閏月只保证在所记最后一月之后，张表闰位更晚者为略书相容）。
+本纪月份更替常不书，故不用「在月率」评张表；明书朔日与闰位不受此影响。
+输出 data/calendar/benji_shuo_check.csv（逐条）与 benji_leap_check.csv，并按朝代汇总。
 
-用法（仓库根）：uv run --project scripts python scripts/calendar_data/verify_main_table.py
+用法（仓库根）：uv run --project scripts python scripts/calendar_data/verify_benji_rili.py
 """
 import csv
 import glob
@@ -34,8 +34,8 @@ ORDER = ("汉", "三国", "晋", "南朝", "北朝", "隋", "唐", "五代", "�
 
 
 def kind(main, t, gz, diff):
-    """不合之类：朔差一二日（朔日推算之差，主表或本纪有一误）；差一月（干支为主表邻月或同年闰月之朔，闰位或月序不同）；
-    其他（多为干支传写之误或解析误定年月，不作主表证据）。"""
+    """不合之类：朔差一二日（朔日推算之差，张表或本纪有一误）；差一月（干支为张表邻月或同年闰月之朔，闰位或月序不同）；
+    其他（多为干支传写之误或解析误定年月，不作张表证据）。"""
     if abs(diff) <= 2:
         return "朔差一二日"
     y, m, lp = t
@@ -66,7 +66,7 @@ def main():
             row = {"书": book, "朝代": dyn_of(regime, y), "政权": regime, "年": y, "纪年": f"{r['era']}{r['year_in_era']}年",
                    "月": lab, "本纪朔": r["ganzhi"]}
             fam = d.FAMILY.get(regime)
-            for col, name in (("主表", "主表"), ("本项目推步", f"推步:{fam}" if fam else None), ("上游推步", f"上游:{fam}" if fam else None)):
+            for col, name in (("张表", "张表"), ("本项目推步", f"推步:{fam}" if fam else None), ("上游推步", f"上游:{fam}" if fam else None)):
                 s = tabs.get(name, {}).get(t) if name else None
                 if s is None:
                     row[col] = ""
@@ -76,19 +76,19 @@ def main():
                 st = stat[row["朝代"]][col]
                 st[0] += 1
                 st[1] += diff == 0
-                if col == "主表":
-                    row["主表朔 JDN"], row["本纪朔 JDN"] = s, s + diff
-                if col == "主表" and diff:
-                    row["类"] = kind(tabs["主表"], t, r["ganzhi"], diff)
+                if col == "张表":
+                    row["张表朔 JDN"], row["本纪朔 JDN"] = s, s + diff
+                if col == "张表" and diff:
+                    row["类"] = kind(tabs["张表"], t, r["ganzhi"], diff)
                     st[{"朔差一二日": 2, "差一月": 3}.get(row["类"], 4)] += 1
             row.setdefault("类", "")
             row["日食"] = "是" if re.search(r"日有?[蝕食]|日蝕|奏言日蝕", r["text"]) else ""
-            row.setdefault("主表朔 JDN", "")
+            row.setdefault("张表朔 JDN", "")
             row.setdefault("本纪朔 JDN", "")
             row["_t"] = t
             row["原文"] = r["text"][:40]
             out.append(row)
-    # 旁证：他书同月记日干支，在主表该月内者几条、在「以本纪所书朔起算的 30 日」内者几条（只对不合者）
+    # 旁证：他书同月记日干支，在张表该月内者几条、在「以本纪所书朔起算的 30 日」内者几条（只对不合者）
     others = defaultdict(list)
     for path in glob.glob(str(ROOT / "data/calendar/本纪纪日/*.csv")):
         if path.endswith("_閏月.csv"):
@@ -100,18 +100,18 @@ def main():
             y, leap, num = int(r["year"]), lab.startswith("闰"), int(lab.lstrip("闰"))
             t = g.table_month(r["regime"], y, g.MONTH_NAMES[num - 1], leap) or (y, num, leap)
             others[(dyn_of(r["regime"], y), t)].append((Path(path).stem, g.GANZHI.index(r["ganzhi"])))
-    sp = d.spans(tabs["主表"])
+    sp = d.spans(tabs["张表"])
     for o in out:
-        o["旁证（主表/本纪朔）"] = ""
+        o["旁证（张表/本纪朔）"] = ""
         if not o["类"] or o["_t"] not in sp:
             continue
         s0, e0 = sp[o["_t"]]
-        rec = s0 + int(o["主表"][1:-1])
+        rec = s0 + int(o["张表"][1:-1])
         gzs = [x for b, x in others[(o["朝代"], o["_t"])] if b != o["书"]]
         if gzs:
             in_main = sum((x - (s0 + 49)) % 60 < e0 - s0 for x in gzs)
             in_rec = sum((x - (rec + 49)) % 60 < 30 for x in gzs)
-            o["旁证（主表/本纪朔）"] = f"{in_main}/{in_rec}（共{len(gzs)}）"
+            o["旁证（张表/本纪朔）"] = f"{in_main}/{in_rec}（共{len(gzs)}）"
     for o in out:
         del o["_t"]
     # 他书同记：同年同月同朔干支见于另一书（如两唐书），两条独立记录相合，较单条可信
@@ -120,14 +120,14 @@ def main():
         by[(o["年"], o["月"], o["本纪朔"])].add(o["书"])
     for o in out:
         o["他书同记"] = "、".join(sorted(by[(o["年"], o["月"], o["本纪朔"])] - {o["书"]}))
-    with open(ROOT / "data/calendar/main_table_check.csv", "w", encoding="utf-8", newline="") as f:
-        f.write("# 本纪明书朔日与主表（及同系推步表）比对（scripts/calendar_data/verify_main_table.py）；差 = 本纪朔 − 该表朔（日）。\n")
+    with open(ROOT / "data/calendar/benji_shuo_check.csv", "w", encoding="utf-8", newline="") as f:
+        f.write("# 本纪明书朔日与张表（及同系推步表）比对（scripts/calendar_data/verify_benji_rili.py）；差 = 本纪朔 − 该表朔（日）。\n")
         w = csv.DictWriter(f, fieldnames=list(out[0].keys()))
         w.writeheader()
         w.writerows(out)
     print("一、明书朔日")
     for dyn in ORDER:
-        cells = "；".join(f"{col} {ok}/{n}" + (f"（不合者：朔差一二日 {a}、差一月 {b}、其他 {c}）" if col == "主表" else "")
+        cells = "；".join(f"{col} {ok}/{n}" + (f"（不合者：朔差一二日 {a}、差一月 {b}、其他 {c}）" if col == "张表" else "")
                          for col, (n, ok, a, b, c) in stat[dyn].items())
         print(f"  {dyn}：{cells}")
     # 闰位
@@ -137,21 +137,21 @@ def main():
         book = Path(path).stem.replace("_閏月", "")
         for r in csv.DictReader(open(path, encoding="utf-8")):
             y, after, regime = int(r["year"]), int(r["leap_after"]), r["regime"]
-            lp = leaps["主表"].get(y)
-            # 本纪只保证闰月在所记最后一月之后：主表闰位更晚为「略书相容」（宋元嘉二十七年「冬閏月」承七月），更早或无闰才是矛盾
-            v = "合" if lp == after else ("略书相容" if lp and lp > after else ("主表无闰" if not lp else f"主表闰{lp}（早于所记之月）"))
+            lp = leaps["张表"].get(y)
+            # 本纪只保证闰月在所记最后一月之后：张表闰位更晚为「略书相容」（宋元嘉二十七年「冬閏月」承七月），更早或无闰才是矛盾
+            v = "合" if lp == after else ("略书相容" if lp and lp > after else ("张表无闰" if not lp else f"张表闰{lp}（早于所记之月）"))
             dyn = dyn_of(regime, y)
             lstat[dyn][0] += 1
             lstat[dyn][1] += v == "合"
             lstat[dyn][2] += v == "略书相容"
             lout.append({"书": book, "朝代": dyn, "年": y, "纪年": f"{r['era']}{r['year_in_era']}年", "本纪闰位": f"闰{after}",
-                         "主表": v, "原文": r["text"][:40]})
-    with open(ROOT / "data/calendar/main_table_leaps.csv", "w", encoding="utf-8", newline="") as f:
-        f.write("# 本纪「閏月」所接之月与主表闰位（scripts/calendar_data/verify_main_table.py）；「略书相容」= 主表闰位晚于所记之月（本纪不书其间月份）；「早于所记之月」或「主表无闰」为矛盾。\n")
+                         "张表": v, "原文": r["text"][:40]})
+    with open(ROOT / "data/calendar/benji_leap_check.csv", "w", encoding="utf-8", newline="") as f:
+        f.write("# 本纪「閏月」所接之月与张表闰位（scripts/calendar_data/verify_benji_rili.py）；「略书相容」= 张表闰位晚于所记之月（本纪不书其间月份）；「早于所记之月」或「张表无闰」为矛盾。\n")
         w = csv.DictWriter(f, fieldnames=list(lout[0].keys()))
         w.writeheader()
         w.writerows(lout)
-    print("二、閏月位置（主表）")
+    print("二、閏月位置（张表）")
     for dyn in ORDER:
         n, ok, maybe = lstat[dyn]
         print(f"  {dyn}：{n} 条，合 {ok}，略书相容 {maybe}，矛盾 {n - ok - maybe}")

@@ -1,6 +1,6 @@
 """敦煌出土北魏太平真君十一年、十二年（450、451）历日（data/calendar/敦煌历日.csv，邓文宽 1996 录文）与各历表逐月比对。
 
-- 朔日与闰位：主表、本项目推步（data/calendar/推步政权朔日表.csv）、上游推步（vendor/.../分政权朔日表.csv）；
+- 朔日与闰位：张表、本项目推步（data/calendar/推步政权朔日表.csv）、上游推步（vendor/.../分政权朔日表.csv）；
 - 历术：以景初历、玄始历（push_calendar.rs 的 jingchu_params、xuanshi_params）分别推两年朔闰，并以平气推历注节气之日。
 历日是当时行用之历的实物，为一手证据（与本纪日期、天象记录同类，而远较其直接）。
 
@@ -54,7 +54,7 @@ def main():
     rows = list(csv.DictReader(ln for ln in open(ROOT / "data/calendar/敦煌历日.csv", encoding="utf-8") if not ln.startswith("#")))
     tabs = d.tables()
     print("一、朔日与闰位（逐月）")
-    for name in ("主表", "推步:北魏/西魏/北周/隋", "上游:北魏/西魏/北周/隋"):
+    for name in ("张表", "推步:北魏/西魏/北周/隋", "上游:北魏/西魏/北周/隋"):
         ok = sum(g.ganzhi_of_jdn(tabs[name].get((int(r["lunar_year"]), int(r["month"]), r["is_leap"] == "1"), 0)) == r["new_moon_ganzhi"]
                  for r in rows)
         leaps = sorted((k[0], k[1]) for k in tabs[name] if k[2] and k[0] in (450, 451))

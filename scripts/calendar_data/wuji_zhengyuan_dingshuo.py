@@ -1,4 +1,4 @@
-"""唐宝应五纪历（762—783）、建中正元历（784—806）定朔（《新唐书·历志五》卷二十九），复核主表与本纪明书朔日。
+"""唐宝应五纪历（762—783）、建中正元历（784—806）定朔（《新唐书·历志五》卷二十九），复核张表与本纪明书朔日。
 
 术同大衍（「以写大衍旧术」），定朔用大衍非交会简法：入定气线性插值损益率，入转线性插值损益率。正元「气朔、发敛、日躔、月离、轨漏、交会，悉如五纪法」。
 进朔（五纪历志）：「仲夏之朔，若月行极疾，合于亥正，朔不进……当视定朔小余不满五纪通法，如晨初余数减十刻已下者，进以明日为朔」，
@@ -103,7 +103,7 @@ def main():
         li.off = c.align_offset(dz, g.jdn(*li.approx))
         print(f"--- {li.name}历 {li.y_ji} 年天正冬至", g.GANZHI[dz % 60], g.from_jdn(dz + li.off))
         c.compare(li.name, li.f, li.off, li.moons(y0 - 2, y1 + 3), y0, y1, csv_name,
-                  f"{y0}—{y1} 年本纪明书朔日与{li.name}历定朔（scripts/calendar_data/wuji_zhengyuan_dingshuo.py）、主表比较；进朔限据五纪历志，夜半漏用大衍表。",
+                  f"{y0}—{y1} 年本纪明书朔日与{li.name}历定朔（scripts/calendar_data/wuji_zhengyuan_dingshuo.py）、张表比较；进朔限据五纪历志，夜半漏用大衍表。",
                   limit=li.limit)
 
 

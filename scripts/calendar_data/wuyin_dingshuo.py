@@ -1,4 +1,4 @@
-"""唐戊寅元历（傅仁均，崔善为校，《新唐书·历志一》卷二十五），复核主表 627—664 年朔日与本纪明书朔日。
+"""唐戊寅元历（傅仁均，崔善为校，《新唐书·历志一》卷二十五），复核张表 627—664 年朔日与本纪明书朔日。
 
 志文：武德二年（619）起用定朔；贞观十九年（645）「詔用仁均平朔，訖麟德元年」。今所记为崔善为所较（「復用上元積算」），619—626 年的武德原术（以武德元年为历始）不传，故只比 627 年起。
 常数：章岁 676，章月 8361，月法 384075，日法 13006，气法 9464，岁分 3456675，历周 798200，历法 28968；上元戊寅至武德九年（626）丙戌 164348 算外。
@@ -79,9 +79,9 @@ def main():
     ding = sorted({d * RI for _, d in ms})
     ping = sorted({p * RI for p, _ in ms})
     c.compare("戊寅", RI, off, ding, 627, 645, "wuyin_ding_check.csv",
-              "627—645 年本纪明书朔日与戊寅历定朔（scripts/calendar_data/wuyin_dingshuo.py）、主表比较；本纪不见进朔，不设限。", limit=lambda t: 24.0)
+              "627—645 年本纪明书朔日与戊寅历定朔（scripts/calendar_data/wuyin_dingshuo.py）、张表比较；本纪不见进朔，不设限。", limit=lambda t: 24.0)
     c.compare("戊寅", RI, off, ping, 646, 664, "wuyin_ping_check.csv",
-              "646—664 年本纪明书朔日与戊寅历平朔（scripts/calendar_data/wuyin_dingshuo.py）、主表比较；平朔无进朔。", limit=lambda t: 24.0)
+              "646—664 年本纪明书朔日与戊寅历平朔（scripts/calendar_data/wuyin_dingshuo.py）、张表比较；平朔无进朔。", limit=lambda t: 24.0)
 
 
 if __name__ == "__main__":

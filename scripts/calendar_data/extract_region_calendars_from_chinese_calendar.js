@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 从 ytliu0/ChineseCalendar 导出主表以外各政权的朔闰（推步）与年号，写入 vendor/calendar/chinese_calendar/：
+ * 从 ytliu0/ChineseCalendar 导出张表以外各政权的朔闰（推步）与年号，写入 vendor/calendar/chinese_calendar/：
  *   分政权朔日表.csv：region, gregorian_year, gregorian_month, gregorian_day, lunar_year, lunar_month, is_leap
  *   分政权年号表.csv：region, lunar_year, era_trad, era_simp
  * 只运行上游代码导出数据（朔日为史实推算结果），不复制上游代码（GPL-3.0）。导出方式同 extract_shuori_from_chinese_calendar.js。

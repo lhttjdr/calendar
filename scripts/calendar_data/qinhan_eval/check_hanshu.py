@@ -71,7 +71,7 @@ for vol in ['001','002','003','004','005','006']:
                 lab=t.group(1); sp={'後九':'后9','閏':'后9','正':'1'}; month=sp[lab] if lab in sp else str(cnnum(lab)); continue
             gz, suf = t.group(2), t.group(3)
             if month is None: stats['无月份'] += 1; continue
-            if N > -103 or (N == -103 and month not in ('10','11','12','1','2','3','4')): continue  # 太初改历后属主表
+            if N > -103 or (N == -103 and month not in ('10','11','12','1','2','3','4')): continue  # 太初改历后属张表
             months = dict(hzx.year(N)); nxt = hzx.year(N+1)[0][1]
             labs=[l for l,_ in hzx.year(N)]
             if month not in months: stats['该年无此月'] += 1; bad.append((vol,N,month,gz,suf,'该年无此月')); continue

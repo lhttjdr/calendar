@@ -1,4 +1,4 @@
-"""唐长庆宣明历定朔（徐昂，《新唐书·历志六上》卷三十上），用以复核主表 822—892 年朔日与本纪明书朔日之异。
+"""唐长庆宣明历定朔（徐昂，《新唐书·历志六上》卷三十上），用以复核张表 822—892 年朔日与本纪明书朔日之异。
 
 志文只载常数、表与「通法曰统法……」之改名（术同大衍历），故定朔用大衍历非交会简法：入定气线性插值损益率、入历线性插值损益率。
 常数：统法 8400，章岁 3068055，章月 248057，历周 231458 秒 19（秒母 100），历中 115729 秒 9.5，上元甲子至长庆二年（822）壬寅积 7070138 算外。
@@ -97,7 +97,7 @@ def main():
     print("822 年天正冬至", g.GANZHI[dz % 60], g.from_jdn(dz + off))
     moons = sorted({dg for y in range(820, 896) for _, dg in year_moons(y)})
     c.compare("宣明", F, off, moons, 822, 892, "xuanming_dingshuo_check.csv",
-              "822—892 年本纪明书朔日与宣明历定朔（scripts/calendar_data/xuanming_dingshuo.py，同大衍简法）、主表比较；进朔限据志文。", limit=lambda t: limit_of(t, off))
+              "822—892 年本纪明书朔日与宣明历定朔（scripts/calendar_data/xuanming_dingshuo.py，同大衍简法）、张表比较；进朔限据志文。", limit=lambda t: limit_of(t, off))
 
 
 if __name__ == "__main__":

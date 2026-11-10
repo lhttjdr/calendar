@@ -99,7 +99,7 @@ export default defineConfig({
             text: '农历',
             items: [
               { text: '农历编排', link: '/calendar/rules' },
-              { text: '实历与主表', link: '/calendar/historical' },
+              { text: '行用历日', link: '/calendar/historical' },
             ],
           },
           {
@@ -165,7 +165,7 @@ export default defineConfig({
         collapsed: true,
         items: [
           { text: '天象逐条校验', link: '/appendix/phenomena-checks', collapsed: true, items: checksSidebar },
-          { text: '本纪核验主表', link: '/appendix/main-table-checks' },
+          { text: '本纪核验历日', link: '/appendix/benji-checks' },
           { text: '历法原文摘录', link: '/appendix/source-texts' },
         ],
       },

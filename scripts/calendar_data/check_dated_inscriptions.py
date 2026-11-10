@@ -4,7 +4,7 @@
 本项目推步）的一手证据。对每条记录，列出各历表推得的日干支、朔干支是否与铭文相合。
 
 历表：
-- 主表：vendor 实历朔日表；
+- 张表：vendor 实历朔日表；
 - 本实现：data/calendar/推步政权朔日表.csv（calendar::push_calendar 纯推步）；
 - 上游：vendor/calendar/chinese_calendar/分政权朔日表.csv（ytliu0 推步，含照张培瑜书的人工修正）。
 
@@ -39,7 +39,7 @@ def main():
         day = int(r["day"])
         cands = {}
         try:
-            cands["主表"] = g.month_span(*key)[0]
+            cands["张表"] = g.month_span(*key)[0]
         except KeyError:
             pass
         reg = r["regime"]

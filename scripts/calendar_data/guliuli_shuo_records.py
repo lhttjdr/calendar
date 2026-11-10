@@ -7,7 +7,7 @@ rust/core/examples/guliuli_shuo.rs 逐历推朔比较（结果见 doc/calendar/g
 - 左传书朔（data/calendar/zuozhuan_check.csv 中 朔=1 且不与同年经文重出，13 条）：同上。
 - 汉书日食朔晦（data/phenomena/hanshu_solar_eclipses_check.csv，太初改历前 29 条）：表中 jdn 为该干支在秦汉初复原历
   该月的位置；verdict 为天象检验（「都城可见」「无日食」等），当日确有日食者，记录日由天象独立确定。
-- 实历朔日表（vendor/calendar/chinese_calendar/实历朔日表.csv）前 106—前 105 年的全部月朔（主表与古六历唯一重叠段）。
+- 实历朔日表（vendor/calendar/chinese_calendar/实历朔日表.csv）前 106—前 105 年的全部月朔（张表与古六历唯一重叠段）。
 - 秦汉初复原历（李忠林 2012 方案，scripts/calendar_data/qinhan_eval/hzx.py）前 220—前 105 年逐月朔：复原结果，不是史实。
 
 用法（仓库根）：uv run --project scripts python scripts/calendar_data/guliuli_shuo_records.py

@@ -111,7 +111,7 @@ def planet_shift(r):
 def table_of(r):
     """该记录记日所用历表：取记录表 calendar 列（zhi_star_records.py 按政权写入；「推步:政权」→ 推步政权朔日表）。"""
     c = r.get("calendar") or ""
-    return c.split(":", 1)[1] if c.startswith("推步:") else "主表"
+    return c.split(":", 1)[1] if c.startswith("推步:") else "张表"
 
 
 def ganzhi_fit(r):

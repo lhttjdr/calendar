@@ -2,10 +2,10 @@
 
 史书天象记录（data/phenomena/<书>_star_records.csv、<书>_{solar,lunar}_eclipses.csv）的日期是当时行用之历的一手证据，独立于
 各家复原表。参与比较的历表：
-- 主表：vendor/calendar/chinese_calendar/实历朔日表.csv（据张培瑜等复原）；
+- 张表：vendor/calendar/chinese_calendar/实历朔日表.csv（据张培瑜等复原）；
 - 本项目推步：data/calendar/推步政权朔日表.csv（calendar::push_calendar 纯推步，各政权）；
 - 上游推步：vendor/calendar/chinese_calendar/分政权朔日表.csv（ytliu0 导出，含照张培瑜书的人工修正）。
-主表之外只取与记录政权同系的推步表（FAMILY）；所记月名先按月序改制表（gaiyuan_date.table_month）换算为建寅表月，再在各历表中取该月。
+张表之外只取与记录政权同系的推步表（FAMILY）；所记月名先按月序改制表（gaiyuan_date.table_month）换算为建寅表月，再在各历表中取该月。
 只记「闰月」不记月序者，取各历表当年的闰月（闰位不同即可判别）。
 
 输出 data/calendar/discriminating_records.csv（只列判断不一者，含各历下记录之日的 JDN，供
@@ -43,7 +43,7 @@ def tables():
     main = {}
     for ly, lm, lp, s in g._months():
         main[(ly, lm, lp)] = s
-    t["主表"] = main
+    t["张表"] = main
     for k, v in load_table(ROOT / "data/calendar/推步政权朔日表.csv", "regime").items():
         t[f"推步:{k}"] = v
     for k, v in load_table(ROOT / "vendor/calendar/chinese_calendar/分政权朔日表.csv", "region", lambda x: UPSTREAM.get(x, x)).items():
@@ -76,7 +76,7 @@ def records():
                 yield book, "纪事", r
 
 
-# 政权 → 推步/上游表中的政权名（同一系）；主表外只取同系历表，不拿吴历判刘宋之类
+# 政权 → 推步/上游表中的政权名（同一系）；张表外只取同系历表，不拿吴历判刘宋之类
 FAMILY = {"北魏": "北魏/西魏/北周/隋", "西魏": "北魏/西魏/北周/隋", "北周": "北魏/西魏/北周/隋", "隋": "北魏/西魏/北周/隋",
           "东魏": "东魏/北齐", "北齐": "东魏/北齐", "吴": "吴", "蜀": "蜀", "北凉": "北凉", "后秦": "后秦", "金": "金"}
 
@@ -100,7 +100,7 @@ def main():
         seen.add(key_text)
         t = g.table_month(regime, year, g.MONTH_NAMES[int(num) - 1], leap) or (year, int(num), leap)
         verdicts = {}
-        for name in ("主表", f"推步:{fam}", f"上游:{fam}"):
+        for name in ("张表", f"推步:{fam}", f"上游:{fam}"):
             sp = tabs.get(name, {})
             if t not in sp:
                 continue
@@ -118,9 +118,9 @@ def main():
                     disputed_hits[(reg, y, m)].append((book, kind, r["text"][:40], name, v))
         if len(verdicts) >= 2 and len({v[0].split("（")[0] for v in verdicts.values()}) > 1:
             out.append({"书": book, "类": kind, "政权": regime, "年": year, "月": label, "日干支": r["ganzhi"],
-                        "主表": verdicts.get("主表", ("", ""))[0], "本项目推步": verdicts.get("推步", ("", ""))[0],
+                        "张表": verdicts.get("张表", ("", ""))[0], "本项目推步": verdicts.get("推步", ("", ""))[0],
                         "上游推步": verdicts.get("上游", ("", ""))[0],
-                        "主表日 JDN": verdicts.get("主表", ("", ""))[1], "推步日 JDN": verdicts.get("推步", ("", ""))[1],
+                        "张表日 JDN": verdicts.get("张表", ("", ""))[1], "推步日 JDN": verdicts.get("推步", ("", ""))[1],
                         "bodies": r.get("bodies", ""), "target_id": r.get("target_id", ""), "原文": r["text"][:50]})
     # 各政权纪日/天象记录在各历表下的在月率（同系比较）
     stat = defaultdict(lambda: [0, 0])
@@ -131,7 +131,7 @@ def main():
             continue
         y, leap, num = int(r["year"]), label.startswith("闰"), int(label.lstrip("闰"))
         t = g.table_month(r["regime"], y, g.MONTH_NAMES[num - 1], leap) or (y, num, leap)
-        names = ("主表", f"推步:{fam}", f"上游:{fam}")
+        names = ("张表", f"推步:{fam}", f"上游:{fam}")
         if not all(t in tabs.get(n, {}) for n in names):
             continue
         for n in names:
@@ -143,7 +143,7 @@ def main():
         print(f"{fam} {n}: {ok}/{tot} 在月（{100 * ok / tot:.1f}%）")
     dst = ROOT / "data/calendar/discriminating_records.csv"
     with open(dst, "w", encoding="utf-8", newline="") as f:
-        f.write("# 史书天象记录中主表与同系推步表判断不一者（scripts/calendar_data/discriminating_records.py）：「在月」指日干支落在所记之月；")
+        f.write("# 史书天象记录中张表与同系推步表判断不一者（scripts/calendar_data/discriminating_records.py）：「在月」指日干支落在所记之月；")
         f.write("日 JDN 为该历下记录之日（不在月者取离该月最近的同名干支日）；天象判定见 data/calendar/discriminating_records_sky.csv。\n")
         w = csv.DictWriter(f, fieldnames=list(out[0].keys()))
         w.writeheader()
@@ -164,7 +164,7 @@ def leap_evidence():
             y, after, regime = int(r["year"]), int(r["leap_after"]), r["regime"]
             fam = FAMILY.get(regime)
             row = {"书": book, "政权": regime, "年": y, "纪年": f"{r['era']}{r['year_in_era']}年", "本纪闰位": f"闰{after}"}
-            for col, name in (("主表", "主表"), ("本项目推步", f"推步:{fam}"), ("上游推步", f"上游:{fam}")):
+            for col, name in (("张表", "张表"), ("本项目推步", f"推步:{fam}"), ("上游推步", f"上游:{fam}")):
                 if name not in leaps:
                     row[col] = ""
                     continue
@@ -181,7 +181,7 @@ def leap_evidence():
         w.writerows(out)
     summ = defaultdict(lambda: [0, 0])
     for o in out:
-        for col in ("主表", "本项目推步", "上游推步"):
+        for col in ("张表", "本项目推步", "上游推步"):
             if o[col]:
                 summ[(o["政权"], col)][0] += 1
                 summ[(o["政权"], col)][1] += "（合）" in o[col]

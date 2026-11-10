@@ -1,16 +1,147 @@
-//! 历法域第 2 层（聚合/实算层）：查表得到实历朔日（主表朔日），与 [crate::calendar::chinese_lunar] 现算是这一层的两种实现。
+//! 历法域第 2 层（聚合/实算层）：查**今人历表**得到逐月朔日，与 [crate::calendar::chinese_lunar] 现算、
+//! [crate::calendar::push_calendar] 按术推步同为这一层的实现。
 //!
-//! 本模块解析 `vendor/calendar/chinese_calendar/实历朔日表.csv`，为**主表**（历法 id 见 [lifa::LIFA_ID_ZHONGYUAN_SHILI]）提供与 [ChineseLunarYearData] 兼容的岁数据。
-//! 主表 = 《三千五百年历日天象》按**各朝代颁行历法据历还原、推步**得出的连续历日，书中并无名为「中原正朔」的单一历法。
-//! 在实历覆盖范围内应优先使用实历（该判断属第 4 层仲裁职责，见 [crate::calendar::convert]，不在本模块内）。
-//! 第 3 层政权·帝王·年号由 [crate::calendar::era_names] 按农历年提供，与本朔日表同线。
+//! 本模块解析 `vendor/calendar/chinese_calendar/实历朔日表.csv`：张培瑜《三千五百年历日天象》（1990）的历日，经廖育栋
+//! ChineseCalendar 转录（个别处据其勘误改），2051 年以后为转录者自行推算。书中政权序列取文物出版社《中国历史年代简表》
+//! 的「纪年主序列」，历日自称「按历代实行历法推步得出」，但不载各期所用历法、常数与逐条依据。它是**今人历表**
+//! （资料可靠性第 5 级），不是史实记录，也不比按术推步优先；何时用它由第 4 层 [crate::calendar::lifa::resolve_year] 仲裁。
+//! 第 3 层政权·帝王·年号由 [crate::calendar::era_names] 按农历年提供。
 
 use super::chinese_lunar::ChineseLunarYearData;
-use super::gregorian::civil_to_julian_day;
-use crate::math::real::{real, Real};
+use super::gregorian::{civil_from_jdn, civil_to_jdn};
+use crate::math::real::{from_i32, real, Real};
 use std::collections::BTreeMap;
 
-/// 实历朔日一条：儒略历/格里高利历 (年,月,日) 为该农历月初一，lunar_month 1..12，is_leap 表示闰月。
+/// 一月：(朔日 JDN, 月序 1..=12, 是否闰月)。与 [crate::calendar::push_calendar::year_months] 同形。
+pub type MonthStart = (i64, u8, bool);
+
+/// 今人历表（朔日表）：按农历年索引的逐月朔日（每岁内按朔日先后）。
+#[derive(Clone, Debug, Default)]
+pub struct ShuoriTable {
+    by_year: BTreeMap<i32, Vec<MonthStart>>,
+}
+
+/// 张培瑜历表（转录本）覆盖的农历年范围（含端点）。
+pub const ZHANG_TABLE_YEAR_MIN: i32 = -105;
+pub const ZHANG_TABLE_YEAR_MAX: i32 = 2200;
+
+/// 张培瑜历表在 [crate::calendar::lifa::RiliSource::ModernTable] 中的名称。
+pub const ZHANG_TABLE_NAME: &str = "张培瑜历表";
+
+impl ShuoriTable {
+    /// 从 CSV 文本解析朔日表。
+    ///
+    /// CSV 格式：`gregorian_year,gregorian_month,gregorian_day,lunar_year,lunar_month,is_leap`（不含年号，年号见 era_names 表）。
+    /// 每行表示该民用历日（1582-10-15 以前儒略历）为对应农历年的某月初一；闰月行 `is_leap=1`。
+    pub fn from_csv(csv: &str) -> Result<Self, String> {
+        let mut by_year: BTreeMap<i32, Vec<MonthStart>> = BTreeMap::new();
+        for (line_no, line) in csv.lines().enumerate() {
+            let line_no = line_no + 1;
+            let line = line.trim();
+            if line.is_empty() || line.starts_with("gregorian_year") || line.starts_with("western_year") {
+                continue;
+            }
+            let row = parse_csv_row(line).ok_or_else(|| format!("line {}: invalid row", line_no))?;
+            by_year.entry(row.lunar_year).or_default().push((
+                civil_to_jdn(row.gregorian_year, row.gregorian_month, row.gregorian_day),
+                row.lunar_month,
+                row.is_leap == 1,
+            ));
+        }
+        for (ly, vec) in by_year.iter_mut() {
+            vec.sort_by_key(|&(j, _, _)| j);
+            // 完整岁 12 或 13 朔；仅含去年十一、十二的边界年可为 2 朔
+            if vec.len() < 2 || vec.len() > 13 {
+                return Err(format!("lunar year {}: expected 2..=13 new moons, got {}", ly, vec.len()));
+            }
+        }
+        Ok(ShuoriTable { by_year })
+    }
+
+    /// 表中是否有该农历年。
+    pub fn has_year(&self, lunar_year: i32) -> bool {
+        self.by_year.contains_key(&lunar_year)
+    }
+
+    /// 表中实际存在的最小、最大农历年。
+    pub fn year_range(&self) -> Option<(i32, i32)> {
+        let min = *self.by_year.keys().next()?;
+        let max = *self.by_year.keys().next_back()?;
+        Some((min, max))
+    }
+
+    /// 某岁各月（按朔日先后）。
+    pub fn year_months(&self, lunar_year: i32) -> Option<&[MonthStart]> {
+        self.by_year.get(&lunar_year).map(Vec::as_slice)
+    }
+
+    /// 某月（建寅月序）初一的民用历日期（1582-10-15 以前为儒略历）；表中无此月返回 None。
+    pub fn new_moon_date(&self, lunar_year: i32, month: u8, is_leap: bool) -> Option<(i32, i32, i32)> {
+        self.by_year
+            .get(&lunar_year)?
+            .iter()
+            .find(|&&(_, m, leap)| m == month && leap == is_leap)
+            .map(|&(j, _, _)| civil_from_jdn(j))
+    }
+
+    /// 朔日 JDN 落在 `[from_jdn, to_jdn]` 内的各月：(朔日 JDN, 农历年, 月, 闰否)，按朔日先后。
+    pub fn months_in_jdn_range(&self, from_jdn: i64, to_jdn: i64) -> Vec<(i64, i32, u8, bool)> {
+        let (y0, _, _) = civil_from_jdn(from_jdn);
+        let (y1, _, _) = civil_from_jdn(to_jdn);
+        let mut out: Vec<(i64, i32, u8, bool)> = self
+            .by_year
+            .range(y0 - 1..=y1 + 1)
+            .flat_map(|(&ly, v)| v.iter().map(move |&(j, m, leap)| (j, ly, m, leap)))
+            .filter(|&(j, ..)| (from_jdn..=to_jdn).contains(&j))
+            .collect();
+        out.sort();
+        out.dedup();
+        out
+    }
+
+    /// 用本表为指定农历年生成 [ChineseLunarYearData]（见 [year_data_from_months]）。
+    pub fn year_data(&self, lunar_year: i32) -> Option<ChineseLunarYearData> {
+        let curr = self.by_year.get(&lunar_year)?;
+        let prev = self.by_year.get(&(lunar_year - 1)).map(Vec::as_slice).unwrap_or(&[]);
+        Some(year_data_from_months(lunar_year, prev, curr))
+    }
+}
+
+/// 由逐月朔日构造农历年的 [ChineseLunarYearData]：查表、按术推步、实物历日共用。
+///
+/// 岁 = 去年十一月朔～今年十二月朔（与现算一致：含冬至之月为十一月）。朔日 JD 取该日 0h UT。
+/// 朔序固定为：去年十一月、去年十二月（取自 `prev`，即上一岁各月）、今年各月（`curr`，含闰），共 14 或 15 朔。
+/// 中气由相邻朔日中点合成，闰月区间不占中气；这只用于无中气置闰的月序标记，不表示当时历书所注的气。
+pub fn year_data_from_months(lunar_year: i32, prev: &[MonthStart], curr: &[MonthStart]) -> ChineseLunarYearData {
+    let jd = |j: i64| from_i32(j as i32) - real(0.5);
+    let mut new_moon_jds: Vec<Real> = Vec::with_capacity(15);
+    let mut is_leap: Vec<bool> = Vec::with_capacity(15);
+    for want in [11u8, 12] {
+        if let Some(&(j, _, leap)) = prev.iter().find(|&&(_, m, _)| m == want) {
+            new_moon_jds.push(jd(j));
+            is_leap.push(leap);
+        }
+    }
+    for &(j, _, leap) in curr {
+        new_moon_jds.push(jd(j));
+        is_leap.push(leap);
+    }
+    // 13 中气：每个非闰月区间取中点（去年十一月至今年十一月，末一个代下一冬至）
+    let mut zhong_qi_jds: Vec<Real> = Vec::with_capacity(13);
+    for i in 0..new_moon_jds.len().saturating_sub(1) {
+        if zhong_qi_jds.len() >= 13 {
+            break;
+        }
+        if !is_leap[i] {
+            let (a, b) = (new_moon_jds[i], new_moon_jds[i + 1]);
+            zhong_qi_jds.push(a + (b - a) * real(0.5));
+        }
+    }
+    debug_assert!(zhong_qi_jds.len() == 13 || prev.is_empty(), "岁应有 13 个中气: lunar_year={} len={}", lunar_year, zhong_qi_jds.len());
+    ChineseLunarYearData { lunar_year, new_moon_jds, zhong_qi_jds }
+}
+
+/// 朔日表一行：民用历 (年,月,日) 为该农历月初一，lunar_month 1..12，is_leap 表示闰月。
 #[derive(Clone, Copy, Debug)]
 struct ShuoriRow {
     gregorian_year: i32,
@@ -19,150 +150,6 @@ struct ShuoriRow {
     lunar_year: i32,
     lunar_month: u8,
     is_leap: u8,
-}
-
-/// 实历数据：按农历年索引的朔日序列（每岁内已按公历日期排序）。
-#[derive(Clone, Debug, Default)]
-pub struct HistoricalCalendar {
-    /// lunar_year -> 该岁所有初一 [(儒略历/格里高利历 y,m,d, 农历月 1..12, 是否闰月 0/1)]，按日期升序。
-    by_year: BTreeMap<i32, Vec<(i32, i32, i32, u8, u8)>>,
-}
-
-/// 实历覆盖的农历年范围（含端点）。数据来源见 `vendor/calendar/chinese_calendar/实历朔日表.csv`。
-pub const HISTORICAL_LUNAR_YEAR_MIN: i32 = -105;
-pub const HISTORICAL_LUNAR_YEAR_MAX: i32 = 2200;
-
-impl HistoricalCalendar {
-    /// 从 CSV 文本解析实历朔日表。
-    ///
-    /// CSV 格式：`gregorian_year,gregorian_month,gregorian_day,lunar_year,lunar_month,is_leap`（不含年号，年号见 era_names 表）。
-    /// 每行表示该儒略历/格里高利历日为对应农历年的某月初一。闰月行为 `is_leap=1`。1582 年前为儒略历，之后为格里高利历。
-    pub fn from_csv(csv: &str) -> Result<Self, String> {
-        let mut by_year: BTreeMap<i32, Vec<(i32, i32, i32, u8, u8)>> = BTreeMap::new();
-        for (line_no, line) in csv.lines().enumerate() {
-            let line_no = line_no + 1;
-            let line = line.trim();
-            if line.is_empty() || line.starts_with("gregorian_year") || line.starts_with("western_year") {
-                continue;
-            }
-            let row = parse_csv_row(line).ok_or_else(|| format!("line {}: invalid row", line_no))?;
-            by_year
-                .entry(row.lunar_year)
-                .or_default()
-                .push((
-                    row.gregorian_year,
-                    row.gregorian_month,
-                    row.gregorian_day,
-                    row.lunar_month,
-                    row.is_leap,
-                ));
-        }
-        for (ly, vec) in by_year.iter_mut() {
-            vec.sort_by_key(|&(y, m, d, _, _)| (y, m, d));
-            // 完整岁 12 或 13 朔；仅含去年十一、十二的边界年可为 2 朔
-            if vec.len() < 2 || vec.len() > 13 {
-                return Err(format!(
-                    "lunar year {}: expected 2..=13 new moons, got {}",
-                    ly,
-                    vec.len()
-                ));
-            }
-        }
-        Ok(HistoricalCalendar { by_year })
-    }
-
-    /// 判断指定农历年是否在实历表中有数据。
-    pub fn has_year(&self, lunar_year: i32) -> bool {
-        self.by_year.contains_key(&lunar_year)
-    }
-
-    /// 获取实历覆盖的农历年范围（实际存在的最小/最大年）。
-    pub fn year_range(&self) -> Option<(i32, i32)> {
-        let min = *self.by_year.keys().next()?;
-        let max = *self.by_year.keys().next_back()?;
-        Some((min, max))
-    }
-
-    /// 主表某月（建寅月序）初一的民用历日期（1582-10-15 以前为儒略历，见 [civil_to_julian_day]）；表中无此月返回 None。
-    pub fn new_moon_date(&self, lunar_year: i32, month: u8, is_leap: bool) -> Option<(i32, i32, i32)> {
-        self.by_year
-            .get(&lunar_year)?
-            .iter()
-            .find(|&&(_, _, _, m, leap)| m == month && (leap == 1) == is_leap)
-            .map(|&(y, m, d, _, _)| (y, m, d))
-    }
-
-    /// 朔日 JDN 落在 `[from_jdn, to_jdn]` 内的主表各月：(朔日 JDN, 农历年, 月, 闰否)，按朔日先后。
-    /// 供第 4 层把地方历表与主表按月拼合（如 [crate::calendar::lifa::resolve_dunhuang_day]）。
-    pub fn months_in_jdn_range(&self, from_jdn: i64, to_jdn: i64) -> Vec<(i64, i32, u8, bool)> {
-        let (y0, _, _) = super::gregorian::civil_from_jdn(from_jdn);
-        let (y1, _, _) = super::gregorian::civil_from_jdn(to_jdn);
-        let mut out: Vec<(i64, i32, u8, bool)> = self
-            .by_year
-            .range(y0 - 1..=y1 + 1)
-            .flat_map(|(&ly, v)| v.iter().map(move |&(y, m, d, lm, leap)| (super::gregorian::civil_to_jdn(y, m, d), ly, lm, leap == 1)))
-            .filter(|&(j, ..)| (from_jdn..=to_jdn).contains(&j))
-            .collect();
-        out.sort();
-        out.dedup();
-        out
-    }
-
-    /// 用实历表为指定农历年生成 [ChineseLunarYearData]。
-    ///
-    /// 岁 = 去年十一月朔～今年十二月朔（与算历一致：含冬至之月为十一月）。朔日 JD 取该日 0h UT；表中日期为民用历
-    /// （1582-10-15 以前儒略历），经 [civil_to_julian_day] 换算，不能当前推格里高利历用。
-    /// 朔序固定为：去年十一月、去年十二月、今年正月～十二月（含闰），共 14 或 15 朔。
-    /// 中气由相邻朔日中点合成，闰月区间不占中气。
-    pub fn year_data(&self, lunar_year: i32) -> Option<ChineseLunarYearData> {
-        let curr = self.by_year.get(&lunar_year)?.as_slice();
-        let prev_year = lunar_year - 1;
-        let mut new_moon_jds: Vec<Real> = Vec::with_capacity(15);
-        let mut is_leap: Vec<u8> = Vec::with_capacity(15);
-        if let Some(prev) = self.by_year.get(&prev_year) {
-            for &(wy, wm, wd, lm, leap) in prev {
-                if lm == 11 {
-                    new_moon_jds.push(civil_to_julian_day(wy, wm, wd));
-                    is_leap.push(leap);
-                    break;
-                }
-            }
-            for &(wy, wm, wd, lm, leap) in prev {
-                if lm == 12 {
-                    new_moon_jds.push(civil_to_julian_day(wy, wm, wd));
-                    is_leap.push(leap);
-                    break;
-                }
-            }
-        }
-        for &(wy, wm, wd, _lm, leap) in curr {
-            new_moon_jds.push(civil_to_julian_day(wy, wm, wd));
-            is_leap.push(leap);
-        }
-        // 13 中气：每个非闰月区间取中点（去年十一月至今年十一月，末一个代下一冬至）
-        let mut zhong_qi_jds: Vec<Real> = Vec::with_capacity(13);
-        for i in 0..new_moon_jds.len().saturating_sub(1) {
-            if zhong_qi_jds.len() >= 13 {
-                break;
-            }
-            if is_leap.get(i).copied().unwrap_or(0) == 0 {
-                let jd_a = new_moon_jds[i];
-                let jd_b = new_moon_jds[i + 1];
-                zhong_qi_jds.push(jd_a + (jd_b - jd_a) * real(0.5));
-            }
-        }
-        debug_assert!(
-            zhong_qi_jds.len() == 13,
-            "实历岁应有 13 个中气: lunar_year={} len={}",
-            lunar_year,
-            zhong_qi_jds.len()
-        );
-        Some(ChineseLunarYearData {
-            lunar_year,
-            new_moon_jds,
-            zhong_qi_jds,
-        })
-    }
 }
 
 fn parse_csv_row(line: &str) -> Option<ShuoriRow> {
@@ -210,6 +197,7 @@ fn split_csv_line(line: &str) -> impl Iterator<Item = &str> {
 mod tests {
     use super::*;
     use crate::calendar::chinese_lunar::from_julian_day_in_year;
+    use crate::calendar::gregorian::civil_to_julian_day;
 
     /// 岁末含下一冬至之月是十一月，不是闰月；真闰十月（1984）仍为闰月
     #[test]
@@ -218,7 +206,7 @@ mod tests {
         let Ok(text) = std::fs::read_to_string(root.join("vendor/calendar/chinese_calendar/实历朔日表.csv")) else {
             return;
         };
-        let cal = HistoricalCalendar::from_csv(&text).unwrap();
+        let cal = ShuoriTable::from_csv(&text).unwrap();
         let on = |ly: i32, y: i32, m: i32, d: i32| {
             from_julian_day_in_year(civil_to_julian_day(y, m, d), &cal.year_data(ly).unwrap(), None).unwrap()
         };
@@ -233,9 +221,9 @@ mod tests {
     }
 
     #[test]
-    fn historical_year_range() {
-        assert!(HISTORICAL_LUNAR_YEAR_MIN <= -105);
-        assert!(HISTORICAL_LUNAR_YEAR_MAX >= 2200);
+    fn zhang_table_year_range() {
+        assert!(ZHANG_TABLE_YEAR_MIN <= -105);
+        assert!(ZHANG_TABLE_YEAR_MAX >= 2200);
     }
 
     #[test]
@@ -268,7 +256,7 @@ mod tests {
 -105,12,8,-106,11,0
 -104,1,6,-106,12,0
 "#;
-        let cal = HistoricalCalendar::from_csv(csv).unwrap();
+        let cal = ShuoriTable::from_csv(csv).unwrap();
         assert!(cal.has_year(-105));
         let year_data = cal.year_data(-105).unwrap();
         assert_eq!(year_data.lunar_year, -105);

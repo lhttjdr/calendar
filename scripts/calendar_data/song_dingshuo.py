@@ -1,4 +1,4 @@
-"""宋诸历定朔（《宋史·律历志》），复核主表与《宋史》本纪明书朔日。表直接解析维基文库底本的 wikitable。
+"""宋诸历定朔（《宋史·律历志》），复核张表与《宋史》本纪明书朔日。表直接解析维基文库底本的 wikitable。
 
 算法（纪元历术文）：经朔 + 入气朏朒定数（恒气，每气内逐日损益率等差，「求每日盈缩分先后数」）+ 入转朏朒定数（「朏减朒加」）= 定朔。
 进朔（纪元历注文，崇天历另有「朔小餘如日入分已上者，進一日」）：秋分后小余 ≥ 3/4 日法；春分后限减（春分日出分 − 定朔日出分）/ 3；有交者不进（未实现）。
@@ -281,7 +281,7 @@ def run(li, y0, y1, approx, skip=()):
     li.off = c.align_offset(dz + li.day0, g.jdn(*approx)) + li.day0
     print(f"--- {li.name}历：月离闭合 {li.closure}；{li.y_ji} 年天正冬至", g.ganzhi_of_jdn(dz + li.off), g.from_jdn(dz + li.off))
     c.compare(li.name, li.f, li.off, li.moons(y0 - 2, y1 + 3), y0, y1, f"song_{li.name}_check.csv",
-              f"{y0}—{y1} 年《宋史》本纪明书朔日与{li.name}历定朔（scripts/calendar_data/song_dingshuo.py）、主表比较；进朔限术文，夏半年日出分为假定。",
+              f"{y0}—{y1} 年《宋史》本纪明书朔日与{li.name}历定朔（scripts/calendar_data/song_dingshuo.py）、张表比较；进朔限术文，夏半年日出分为假定。",
               limit=li.limit, books={"songshi_benji"}, skip=set(skip))
 
 

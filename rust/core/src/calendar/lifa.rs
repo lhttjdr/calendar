@@ -2,22 +2,23 @@
 //!
 //! 历法指一套推步或颁行的历制，与政权、年号无关；时间锚定在儒略日或儒略历/格里高利历。
 //! 数据来源：`data/calendar/汇总/lifa_summary.csv`（历法总表）。第 3 层政权·帝王·年号见 [crate::calendar::era_names]，
-//! 实历朔日（第 2 层，某历法的具体岁数据）见 [crate::calendar::historical]。
+//! 某历的具体历日（第 2 层）：实物历日 [crate::calendar::artifacts]、按术推步 [crate::calendar::push_calendar]、
+//! 今人历表 [crate::calendar::historical]、现算 [crate::calendar::chinese_lunar]；中原一线取哪一家见 [resolve_year]。
 
 use std::collections::BTreeMap;
 
 use super::chinese_lunar::{compute_year_data, ChineseLunarYearData};
 use super::dunhuang::{dunhuang_calendar_name, DunhuangCalendar, ShuoBasis};
-use super::historical::HistoricalCalendar;
+use super::historical::{year_data_from_months, MonthStart, ShuoriTable, ZHANG_TABLE_NAME};
 use crate::astronomy::ephemeris::{Elpmpp02Data, Vsop87};
 use crate::quantity::angle::PlaneAngle;
 
 /// 单条历法记录：历名、起止年（CE）、制作者、锚定说明、来源。
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LifaEntry {
-    /// 唯一标识，如 gregorian, shoushi, zhongyuan_shili
+    /// 唯一标识，如 gregorian, shoushi
     pub id: String,
-    /// 历名（简体），如 格里高利历、授时历、主表（据历还原）
+    /// 历名（简体），如 格里高利历、授时历
     pub name_simp: String,
     /// 起年（公历），负为公元前；空表示不详
     pub start_ce: Option<i32>,
@@ -104,32 +105,134 @@ impl LifaRegistry {
     }
 }
 
-/// 主表所对应的历法 id：按各朝颁历据历还原推步得出的连续表（朔日表 + 年号表主表）；《三千五百年历日天象》无名为「中原正朔」的历法。
-pub const LIFA_ID_ZHONGYUAN_SHILI: &str = "zhongyuan_shili";
+/// 历日出自哪一级来源（资料可靠性次序见 `doc/calendar/calendar-compendium.md`「资料可靠性」）。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RiliSource {
+    /// 实物历日：当时颁行的历书原件（第 1 级），如《宝祐四年会天历》。
+    Artifact(&'static str),
+    /// 按术推步：本项目按该历术文推算（第 4 级），值为历名。
+    Reckoned(&'static str),
+    /// 今人历表（第 5 级），值为表名（[super::historical::ZHANG_TABLE_NAME]）。
+    ModernTable(&'static str),
+    /// 现代定气定朔现算：历表与推步都不覆盖的年份（太初以前、2200 年以后），或 2017 年起行用的现行农历（GB/T 33661）本身。
+    Computed,
+}
 
-/// 第 4 层仲裁：给定农历年，返回该年岁数据——**实历覆盖范围内查表**（第 2 层 [HistoricalCalendar]），
-/// 否则**现算定气定朔**（第 2 层 [compute_year_data]）。
+impl RiliSource {
+    /// 供显示的来源说明，如「按术推步（景初历）」。
+    pub fn label(&self) -> String {
+        match self {
+            RiliSource::Artifact(n) => format!("实物历日（{n}）"),
+            RiliSource::Reckoned(n) => format!("按术推步（{n}）"),
+            RiliSource::ModernTable(n) => format!("今人历表（{n}）"),
+            RiliSource::Computed => "现代定气定朔".to_string(),
+        }
+    }
+}
+
+/// 中原一线推步与今人历表都覆盖的年份取哪一家。实物历日不受此选项影响，总是优先。
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ZhongyuanPreference {
+    /// 按术推步优先（缺省）：按资料可靠性次序，推步（第 4 级）先于今人历表（第 5 级）。
+    #[default]
+    Reckoning,
+    /// 今人历表优先：与张培瑜历表逐月一致，推步只作对照。
+    ModernTable,
+}
+
+/// 现行农历的历名前缀（`zhongyuan_calendar_periods.csv`）：其规则即定气定朔，现算就是按术推步。
+const MODERN_RULE_PREFIX: &str = "农历（GB/T 33661";
+
+/// 第 4 层仲裁的结果：岁数据与其来源。
+#[derive(Clone, Debug)]
+pub struct ResolvedYear {
+    pub data: ChineseLunarYearData,
+    pub source: RiliSource,
+}
+
+/// 中原一线某农历年的各月及来源：实物历日 → 按术推步（按 [ZhongyuanCalendarPeriods] 所定行用之历，限已实现者）
+/// → 今人历表；都没有则 None（由调用方现算）。`pref` 只决定推步与今人历表的先后。
+pub fn zhongyuan_year_months(
+    table: Option<&ShuoriTable>,
+    lunar_year: i32,
+    pref: ZhongyuanPreference,
+) -> Option<(Vec<MonthStart>, RiliSource)> {
+    if let Some(a) = super::artifacts::zhongyuan_artifact_year(lunar_year) {
+        return Some((a.months.clone(), RiliSource::Artifact(a.name)));
+    }
+    // 现行农历（GB/T 33661—2017）的规则就是定气定朔，现算即按术推步：推步优先时不取今人历表，由调用方现算
+    if pref == ZhongyuanPreference::Reckoning
+        && ZhongyuanCalendarPeriods::embedded().name_for_lunar_year(lunar_year).starts_with(MODERN_RULE_PREFIX)
+    {
+        return None;
+    }
+    let reckon = || {
+        let name: &'static str = ZhongyuanCalendarPeriods::embedded().name_for_lunar_year(lunar_year);
+        let p = super::push_calendar::reckoner_for_lifa(name)?;
+        Some((super::push_calendar::year_months(&p, lunar_year), RiliSource::Reckoned(name)))
+    };
+    let from_table = || {
+        table?.year_months(lunar_year).filter(|m| m.len() >= 12).map(|m| (m.to_vec(), RiliSource::ModernTable(ZHANG_TABLE_NAME)))
+    };
+    match pref {
+        ZhongyuanPreference::Reckoning => reckon().or_else(from_table),
+        ZhongyuanPreference::ModernTable => from_table().or_else(reckon),
+    }
+}
+
+/// 第 4 层仲裁：中原一线某农历年的岁数据及来源。
 ///
-/// 这是"实历优先、缺省退回定气定朔"策略的唯一归属：
-/// 历史区间当时行用的是各朝颁行的历法（平朔、经朔、定朔各有其法），不是现代定气定朔，所以优先用按各朝历法复原的实历表；该表是复原结果（《三千五百年历日天象》据历推步），不是史料原记录，与史书日干支不合之处须另行核验。
-/// 实历表覆盖范围有限（见 [HistoricalCalendar::year_range]），范围外或未提供实历表时才现算。
-/// 调用方（如 [crate::calendar::convert]）只应调用本函数决定"用哪份数据"，不应各自重复这条判断——
-/// 该判断一旦分散到多处，后续调整覆盖范围或优先级时就要满仓库找，是本仓库已经踩过的坑（章动表/历表
-/// 数据源的仲裁逻辑也曾有过同样的问题，见 `doc/architecture/three-domains.md`）。
+/// 这是"中原一线历日取哪一家"的唯一归属：依次取实物历日、按术推步、今人历表（次序见 [zhongyuan_year_months]），
+/// 都不覆盖时现算定气定朔（第 2 层 [compute_year_data]）。本岁之前的十一、十二月取自上一岁的最优来源，
+/// 两岁可以出自不同来源（如 236 年四分、237 年景初）。来源标在结果上，显示时须如实说明。
+/// 调用方（如 [crate::calendar::convert]）只应调用本函数，不应各自重复这条判断。
+pub fn resolve_year(
+    table: Option<&ShuoriTable>,
+    lunar_year: i32,
+    pref: ZhongyuanPreference,
+    vsop: &Vsop87,
+    elp: &Elpmpp02Data,
+    tolerance: PlaneAngle,
+    max_iterations: usize,
+) -> Option<ResolvedYear> {
+    if let Some((curr, source)) = zhongyuan_year_months(table, lunar_year, pref) {
+        let prev = zhongyuan_year_months(table, lunar_year - 1, pref).map(|p| p.0).unwrap_or_default();
+        return Some(ResolvedYear { data: year_data_from_months(lunar_year, &prev, &curr), source });
+    }
+    compute_year_data(vsop, elp, lunar_year, tolerance, max_iterations)
+        .ok()
+        .map(|data| ResolvedYear { data, source: RiliSource::Computed })
+}
+
+/// [resolve_year] 取缺省选项、只要岁数据。
 pub fn resolve_year_data(
-    historical: Option<&HistoricalCalendar>,
+    table: Option<&ShuoriTable>,
     lunar_year: i32,
     vsop: &Vsop87,
     elp: &Elpmpp02Data,
     tolerance: PlaneAngle,
     max_iterations: usize,
 ) -> Option<ChineseLunarYearData> {
-    if let Some(h) = historical {
-        if let Some(year_data) = h.year_data(lunar_year) {
-            return Some(year_data);
-        }
-    }
-    compute_year_data(vsop, elp, lunar_year, tolerance, max_iterations).ok()
+    resolve_year(table, lunar_year, ZhongyuanPreference::default(), vsop, elp, tolerance, max_iterations).map(|r| r.data)
+}
+
+/// 中原一线 `[from_jdn, to_jdn]` 内各月：(朔日 JDN, 农历年, 月, 闰否)，按 [zhongyuan_year_months] 逐岁取最优来源。
+pub fn zhongyuan_months_in_jdn_range(
+    table: Option<&ShuoriTable>,
+    from_jdn: i64,
+    to_jdn: i64,
+    pref: ZhongyuanPreference,
+) -> Vec<(i64, i32, u8, bool)> {
+    let (y0, _, _) = super::gregorian::civil_from_jdn(from_jdn);
+    let (y1, _, _) = super::gregorian::civil_from_jdn(to_jdn);
+    let mut out: Vec<(i64, i32, u8, bool)> = (y0 - 1..=y1 + 1)
+        .filter_map(|ly| zhongyuan_year_months(table, ly, pref).map(|(m, _)| (ly, m)))
+        .flat_map(|(ly, v)| v.into_iter().map(move |(j, m, leap)| (j, ly, m, leap)))
+        .filter(|&(j, ..)| (from_jdn..=to_jdn).contains(&j))
+        .collect();
+    out.sort();
+    out.dedup();
+    out
 }
 
 /// 敦煌历日（吐蕃、归义军时期）的历法 id，见 `lifa_summary.csv`。
@@ -138,14 +241,14 @@ pub const LIFA_ID_DUNHUANG_GUIYIJUN: &str = "dunhuang_guiyijun";
 
 /// 敦煌无据之月（出土历日未存之月）怎样补。
 ///
-/// 缺省 [DunhuangFallback::MainTable]：归义军原件 131 月与主表同朔 56%、差一日以内 93%，与实际合朔（敦煌地方时）
-/// 同日 49%、一日以内 91% 且偏晚；闰位 35 年中只 5 年与主表不同，而现代定气置闰的闰位与两者都无关。故退回主表，
+/// 缺省 [DunhuangFallback::Zhongyuan]：归义军原件 131 月与中原历同朔 56%、差一日以内 93%，与实际合朔（敦煌地方时）
+/// 同日 49%、一日以内 91% 且偏晚；闰位 35 年中只 5 年与中原历不同，而现代定气置闰的闰位与两者都无关。故退回中原历，
 /// 不退回定朔推算（依据见 `doc/calendar/dunhuang-calendar.md`「无据之月」）。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum DunhuangFallback {
-    /// 无据之月用主表（中原历）之月；与有据之月相接处，月首取有据之月的已知止日。结果可差一二日。
+    /// 无据之月用中原历（中原历）之月；与有据之月相接处，月首取有据之月的已知止日。结果可差一二日。
     #[default]
-    MainTable,
+    Zhongyuan,
     /// 只认有据之月：无据之月、及止日不知之月的第 30 日，都不给结果。
     EvidenceOnly,
 }
@@ -157,8 +260,8 @@ pub enum DunhuangMonthBasis {
     Original,
     /// 原书据残历条件推算。
     Inferred,
-    /// 无据，退回主表之月（月首或据前一有据之月的大小定）。
-    MainTable,
+    /// 无据，退回中原历之月（月首或据前一有据之月的大小定）。
+    Zhongyuan,
 }
 
 /// 敦煌历下的一月（拼合后）。
@@ -186,14 +289,14 @@ pub struct DunhuangDay {
 }
 
 /// 第 4 层仲裁：`[from_jdn, to_jdn]` 前后敦煌历的各月——**有据之月用敦煌朔日表**（第 2 层 [DunhuangCalendar]），
-/// 无据之月按 `fallback` 取主表（第 2 层 [HistoricalCalendar]）或不取。只做逐月取舍，不推算朔日：
-/// - 主表某月首与某有据之月首相距 3 日以内，视为同一月，取有据之月（月序、闰位从敦煌，如 893 年敦煌闰六月当主表六月）；
+/// 无据之月按 `fallback` 取中原历（第 4 层 [zhongyuan_months_in_jdn_range]）或不取。只做逐月取舍，不推算朔日：
+/// - 中原历某月首与某有据之月首相距 3 日以内，视为同一月，取有据之月（月序、闰位从敦煌，如 893 年敦煌闰六月当中原历六月）；
 /// - 无据之月紧接有据之月之后者，月首取前月已知止日（据月日数），前月止日不知则限在前月朔后 29、30 日之间；
-/// - 无据之月限敦煌政权年限内（[dunhuang_calendar_name]），月序、闰否照主表；与有据之月相差的一二日在无据之月段内
+/// - 无据之月限敦煌政权年限内（[dunhuang_calendar_name]），月序、闰否照中原历；与有据之月相差的一二日在无据之月段内
 ///   调匀（推到最近的可容之月），不让任何一月成 28 或 31 日。
 pub fn dunhuang_months(
     dh: &DunhuangCalendar,
-    main: Option<&HistoricalCalendar>,
+    zhongyuan: Option<&ShuoriTable>,
     from_jdn: i64,
     to_jdn: i64,
     fallback: DunhuangFallback,
@@ -215,9 +318,9 @@ pub fn dunhuang_months(
             (m.jdn, dh.known_end(i), m.lunar_year, m.month, m.is_leap, basis)
         })
         .collect();
-    if let (DunhuangFallback::MainTable, Some(h)) = (fallback, main) {
+    if fallback == DunhuangFallback::Zhongyuan && zhongyuan.is_some() {
         let evidenced: Vec<(i64, Option<i64>)> = seq.iter().map(|s| (s.0, s.1)).collect();
-        for (s_main, ly, m, leap) in h.months_in_jdn_range(a, b) {
+        for (s_main, ly, m, leap) in zhongyuan_months_in_jdn_range(zhongyuan, a, b, ZhongyuanPreference::default()) {
             if dunhuang_calendar_name(ly).is_none() || evidenced.iter().any(|&(s, _)| (s - s_main).abs() <= 3) {
                 continue;
             }
@@ -227,22 +330,22 @@ pub fn dunhuang_months(
                 Some(&(s, None)) if s_main - s <= 29 + 3 => s_main.clamp(s + 29, s + 30),
                 _ => s_main,
             };
-            seq.push((start, None, ly, m, leap, DunhuangMonthBasis::MainTable));
+            seq.push((start, None, ly, m, leap, DunhuangMonthBasis::Zhongyuan));
         }
     }
     seq.sort_by_key(|s| s.0);
-    // 无据之月一段（主表月）夹在有据之月间：两端月首已由有据之月定，与主表月首差的一二日若都压在相接之月，
-    // 会出现 31 或 28 日之月。把差额沿主表月往段内推，推到能容纳（小月变大、大月变小）为止：自前端向后推一遍，
+    // 无据之月一段（中原历月）夹在有据之月间：两端月首已由有据之月定，与中原历月首差的一二日若都压在相接之月，
+    // 会出现 31 或 28 日之月。把差额沿中原历月往段内推，推到能容纳（小月变大、大月变小）为止：自前端向后推一遍，
     // 自后端向前推一遍；段首月首（接前一有据之月）与段后有据之月首不动。只挪月首，不改月序。
-    let is_main = |x: &(i64, Option<i64>, i32, u8, bool, DunhuangMonthBasis)| x.5 == DunhuangMonthBasis::MainTable;
+    let is_zy = |x: &(i64, Option<i64>, i32, u8, bool, DunhuangMonthBasis)| x.5 == DunhuangMonthBasis::Zhongyuan;
     let mut p = 0;
     while p < seq.len() {
-        if !is_main(&seq[p]) {
+        if !is_zy(&seq[p]) {
             p += 1;
             continue;
         }
         let mut q = p;
-        while q + 1 < seq.len() && is_main(&seq[q + 1]) {
+        while q + 1 < seq.len() && is_zy(&seq[q + 1]) {
             q += 1;
         }
         let anchored_left = p > 0;
@@ -272,9 +375,9 @@ pub fn dunhuang_months(
             let (start, known_end, ly, m, leap, basis) = seq[i];
             let next = seq.get(i + 1).map(|s| s.0);
             let end = match (basis, fallback) {
-                (DunhuangMonthBasis::MainTable, _) => next,
+                (DunhuangMonthBasis::Zhongyuan, _) => next,
                 (_, DunhuangFallback::EvidenceOnly) => known_end,
-                (_, DunhuangFallback::MainTable) => known_end.or(next.filter(|&j| j - start <= 30)).or(known_end),
+                (_, DunhuangFallback::Zhongyuan) => known_end.or(next.filter(|&j| j - start <= 30)).or(known_end),
             };
             DunhuangMonthSpan { start_jdn: start, end_jdn: end, lunar_year: ly, month: m, is_leap: leap, calendar: calendar_of(ly), basis }
         })
@@ -283,14 +386,14 @@ pub fn dunhuang_months(
 }
 
 /// 第 4 层仲裁：JDN 在敦煌历下的月日（见 [dunhuang_months] 的取舍规则）。止日不知之月只认前 29 日。
-/// 不在敦煌政权年限内、或 [DunhuangFallback::EvidenceOnly] 下无据，返回 None。`main` 为 None 时等同只认有据之月。
+/// 不在敦煌政权年限内、或 [DunhuangFallback::EvidenceOnly] 下无据，返回 None。`zhongyuan` 为 None 时等同只认有据之月。
 pub fn resolve_dunhuang_day(
     dh: &DunhuangCalendar,
-    main: Option<&HistoricalCalendar>,
+    zhongyuan: Option<&ShuoriTable>,
     jdn: i64,
     fallback: DunhuangFallback,
 ) -> Option<DunhuangDay> {
-    let months = dunhuang_months(dh, main, jdn, jdn, fallback);
+    let months = dunhuang_months(dh, zhongyuan, jdn, jdn, fallback);
     let s = months.iter().rev().find(|s| s.start_jdn <= jdn)?;
     if jdn >= s.end_jdn.unwrap_or(s.start_jdn + 29) {
         return None;
@@ -305,28 +408,26 @@ pub fn resolve_dunhuang_day(
     })
 }
 
-/// 第 4 层仲裁：敦煌历某月（敦煌自身的岁、月序、闰否）的月首 JDN 与依据；无此月（如主表闰月在敦煌落在别月）为 None。
+/// 第 4 层仲裁：敦煌历某月（敦煌自身的岁、月序、闰否）的月首 JDN 与依据；无此月（如中原历闰月在敦煌落在别月）为 None。
 /// 敦煌文书纪日「某年某月某日」→ JDN = 月首 + 日 − 1（日不得超过该月日数，见 [DunhuangMonthSpan::end_jdn]）。
 pub fn resolve_dunhuang_month(
     dh: &DunhuangCalendar,
-    main: Option<&HistoricalCalendar>,
+    zhongyuan: Option<&ShuoriTable>,
     lunar_year: i32,
     month: u8,
     is_leap: bool,
     fallback: DunhuangFallback,
 ) -> Option<DunhuangMonthSpan> {
-    // 先定一个大致的 JDN 窗口：有据之月直接用；否则用主表同名之月
+    // 先定一个大致的 JDN 窗口：有据之月直接用；否则用中原历同名之月
     let around = match dh.find_month(lunar_year, month, is_leap) {
         Some((_, m)) => m.jdn,
         None => {
-            let (y, mo, d) = main?.new_moon_date(lunar_year, month, is_leap).or_else(|| {
-                // 主表无此闰月（敦煌闰位不同）：取主表同岁同月前后找
-                main?.new_moon_date(lunar_year, month, false)
-            })?;
-            super::gregorian::civil_to_jdn(y, mo, d)
+            let (months, _) = zhongyuan_year_months(zhongyuan, lunar_year, ZhongyuanPreference::default())?;
+            // 中原历无此闰月（敦煌闰位不同）：取中原历同岁同月前后找
+            months.iter().find(|&&(_, m, l)| m == month && l == is_leap).or_else(|| months.iter().find(|&&(_, m, l)| m == month && !l))?.0
         }
     };
-    dunhuang_months(dh, main, around - 60, around + 60, fallback)
+    dunhuang_months(dh, zhongyuan, around - 60, around + 60, fallback)
         .into_iter()
         .find(|s| s.lunar_year == lunar_year && s.month == month && s.is_leap == is_leap)
 }
@@ -391,17 +492,26 @@ fn split_csv_line(line: &str) -> impl Iterator<Item = &str> {
     v.into_iter()
 }
 
-/// 主线某农历年行用之历的名称表（`data/calendar/汇总/main_calendar_periods.csv`）。
-/// 只回答「当时行用何历」，职责是选名，日期仍由主表或现算给出。
+/// 中原一线某农历年行用之历的名称表（`data/calendar/汇总/zhongyuan_calendar_periods.csv`）。
+/// 只回答「当时行用何历」；历日由 [resolve_year] 按来源次序取。
 #[derive(Debug, Clone, Default)]
-pub struct MainCalendarPeriods {
+pub struct ZhongyuanCalendarPeriods {
     rows: Vec<(i32, Option<i32>, String)>,
 }
 
-/// 主表起点之前没有行用历资料，日期是现代定气定朔算的，显示时须如实说明。
+/// 太初以前（张培瑜历表起点之前）没有中原一线行用历的资料，日期是现代定气定朔算的，显示时须如实说明。
 pub const CALENDAR_NAME_COMPUTED: &str = "定气定朔（现代推算）";
 
-impl MainCalendarPeriods {
+impl ZhongyuanCalendarPeriods {
+    /// 内嵌的 `data/calendar/汇总/zhongyuan_calendar_periods.csv`。
+    pub fn embedded() -> &'static Self {
+        use std::sync::OnceLock;
+        static P: OnceLock<ZhongyuanCalendarPeriods> = OnceLock::new();
+        P.get_or_init(|| {
+            Self::from_csv(include_str!("../../../../data/calendar/汇总/zhongyuan_calendar_periods.csv")).expect("zhongyuan_calendar_periods.csv")
+        })
+    }
+
     pub fn from_csv(csv: &str) -> Result<Self, String> {
         let mut rows = Vec::new();
         for (i, line) in csv.lines().enumerate() {
@@ -414,19 +524,19 @@ impl MainCalendarPeriods {
             let to = f.next().map(str::trim);
             let name = f.next().map(str::trim).filter(|s| !s.is_empty());
             let (Some(from), Some(to), Some(name)) = (from, to, name) else {
-                return Err(format!("main_calendar_periods line {}: invalid row", i + 1));
+                return Err(format!("zhongyuan_calendar_periods line {}: invalid row", i + 1));
             };
             let to = if to.is_empty() {
                 None
             } else {
-                Some(to.parse::<i32>().map_err(|_| format!("main_calendar_periods line {}: bad to_year", i + 1))?)
+                Some(to.parse::<i32>().map_err(|_| format!("zhongyuan_calendar_periods line {}: bad to_year", i + 1))?)
             };
             rows.push((from, to, name.to_string()));
         }
         Ok(Self { rows })
     }
 
-    /// 该农历年的历名；主表起点之前返回 [CALENDAR_NAME_COMPUTED]。
+    /// 该农历年的历名；表起点之前返回 [CALENDAR_NAME_COMPUTED]。
     pub fn name_for_lunar_year(&self, lunar_year: i32) -> &str {
         self.rows
             .iter()
@@ -444,7 +554,6 @@ mod tests {
         let csv = r#"id,name_simp,start_ce,end_ce,maker_regime,maker_person,anchor_note,source
 gregorian,格里高利历,1582,,罗马/教廷,格列高利十三世,儒略历+格里高利历,公历
 shoushi,授时历,1281,,元,郭守敬,儒略历+格里高利历,lifa_tongzhi
-zhongyuan_shili,主表（据历还原）,-105,2200,各朝,据历还原推步,儒略历+格里高利历,《三千五百年历日天象》按各朝颁历推步
 "#;
         let reg = LifaRegistry::from_csv(csv).unwrap();
         let g = reg.get("gregorian").unwrap();
@@ -453,17 +562,14 @@ zhongyuan_shili,主表（据历还原）,-105,2200,各朝,据历还原推步,儒
         assert_eq!(g.end_ce, None);
         assert!(g.active_in_ce_year(2000));
         assert!(!g.active_in_ce_year(1500));
-        let z = reg.get("zhongyuan_shili").unwrap();
-        assert!(z.active_in_ce_year(0));
-        assert!(z.active_in_ce_year(-105));
         let active = reg.active_at_ce_year(1281);
         assert!(active.iter().any(|e| e.id == "shoushi"));
-        assert!(active.iter().any(|e| e.id == "zhongyuan_shili"));
+        assert!(!active.iter().any(|e| e.id == "gregorian"));
     }
 
     #[test]
-    fn main_calendar_periods_are_contiguous_and_named() {
-        let p = MainCalendarPeriods::from_csv(include_str!("../../../../data/calendar/汇总/main_calendar_periods.csv")).unwrap();
+    fn zhongyuan_calendar_periods_are_contiguous_and_named() {
+        let p = ZhongyuanCalendarPeriods::embedded();
         for w in p.rows.windows(2) {
             assert_eq!(w[0].1.map(|t| t + 1), Some(w[1].0), "年段须首尾相接：{:?}", w[0]);
         }
@@ -473,23 +579,63 @@ zhongyuan_shili,主表（据历还原）,-105,2200,各朝,据历还原推步,儒
         assert_eq!(p.name_for_lunar_year(-500), CALENDAR_NAME_COMPUTED);
     }
 
-    fn main_table() -> Option<HistoricalCalendar> {
+    fn zhang_table() -> Option<ShuoriTable> {
         let text = std::fs::read_to_string(crate::repo::repo_root().join("vendor/calendar/chinese_calendar/实历朔日表.csv")).ok()?;
-        HistoricalCalendar::from_csv(&text).ok()
+        ShuoriTable::from_csv(&text).ok()
+    }
+
+    /// 中原一线来源次序：1256 实物、景初推步、张表、表外为 None（现算）；选项只调推步与张表的先后
+    #[test]
+    fn zhongyuan_sources_ranked() {
+        let Some(z) = zhang_table() else { return };
+        let src = |y: i32, p: ZhongyuanPreference| zhongyuan_year_months(Some(&z), y, p).map(|r| r.1);
+        let r = ZhongyuanPreference::Reckoning;
+        assert!(matches!(src(1256, r), Some(RiliSource::Artifact(_))));
+        assert!(matches!(src(1256, ZhongyuanPreference::ModernTable), Some(RiliSource::Artifact(_))));
+        assert_eq!(src(300, r), Some(RiliSource::Reckoned("景初历")));
+        assert_eq!(src(300, ZhongyuanPreference::ModernTable), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)));
+        assert_eq!(src(700, r), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)));
+        assert_eq!(src(-104, r), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)), "太初改历当年，推步不覆盖");
+        assert_eq!(src(-300, r), None);
+        assert_eq!(src(1915, r), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)), "民初历书编算法与今不同，取张表");
+        assert_eq!(src(2026, r), None, "现行农历：推步优先即现算");
+        assert_eq!(src(2026, ZhongyuanPreference::ModernTable), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)));
+        assert_eq!(src(300, r), zhongyuan_year_months(None, 300, r).map(|r| r.1), "推步不依赖历表");
+    }
+
+    /// 中原一线推步与张培瑜历表逐月比较，不同之月逐条钉住（四分 85—236、开皇 590—596 全同；景初 237—444 四月不同）。
+    /// 这几月本纪无可判定的记载（如 314 年正月推步壬申、张表辛未，《晋书·愍帝纪》「正月己巳朔」两家皆不合），
+    /// 依资料可靠性次序缺省取推步；张表的取舍多同汪曰桢《历代长术辑要》，未注依据。
+    #[test]
+    fn zhongyuan_reckoning_vs_zhang_table() {
+        let Some(z) = zhang_table() else { return };
+        let mut diff = Vec::new();
+        for y in (85..=444).chain(590..=596) {
+            let (r, _) = zhongyuan_year_months(None, y, ZhongyuanPreference::Reckoning).unwrap();
+            let t = z.year_months(y).unwrap();
+            assert_eq!(r.len(), t.len(), "{y} 年月数");
+            for (a, b) in r.iter().zip(t) {
+                assert_eq!((a.1, a.2), (b.1, b.2), "{y} 年月序与闰位");
+                if a.0 != b.0 {
+                    diff.push((y, a.1, a.2, a.0 - b.0));
+                }
+            }
+        }
+        assert_eq!(diff, vec![(278, 3, false, -1), (314, 1, false, 1), (314, 3, false, 1), (430, 2, false, -1)]);
     }
 
     /// 比较表（邓文宽 1996 附录一）敦煌曆一栏每一格：按敦煌岁月查月首得原书朔干支，月首当日换算回该月初一，
-    /// 月大小已知者末日为该月第 29/30 日、次日为次月初一。两种取舍（退回主表、只认有据之月）都须重现。
+    /// 月大小已知者末日为该月第 29/30 日、次日为次月初一。两种取舍（退回中原历、只认有据之月）都须重现。
     #[test]
     fn dunhuang_comparison_table_reproduced() {
         use crate::calendar::dunhuang::{parse_comparison_table, DunhuangCalendar};
         use crate::calendar::gan_zhi::GAN_ZHI_60;
         let dh = DunhuangCalendar::embedded();
-        let main = main_table();
+        let main = zhang_table();
         let rows = parse_comparison_table(include_str!("../../../../data/calendar/敦煌历日_比较表.csv")).unwrap();
         assert_eq!(rows.len(), 257, "比较表敦煌曆有朔之格（800 年以后，含两件重出之次年正月三格）");
         let gz = |j: i64| GAN_ZHI_60[(j + 49).rem_euclid(60) as usize];
-        for fb in [DunhuangFallback::MainTable, DunhuangFallback::EvidenceOnly] {
+        for fb in [DunhuangFallback::Zhongyuan, DunhuangFallback::EvidenceOnly] {
             for r in &rows {
                 let what = format!("{fb:?} {} {}年{}{}月", r.document, r.lunar_year, if r.is_leap { "閏" } else { "" }, r.month);
                 let s = resolve_dunhuang_month(&dh, main.as_ref(), r.lunar_year, r.month, r.is_leap, fb).unwrap_or_else(|| panic!("{what} 查无此月"));
@@ -509,16 +655,16 @@ zhongyuan_shili,主表（据历还原）,-105,2200,各朝,据历还原推步,儒
         }
     }
 
-    /// 退回主表时，786—1036 年敦煌历逐月连续、不重不漏；月长异常（非 29、30 日）者只在有据与无据之月相接处，
-    /// 逐条钉住。无据之年与主表全同。
+    /// 退回中原历时，786—1036 年敦煌历逐月连续、不重不漏；月长异常（非 29、30 日）者只在有据与无据之月相接处，
+    /// 逐条钉住。无据之年与中原历全同。
     #[test]
     fn dunhuang_merged_months_are_contiguous() {
         use crate::calendar::dunhuang::DunhuangCalendar;
         use crate::calendar::gregorian::civil_to_jdn;
-        let Some(main) = main_table() else { return };
+        let Some(main) = zhang_table() else { return };
         let dh = DunhuangCalendar::embedded();
         let (a, b) = (civil_to_jdn(786, 3, 1), civil_to_jdn(1036, 12, 1));
-        let ms = dunhuang_months(&dh, Some(&main), a, b, DunhuangFallback::MainTable);
+        let ms = dunhuang_months(&dh, Some(&main), a, b, DunhuangFallback::Zhongyuan);
         let mut odd = vec![];
         for w in ms.windows(2) {
             assert_eq!(w[0].end_jdn, Some(w[1].start_jdn), "{:?} 与次月不接", w[0]);
@@ -527,13 +673,13 @@ zhongyuan_shili,主表（据历还原）,-105,2200,各朝,据历还原推步,儒
                 odd.push((w[0].lunar_year, w[0].month, w[0].is_leap, len));
             }
         }
-        // 无据之年（如 900 年以前 850 年）与主表同
-        let s = resolve_dunhuang_month(&dh, Some(&main), 850, 5, false, DunhuangFallback::MainTable).unwrap();
+        // 无据之年（如 900 年以前 850 年）与中原历同
+        let s = resolve_dunhuang_month(&dh, Some(&main), 850, 5, false, DunhuangFallback::Zhongyuan).unwrap();
         let (y, m, d) = main.new_moon_date(850, 5, false).unwrap();
         assert_eq!(s.start_jdn, civil_to_jdn(y, m, d));
-        assert_eq!(s.basis, DunhuangMonthBasis::MainTable);
-        // 主表閏五月在敦煌为六月（893）：按敦煌月序查不到閏五月
-        assert!(resolve_dunhuang_month(&dh, Some(&main), 893, 5, true, DunhuangFallback::MainTable).is_none());
+        assert_eq!(s.basis, DunhuangMonthBasis::Zhongyuan);
+        // 中原历閏五月在敦煌为六月（893）：按敦煌月序查不到閏五月
+        assert!(resolve_dunhuang_month(&dh, Some(&main), 893, 5, true, DunhuangFallback::Zhongyuan).is_none());
         assert_eq!(odd, Vec::<(i32, u8, bool, i64)>::new(), "月长异常之月");
     }
 

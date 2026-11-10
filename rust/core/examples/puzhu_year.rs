@@ -4,7 +4,7 @@
 //! 参数为公历年：列出该年正月初一至次年正月初一前一日（农历以实历朔日表为先）。
 use lunar_core::astronomy::ephemeris::{load_all, load_earth_vsop87_from_repo, Elpmpp02Correction};
 use lunar_core::calendar::gregorian::Gregorian;
-use lunar_core::calendar::historical::HistoricalCalendar;
+use lunar_core::calendar::historical::ShuoriTable;
 use lunar_core::folk::puzhu::{bu_yi, minyong, puzhu_days, wulu, yiji_for_day, zhu_zi, QiWangWangCount, WuLu};
 use lunar_core::folk::yiji::yuebiao_day;
 use lunar_core::math::real::RealOps;
@@ -27,7 +27,7 @@ fn main() {
     let count = if args.iter().any(|a| a == "exclusive") { QiWangWangCount::Exclusive } else { QiWangWangCount::Inclusive };
     let vsop = load_earth_vsop87_from_repo().unwrap();
     let elp = load_all(&lunar_core::repo::default_loader(), lunar_core::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT).unwrap();
-    let hist = HistoricalCalendar::from_csv(&std::fs::read_to_string("vendor/calendar/chinese_calendar/实历朔日表.csv").unwrap()).unwrap();
+    let hist = ShuoriTable::from_csv(&std::fs::read_to_string("vendor/calendar/chinese_calendar/实历朔日表.csv").unwrap()).unwrap();
     let j0 = (Gregorian::to_julian_day(y, 1, 1).as_f64() + 0.5).floor() as i64;
     let j1 = (Gregorian::to_julian_day(y + 1, 3, 1).as_f64() + 0.5).floor() as i64;
     let days = puzhu_days(&vsop, &elp, Some(&hist), j0, j1, count);

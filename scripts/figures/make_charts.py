@@ -7,7 +7,7 @@
   改正系数读 data/fit/vsop87-de406-planets.txt（与 Rust 管线所用同一文件）；
 - ΔT：Espenak–Meeus 2006 多项式（与 rust/core time::scales::delta_t 同系数）、Morrison–Stephenson 2021 逐年表（vendor/delta_t）；
 - NASA 日月食典对照、史书天象按朝代总表：data/phenomena/checks/ 与 doc/astronomy/phenomena-checks.md（脚本生成）；
-- 以本纪核验主表：doc/calendar/historical-calendar.md 的汇总表（scripts/calendar_data/verify_main_table.py 结果）。
+- 以本纪核验历日：doc/calendar/historical-calendar.md 的汇总表（scripts/calendar_data/verify_benji_rili.py 结果）。
 
 用法（仓库根）：uv run --project scripts --only-group chapront-fit python scripts/figures/make_charts.py
 DE406 文件：vendor/jpl/de406/de406.bsp（或环境变量 DE406_BSP）。
@@ -256,13 +256,13 @@ def charts_records() -> None:
         c = [x.strip() for x in line.strip("|").split("|")]
         names.append(c[0])
         rate.append(round(100 * int(c[2]) / int(c[1]), 1))
-    save("main-table-benji", {
+    save("benji-shuo", {
         "type": "bar",
         "x": {"label": "朝代"},
-        "y": {"label": "明书朔日与主表相合", "unit": "%", "min": 0, "max": 100},
+        "y": {"label": "明书朔日与张表相合", "unit": "%", "min": 0, "max": 100},
         "categories": names,
         "series": [{"name": "相合比例", "values": rate}],
-        "caption": "正史本纪明书「某月某干支朔」与主表朔日相合的比例",
+        "caption": "正史本纪明书「某月某干支朔」与张表朔日相合的比例",
     })
 
 

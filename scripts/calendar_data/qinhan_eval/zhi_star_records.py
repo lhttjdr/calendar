@@ -234,9 +234,9 @@ BOOKS = {
                         (r"^高祖文皇帝|^隋.{0,3}帝|^煬帝", "隋")],
         reigns={"周閔帝": ("北周", 557), "明帝": ("北周", 557)},
         regime_calendars={
-            "梁": [(-10000, "主表")], "陈": [(-10000, "主表")],
+            "梁": [(-10000, "张表")], "陈": [(-10000, "张表")],
             "北齐": [(-10000, "东魏/北齐")], "北周": [(-10000, "北魏/西魏/北周/隋")],
-            "隋": [(-10000, "北魏/西魏/北周/隋"), (589, "主表")],
+            "隋": [(-10000, "北魏/西魏/北周/隋"), (589, "张表")],
         },
     ),
     # 《新唐书·天文三》「月五星凌犯及星變」「五星聚合」（617—907）；武周建子（載初元年至久視元年九月，正月=子月、臘月=丑月、
@@ -277,7 +277,7 @@ BOOKS = {
         sections=[("金史/卷20", "==月五星淩犯及星變==", "@@")],
         corrections=[("金史/卷20", "九年二年癸亥", "九年二月癸亥", "「二年」為「二月」之訛（上承八年閏八月至十二月，下接七月）")],
         years=(1113, 1235), start_year=1115, regimes=[(1115, "金")], era_regimes=["金"], para_reset=False,
-        calendars=[(-10000, "主表"), (1137, "金")],  # 天会十五年颁大明历起用金历推步（calendar::daming_li）
+        calendars=[(-10000, "张表"), (1137, "金")],  # 天会十五年颁大明历起用金历推步（calendar::daming_li）
     ),
     # 《元史·天文志》（卷四十八「月五星凌犯及星變上」、卷四十九「下」）：月称「太陰」；点校本改字（「十（二）〔一〕月」）照改
     "yuanshi": dict(
@@ -306,7 +306,7 @@ BOOKS = {
     "hanshu": dict(
         sections=[("漢書/卷026", "@漢元年十月", "==校勘記==")],
         years=(-210, 25), start_year=-206, regimes=[(-205, "西汉"), (9, "新"), (23, "东汉")],
-        calendars=[(-10000, "复原历"), (-103, "主表")],
+        calendars=[(-10000, "复原历"), (-103, "张表")],
         reigns={"漢": ("西汉", -205), "高皇帝": ("西汉", -205), "高帝": ("西汉", -205), "孝惠": ("西汉", -193),
                 "高后": ("西汉", -186), "孝文": ("西汉", -178), "孝景": ("西汉", -155)},
         era_regimes=["汉", "新"], sub_era=True, eclipses=False,
@@ -326,21 +326,21 @@ BOOKS = {
         years=(1640, 1912), start_year=1644, regimes=[(1644, "清")], era_regimes=["清", "明"], para_reset=False,
     ),
     # ——本纪纪日（只取带日干支的记事日期，供 discriminating_records.py 以一手日期检验各历表）——
-    # 《三国志》魏纪（卷一至四）、蜀先主后主传（卷三十二、三十三）、吴主传与三嗣主传（卷四十七、四十八）；魏用主表，蜀吴用推步表
+    # 《三国志》魏纪（卷一至四）、蜀先主后主传（卷三十二、三十三）、吴主传与三嗣主传（卷四十七、四十八）；魏用张表，蜀吴用推步表
     "sanguozhi": dict(
         sections=[], carry_context=True, para_reset=False,
         date_sections=[(f"三國志/卷{j:02d}", None, None, "魏") for j in range(1, 5)]
         + [("三國志/卷32", None, None, "蜀"), ("三國志/卷33", None, None, "蜀"), ("三國志/卷47", None, None, "吴"), ("三國志/卷48", None, None, "吴")],
         years=(184, 281), start_year=184, regimes=[(184, "魏")], era_regimes=["汉", "魏", "蜀", "吴"],
         regime_era_extra={"魏": ["汉"], "蜀": ["汉"], "吴": ["汉"]},  # 魏纪、先主传、吴主传前段以汉年号纪年
-        regime_calendars={"魏": [(-10000, "主表")], "蜀": [(-10000, "主表"), (221, "蜀")], "吴": [(-10000, "主表"), (222, "吴")]},
+        regime_calendars={"魏": [(-10000, "张表")], "蜀": [(-10000, "张表"), (221, "蜀")], "吴": [(-10000, "张表"), (222, "吴")]},
     ),
-    # 《汉书》本纪卷六至十二（武帝至平帝）：太初元年（前 104）以前已由 check_hanshu.py 检验，此处按主表；武帝纪前段太初前诸条仍用复原历
+    # 《汉书》本纪卷六至十二（武帝至平帝）：太初元年（前 104）以前已由 check_hanshu.py 检验，此处按张表；武帝纪前段太初前诸条仍用复原历
     "hanshu_benji": dict(
         sections=[], carry_context=True, para_reset=False,
         date_sections=[(f"漢書/卷{j:03d}", None, None, "西汉") for j in range(6, 13)],
         years=(-141, 6), start_year=-140, regimes=[(-140, "西汉")], era_regimes=["汉"],
-        calendars=[(-10000, "复原历"), (-103, "主表")],
+        calendars=[(-10000, "复原历"), (-103, "张表")],
     ),
     # 《后汉书》本纪卷一至九（光武至献帝）
     "houhanshu_benji": dict(
@@ -349,7 +349,7 @@ BOOKS = {
         years=(22, 221), start_year=23, regimes=[(25, "东汉")], era_regimes=["汉", "新"], regime_era_extra={"东汉": ["新"]},
         simplified=True,
     ),
-    # ——以本纪核验主表（主表即该政权所行之历的复原）——
+    # ——以本纪核验历日（张表即该政权所行之历的复原）——
     # 《晋书》本纪（卷一至十）：卷一、二宣、景、文帝以魏年号纪年
     "jinshu_benji": dict(
         sections=[], carry_context=True, para_reset=False,
@@ -358,7 +358,7 @@ BOOKS = {
         regime_era_extra={"魏": ["汉"], "晋": ["魏"]},
     ),
     # 南朝四史本纪：宋（卷一至十）、南齐（卷一至八）、梁（卷一至六）、陈（卷一至六）；开国诸卷以前朝年号纪年
-    # 五代至明本纪纪日（以本纪核验主表，verify_main_table.py）。卷首传记常书前朝年号，故各政权另许前代年号（regime_era_extra）
+    # 五代至明本纪纪日（以本纪核验历日，verify_benji_rili.py）。卷首传记常书前朝年号，故各政权另许前代年号（regime_era_extra）
     "jiuwudaishi_benji": dict(
         sections=[], carry_context=True, para_reset=False,
         date_sections=[(f"舊五代史/卷{j}", None, None, "后梁") for j in range(1, 11)]
@@ -394,7 +394,7 @@ BOOKS = {
         sections=[], carry_context=True, para_reset=False,
         date_sections=[(f"金史/卷{j}", None, None, "金") for j in range(2, 19)],
         years=(1100, 1235), start_year=1113, regimes=[(1115, "金")], era_regimes=["辽", "金"], regime_era_extra={"金": ["辽"]},
-        calendars=[(-10000, "主表"), (1137, "金")],
+        calendars=[(-10000, "张表"), (1137, "金")],
     ),
     "yuanshi_benji": dict(
         sections=[], carry_context=True, para_reset=False,
@@ -446,7 +446,7 @@ BOOKS = {
         date_sections=[(f"魏書/卷{j}", None, None, "北魏") for j in ("2", "3", "4上", "4下", "5", "6", "7上", "7下", "8", "9", "10", "11")]
         + [("魏書/卷12", None, None, "东魏")],
         years=(380, 551), start_year=386, regimes=[(386, "北魏"), (534, "东魏")], era_regimes=["北魏", "东魏"],
-        regime_calendars={"北魏": [(-10000, "主表"), (398, "北魏/西魏/北周/隋")], "东魏": [(-10000, "东魏/北齐")]},
+        regime_calendars={"北魏": [(-10000, "张表"), (398, "北魏/西魏/北周/隋")], "东魏": [(-10000, "东魏/北齐")]},
     ),
     # 《北齐书》本纪（卷一至八）：卷一、二神武、文襄（东魏纪年），卷三起北齐
     "beiqishu_benji": dict(
@@ -467,7 +467,7 @@ BOOKS = {
         sections=[], carry_context=True, para_reset=False,
         date_sections=[("隋書/卷01", None, None, "隋"), ("隋書/卷02", None, None, "隋")],
         years=(578, 605), start_year=579, regimes=[(581, "隋")], era_regimes=["隋", "北周"],
-        regime_calendars={"隋": [(-10000, "北魏/西魏/北周/隋"), (589, "主表")]},
+        regime_calendars={"隋": [(-10000, "北魏/西魏/北周/隋"), (589, "张表")]},
     ),
     "xinwudaishi": dict(
         sections=[("新五代史/卷59", None, None)],
@@ -499,9 +499,9 @@ def day_number(s):
 
 
 def calendar_of(year, cfg, regime=None):
-    """该年所用历表：「主表」（实历朔日表）或推步政权名（data/calendar/推步政权朔日表.csv）。
+    """该年所用历表：「张表」（实历朔日表）或推步政权名（data/calendar/推步政权朔日表.csv）。
     一书多政权者（cfg 有 regime_calendars）按当时政权取。"""
-    table = cfg.get("regime_calendars", {}).get(regime) or cfg.get("calendars", [(-10000, "主表")])
+    table = cfg.get("regime_calendars", {}).get(regime) or cfg.get("calendars", [(-10000, "张表")])
     return [c for y, c in table if y <= year][-1]
 
 
@@ -547,10 +547,10 @@ def expand_together(clauses, date_re_):
 
 
 def calendar_label(table):
-    """记录表 calendar 列：主表记「实历朔日表」，推步历记「推步:政权」（data/calendar/推步政权朔日表.csv 的 regime）。"""
+    """记录表 calendar 列：张表记「实历朔日表」，推步历记「推步:政权」（data/calendar/推步政权朔日表.csv 的 regime）。"""
     if table == "复原历":
         return "复原历"
-    return "实历朔日表" if table == "主表" else f"推步:{table}"
+    return "实历朔日表" if table == "张表" else f"推步:{table}"
 
 
 def leap_month_span(table, year):

@@ -2,8 +2,8 @@
 """
 由开发知识库（doc/）生成读者文档站中内容较长的各章：
 - 天象（site/astronomy/）：日月食、行星、恒星与二十八宿、史书天象检验、当地星空；
-- 历法（site/calendar/）：实历与主表、历代历法总录、各朝推步算法、秦汉初历法复原；
-- 附录（site/appendix/）：天象逐条校验、以本纪核验主表、历法原文摘录。
+- 历法（site/calendar/）：行用历日、历代历法总录、各朝推步算法、秦汉初历法复原；
+- 附录（site/appendix/）：天象逐条校验、以本纪核验历日、历法原文摘录。
 
 kb_to_site.py 做机械清理（去代码标识、知识库内链接、开发日期戳）；本脚本按章节切分、拼装，并对清理后读不通之处逐条修补。
 知识库更新后重跑本脚本即可同步；若某条修补不再匹配，会打印出来，须人工核对。
@@ -38,7 +38,7 @@ def line_of(marker: str, src: str = SRC) -> int:
 # 所有生成章节通用的措辞替换（各页不一定都有，不报未匹配）：知识库文档代号换成读者站章名，开发者用语换成读者能懂的说法
 GENERIC_ALL = [
     (r"push-algorithms(\.md)?\s*", "《各朝推步》"),
-    (r"historical-calendar(\.md)?\s*", "《实历与主表》"),
+    (r"historical-calendar(\.md)?\s*", "《行用历日》"),
     (r"calendar-compendium(\.md)?\s*", "《历代历法总录》"),
     (r"qin-han-calendar-evaluation(\.md)?\s*", "《秦与汉初历法》"),
     (r"celestial-phenomena(\.md)?\s*", "《日月食》等章"),
@@ -46,7 +46,7 @@ GENERIC_ALL = [
     (r"与 第十节", "与《史书天象检验》一章"),
     (r"（P1 中 SOFA", "（本项目 SOFA"),
     (r"本模块", "本项目"),
-    (r"主表上游", "主表所据"),
+    (r"张表上游", "张表所据"),
     (r"上游 廖育栋", "廖育栋"),
     (r"上游的", "ChineseCalendar 的"),
     (r"上游(?=推步|代码|说明页|参数|对比|数据|程序|实现|版本|采用|用于|所用)", "ChineseCalendar "),
@@ -68,15 +68,15 @@ def fix(text: str, pairs: list[tuple[str, str]], page: str) -> str:
 # 对所有生成页面统一生效：知识库文档名换成读者站章名；「上游」写明所指；去掉知识库内部节号与开发阶段编号
 KB_CHAPTERS = {
     "push-algorithms": "《各朝推步》",
-    "historical-calendar": "《实历与主表》",
+    "historical-calendar": "《行用历日》",
     "calendar-compendium": "《历代历法总录》",
     "qin-han-calendar-evaluation": "《秦与汉初历法》",
     "celestial-phenomena": "天象各章",
     "sky-view-3d": "《当地星空》",
-    "main-table-checks": "附录《本纪核验主表》",
+    "benji-checks": "附录《本纪核验历日》",
 }
 GENERIC_ALL = [(rf"(?<![\w/-]){re.escape(k)}(?:\.md)?(?![\w-])", v) for k, v in KB_CHAPTERS.items()] + [
-    (r"主表上游", "主表所据"),
+    (r"张表上游", "张表所据"),
     (r"上游\s*(?=廖育栋)", ""),
     (r"上游(?=的)", "ChineseCalendar"),
     (r"上游(?=推步|代码|说明页|参数|对比|数据|程序|实现|版本|表|采用|用于)", "ChineseCalendar 的"),
@@ -106,7 +106,7 @@ def build() -> None:
     import os
     os.makedirs("site/appendix", exist_ok=True)
     for src, dst, title in [("doc/astronomy/phenomena-checks.md", "site/appendix/phenomena-checks.md", "# 天象逐条校验"),
-                            ("doc/calendar/main-table-checks.md", "site/appendix/main-table-checks.md", "# 本纪核验主表"),
+                            ("doc/calendar/benji-checks.md", "site/appendix/benji-checks.md", "# 本纪核验历日"),
                             ("doc/calendar/calendar-source-texts.md", "site/appendix/source-texts.md", "# 历法原文摘录")]:
         t = conv(1, 10**6, src, verbatim="source-texts" in dst)
         t = re.sub(r"^# .*", title, t, count=1)
@@ -118,7 +118,8 @@ def build() -> None:
         t = t.replace("**底本有讹字，引用前须核点校本**（，本地，不入库）", "**底本有讹字，引用前须核中华书局点校本**")
         if "source-texts" not in dst:  # 原文附录一字不动
             t = generic(t)
-        if "main-table-checks" in dst:  # 知识库链接与节号被清理后留下的断句，改指读者站章节
+        if "benji-checks" in dst:  # 知识库链接与节号被清理后留下的断句，改指读者站章节
+            t = t.replace("本附录是逐条检验的完整结果，由检验程序自动生成；方法与结论见正文各章。", "本附录是逐条检验的完整结果，由检验程序自动生成；方法与结论见正文各章。表中「张表」指张培瑜《三千五百年历日天象》的历表，「本项目推步」指按当时行用之历的术文推算（见《行用历日》）。", 1)
             t = t.replace("（北朝推步表闰位见 与 §3.4）", "（北朝推步表闰位见《各朝推步》「检验」一节）")
             t = t.replace("。说明。", "。说明见《历代历法总录》「先秦」一节。")
         open(dst, "w").write(t + "\n")

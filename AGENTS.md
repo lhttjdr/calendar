@@ -25,11 +25,11 @@
 
 `rust/core/src/calendar/` 内文件对应四层：
 - **1 独立基础层**：`gregorian`（前推格里高利历 `to_julian_day`；民用历 `civil_to_julian_day`，1582-10-15 前儒略历——史料与 `实历朔日表` 日期用后者）、`ancient_restore`（古历复原：分数推步、平朔平气，仅作验证）、`push_calendar`（历谱生成；定朔的金重修大明历在 `daming_li`）、`gan_zhi`（干支纯循环命名）、`options`。
-- **2 聚合/实算层**：`chinese_lunar`（现算真朔真气）、`historical`（`HistoricalCalendar`，查历史朔日表为主表提供岁数据）。
-- **3 派生层**：`era_names`（`EraNames` 解析 `data/calendar/汇总/era_names_merged.csv`，同一年可能有多个并存政权）、`era_gaiyuan`（处理改元）、`month_labels`（历史月序改制：主表一律建寅编月，新莽/景初建丑、武周/肃宗末建子的当时月名经 `data/calendar/month_label_reforms.csv` 换算）。
-- **4 仲裁/路由层**：`lifa`（`LifaRegistry` 解析 `data/calendar/汇总/lifa_summary.csv`）、`convert`（"实历优先、缺省退回定气定朔"判断）。
+- **2 聚合/实算层**：某一部历的具体历日，按来源分四种——`artifacts`（实物历日，如 1256 会天历）、`push_calendar`（按术推步）、`historical`（`ShuoriTable`，今人历表：张培瑜，经 ChineseCalendar 转录）、`chinese_lunar`（现算真朔真气）；共用 `historical::year_data_from_months` 构造岁数据。
+- **3 派生层**：`era_names`（`EraNames` 解析 `data/calendar/汇总/era_names_merged.csv`，同一年可能有多个并存政权）、`era_gaiyuan`（处理改元）、`month_labels`（历史月序改制：中原一线历日一律建寅编月，新莽/景初建丑、武周/肃宗末建子的当时月名经 `data/calendar/month_label_reforms.csv` 换算）。
+- **4 仲裁/路由层**：`lifa`（`ZhongyuanCalendarPeriods` 定中原一线逐年行用之历；`resolve_year` 按实物历日 → 按术推步 → 今人历表 → 现算取历日，结果带 `RiliSource`，选项 `ZhongyuanPreference`；`LifaRegistry` 解析 `lifa_summary.csv`）、`convert`（调用前者换算）。项目里不再有「主表」这个概念，见 [doc/calendar/rili-sources.md](doc/calendar/rili-sources.md)。
 
-`ancient_restore`/`push_calendar` 用于验证古历，与「实历优先」的 `convert`/`chinese_lunar` 换算路径是两条不同路径，不要混用。详见 [doc/calendar/historical-calendar.md](doc/calendar/historical-calendar.md)、[doc/calendar/ancient-calendar-restore.md](doc/calendar/ancient-calendar-restore.md)。
+`ancient_restore` 只用于验证古历（有理数推步），不进换算路径；`push_calendar` 的推步既供各政权历，也经 `lifa::resolve_year` 供中原一线（限 `reckoner_for_lifa` 已核验之历）。详见 [doc/calendar/historical-calendar.md](doc/calendar/historical-calendar.md)、[doc/calendar/ancient-calendar-restore.md](doc/calendar/ancient-calendar-restore.md)。
 
 ## 工具链（mise）
 

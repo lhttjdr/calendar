@@ -20,7 +20,7 @@
 ### 3. 张培瑜《三千五百年历日天象》
 
 - **用途**：历日与朔闰考证，本仓库朔日表（`vendor/calendar/chinese_calendar/实历朔日表.csv`）的来源依据。
-- **说明**：该书采用「据历还原」编制历表，本仓库主表即由此得来；具体含义（书中并无一种名为「中原正朔」的历法）见 [README_shuori.md](README_shuori.md)「主表来源」一节，不在此重复。
+- **说明**：该书采用「据历还原」编制历表，本仓库张表即由此得来；具体含义（书中并无一种名为「中原正朔」的历法）见 [README_shuori.md](README_shuori.md)「张表来源」一节，不在此重复。
 - **勘误**：ytliu0 维护勘误页 [《三千五百年历日天象》勘誤](https://ytliu0.github.io/ChineseCalendar/3500Calendars_errors.html)。
 
 ### 4. 维基百科「中国年号列表」
@@ -51,7 +51,7 @@
 
 - **链接**：[ GitHub ](https://github.com/ytliu0/ChineseCalendar) / [ 中国历史纪年表 ](https://ytliu0.github.io/ChineseCalendar/era_names_simp.html)
 - **说明**：本仓库 `vendor/calendar/chinese_calendar/年号表.csv` 的**直接数据来源**（从该库 `src/eras.js` 的 default 区域提取）；其年号与纪年表综合了万国鼎《中国历史纪年表》、维基百科中国年号列表等。
-- **范围**：722 BCE–2200 CE；主表为各朝据历还原推步的连续表，魏蜀吴等政权另有 region 数据可参考。
+- **范围**：722 BCE–2200 CE；张表为各朝据历还原推步的连续表，魏蜀吴等政权另有 region 数据可参考。
 
 ## 二、补全与校勘建议
 
@@ -62,7 +62,7 @@
 
 ## 三、本仓库中的使用方式
 
-- **朔日**：`vendor/calendar/chinese_calendar/实历朔日表.csv`，即主表（《三千五百年历日天象》按各朝颁历据历还原推步得出的连续表）；勘误见上。
+- **朔日**：`vendor/calendar/chinese_calendar/实历朔日表.csv`，即张表（《三千五百年历日天象》按各朝颁历据历还原推步得出的连续表）；勘误见上。
 - **年号与政权**：`vendor/calendar/chinese_calendar/年号表.csv` 含 8 列（含改元前列）；由 `scripts/calendar_data/refactor_era_names_csv.mjs` 或 `scripts/calendar_data/era_names_to_base_csv.mjs` 生成。**补全与修正**可依据上述文献或《历法通志》成历之年表（`lifa_tongzhi_establishment.csv`）校订。
 - **重新生成**：若从 ytliu0/ChineseCalendar 重新提取带 era_simp 的表，运行 `refactor_era_names_csv.mjs` 可得到 6 列基础表；补全时可在脚本中增加政权前缀或按年映射，或手工校订 CSV。
 

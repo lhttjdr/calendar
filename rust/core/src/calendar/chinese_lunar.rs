@@ -37,7 +37,7 @@ impl ChineseLunarYearData {
         }
     }
 
-    /// 主表朔日 + 修正表（辽金元等）：deltas[i] 为第 i 个朔的日数修正。中气取相邻朔修正之半。
+    /// 张培瑜历表朔日 + 修正表（辽金元等）：deltas[i] 为第 i 个朔的日数修正。中气取相邻朔修正之半。
     pub fn apply_shuori_correction(&self, deltas: &[i32]) -> Option<Self> {
         if deltas.len() != self.new_moon_jds.len() {
             return None;

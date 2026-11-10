@@ -32,9 +32,9 @@
 - **当前实现**：配置（`AncientConfig`）、平朔（`first_month_new_moon`）、平气（`mean_solar_terms`）、历谱（`calendar_year`：大小月、无中气置闰）、干支序（`jd_to_gan_zhi_index_epoch`）。预设 `AncientConfig::sifen()`（东汉四分历）与古六历七套（`guliuli_all()`）。逐朔：`mean_new_moon`（第 k 个平朔时刻）、`mean_new_moon_day`、`nearest_mean_new_moon`（朔日最接近某日的平朔）、`mean_new_moon_offset`（两历平朔的固定相差）；古六历书朔逐历分析用之，见 [guliuli-shuo.md](guliuli-shuo.md)。
 - **验证**：`month_new_moon_to_jd_day` 将月朔转为儒略日整数，可与 `实历朔日表.csv` 或《三千五百年历日天象》表逐条比对；平朔与实历可能差数日，定朔+招差术后可进一步逼近。
 
-## 与主表、推步的关系
+## 与张表、推步的关系
 
-- **主表**（`实历朔日表.csv`）：各朝据历还原推步得到的连续表，用于**校验**古历复原输出。  
+- **张表**（`实历朔日表.csv`）：各朝据历还原推步得到的连续表，用于**校验**古历复原输出。  
 - **推步历**（`push_calendar.rs`）：当前为 f64 平朔+无中气置闰，与古历复原的分数版可对照；古历复原侧重「严格按古法分数推步」，便于与文献逐项核对。  
 - 后续可在古历复原中接入招差术（立成表 + 内插），再与实历表比对定朔、定气。
 

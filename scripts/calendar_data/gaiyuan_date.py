@@ -105,8 +105,8 @@ def regime_month_span(regime: str, lunar_year: int, month: int, leap: bool) -> t
 
 
 def calendar_month_span(table: str, lunar_year: int, month: int, leap: bool) -> tuple[int, int]:
-    """table 为「主表」（实历朔日表）或推步政权名。"""
-    return month_span(lunar_year, month, leap) if table == "主表" else regime_month_span(table, lunar_year, month, leap)
+    """table 为「张表」（实历朔日表）或推步政权名。"""
+    return month_span(lunar_year, month, leap) if table == "张表" else regime_month_span(table, lunar_year, month, leap)
 
 
 REFORMS = ROOT / "data/calendar/month_label_reforms.csv"

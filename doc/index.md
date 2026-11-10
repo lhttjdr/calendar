@@ -40,15 +40,16 @@
 |------|------|
 | [lunar-calendar.md](calendar/lunar-calendar.md) | 农历编算、流程与分层 |
 | [calendar-layers.md](calendar/calendar-layers.md) | 历法域内部四层结构（独立基础层/聚合实算层/派生层/仲裁路由层），`rust/core/src/calendar/` 模块划分依据 |
+| [rili-sources.md](calendar/rili-sources.md) | 历日的来源与取舍（中原一线）：实物历日、按术推步、今人历表（张培瑜，撤「张表」概念）、现算的次序与选项，张表来历，推步与张表逐月差异，同类著作 |
 | [historical-calendar.md](calendar/historical-calendar.md) | 实历模块：历史朔日表、优先实历的公历↔农历换算 |
-| [main-table-checks.md](calendar/main-table-checks.md) | 以本纪核验主表逐条结果（脚本生成）：明书朔日、实际合朔、閏月位置 |
-| [dunhuang-calendar.md](calendar/dunhuang-calendar.md) | 敦煌历日换算（吐蕃、归义军）：出土历日有据之月作「敦煌」政权历表，无据之月退回主表的规则、纪年，比较表逐格重现检验 |
+| [benji-checks.md](calendar/benji-checks.md) | 以本纪核验历日逐条结果（脚本生成）：明书朔日、实际合朔、閏月位置 |
+| [dunhuang-calendar.md](calendar/dunhuang-calendar.md) | 敦煌历日换算（吐蕃、归义军）：出土历日有据之月作「敦煌」政权历表，无据之月退回中原历的规则、纪年，比较表逐格重现检验 |
 | [ancient-calendar-restore.md](calendar/ancient-calendar-restore.md) | 古历复原：分数推步、平朔平气、历谱生成；三千五百年仅作验证 |
 | [guliuli-shuo.md](calendar/guliuli-shuo.md) | 古六历书朔逐历分析：七套参数的平朔相差、各时段平朔与天文真朔之差，逐条对春秋经传书朔、《汉书》日食朔晦、实历朔日表与秦汉初复原历 |
 | [calendar-compendium.md](calendar/calendar-compendium.md) | 历代历法总录：总表与已复原定朔历（戊寅、麟德、大衍、五纪、正元、宣明、崇玄、金大明）的常数、表、算法、检验 |
 | [calendar-source-texts.md](calendar/calendar-source-texts.md) | 历法原文摘录（脚本生成）：唐诸历、重修大明历、庚午元历表、《辽史》大明历 |
 | [push-algorithms.md](calendar/push-algorithms.md) | 各朝代/政权历法推步算法与历术参数总结 |
-| [qin-han-calendar-evaluation.md](calendar/qin-han-calendar-evaluation.md) | 秦与汉初（前221—太初元年四月）历法复原接入评估：与主表衔接、《汉书》检验、待补的日月食与出土材料验证 |
+| [qin-han-calendar-evaluation.md](calendar/qin-han-calendar-evaluation.md) | 秦与汉初（前221—太初元年四月）历法复原接入评估：与张表衔接、《汉书》检验、待补的日月食与出土材料验证 |
 
 ## 三、工程实现（`engineering/`）
 

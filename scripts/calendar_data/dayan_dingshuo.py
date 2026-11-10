@@ -1,4 +1,4 @@
-"""唐大衍历定朔（《新唐书·历志四》卷二十八），用以复核主表 729—761 年朔日与本纪明书朔日之异。
+"""唐大衍历定朔（《新唐书·历志四》卷二十八），用以复核张表 729—761 年朔日与本纪明书朔日之异。
 
 常数：通法 3040，策实 1110343，揲法 89773，转终 6701279（秒法 80），开元十二年（724）甲子积 96961740 算。
 算法（通法之分为单位，用志文「若非朔望有交者」之简法，即注历所用）：
@@ -93,7 +93,7 @@ def main():
     print("724 年天正冬至", g.GANZHI[dz % 60], g.from_jdn(dz + off))
     moons = sorted({dg for y in range(727, 765) for _, dg in year_moons(y)})
     c.compare("大衍", F, off, moons, 729, 761, "dayan_dingshuo_check.csv",
-              "729—761 年本纪明书朔日与大衍历定朔（scripts/calendar_data/dayan_dingshuo.py，志文非交会简法）、主表比较；进朔限戌初 19 时（据五纪历志）。", limit=lambda t: 19.0)
+              "729—761 年本纪明书朔日与大衍历定朔（scripts/calendar_data/dayan_dingshuo.py，志文非交会简法）、张表比较；进朔限戌初 19 时（据五纪历志）。", limit=lambda t: 19.0)
 
 
 if __name__ == "__main__":

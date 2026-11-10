@@ -1,4 +1,4 @@
-"""《宝祐四年会天历》（1256，当时历日的钞本）核验：自校，主表比较，开禧历上推比较（会天历术不传）。
+"""《宝祐四年会天历》（1256，当时历日的钞本）核验：自校，张表比较，开禧历上推比较（会天历术不传）。
 
 自校：气节干支 = 月一日干支 + 日 − 1；月大小与下月一日相合；全年「凡三百五十四日」。
 
@@ -35,7 +35,7 @@ def main():
             print("气节干支不合", r["名"])
             bad += 1
     print(f"自校：月 {len(months)}、气 {len(qi)}，不合 {bad}")
-    main_t = d.tables()["主表"]
+    main_t = d.tables()["张表"]
     li = s.KAIXI
     li.off = g.jdn(1206, 12, 15)
     dz = li.tong(li.y_ji) // li.f
@@ -49,18 +49,18 @@ def main():
         h = float((t % li.f) / li.f * 24)
         lim = li.limit(t)
         jin = day + (h >= lim)
-        out.append({"月": r["名"], "会天历一日": r["干支"], "主表": g.ganzhi_of_jdn(s0), "开禧定朔（上推）": g.ganzhi_of_jdn(day),
+        out.append({"月": r["名"], "会天历一日": r["干支"], "张表": g.ganzhi_of_jdn(s0), "开禧定朔（上推）": g.ganzhi_of_jdn(day),
                     "小余（时）": f"{h:.2f}", "进朔限（时）": f"{lim:.2f}", "开禧进朔": g.ganzhi_of_jdn(jin),
-                    "合主表": int(g.ganzhi_of_jdn(s0) == r["干支"]), "合开禧": int(g.ganzhi_of_jdn(jin) == r["干支"]),
+                    "合张表": int(g.ganzhi_of_jdn(s0) == r["干支"]), "合开禧": int(g.ganzhi_of_jdn(jin) == r["干支"]),
                     "合开禧不进朔": int(g.ganzhi_of_jdn(day) == r["干支"])})
     with open(ROOT / "data/calendar/huitian_1256_check.csv", "w", encoding="utf-8", newline="") as f:
-        f.write("# 《宝祐四年会天历》各月一日与主表、开禧历上推比较（scripts/calendar_data/check_huitian_1256.py）。会天历术不传，开禧为上一部历，只作对照。\n")
+        f.write("# 《宝祐四年会天历》各月一日与张表、开禧历上推比较（scripts/calendar_data/check_huitian_1256.py）。会天历术不传，开禧为上一部历，只作对照。\n")
         w = csv.DictWriter(f, fieldnames=list(out[0].keys()))
         w.writeheader()
         w.writerows(out)
     for o in out:
         print(o)
-    print("合主表", sum(o["合主表"] for o in out), "合开禧进朔", sum(o["合开禧"] for o in out), "合开禧不进朔", sum(o["合开禧不进朔"] for o in out), "/", len(out))
+    print("合张表", sum(o["合张表"] for o in out), "合开禧进朔", sum(o["合开禧"] for o in out), "合开禧不进朔", sum(o["合开禧不进朔"] for o in out), "/", len(out))
 
 
 if __name__ == "__main__":

@@ -1100,7 +1100,7 @@ pub fn huang_dao_shi(day_gz: u8) -> Vec<(u8, &'static str)> {
 pub fn choose(
     vsop: &crate::astronomy::ephemeris::Vsop87,
     elp: &crate::astronomy::ephemeris::Elpmpp02Data,
-    historical: Option<&crate::calendar::historical::HistoricalCalendar>,
+    historical: Option<&crate::calendar::historical::ShuoriTable>,
     j0: i64,
     j1: i64,
     inp: &JiaquInput,

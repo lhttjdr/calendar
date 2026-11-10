@@ -1,4 +1,4 @@
-"""以天象判定历表：data/calendar/discriminating_records.csv 中主表与同系推步表判断不一的记录，按各历下的记录之日
+"""以天象判定历表：data/calendar/discriminating_records.csv 中张表与同系推步表判断不一的记录，按各历下的记录之日
 （两日相差约一月）求当日（北京时 0—24 时，地心）天体与目标的最小角距；日食记录求日月最小角距。角距小者即天象所支持之历。
 
 月一月绕天一周，凌犯记录换一个月日期，角距即差数十度，判定不依赖任何复原表；行星行动慢，差一月角距差可能不大，判定较弱。
@@ -68,34 +68,34 @@ def main():
         if not targets:
             continue
         res = {}
-        for col, lab in (("主表日 JDN", "主表"), ("推步日 JDN", "推步")):
+        for col, lab in (("张表日 JDN", "张表"), ("推步日 JDN", "推步")):
             if r[col]:
                 res[lab] = min_sep(int(r[col]), a, targets)
-        in_main, in_push = r["主表"].startswith("在月"), r["本项目推步"].startswith("在月")
-        if len(res) == 2 and r["主表日 JDN"] != r["推步日 JDN"]:
+        in_main, in_push = r["张表"].startswith("在月"), r["本项目推步"].startswith("在月")
+        if len(res) == 2 and r["张表日 JDN"] != r["推步日 JDN"]:
             # 两历候选日不同（相差约两月）：角距小者为天象所支持
             lo, hi = sorted(res.values())
-            win = ("主表" if res["主表"] < res["推步"] else "推步") + ("" if hi - lo > 2 and lo < 3 else "（弱）")
+            win = ("张表" if res["张表"] < res["推步"] else "推步") + ("" if hi - lo > 2 and lo < 3 else "（弱）")
         elif res:
             # 同一日（日干支所指之日固定，两历只是月序不同）：此日天象相符，则支持把它排在所记之月的那一历
             sep = next(iter(res.values()))
             if sep < 3:
-                win = "主表" if in_main else ("推步" if in_push else "")
+                win = "张表" if in_main else ("推步" if in_push else "")
             else:
                 win = "此日天象不符（记录有误），不能判定"
         else:
             win = ""
         out.append({**{k: r[k] for k in ("书", "类", "政权", "年", "月", "日干支")},
-                    "主表日角距°": f"{res['主表']:.2f}" if "主表" in res else "", "推步日角距°": f"{res['推步']:.2f}" if "推步" in res else "",
+                    "张表日角距°": f"{res['张表']:.2f}" if "张表" in res else "", "推步日角距°": f"{res['推步']:.2f}" if "推步" in res else "",
                     "天象所支持": win, "原文": r["原文"]})
     with open("data/calendar/discriminating_records_sky.csv", "w", encoding="utf-8", newline="") as f:
-        f.write("# 以天象判定主表与推步表（scripts/phenomena/discriminating_records_sky.py，DE441/DE406 地心，当日最小角距）；"
+        f.write("# 以天象判定张表与推步表（scripts/phenomena/discriminating_records_sky.py，DE441/DE406 地心，当日最小角距）；"
                 "日食为日月角距（<约 0.5° 方可有食）。\n")
         w = csv.DictWriter(f, fieldnames=list(out[0].keys()))
         w.writeheader()
         w.writerows(out)
     for o in out:
-        print(o["书"], o["年"], o["月"], o["日干支"], "主表", o["主表日角距°"], "推步", o["推步日角距°"], "→", o["天象所支持"], "|", o["原文"][:24])
+        print(o["书"], o["年"], o["月"], o["日干支"], "张表", o["张表日角距°"], "推步", o["推步日角距°"], "→", o["天象所支持"], "|", o["原文"][:24])
 
 
 if __name__ == "__main__":

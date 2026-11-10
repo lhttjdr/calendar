@@ -1,9 +1,9 @@
-//! 历法域第 3 层（派生层）：历史月序改制——主表月份 ↔ 当时政权实际使用的月名。
+//! 历法域第 3 层（派生层）：历史月序改制——建寅月序 ↔ 当时政权实际使用的月名。
 //!
-//! 第 2 层主表（[crate::calendar::historical::HistoricalCalendar]，`实历朔日表`）的岁与月一律按建寅（夏正）编号；
+//! 第 2 层中原一线的历日（不论出自推步、今人历表还是实物，见 [crate::calendar::lifa::resolve_year]）岁与月一律按建寅（夏正）编号；
 //! 而新莽（建丑）、魏景初（建丑，景初元年无三月、景初三年有「后十二月」）、武周（建子：正月、腊月、一月……）、
 //! 唐肃宗末年（建子，以「建子月」「建丑月」……斗建为月名）当时用的月名与岁首不同。本模块只做**命名**：
-//! 朔日、月长仍取主表，不改第 2 层；与 [crate::calendar::era_names] 同层（依附于历法的纪年、月名派生）。
+//! 朔日、月长仍取第 2 层，不改动；与 [crate::calendar::era_names] 同层（依附于历法的纪年、月名派生）。
 //!
 //! 数据：`data/calendar/month_label_reforms.csv`，由 `scripts/calendar_data/build_month_label_reforms.py`
 //! 按史志原文规则生成，只列与建寅标准月名不同的月份。按政权区分：同一年可有并存政权用不同月序
@@ -21,7 +21,7 @@ pub fn standard_month_name(month: u8) -> &'static str {
     STANDARD_MONTH_NAMES[(month - 1) as usize]
 }
 
-/// 主表中的一个月：岁（建寅）、月序（1..=12）、是否闰月。
+/// 建寅编号的一个月：岁、月序（1..=12）、是否闰月。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct TableMonth {
     pub lunar_year: i32,
@@ -100,7 +100,7 @@ impl MonthLabelReforms {
         self.by_table.contains_key(&(regime.to_string(), table))
     }
 
-    /// 主表月 → 该政权当时的月名；不在改制期内则为建寅标准月名。
+    /// 建寅月 → 该政权当时的月名；不在改制期内则为建寅标准月名。
     pub fn label_of(&self, regime: &str, table: TableMonth) -> MonthLabel {
         match self.by_table.get(&(regime.to_string(), table)) {
             Some(&i) => self.rows[i].label.clone(),
@@ -112,9 +112,9 @@ impl MonthLabelReforms {
         }
     }
 
-    /// 当时月名 → 主表月。先查改制表；查不到时按建寅标准月名回退，但若回退到的主表月在该政权已被改名
+    /// 当时月名 → 建寅月。先查改制表；查不到时按建寅标准月名回退，但若回退到的建寅月在该政权已被改名
     /// （如景初元年「三月」、武周「十一月」，当时并无此月名），返回 None。
-    /// 不检查主表是否真有该月（如某年无闰），由调用方查主表时判定。
+    /// 不检查第 2 层是否真有该月（如某年无闰），由调用方取历日时判定。
     pub fn table_of(&self, regime: &str, label: &MonthLabel) -> Option<TableMonth> {
         if let Some(&i) = self.by_label.get(&(regime.to_string(), label.clone())) {
             return Some(self.rows[i].table);
@@ -129,16 +129,17 @@ impl MonthLabelReforms {
 mod tests {
     use super::*;
     use crate::calendar::gan_zhi::jd_to_gan_zhi_day;
-    use crate::calendar::gregorian::civil_to_julian_day;
-    use crate::calendar::historical::HistoricalCalendar;
+    use crate::math::real::{from_i32, real};
+    use crate::calendar::historical::ShuoriTable;
+    use crate::calendar::lifa::{zhongyuan_year_months, ZhongyuanPreference};
 
-    fn load() -> (MonthLabelReforms, HistoricalCalendar) {
+    fn load() -> (MonthLabelReforms, ShuoriTable) {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let r = MonthLabelReforms::from_csv(
             &std::fs::read_to_string(root.join("data/calendar/month_label_reforms.csv")).unwrap(),
         )
         .unwrap();
-        let h = HistoricalCalendar::from_csv(
+        let h = ShuoriTable::from_csv(
             &std::fs::read_to_string(root.join("vendor/calendar/chinese_calendar/实历朔日表.csv")).unwrap(),
         )
         .unwrap();
@@ -149,13 +150,14 @@ mod tests {
         MonthLabel { year, name: name.to_string(), is_leap }
     }
 
-    /// 主表该月朔日的日干支。
-    fn new_moon_ganzhi(h: &HistoricalCalendar, t: TableMonth) -> String {
-        let (y, m, d) = h.new_moon_date(t.lunar_year, t.month, t.is_leap).expect("主表无此月");
-        jd_to_gan_zhi_day(civil_to_julian_day(y, m, d)).to_string()
+    /// 中原一线（缺省来源次序）该月朔日的日干支。
+    fn new_moon_ganzhi(h: &ShuoriTable, t: TableMonth) -> String {
+        let (months, _) = zhongyuan_year_months(Some(h), t.lunar_year, ZhongyuanPreference::default()).expect("无此岁");
+        let &(j, _, _) = months.iter().find(|&&(_, m, l)| m == t.month && l == t.is_leap).expect("无此月");
+        jd_to_gan_zhi_day(from_i32(j as i32) - real(0.5)).to_string()
     }
 
-    /// 史志所记朔日干支：按当时月名查主表，朔日干支须一致。
+    /// 史志所记朔日干支：按当时月名查中原一线历日，朔日干支须一致。
     #[test]
     fn historical_new_moon_records() {
         let (r, h) = load();

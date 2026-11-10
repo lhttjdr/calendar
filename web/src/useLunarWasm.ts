@@ -52,6 +52,10 @@ export type YearData = {
   /** 岁内朔、上弦、望、下弦 JD(TT)，与 phaseKinds（0 朔 1 上弦 2 望 3 下弦）一一对应；铺注「朔弦望」用 */
   phaseJds?: Float64Array
   phaseKinds?: Uint8Array
+  /** 中原一线历日（朔日、置闰）的来源说明，如「按术推步（景初历）」「今人历表（张培瑜历表）」「现代定气定朔」；
+   *  合朔、弦望、节气时刻（phaseJds 与节气缓存）始终是天文计算值 */
+  riliSource?: string
+  riliKind?: 'artifact' | 'reckoned' | 'table' | 'computed'
 }
 
 import type { LunarBackend } from './lunar-backend-types'
@@ -268,7 +272,70 @@ const ELP_BIN_KEYS = [
   'elp_pert_s3_bin',
 ] as const
 
+/**
+ * 中原一线历日的来源偏好（Rust 第 4 层 lifa::ZhongyuanPreference）：false = 按术推步先于今人历表（缺省，依资料可靠性次序），
+ * true = 张培瑜历表先于推步。实物历日总是优先。见 doc/calendar/rili-sources.md。
+ */
+let zhongyuanPreferTable = false
+const resolvedCache = new Map<string, YearData>()
+export function getZhongyuanPreferTable(): boolean {
+  return zhongyuanPreferTable
+}
+export function setZhongyuanPreferTable(v: boolean): void {
+  if (v === zhongyuanPreferTable) return
+  zhongyuanPreferTable = v
+  resolvedCache.clear()
+}
+
+/** 今人历表（张培瑜，vendor/calendar/chinese_calendar/实历朔日表.csv，经 npm run copy-data 拷为 /data/calendar/zhang_shuori.csv） */
+const ZHANG_TABLE_URL = `${DATA_BASE}/calendar/zhang_shuori.csv`
+const zhangLoaded = new WeakMap<LunarBackend, Promise<boolean>>()
+function ensureZhangTable(bk: LunarBackend): Promise<boolean> {
+  let p = zhangLoaded.get(bk)
+  if (!p) {
+    p = fetch(ZHANG_TABLE_URL)
+      .then((r) => (r.ok ? r.text() : ''))
+      .then((txt) => (txt ? bk.init_zhang_table?.(txt) ?? false : false))
+      .catch(() => false)
+    zhangLoaded.set(bk, p)
+  }
+  return p
+}
+
+/** 现算岁数据（天文）→ 中原一线历日：朔日与置闰换成 Rust 仲裁层所选来源（实物历日、按术推步、今人历表），无则保留现算。 */
+async function overlayZhongyuan(astro: YearData, variant: RealBackendVariant): Promise<YearData> {
+  const key = `${variant}:${zhongyuanPreferTable ? 1 : 0}:${astro.lunarYear}`
+  const hit = resolvedCache.get(key)
+  if (hit) return hit
+  const bk = await loadWasm(variant)
+  if (typeof bk.resolve_zhongyuan_year !== 'function') return astro
+  // 推步优先时，2017 年起的现行农历直接现算，不必下载历表
+  if (zhongyuanPreferTable || astro.lunarYear < 2017) await ensureZhangTable(bk)
+  const s = bk.resolve_zhongyuan_year(astro.lunarYear, zhongyuanPreferTable)
+  let yd: YearData
+  if (s) {
+    const j = JSON.parse(s) as { new_moon_jds: number[]; zhong_qi_jds: number[]; source: string; kind: YearData['riliKind'] }
+    yd = { ...astro, newMoonJds: Float64Array.from(j.new_moon_jds), zhongQiJds: Float64Array.from(j.zhong_qi_jds), riliSource: j.source, riliKind: j.kind }
+  } else {
+    yd = { ...astro, riliSource: '现代定气定朔', riliKind: 'computed' }
+  }
+  resolvedCache.set(key, yd)
+  return yd
+}
+
 export async function getYearData(
+  lunarYear: number,
+  backend?: LunarBackend,
+  onSourceUsed?: (source: EphemerisDataSource) => void
+): Promise<YearData> {
+  const known = backend ? backendVariant.get(backend) : 'f64'
+  const variant: RealBackendVariant = known ?? 'f64'
+  const astro = await getAstroYearData(lunarYear, backend, onSourceUsed)
+  return overlayZhongyuan(astro, variant)
+}
+
+/** 现算（天文）岁数据，带缓存；中原一线历日见 getYearData。 */
+async function getAstroYearData(
   lunarYear: number,
   backend?: LunarBackend,
   onSourceUsed?: (source: EphemerisDataSource) => void
@@ -628,8 +695,7 @@ export function formatLunarWithFallback(
   displayYear?: number,
   displayMonth?: number
 ): string | null {
-  const primary = yearDataList[0]
-  const primaryLunarYear = primary?.lunarYear
+  // 主岁在前，查到即用；主岁查不到（如一月里的正月初一，上一岁的岁数据管不到）才取其它岁
   for (const data of yearDataList) {
     const r = wasm.gregorian_to_chinese_lunar(
       year,
@@ -640,7 +706,6 @@ export function formatLunarWithFallback(
       new Float64Array(data.zhongQiJds)
     )
     if (r == null) continue
-    if (r.month === 1 && r.day === 1 && primaryLunarYear != null && data.lunarYear !== primaryLunarYear) continue
     const slot: LunarSlot = {
       lunarYear: r.year,
       lunarMonth: r.month,
@@ -663,8 +728,7 @@ export function getLunarSlotForDay(
   day: number,
   yearDataList: YearData[]
 ): LunarSlot | null {
-  const primary = yearDataList[0]
-  const primaryLunarYear = primary?.lunarYear
+  // 主岁在前，查到即用；主岁查不到（如一月里的正月初一，上一岁的岁数据管不到）才取其它岁
   for (const data of yearDataList) {
     const r = wasm.gregorian_to_chinese_lunar(
       year,
@@ -675,7 +739,6 @@ export function getLunarSlotForDay(
       new Float64Array(data.zhongQiJds)
     )
     if (r == null) continue
-    if (r.month === 1 && r.day === 1 && primaryLunarYear != null && data.lunarYear !== primaryLunarYear) continue
     return {
       lunarYear: r.year,
       lunarMonth: r.month,
