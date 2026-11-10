@@ -1,29 +1,52 @@
 # Chinese Lunar Calendar
 
-天文计算驱动的农历/朔望项目：基于 VSOP87、ELPMPP02 等历表与岁差/章动/光行差计算日月视位置及合朔，农历以「朔」为月首。详见 [wiki Introduction](https://github.com/lhttjdr/calendar/wiki/Introduction)。
+从太阳、月亮的实际运行出发，算出每一个合朔、每一个节气，排出农历；再按历代历法的术文复原古人实际行用的历日，用史书的日期与天象记录检验；民俗的纪时、择日、式占、命理按原典逐条实现，各家并列。
+
+- **在线日历**：<https://lhttjdr.github.io/calendar/>
+- **文档**：<https://lhttjdr.github.io/calendar/docs/>（应用顶栏「文档」也可进入）。原理、源流、各家做法与本项目的检验都在这里。
+
+## 内容
+
+文档站与代码按同一结构分四篇，依赖自上而下：
+
+| 篇 | 内容 |
+|---|---|
+| 数学 | 向量与转动（含四元数、对偶四元数）、数值精度（f64 与双双精度）、级数求值、求根与极值、最小二乘拟合 |
+| 天文 | 天球坐标、时标与 ΔT、参考架、岁差（Vondrák 2011 等）、章动（IAU 2000A）、历表（VSOP87 与 ELP/MPP02，拟合 JPL DE 数值历表的改正）、视位置；合朔与月相、二十四节气、日月食、行星、恒星与二十八宿、当地星空、史书天象检验 |
+| 历法 | 历日与纪日、现行农历编排（GB/T 33661—2017）、历史上实际行用的历日（主表）与各政权历、古历复原与平气、历代历法总录、年号纪年与改元 |
+| 民俗 | 干支历四柱、纳音与值日、更点、杂节气、建除与黄道、神煞宜忌、婚嫁择吉、奇门遁甲、大六壬、太乙、周易与六爻、七政四余、紫微斗数、三元玄空 |
+
+计算全部在 Rust 中完成，编译成 WebAssembly 在浏览器里运行。
 
 ## 快速开始
 
+Rust、Node、wasm-pack 的版本由根目录 `mise.toml` 统一管理：
+
+```bash
+mise trust && mise install
+```
+
 | 部分 | 命令 |
 |------|------|
-| **Rust**（core + wasm-lib） | `cd rust && cargo build` |
-| **Web**（Vite + React，Rust WASM 后端） | `cd web && npm install && npm run dev` |
-| **文档站**（VitePress） | `cd site && npm install && npm run dev` |
+| Rust 核心库 | `cd rust && cargo build`；测试 `cd rust && cargo test -p lunar-core --no-default-features --features real-f64` |
+| WASM 包 | `./scripts/dev/build_wasm.sh`（同时构建 `wasm-lib` 与 `wasm-lib-f64`） |
+| Web 应用 | `cd web && npm install && npm run copy-data && npm run dev` |
+| 文档站 | `cd site && npm install && npm run dev` |
+| 数据脚本（Python） | `uv run --project scripts python scripts/...`，在仓库根执行 |
 
-- **数据**：历表在仓库根 `vendor/vsop87/`、`vendor/elpmpp02/`；Rust 运行或测试时工作目录为仓库根。
-- **在线**：应用 <https://lhttjdr.github.io/calendar/>，文档 <https://lhttjdr.github.io/calendar/docs/>（应用顶栏「文档」可进入）。
-- **参考文献**：`doc/references/`；文档按《月相和二十四节气的计算》分章见 [doc/index.md](doc/index.md)，项目结构见 [doc/engineering/project-and-implementation.md](doc/engineering/project-and-implementation.md)。
+- Rust 运行、测试时工作目录须为仓库根（数据路径以仓库根为基准）。
+- `cargo test -p lunar-core` 缺省启用 `python-test` 特性，需要 Python 环境，见 `scripts/dev/run_tests_with_venv.sh`。
 
-## 项目结构
+## 目录
 
-- **rust/** — Cargo workspace（core、wasm-lib）
-- **web/** — 前端，Rust WASM 后端
-- **vendor/** — 原样保留的第三方/来源数据，不重排/不改动内部文件：历表（`vsop87/`、`elpmpp02/`、`IAU2000/`、`jpl/`）、节气朔望参考表（`月相和二十四节气的计算/`）、`calendar/`（按来源分 `fang_shiming/`、`lifa_tongzhi/`、`chinese_calendar/` 三个子目录）
-- **data/** — 本项目自己生成/整理：`fit/`（VSOP87–DE406 拟合）、`calendar/`（跨来源汇总的 `lifa.csv`、`regime_era_calendar_matrix.*`、说明文档）
-- **doc/** — 开发知识库（不发布）与 `doc/references/` 参考文献；按《月相和二十四节气的计算》章节索引见 [doc/index.md](doc/index.md)
-- **site/** — 面向读者的文档站（VitePress），构建后随 CI 发布到 `/docs/` 子路径；动画产物在 `site/public/media/`
-- **scripts/** — 数据生成/转换脚本，按用途分 `dev/`、`ephemeris/`、`calendar_data/`、`manim/` 子目录
+| 目录 | 内容 |
+|------|------|
+| `rust/` | Cargo workspace：`core`（数学、天文、历法、民俗）、`wasm-lib`（双双精度）、`wasm-lib-f64` |
+| `web/` | 前端应用（Vite + React），以 WASM 为计算后端 |
+| `site/` | 面向读者的文档站（VitePress），发布到 `/docs/` |
+| `doc/` | 开发与 AI 用的知识库，含代码路径与逐条检验，不发布；索引见 [doc/index.md](doc/index.md) |
+| `data/` | 本项目生成或整理的数据：历表拟合改正、历法与年号汇总、天象检验结果、星表与星官、民俗数据 |
+| `vendor/` | 原样保留的第三方与来源数据（历表、星表、历日表、古籍录文等），不改动 |
+| `scripts/` | 数据生成与转换脚本（历表拟合、历法数据、天象检验、统计图、动画） |
 
-## 功能状态
-
-见仓库 wiki。已实现：数学（Decimal、Angle、Vector、Expression 等）、天文坐标与历表（VSOP87、ELPMPP02）、岁差/章动/光行差/大气折射、视位置流水线、日月合朔、儒略日↔公历等。
+更详细的结构与开发约定见 [AGENTS.md](AGENTS.md)。
