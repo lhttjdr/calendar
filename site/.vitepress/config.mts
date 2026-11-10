@@ -106,8 +106,8 @@ export default defineConfig({
             text: '古历',
             items: [
               { text: '古历复原', link: '/calendar/ancient' },
-              { text: '各朝推步', link: '/calendar/push-algorithms' },
               { text: '秦与汉初历法', link: '/calendar/qin-han' },
+              { text: '各朝推步', link: '/calendar/push-algorithms' },
               { text: '历代历法总录', link: '/calendar/compendium' },
             ],
           },

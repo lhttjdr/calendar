@@ -118,6 +118,9 @@ def build() -> None:
         t = t.replace("**底本有讹字，引用前须核点校本**（，本地，不入库）", "**底本有讹字，引用前须核中华书局点校本**")
         if "source-texts" not in dst:  # 原文附录一字不动
             t = generic(t)
+        if "main-table-checks" in dst:  # 知识库链接与节号被清理后留下的断句，改指读者站章节
+            t = t.replace("（北朝推步表闰位见 与 §3.4）", "（北朝推步表闰位见《各朝推步》「检验」一节）")
+            t = t.replace("。说明。", "。说明见《历代历法总录》「先秦」一节。")
         open(dst, "w").write(t + "\n")
 
 

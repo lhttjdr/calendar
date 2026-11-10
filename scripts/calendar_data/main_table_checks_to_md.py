@@ -101,6 +101,9 @@ def main():
                [[BOOK.get(r["书"], r["书"]), r["朝代"], r["年"], r["纪年"], r["本纪闰位"], r["主表"], r["原文"]]
                 for r in leaps if r["主表"] not in ("合", "略书相容")])
     # 三、敦煌历日（邓文宽 1996 附录一；check_dunhuang_comparison.py）
+    head = L
+    blocks = {}
+    L = blocks["dunhuang"] = []
     dh = rows("dunhuang_vs_main.csv")
     if dh:
         L += ["", "## 三、敦煌历日与主表（邓文宽 1996 附录一）", "",
@@ -123,6 +126,7 @@ def main():
                    [[r["公元"], r["纪年"], r["文书"], r["主表月"], r["敦煌月"], r["敦煌朔"], r["主表朔"], r["日差"], r["书页"]]
                     for r in dh if not r["推算"] and r["日差"] != "0"])
     # 四、金大明历（daming_dingshuo.py）
+    L = blocks["jin"] = []
     jn = rows("daming_dingshuo_check.csv")
     if jn:
         L += ["", "## 四、金大明历定朔与本纪明书朔日", "",
@@ -137,6 +141,7 @@ def main():
                      r["术文进朔"], r["大明进朔（校准）"], r["日食"], r["原文"]]
                     for r in jn if r["临限"] or r["本纪合主表"] == "0" or r["本纪合大明进朔"] == "0"])
     # 五、辽历（liao_calendar_check.py）
+    L = blocks["liao"] = []
     lc = rows("liao_calendar_check.csv")
     if lc:
         L += ["", "## 五、辽历：本纪明书朔日与宋历、祖冲之大明历、金大明历", "",
@@ -156,6 +161,7 @@ def main():
                    [[r["年"], r["纪年"], r["月"], r["本纪朔"], r["宋历（主表）"], r["祖冲之平朔"], r["金大明定朔"], r["定朔小余（时）"],
                      r["进朔限（时）"], r["金大明进朔"], r["原文"]] for r in lc if r["合宋"] == "0"])
     # 六、唐定朔诸历（linde_dingshuo.py、dayan_dingshuo.py、chongxuan_dingshuo.py）
+    L = blocks["tang"] = []
     tang = [("戊寅历定朔 627—645", "wuyin_ding_check.csv", "戊寅定朔", "本纪合进朔", "本纪合不进朔", "定朔小余（时）"),
             ("戊寅历平朔 646—664", "wuyin_ping_check.csv", "戊寅定朔", "本纪合进朔", "本纪合不进朔", "定朔小余（时）"),
             ("麟德历 665—728", "linde_dingshuo_check.csv", "麟德定朔", "本纪合麟德进朔", "本纪合麟德无进朔", "麟德定朔小余（时）"),
@@ -186,6 +192,7 @@ def main():
                    [[BOOK.get(r["书"], r["书"]), r["年"], r["纪年"], r["月"], r["本纪朔"], r["主表朔"], r[col], r[hcol], r["日食"], r["原文"]]
                     for r in rs if r["本纪合主表"] == "0" or r[jin_] == "0"])
     # 七、宝祐四年会天历（check_huitian_1256.py）
+    L = blocks["huitian"] = []
     ht = rows("huitian_1256_check.csv")
     if ht:
         L += ["", "## 七、《宝祐四年会天历》（1256）", "",
@@ -193,6 +200,7 @@ def main():
         L += table(["月", "会天历一日", "主表", "开禧定朔（上推）", "小余（时）", "进朔限（时）", "开禧进朔"],
                    [[r["月"], r["会天历一日"], r["主表"], r["开禧定朔（上推）"], r["小余（时）"], r["进朔限（时）"], r["开禧进朔"]] for r in ht])
     # 八、《春秋》经文纪日（chunqiu_check.py、chunqiu_jianzheng.py）
+    L = blocks["chunqiu"] = []
     cq = rows("chunqiu_check.csv")
     if cq:
         models = [k for k in cq[0] if "·" in k or k == "春秋历"]
@@ -227,15 +235,24 @@ def main():
         pick = ["春秋历", "周·建子", "周·建丑", "鲁·建子", "鲁·建丑", "殷·建子"]
         L += table(["公", "年", "月", "干支", "书朔", "日食"] + pick + ["原文"],
                    [[r["公"], r["公年"], r["月"], r["干支"], "朔" if r["朔"] == "1" else "", "食" if r["日食"] == "1" else ""] + [r[m] for m in pick] + [r["原文"]] for r in cq])
+    L = blocks["zuozhuan"] = []
     zz = rows("zuozhuan_check.csv")
     if zz:
         L += ["", "## 九、《左传》传文纪日与春秋历", "", "偏 k：传文 m 月当春秋历 m+k 月。说明见 [calendar-compendium.md](./calendar-compendium.md) §12。偏 0 与偏 +2 几乎同时合或不合，不能分辨岁首差。", ""]
         L += table(["公", "年", "月", "干支", "书朔", "同经", "偏-1", "偏0", "偏+1", "偏+2", "原文"],
                    [[r["公"], r["公年"], r["月"], r["干支"], "朔" if r["朔"] == "1" else "", "同" if r["同经"] == "1" else "", r["偏-1"], r["偏+0"], r["偏+1"], r["偏+2"], r["原文"]] for r in zz])
+    L = blocks["wangtao"] = []
     wc = rows("wangtao_compare.csv")
     if wc:
         L += ["", "## 十、经传纪日在张培瑜春秋历与王韬谱间判定不同者", "", "王韬逐月朔由正朔均分取整，可差 ±1 日。说明见 [calendar-compendium.md](./calendar-compendium.md) §12。", ""]
         L += table(["文", "公", "年", "月", "干支", "只合", "原文"], [[r["文"], r["公"], r["公年"], r["月"], r["干支"], r["合"], r["原文"]] for r in wc])
+    # 专题各节按所涉时代先后排列（以起始年代为序）：先秦经传 → 唐至明定朔诸历（627 起）→ 敦煌历日 → 辽 → 金 → 宝祐会天历
+    L = head
+    for name in ["chunqiu", "zuozhuan", "wangtao", "tang", "dunhuang", "liao", "jin", "huitian"]:
+        L += blocks.get(name, [])
+    num = "一二三四五六七八九十"
+    n = iter(range(100))
+    L = [re.sub(r"^## [一二三四五六七八九十]+、", lambda m: f"## {num[next(n)]}、", x) if x.startswith("## ") else x for x in L]
     (ROOT / "doc/calendar/main-table-checks.md").write_text("\n".join(L) + "\n", encoding="utf-8")
     print("doc/calendar/main-table-checks.md", len(L), "行")
 
