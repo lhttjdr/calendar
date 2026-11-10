@@ -63,6 +63,14 @@ pub trait DingshuoLi: Send + Sync {
     fn jinshuo_limit(&self, _y: i32, _t: &Q) -> Option<Q> {
         None
     }
+    /// 注历所用定朔：缺省同 [DingshuoLi::month]；麟德历定小余近夜半者以本术重算
+    fn ding_for_calendar(&self, y: i32, m: i64) -> Q {
+        self.month(y, m).1
+    }
+    /// 已按历法另有规定（如麟德「不過頻三」）调整过的全部朔日 JDN（升序）；None 则逐岁现排
+    fn fixed_days(&self) -> Option<&[i64]> {
+        None
+    }
 }
 
 fn day_of(li: &dyn DingshuoLi, y: i32, t: &Q) -> i64 {
@@ -72,21 +80,73 @@ fn day_of(li: &dyn DingshuoLi, y: i32, t: &Q) -> i64 {
     day + li.jinshuo_limit(y, t).map_or(0, |l| i64::from(xiao >= l))
 }
 
+/// 冬至岁 y0..=y1 的各月朔日：(JDN, 定小余占一日之比)，升序。每个经朔只由其所在冬至岁算一次（经朔 < 下一冬至岁天正经朔），
+/// 免得相邻两岁所算定朔微异而重出。
+fn month_starts(li: &dyn DingshuoLi, y0: i32, y1: i32) -> Vec<(i64, Q)> {
+    let off = li.off();
+    let f = q(li.f());
+    let mut out = Vec::new();
+    for yy in y0..=y1 {
+        let next0 = li.month(yy + 1, 0).0;
+        for m in 0..15 {
+            let (jing, _) = li.month(yy, m);
+            if jing >= next0 {
+                break;
+            }
+            let ding = li.ding_for_calendar(yy, m);
+            let frac = md(&ding, &f) / &f;
+            out.push((day_of(li, yy, &ding) + off, frac));
+        }
+    }
+    out.sort_by_key(|x| x.0);
+    out.dedup_by_key(|x| x.0);
+    out
+}
+
+/// 「盈朒之極，不過頻三。其或過者，觀定小餘近夜半者量之」（《旧唐书·历志二》麟德历）：连大（30 日）或连小（29 日）
+/// 超过 max_run 月时，在该段首尾两朔中取定小余距夜半较近者挪一日——段首之朔连大则后移、连小则前移，段尾反之——
+/// 使段断开；反复至无超限之段。「量之」原文未定细则，此取最近夜半者，属读法。
+fn limit_runs(starts: &mut [(i64, Q)], max_run: usize) {
+    for _ in 0..10_000 {
+        let lens: Vec<i64> = starts.windows(2).map(|w| w[1].0 - w[0].0).collect();
+        let mut i = 0;
+        let mut fixed = false;
+        while i < lens.len() {
+            let mut j = i;
+            while j + 1 < lens.len() && lens[j + 1] == lens[i] {
+                j += 1;
+            }
+            if j - i + 1 > max_run {
+                let (s, e) = (i, j + 1);
+                let big = lens[i] == 30;
+                let one = q(1);
+                // (距夜半, 朔序, 挪动)
+                let cand = if big {
+                    [(&one - &starts[s].1, s, 1i64), (starts[e].1.clone(), e, -1)]
+                } else {
+                    [(starts[s].1.clone(), s, -1i64), (&one - &starts[e].1, e, 1)]
+                };
+                let (_, b, d) = cand.into_iter().min_by(|a, b| a.0.cmp(&b.0)).unwrap();
+                starts[b].0 += d;
+                fixed = true;
+                break;
+            }
+            i = j + 1;
+        }
+        if !fixed {
+            return;
+        }
+    }
+}
+
 /// 冬至岁 y 的月：(朔日 JDN, 月序, 闰否)，自含冬至之月（十一月）起至下一含冬至之月前。
 fn sui_months(li: &dyn DingshuoLi, y: i32) -> Vec<(i64, u8, bool)> {
     let off = li.off();
     // 每个经朔只由其所在冬至岁算一次（经朔 < 下一冬至岁天正经朔），免得相邻两岁所算定朔微异而重出
-    let mut days: Vec<i64> = Vec::with_capacity(40);
-    for yy in y - 1..=y + 1 {
-        let next0 = li.month(yy + 1, 0).0;
-        for m in 0..15 {
-            let (jing, ding) = li.month(yy, m);
-            if jing >= next0 {
-                break;
-            }
-            days.push(day_of(li, yy, &ding) + off);
-        }
-    }
+    let mut days: Vec<i64> = match li.fixed_days() {
+        Some(all) => all.to_vec(),
+        None => month_starts(li, y - 1, y + 1).into_iter().map(|(d, _)| d).collect(),
+    };
     days.sort_unstable();
     days.dedup();
     let sui = li.sui();
@@ -157,6 +217,9 @@ enum Jinshuo {
     Lou,
     /// 宣明：秋分后 3/4；春分后按张培瑜等《中国古代历法》页 570 所算限值，气间线性
     Xuanming,
+    /// 崇玄（《新唐书·历志六下》）：「其定朔小餘，如日法四十分之二十九已上，以定朔小餘減日法，餘如晨初餘數已下，進一日」；
+    /// 晨初余数按志文晷漏术逐日推（[Dayan::chongxuan_chenchu]）
+    Chongxuan,
 }
 
 struct Dayan {
@@ -213,6 +276,38 @@ impl Dayan {
     fn tong(&self, y: i32) -> i64 {
         self.ce * (self.ji + (y - self.y_ji) as i64)
     }
+
+    /// 崇玄历晨初余数（通法之分）。志文「晷漏」：计二至加时已来至其日昏后夜半日数及余，冬至后为息、夏至后为消；
+    /// 一象（91 日 3131 分）已下为初，已上反减二至限（182 日 62 分小分 22 半，日母一百）为末；令自相乘，进二位，以消息法
+    /// （1667.5）除为分，副之；与五百分先相减、后相乘，千八百而一，以加副，为消息数。春分后加 1752、秋分后以减 2748，
+    /// 为晷漏母；百三十五乘晷漏母，百约为分，得晨初余数。`t` 为定朔（分，自上元），`y` 为其冬至岁。
+    fn chongxuan_chenchu(&self, y: i32, t: &Q) -> Q {
+        let f = q(self.f);
+        let erzhi = q(182) + qr(62225, 100000);
+        let yixiang = q(91) + qr(3131, 13500);
+        // 其日昏后夜半（次日夜半）距天正冬至加时之日数
+        let night = q(fl(&(t / &f)) + 1) * &f;
+        let mut d = (night - q(self.tong(y))) / &f;
+        let year = q(self.ce) / &f;
+        while d.is_negative() {
+            d += &year;
+        }
+        while d >= year {
+            d -= &year;
+        }
+        let dongzhi_half = d < erzhi;
+        if !dongzhi_half {
+            d -= &erzhi;
+        }
+        let chu = d <= yixiang;
+        let x = if chu { d.clone() } else { &erzhi - &d };
+        let p = &x * &x * q(100) / qr(3335, 2);
+        let xiaoxi = (q(500) - &p) * &p / q(1800) + &p;
+        // 春分后：冬至后已过一象，或夏至后未过一象
+        let chunfen_hou = (dongzhi_half && !chu) || (!dongzhi_half && chu);
+        let guilou = if chunfen_hou { q(1752) + xiaoxi } else { q(2748) - xiaoxi };
+        guilou * q(135) / q(100)
+    }
 }
 
 /// 大衍历定气初夜半漏（刻），冬至至夏至，夏至后对称；春分、芒种从校勘记
@@ -255,6 +350,11 @@ impl DingshuoLi for Dayan {
                 let lou = &la + (lb - &la) * (&d - self.ding_qi(k)) / (self.ding_qi(k + 1) - self.ding_qi(k));
                 // 24 − (漏 − 十刻) × 0.24 时
                 &f * (q(24) - (lou - q(10)) * qr(24, 100)) / q(24)
+            }
+            Jinshuo::Chongxuan => {
+                let a = &f * qr(29, 40);
+                let b = &f - self.chongxuan_chenchu(y, t);
+                if a > b { a } else { b }
             }
             Jinshuo::Xuanming => {
                 const LIM: [i64; 13] = [75000, 74924, 74479, 74276, 74124, 74031, 74005, 74031, 74124, 74276, 74479, 74924, 75000];
@@ -373,8 +473,8 @@ fn chongxuan() -> Dayan {
                 (27, q(7487), 737, q(6013), 0),
             ],
         }],
-        // 志文进朔限（小余 ≥ 29/40 且距次日夜半不过晨初余数）合本纪不及 18 时之试，取 18 时（经验）
-        Jinshuo::Hours(18),
+        // 志文进朔：小余 ≥ 29/40 日法，且距次日夜半不过晨初余数
+        Jinshuo::Chongxuan,
         (891, 12, 17),
     )
 }
@@ -383,7 +483,12 @@ fn chongxuan() -> Dayan {
 
 struct Linde {
     off: i64,
+    /// 麟德历行用年段前后各留二岁的全部朔日（已按「不過頻三」调整）
+    days: std::sync::OnceLock<Vec<i64>>,
 }
+
+/// 麟德历气序（立春后启蛰在雨水前）中与后气先后率同数之八气：大寒、雨水、谷雨、芒种、大暑、白露、霜降、大雪
+const LD_EQUAL_NEXT: [usize; 8] = [2, 5, 8, 11, 14, 17, 20, 23];
 
 const LD_F: i64 = 1340;
 const LD_QI: i64 = 489428;
@@ -421,6 +526,71 @@ impl Linde {
     fn qizong(y: i32) -> i64 {
         LD_QI * (LD_JI_664 + (y - 664) as i64)
     }
+
+    /// 本术日躔（定气内等间距二次内插）：入定气 kk 第 t 日 → 盈朒积增量（先 +、后 −）。
+    /// 读法据张培瑜等《中国古代历法》§7.6（书页 475—477）：半年内气长 L 取平均（秋分后 11×16/12、春分后 11×17/12 日），
+    /// 前多 S = t(Δ1+Δ2)/2L + t(Δ1−Δ2)/L − t²(Δ1−Δ2)/2L²，前少 S = t(Δ1+Δ2)/2L − t(Δ1−Δ2)/L + t²(Δ1−Δ2)/2L²；
+    /// 与后气同数之八气以前气、本气定初率与别差。Δ 为先后率之绝对值。
+    fn sun_benshu(kk: usize, t: &Q) -> Q {
+        let l = if kk >= 18 || kk < 6 { qr(44, 3) } else { qr(187, 12) };
+        let a1 = q(LD_XIANHOU[kk].abs());
+        let a2 = q(LD_XIANHOU[(kk + 1) % 24].abs());
+        let sg = q(LD_XIANHOU[kk].signum());
+        let two = q(2);
+        let s = if LD_EQUAL_NEXT.contains(&kk) {
+            let ap = q(LD_XIANHOU[(kk + 23) % 24].abs());
+            let chu = (&ap + &a1) / (&two * &l);
+            let bie = (&a1 - &ap).abs() / (&l * &l);
+            let quad = t * t / &two * bie;
+            if ap < a1 { t * chu + quad } else { t * chu - quad }
+        } else {
+            let lin = t * (&a1 + &a2) / (&two * &l);
+            let d = &a1 - &a2;
+            if a1 > a2 {
+                lin + t * &d / &l - t * t * &d / (&two * &l * &l)
+            } else {
+                lin - t * &d / &l + t * t * &d / (&two * &l * &l)
+            }
+        };
+        sg * s
+    }
+
+    /// 本术月离：入变 x（日）→ 迟速积（速 +）。读法据同书书页 479—481：经辰变率 v = tΔ1 + ½t(t−1)(Δ2−Δ1)，
+    /// t0 = v/总法，T = t ∓ t0（速减、迟加），定率 = TΔ1 + ½T(T−1)(Δ2−Δ1)。Δ1、Δ2 为本日、次日增减率。
+    /// 十四日、二十八日分初末（「分為二日，隨餘初末」），仍用速要。
+    fn chisu_benshu(x: &Q) -> Q {
+        let i = fl(x);
+        if i >= 27 || i == 13 {
+            return Self::chisu(x);
+        }
+        let t = x - q(i);
+        let (a1, a2) = (q(LD_ZENG[i as usize]), q(LD_ZENG[i as usize + 1]));
+        let rate = |u: &Q| u * &a1 + u * (u - q(1)) / q(2) * (&a2 - &a1);
+        let t0 = rate(&t) / q(LD_F);
+        let su = i < 14;
+        let tt = if su { &t - t0 } else { &t + t0 };
+        q(LD_CHISU[i as usize]) + rate(&tt)
+    }
+
+    /// 速要（`month`）所得定小余距夜半不过 24 分者，以本术重算（《旧唐书·历志二》：「其定小餘二十四已下，一千三百一十六已上者，
+    /// 其入氣盈朒、入曆遲速，皆須覆依本術推算，不得從粗舉速要之限」）
+    fn ding_benshu(&self, y: i32, m: i64) -> Q {
+        let qizong = Self::qizong(y);
+        let t0 = qizong - qizong.rem_euclid(LD_SHUO);
+        let zongshi = t0 - t0.rem_euclid(LD_F);
+        let bian0 = qr((zongshi * LD_BIAN_QI).rem_euclid(LD_BIAN_ZHOU), LD_BIAN_QI) / q(LD_F);
+        let qi_len = qr(LD_QI, 24);
+        let dingqi = |k: i64| q(qizong) + &qi_len * q(k) - q(LD_XIAOXI[k.rem_euclid(24) as usize]);
+        let chq = q(t0 + m * LD_SHUO);
+        let mut k = fl(&((&chq - q(qizong)) / &qi_len)) - 2;
+        while dingqi(k + 1) <= chq {
+            k += 1;
+        }
+        let kk = k.rem_euclid(24) as usize;
+        let yn = q(LD_YINGNU[kk]) + Self::sun_benshu(kk, &((&chq - dingqi(k)) / q(LD_F)));
+        let bian = md(&(bian0 + qr(t0.rem_euclid(LD_F), LD_F) + qr(m * LD_SHUO, LD_F) + &yn / q(LD_F)), &(qr(LD_BIAN_ZHOU, LD_BIAN_QI) / q(LD_F)));
+        &chq + yn - Self::chisu_benshu(&bian)
+    }
 }
 
 impl DingshuoLi for Linde {
@@ -456,15 +626,29 @@ impl DingshuoLi for Linde {
         let ding = &chq + yn - Self::chisu(&bian);
         (chq, ding)
     }
-    /// 麟德历志无进朔之法；张表与本纪显示定朔小余 18 时以上者在次日，试用 18 时（见总录）
-    fn jinshuo_limit(&self, _y: i32, _t: &Q) -> Option<Q> {
-        Some(qr(LD_F * 3, 4))
+    // 两唐书麟德历皆无进朔条文，按志文不进朔（缺省 None）。
+    fn ding_for_calendar(&self, y: i32, m: i64) -> Q {
+        let ding = self.month(y, m).1;
+        let xiao = md(&ding, &q(LD_F));
+        if xiao <= q(24) || xiao >= q(1316) {
+            self.ding_benshu(y, m)
+        } else {
+            ding
+        }
+    }
+    /// 「不過頻三」（[limit_runs]）。「其正月朔有定加時正月者，消息前後各一兩月」须推交食，未实现。
+    fn fixed_days(&self) -> Option<&[i64]> {
+        Some(self.days.get_or_init(|| {
+            let mut s = month_starts(self, 663, 730);
+            limit_runs(&mut s, 3);
+            s.into_iter().map(|x| x.0).collect()
+        }))
     }
 }
 
 fn linde() -> Linde {
     let dz_day = (LD_QI * LD_JI_664).div_euclid(LD_F);
-    Linde { off: align_offset(dz_day, gregorian::civil_to_jdn(663, 12, 20)) }
+    Linde { off: align_offset(dz_day, gregorian::civil_to_jdn(663, 12, 20)), days: std::sync::OnceLock::new() }
 }
 
 // ---------------------------------------------------------------- 戊寅（崔善为所较）

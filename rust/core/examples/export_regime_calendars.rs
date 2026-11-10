@@ -10,7 +10,8 @@ fn main() {
     let mut n = 0;
     for (regime, y0, y1, _) in regime_calendars() {
         for y in y0..=y1 {
-            let (cal, months) = regime_year_months(regime, y).unwrap();
+            // 术不传、不推步之年（如北周 559—565 明克让历）不导出
+            let Some((cal, months)) = regime_year_months(regime, y) else { continue };
             for (jdn, m, leap) in months {
                 let (gy, gm, gd) = civil_from_jdn(jdn);
                 out += &format!("{regime},{cal},{gy},{gm},{gd},{y},{m},{}\n", leap as u8);

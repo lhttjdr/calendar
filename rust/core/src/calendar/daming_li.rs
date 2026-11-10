@@ -6,10 +6,10 @@
 //! （scripts/calendar_data/daming_dingshuo.py，doc/calendar/historical-calendar.md）。
 //!
 //! 全部用有理数（日法 5230 分、秒母一万），进朔判定无浮点误差。
-//! 1182 年起用术文原限（本纪 192 条全合）。1182 年前是代推，非杨级原历：本纪、天文志在临限之月显示有效进朔限比术文高 0.14—0.36 时
-//! （1178 年十月超限 0.14 时、1162 年超限 0.10 时皆不进；1152 年四月超 0.36 时而进），加区间中点 0.25 时（[YANG_CALIB]）。
-//! 这是代推历与杨级历之差的经验改正，不是重修大明历术文之误：《金史》言杨级历日食「加時皆先天」「食乃後天」，
-//! 其历元以本历常数不合（积年 383768657 配 1127、1137 年，冬至、闰余皆不合），常数必有不同。
+//! 1182 年前是代推（杨级历术不传），一律用本历术文原限，不加改正。本纪、天文志在临限之月有与代推不合者（1162 年闰位、
+//! 1178 年十月），如实记录，不据以调参（2026-11-10 起：复原优先于拟合，见 doc/calendar/rili-sources.md）。
+//! 《金史》言杨级历日食「加時皆先天」「食乃後天」，其历元以本历常数不合（积年 383768657 配 1127、1137 年，冬至、闰余皆不合），
+//! 常数必有不同，故代推只是近似。
 //! 不实现：「有交，亏初在日入前者不进」（不算日食），「使不过三大二小」（只在连大连小时调整，本历 1130—1235 年无此情形）。
 
 use super::gregorian;
@@ -25,8 +25,7 @@ const SHUO: i64 = 154_445; // 朔实
 const JI_1180: i64 = 88_639_656; // 上元甲子距大定庚子（1180）积年
 const ZHUAN_WAN: i64 = 1_441_106_066; // 转终分 × 10000（转终分一十四万四千一百一十，秒六千六十六）
 
-/// 1182 年前代推杨级历的进朔限经验改正（日法分）：0.25 时 = 日法/96，据本纪证据区间（0.14, 0.36）时取中点，见模块文档
-pub const YANG_CALIB: (i64, i64) = (F, 96);
+
 /// 重修大明历行用之首岁（大定二十一年十一月望校验后用之）
 const ZHAO_FIRST_SUI: i32 = 1182;
 
@@ -195,12 +194,12 @@ fn sui_months(y: i32, calib: &Q) -> Vec<(i64, u8, bool)> {
     out
 }
 
-/// 农历年 N 各月 (朔日 JDN, 月序, 闰否)，正月至十二月（含闰），按时间先后；1182 年前进朔限加 [YANG_CALIB]。
+/// 农历年 N 各月 (朔日 JDN, 月序, 闰否)，正月至十二月（含闰），按时间先后；全程术文原限。
 pub fn year_months(lunar_year: i32) -> Vec<(i64, u8, bool)> {
-    year_months_with(lunar_year, YANG_CALIB)
+    year_months_with(lunar_year, (0, 1))
 }
 
-/// 同 [year_months]，1182 年前进朔限加 calib = (分子, 分母) 日法分；(0, 1) 即全程术文原限。
+/// 同 [year_months]，1182 年前进朔限另加 calib = (分子, 分母) 日法分（只供检验比较；(0, 1) 即术文原限）。
 pub fn year_months_with(lunar_year: i32, calib: (i64, i64)) -> Vec<(i64, u8, bool)> {
     let calib = qr(calib.0, calib.1);
     let head: Vec<_> = sui_months(lunar_year, &calib);
@@ -235,23 +234,18 @@ mod tests {
         gan_zhi::GAN_ZHI_60[gz(month(y, m, leap))]
     }
 
-    /// 定改正区间的本纪：代推历术文原限下 1162 年闰三月、1178 年十月辛卯，与本纪、天文志不合；改正后皆合，1152 年仍进朔
+    /// 代推杨级历按术文原限，与本纪、天文志不合者如实钉住（不调参）：1162 年本纪「閏月」在二月后、天文志「閏二月戊寅」，
+    /// 代推为闰三月；1178 年十月本纪庚寅，代推辛卯。1152 年四月丙寅（超限而进）则合。
     #[test]
-    fn yang_calibration_matches_benji_at_threshold() {
-        let raw = |y: i32| year_months_with(y, (0, 1));
-        assert!(raw(1162).iter().any(|e| e.1 == 3 && e.2), "术文原限 1162 年闰三月");
-        assert!(year_months(1162).iter().any(|e| e.1 == 2 && e.2), "1162 年閏二月（本纪「閏月」在二月后，天文志「閏二月戊寅」）");
-        assert_eq!(gz_of(1162, 3, false), "丁酉");
-        assert_eq!(gz_of(1178, 10, false), "庚寅");
+    fn yang_substitute_known_disagreements() {
+        assert!(year_months(1162).iter().any(|e| e.1 == 3 && e.2), "代推 1162 年闰三月（本纪闰二月）");
+        assert_eq!(gz_of(1178, 10, false), "辛卯", "代推（本纪庚寅）");
         assert_eq!(gz_of(1152, 4, false), "丙寅");
     }
 
-    /// 1182 年起是重修大明历本身，不加改正
+    /// 1182 年起是重修大明历本身
     #[test]
     fn zhao_period_uses_text_threshold() {
-        for y in 1183..=1234 {
-            assert_eq!(year_months(y), year_months_with(y, (0, 1)), "{y}");
-        }
         assert_eq!(gz_of(1214, 1, false), "丁卯");
     }
 
@@ -272,7 +266,7 @@ mod tests {
             .filter_map(|y| year_months(y).into_iter().find(|e| e.2).map(|e| (y, e.1)))
             .collect();
         assert_eq!(leaps.len(), 36);
-        assert!(leaps.contains(&(1162, 2)));
+        assert!(leaps.contains(&(1162, 3)), "代推闰三月，本纪闰二月");
         assert!(leaps.contains(&(1183, 11)) && leaps.contains(&(1232, 9)));
         for y in 1137..=1234 {
             let n = year_months(y).len();

@@ -242,7 +242,7 @@ pub fn reckon_lifa_year(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, boo
 /// 纯按历术推步，不改个别月份：张培瑜历表与推步不合处（如 430 年二月）是另一份复原的结果，依据未核，不据以改动。
 pub fn regime_year_months(regime: &str, lunar_year: i32) -> Option<(&'static str, Vec<(i64, u8, bool)>)> {
     let (_, _, _, pick) = regime_calendars().into_iter().find(|(r, y0, y1, _)| *r == regime && (*y0..=*y1).contains(&lunar_year))?;
-    Some(pick(lunar_year))
+    Some(pick(lunar_year)).filter(|(_, m)| !m.is_empty())
 }
 
 /// 某岁所用历术名与各月 (朔日 JDN, 月序, 闰否)。
@@ -267,7 +267,10 @@ pub fn regime_calendars() -> Vec<(&'static str, i32, i32, RegimeYearFn)> {
         ping(y, ("玄始历", xuanshi_params()))
     }
     fn wzs(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
-        ping(y, wei_zhou_sui_params_for_year(y).unwrap())
+        match wei_zhou_sui_params_for_year(y) {
+            Some(p) => ping(y, p),
+            None => ("术不传", Vec::new()),
+        }
     }
     fn wq(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
         ping(y, wei_qi_params_for_year(y).unwrap())
@@ -407,18 +410,6 @@ pub fn zhengguang_params() -> LiParams {
     }
 }
 
-/// 历术预设：明克让（失传，借正光+节气小余+0.4）（北周 565–578）
-pub fn mingkerang_params() -> LiParams {
-    LiParams {
-        lunar: 29.0 + 39769.0 / 74952.0,
-        solar: 365.0 + 1477.0 / 6060.0,
-        jd_epoch: 1911671.5 + 6427.0 / 9369.0,
-        jdw: 1721048.5 + 569.0 / 1515.0 + 0.4,
-        dtc_round: 1e-6,
-        dts_round: 1e-6,
-    }
-}
-
 /// 历术预设：Xinghe 兴和（东魏 539–550，北齐沿用至 551）
 pub fn xinghe_params() -> LiParams {
     LiParams {
@@ -499,7 +490,8 @@ fn wei_zhou_sui_params_for_year(g_year: i32) -> Option<(&'static str, LiParams)>
     } else if (g_year as f64) < 558.5 {
         ("正光历", zhengguang_params())
     } else if (g_year as f64) < 565.5 {
-        ("明克让历", mingkerang_params())
+        // 559—565 年北周所行明克让等历，术不传（《隋书·律历志中》），无从复原，不给推步
+        return None;
     } else if (g_year as f64) < 578.5 {
         ("天和历", tianhe_params())
     } else if (g_year as f64) < 583.5 {
@@ -653,7 +645,8 @@ mod tests {
         }
         leap_diff.sort();
         day_diff.sort();
-        assert!(n > 4900, "比对月数 {n}");
+        // 559—565 年北周明克让历术不传，不推步（原为廖育栋拟设），这几年不比
+        assert!(n > 4800, "比对月数 {n}");
         // 东魏/北齐 551：上游自 551 年用天保历（闰二），本实现据《北齐书》纪日与閏月位置沿用兴和历至 551 年（闰四）
         assert_eq!(leap_diff, vec![("东魏/北齐", 551), ("吴", 222)], "闰位不同之岁");
         assert_eq!(
