@@ -324,3 +324,12 @@ in_month（日干支在该历所记之月）、jdn、julian、position（原文�
 | 核对 | 核对状态与说明 |
 
 只收已据正史律历志核定的历；依据与检验见 `doc/folk/ganzhi-calendar.md`「平气」。
+
+## 定朔诸历推步的核对数据
+
+| 文件 | 生成 | 内容 |
+|---|---|---|
+| `dingshuo_reference.csv` | `scripts/calendar_data/export_dingshuo_reference.py` | 唐至明定朔诸历复原（Python）的定朔：历、日法、上元日序 → JDN 之差、冬至岁、自天正经朔起第 m 月、定朔分（精确分数）。每历隔 3 岁取样，供 `rust/core/src/calendar/dingshuo.rs` 逐月核对 |
+| `dingshuo_song_tables.csv` | 同上 | 宋诸历日躔（气序、朏朒积、符号、定初率、日差）与月离表（日序、朏朒积、损益率；分段日为初数、初率、末率），自维基文库底本解析并经校改，Rust 内嵌读入 |
+| `zhongyuan_reckoning_eval.csv` | `rust/core/examples/zhongyuan_reckoning_eval.rs` | 中原一线逐历：月数、与张表同日之月、闰位不同之岁、本纪明书朔日条数、合推步、合张表、只合其一 |
+| `zhongyuan_reckoning_benji.csv` | 同上 | 推步与张表不同、或本纪只合其一之条 |

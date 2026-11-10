@@ -27,6 +27,7 @@ pub mod artifacts;
 pub mod chinese_lunar;
 pub mod convert;
 pub mod daming_li;
+pub mod dingshuo;
 pub mod dunhuang;
 pub mod era_gaiyuan;
 pub mod era_names;

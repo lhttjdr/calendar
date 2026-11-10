@@ -38,7 +38,7 @@
 
 **四种实现，角色相同、来源不同**（按资料可靠性由高到低；取哪一种由第 4 层 `lifa::resolve_year` 决定，见 [rili-sources.md](rili-sources.md)）：
 - **实物历日**（`artifacts.rs`）：当时历书原件，目前只有《宝祐四年会天历》（1256）。
-- **按术推步**（`push_calendar.rs`）：按该历术文推算，已实现并核过术文的历才用。
+- **按术推步**（`push_calendar.rs` 平朔诸历、`dingshuo.rs` 唐至明定朔诸历、`daming_li.rs` 金重修大明历）：按该历术文推算，已实现并核过术文的历才用；与张表之间按本纪检验逐历取舍。
 - **今人历表**（`historical.rs`，`ShuoriTable`）：解析 `vendor/calendar/chinese_calendar/实历朔日表.csv`，即张培瑜《三千五百年历日天象》经 ChineseCalendar 转录。是复原结果，书中不载推步过程与逐条依据。
 - **现算**（`chinese_lunar.rs`）：直接调用天文域算真朔真气，覆盖任意年份；历史区间只在前三种都不覆盖时用。
 
@@ -73,7 +73,7 @@
 **概念**：面对"同一件事有多种实现"时决定选哪个，职责是**选择**不是**计算**。
 
 **包含**：
-- **`lifa.rs`（`ZhongyuanCalendarPeriods`、`resolve_year`）**：中原一线逐年行用之历（`data/calendar/汇总/zhongyuan_calendar_periods.csv`），历日按实物历日 → 按术推步 → 今人历表 → 现算取，结果带 `RiliSource`；选项 `ZhongyuanPreference`（缺省推步先于今人历表）。见 [rili-sources.md](rili-sources.md)。`LifaRegistry` 解析历法总表 `lifa_summary.csv`。
+- **`lifa.rs`（`ZhongyuanCalendarPeriods`、`resolve_year`）**：中原一线逐年行用之历（`data/calendar/汇总/zhongyuan_calendar_periods.csv`），历日按实物历日 → 按术推步 → 今人历表 → 现算取，结果带 `RiliSource`；选项 `ZhongyuanPreference`（缺省逐历按本纪检验，另有一律推步、张表优先）。见 [rili-sources.md](rili-sources.md)。`LifaRegistry` 解析历法总表 `lifa_summary.csv`。
 - **敦煌历**（`lifa::dunhuang_months`、`resolve_dunhuang_day`、`resolve_dunhuang_month`）：逐月选有据之月（第 2 层 `DunhuangCalendar`）或中原历之月
   （`lifa::zhongyuan_months_in_jdn_range`，同上来源次序），选项 `DunhuangFallback`；只挪动无据之月的月首使月长合 29、30 日，不推算朔日。纪年（吐蕃地支、归义军奉中原年号）
   在第 3 层 `era_names::dunhuang_year_name`。见 [dunhuang-calendar.md](dunhuang-calendar.md)。

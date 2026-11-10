@@ -46,7 +46,8 @@ import {
   type GanzhiResult,
   type GanzhiOptionsTuple,
   type RealBackendVariant,
-  setZhongyuanPreferTable,
+  setZhongyuanMode,
+  type ZhongyuanMode,
 } from './useLunarWasm'
 import { utcFromLocalInZone, civilMonthDays, convertDisplayDateTime, displayCivilToJd, formatDateInTimeZone, civilToProleptic, clampCivilDay, displayCalendarName, isCalendarMode, isFullyGregorianMonth, jdToDisplayDate, localDate, ROMAN_SCHEMES, setCalendarMode, type CalendarMode } from './civilTime'
 import { EPHEMERIS_SOURCE_LABELS, EPHEMERIS_FORMAT_LABELS, type EphemerisDataSource } from './ephemerisSourceRegistry'
@@ -72,15 +73,15 @@ const CALENDAR_MODE_OPTIONS = [
   },
 ]
 
-/** 中原一线历日取法：'reckoning' 按术推步先于今人历表（缺省），'table' 张培瑜历表先于推步。见 doc/calendar/rili-sources.md */
-const ZHONGYUAN_PREF_STORAGE_KEY = 'zhongyuan-rili-preference'
-type ZhongyuanPref = 'reckoning' | 'table'
-function getStoredZhongyuanPref(): ZhongyuanPref {
-  let v: ZhongyuanPref = 'reckoning'
+/** 中原一线历日取法：0 逐历（缺省）、1 一律推步优先、2 张培瑜历表优先。见 doc/calendar/rili-sources.md */
+const ZHONGYUAN_MODE_STORAGE_KEY = 'zhongyuan-rili-mode'
+function getStoredZhongyuanMode(): ZhongyuanMode {
+  let v: ZhongyuanMode = 0
   try {
-    if (localStorage.getItem(ZHONGYUAN_PREF_STORAGE_KEY) === 'table') v = 'table'
+    const s = Number(localStorage.getItem(ZHONGYUAN_MODE_STORAGE_KEY))
+    if (s === 1 || s === 2) v = s
   } catch {}
-  setZhongyuanPreferTable(v === 'table')
+  setZhongyuanMode(v)
   return v
 }
 
@@ -368,7 +369,7 @@ function App() {
   const [paipanTab, setPaipanTab] = useState<string>(URL0.view === 'paipan' && URL0.tab ? URL0.tab : 'qimen')
   /** Real 后端：twofloat=高精度，f64=体积/速度；切换后重新加载 WASM */
   const [realBackendVariant, setRealBackendVariant] = useState<RealBackendVariant>(getStoredRealBackend)
-  const [zhongyuanPref, setZhongyuanPref] = useState<ZhongyuanPref>(getStoredZhongyuanPref)
+  const [zhongyuanPref, setZhongyuanPref] = useState<ZhongyuanMode>(getStoredZhongyuanMode)
   const [ephemerisSource, setEphemerisSource] = useState<EphemerisDataSource | null>(null)
   /** 章动表/地球改正加载状态（由 WASM get_repo_aux_* 提供，仅文本/混合路径有值；全二进制为 77 项+未加载） */
   const [repoAux, setRepoAux] = useState<{ nutationFull: boolean; earthPatch: boolean; elpCorrection: string } | null>(null)
@@ -1420,19 +1421,20 @@ function App() {
                   <Text type="secondary" style={{ fontSize: 12 }}>中原历日取法</Text>
                   <Select
                     value={zhongyuanPref}
-                    onChange={(v: ZhongyuanPref) => {
-                      setZhongyuanPreferTable(v === 'table')
+                    onChange={(v: ZhongyuanMode) => {
+                      setZhongyuanMode(v)
                       setZhongyuanPref(v)
-                      try { localStorage.setItem(ZHONGYUAN_PREF_STORAGE_KEY, v) } catch {}
+                      try { localStorage.setItem(ZHONGYUAN_MODE_STORAGE_KEY, String(v)) } catch {}
                     }}
                     options={[
-                      { label: '按术推步优先（默认）', value: 'reckoning' },
-                      { label: '张培瑜历表优先', value: 'table' },
+                      { label: '逐历（默认）', value: 0 },
+                      { label: '一律按术推步优先', value: 1 },
+                      { label: '张培瑜历表优先', value: 2 },
                     ]}
                     style={{ width: '100%', marginTop: 4 }}
                   />
                   <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
-                    实物历日总是优先；推步未覆盖之年取张培瑜《三千五百年历日天象》，再无则现算
+                    逐历：以本纪明书朔日检验，推步不低于张表之历取推步，余取张培瑜《三千五百年历日天象》；实物历日总是优先，都无则现算
                   </Text>
                 </div>
                 <div>

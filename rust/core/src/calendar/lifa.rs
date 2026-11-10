@@ -133,12 +133,20 @@ impl RiliSource {
 /// 中原一线推步与今人历表都覆盖的年份取哪一家。实物历日不受此选项影响，总是优先。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ZhongyuanPreference {
-    /// 按术推步优先（缺省）：按资料可靠性次序，推步（第 4 级）先于今人历表（第 5 级）。
+    /// 逐历（缺省）：以正史本纪明书朔日检验，推步相合不低于张表之历取推步，低于张表之历（[RECKONING_BELOW_TABLE]）
+    /// 取张表、推步作对照。依据 `data/calendar/zhongyuan_reckoning_eval.csv`（`examples/zhongyuan_reckoning_eval.rs`）。
     #[default]
+    Evidence,
+    /// 一律推步优先：按资料可靠性次序，推步（第 4 级）先于今人历表（第 5 级），不论本纪检验。
     Reckoning,
     /// 今人历表优先：与张培瑜历表逐月一致，推步只作对照。
     ModernTable,
 }
+
+/// 本纪明书朔日检验中推步相合少于张表之历（2026-11-10 检验：没有一条只合推步而不合张表；这些历各有若干条只合张表）。
+/// 逐历取法下这些历缺省取张表。测试 `reckoning_below_table_matches_eval` 与检验结果核对。
+pub const RECKONING_BELOW_TABLE: &[&str] =
+    &["戊寅元历", "麟德历", "大衍历", "五纪历", "正元历", "宣明历", "崇玄历", "崇天历", "观天历", "成天历", "授时历", "大统历"];
 
 /// 现行农历的历名前缀（`zhongyuan_calendar_periods.csv`）：其规则即定气定朔，现算就是按术推步。
 const MODERN_RULE_PREFIX: &str = "农历（GB/T 33661";
@@ -160,22 +168,24 @@ pub fn zhongyuan_year_months(
     if let Some(a) = super::artifacts::zhongyuan_artifact_year(lunar_year) {
         return Some((a.months.clone(), RiliSource::Artifact(a.name)));
     }
+    let name: &'static str = ZhongyuanCalendarPeriods::embedded().name_for_lunar_year(lunar_year);
     // 现行农历（GB/T 33661—2017）的规则就是定气定朔，现算即按术推步：推步优先时不取今人历表，由调用方现算
-    if pref == ZhongyuanPreference::Reckoning
-        && ZhongyuanCalendarPeriods::embedded().name_for_lunar_year(lunar_year).starts_with(MODERN_RULE_PREFIX)
-    {
+    if pref != ZhongyuanPreference::ModernTable && name.starts_with(MODERN_RULE_PREFIX) {
         return None;
     }
-    let reckon = || {
-        let name: &'static str = ZhongyuanCalendarPeriods::embedded().name_for_lunar_year(lunar_year);
-        Some((super::push_calendar::reckon_lifa_year(name, lunar_year)?, RiliSource::Reckoned(name)))
-    };
+    let reckon = || Some((super::push_calendar::reckon_lifa_year(name, lunar_year)?, RiliSource::Reckoned(name)));
     let from_table = || {
         table?.year_months(lunar_year).filter(|m| m.len() >= 12).map(|m| (m.to_vec(), RiliSource::ModernTable(ZHANG_TABLE_NAME)))
     };
-    match pref {
-        ZhongyuanPreference::Reckoning => reckon().or_else(from_table),
-        ZhongyuanPreference::ModernTable => from_table().or_else(reckon),
+    let reckon_first = match pref {
+        ZhongyuanPreference::Evidence => !RECKONING_BELOW_TABLE.contains(&name),
+        ZhongyuanPreference::Reckoning => true,
+        ZhongyuanPreference::ModernTable => false,
+    };
+    if reckon_first {
+        reckon().or_else(from_table)
+    } else {
+        from_table().or_else(reckon)
     }
 }
 
@@ -588,7 +598,12 @@ shoushi,授时历,1281,,元,郭守敬,儒略历+格里高利历,lifa_tongzhi
     fn zhongyuan_sources_ranked() {
         let Some(z) = zhang_table() else { return };
         let src = |y: i32, p: ZhongyuanPreference| zhongyuan_year_months(Some(&z), y, p).map(|r| r.1);
-        let r = ZhongyuanPreference::Reckoning;
+        let r = ZhongyuanPreference::Evidence;
+        let all = ZhongyuanPreference::Reckoning;
+        assert_eq!(src(700, all), Some(RiliSource::Reckoned("麟德历")), "一律推步");
+        assert_eq!(src(1110, r), Some(RiliSource::Reckoned("纪元历")), "纪元历本纪检验与张表持平，逐历取推步");
+        assert_eq!(src(1300, r), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)), "授时历推步不及张表，逐历取张表");
+        assert_eq!(src(1300, all), Some(RiliSource::Reckoned("授时历")));
         assert!(matches!(src(1256, r), Some(RiliSource::Artifact(_))));
         assert!(matches!(src(1256, ZhongyuanPreference::ModernTable), Some(RiliSource::Artifact(_))));
         assert_eq!(src(300, r), Some(RiliSource::Reckoned("景初历")));
@@ -606,6 +621,24 @@ shoushi,授时历,1281,,元,郭守敬,儒略历+格里高利历,lifa_tongzhi
         assert_eq!(src(2026, r), None, "现行农历：推步优先即现算");
         assert_eq!(src(2026, ZhongyuanPreference::ModernTable), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)));
         assert_eq!(src(300, r), zhongyuan_year_months(None, 300, r).map(|r| r.1), "推步不依赖历表");
+    }
+
+    /// 逐历取法的名单与本纪检验结果一致：本纪合推步少于合张表者恰是 [RECKONING_BELOW_TABLE]
+    #[test]
+    fn reckoning_below_table_matches_eval() {
+        let Ok(csv) = std::fs::read_to_string(crate::repo::repo_root().join("data/calendar/zhongyuan_reckoning_eval.csv")) else { return };
+        let mut below: Vec<String> = Vec::new();
+        for line in csv.lines().skip(1) {
+            let c: Vec<&str> = line.split(',').collect();
+            let (r, t): (usize, usize) = (c[7].parse().unwrap(), c[8].parse().unwrap());
+            if r < t {
+                below.push(c[0].to_string());
+            }
+        }
+        below.sort();
+        let mut want: Vec<String> = RECKONING_BELOW_TABLE.iter().map(|s| s.to_string()).collect();
+        want.sort();
+        assert_eq!(below, want);
     }
 
     /// 中原一线推步与张培瑜历表逐月比较，不同之月逐条钉住（三统 −102—84、四分 85—236、元嘉 445—509、大明 510—589、

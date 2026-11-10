@@ -332,12 +332,16 @@ pub fn init_zhang_table(csv: &str) -> bool {
 /// 中原一线某农历年的历日（第 4 层 `lifa::zhongyuan_year_months` 的来源次序：实物历日 → 按术推步 → 今人历表）。
 /// 返回 JSON `{"lunar_year","new_moon_jds","zhong_qi_jds","source","kind"}`（kind：artifact / reckoned / table）；
 /// 该岁应现算（太初以前、2200 年以后，或推步优先时 2017 年起的现行农历）返回空串，由宿主用现算的岁数据。
-/// `prefer_table`：今人历表先于推步（与张培瑜历表逐月一致）。
+/// `mode`：0 逐历（缺省：本纪检验不低于张表之历取推步，余取张表）、1 一律推步优先、2 张培瑜历表优先。
 #[wasm_bindgen(js_name = resolve_zhongyuan_year)]
-pub fn resolve_zhongyuan_year(lunar_year: i32, prefer_table: bool) -> String {
+pub fn resolve_zhongyuan_year(lunar_year: i32, mode: u8) -> String {
     use lunar_core::calendar::historical::year_data_from_months;
     use lunar_core::calendar::lifa::{zhongyuan_year_months, RiliSource, ZhongyuanPreference};
-    let pref = if prefer_table { ZhongyuanPreference::ModernTable } else { ZhongyuanPreference::Reckoning };
+    let pref = match mode {
+        1 => ZhongyuanPreference::Reckoning,
+        2 => ZhongyuanPreference::ModernTable,
+        _ => ZhongyuanPreference::Evidence,
+    };
     let guard = ZHANG_TABLE.lock().unwrap();
     let table = guard.as_ref();
     let Some((curr, source)) = zhongyuan_year_months(table, lunar_year, pref) else {

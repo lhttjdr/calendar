@@ -213,7 +213,7 @@ pub fn daye_exact() -> ExactPingLi {
 }
 
 /// 按历名（`data/calendar/汇总/zhongyuan_calendar_periods.csv`）推某农历年各月 (朔日 JDN, 月, 闰否)。
-/// 只收已实现、参数经术文核验之历（见 doc/calendar/calendar-compendium.md「平朔诸历：以术文核验」与
+/// 平朔诸历在此；定朔诸历见 [super::dingshuo]。只收已实现、参数经术文核验之历（见 doc/calendar/calendar-compendium.md「平朔诸历：以术文核验」与
 /// doc/calendar/rili-sources.md）；其余返回 None，由第 4 层退到下一级来源。
 pub fn reckon_lifa_year(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, bool)>> {
     let exact = match name {
@@ -230,7 +230,10 @@ pub fn reckon_lifa_year(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, boo
         "四分历" => sifen_params(),
         "景初历" => jingchu_params(),
         "开皇历" => kaihuang_params(),
-        _ => return None,
+        // 元初（1280）仍行金重修大明历
+        "重修大明历" if lunar_year == 1280 => return Some(super::daming_li::year_months(lunar_year)),
+        // 唐至明定朔诸历（限各历推步适用的年段）
+        _ => return super::dingshuo::reckon_year(name, lunar_year),
     };
     Some(year_months(&p, lunar_year))
 }

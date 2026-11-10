@@ -100,7 +100,22 @@ def main():
     L += table(["书", "朝代", "年", "纪年", "本纪闰位（不早于）", "张表", "原文"],
                [[BOOK.get(r["书"], r["书"]), r["朝代"], r["年"], r["纪年"], r["本纪闰位"], r["张表"], r["原文"]]
                 for r in leaps if r["张表"] not in ("合", "略书相容")])
-    # 三、敦煌历日（邓文宽 1996 附录一；check_dunhuang_comparison.py）
+    # 三、中原一线按术推步与张表（examples/zhongyuan_reckoning_eval.rs）
+    ev = rows("zhongyuan_reckoning_eval.csv")
+    if ev:
+        L += ["", "## 三、中原一线按术推步与张表：逐历", "",
+              "本项目按当时行用之历的术文推步（平朔诸历与唐至明定朔诸历），与张表逐月比较，并以本纪明书朔日（不含「其他」类）逐条检验两家。"
+              "「本纪合推步」「本纪合张表」按月名（含闰）取该月朔日比对。逐历取法：本纪合推步不少于合张表之历缺省取推步，余缺省取张表"
+              "（见 [rili-sources.md](./rili-sources.md)）。由 `rust/core/examples/zhongyuan_reckoning_eval.rs` 计算。", ""]
+        L += table(["历", "起", "止", "月数", "与张表同", "闰位不同之岁", "本纪条数", "本纪合推步", "本纪合张表", "只合推步", "只合张表"],
+                   [[r["历"], r["起"], r["止"], r["月数"], r["与张表同"], r["闰位不同之岁"] or "—", r["本纪条数"], r["本纪合推步"],
+                     r["本纪合张表"], r["只合推步"], r["只合张表"]] for r in ev])
+        dt = rows("zhongyuan_reckoning_benji.csv")
+        L += ["", "### 推步与张表不同、或本纪只合其一之条", ""]
+        L += table(["历", "书", "年", "月", "本纪朔", "推步朔", "张表朔", "本纪合推步", "本纪合张表", "原文"],
+                   [[r["历"], BOOK.get(r["书"], r["书"]), r["年"], r["月"], r["本纪朔"], r["推步朔"], r["张表朔"], r["本纪合推步"],
+                     r["本纪合张表"], r["原文"]] for r in dt])
+    # 四、敦煌历日（邓文宽 1996 附录一；check_dunhuang_comparison.py）
     head = L
     blocks = {}
     L = blocks["dunhuang"] = []
@@ -252,7 +267,8 @@ def main():
         L += blocks.get(name, [])
     num = "一二三四五六七八九十"
     n = iter(range(100))
-    L = [re.sub(r"^## [一二三四五六七八九十]+、", lambda m: f"## {num[next(n)]}、", x) if x.startswith("## ") else x for x in L]
+    cn = lambda k: num[k] if k < 10 else "十" + num[k - 10]
+    L = [re.sub(r"^## [一二三四五六七八九十]+、", lambda m: f"## {cn(next(n))}、", x) if x.startswith("## ") else x for x in L]
     (ROOT / "doc/calendar/benji-checks.md").write_text("\n".join(L) + "\n", encoding="utf-8")
     print("doc/calendar/benji-checks.md", len(L), "行")
 

@@ -114,6 +114,17 @@ fn sunrise(t: &Q) -> Q {
     &s0 + (s1 - &s0) * x / qi
 }
 
+/// 日出时刻占一日之比：输入为距天正冬至占岁实之比（[0, 1)），按本历恒气日出分表（与庚午元历同）。
+/// 宋诸历未存日出分表，进朔限借此表折算（[crate::calendar::dingshuo]），属假定。
+pub(crate) fn sunrise_day_fraction(year_fraction: &Q) -> Q {
+    sunrise(&(year_fraction * q(SUI))) / q(F)
+}
+
+/// 春分初日出时刻占一日之比
+pub(crate) fn sunrise_chunfen_fraction() -> Q {
+    qr(SUNRISE[6], 100) / q(F)
+}
+
 /// 天正冬至在 y−1 年之岁的通积分（自上元甲子夜半起，分）
 fn tongji(y: i32) -> BigInt {
     BigInt::from(SUI) * BigInt::from(JI_1180 + (y as i64 - 1180))
