@@ -168,8 +168,7 @@ pub fn zhongyuan_year_months(
     }
     let reckon = || {
         let name: &'static str = ZhongyuanCalendarPeriods::embedded().name_for_lunar_year(lunar_year);
-        let p = super::push_calendar::reckoner_for_lifa(name)?;
-        Some((super::push_calendar::year_months(&p, lunar_year), RiliSource::Reckoned(name)))
+        Some((super::push_calendar::reckon_lifa_year(name, lunar_year)?, RiliSource::Reckoned(name)))
     };
     let from_table = || {
         table?.year_months(lunar_year).filter(|m| m.len() >= 12).map(|m| (m.to_vec(), RiliSource::ModernTable(ZHANG_TABLE_NAME)))
@@ -595,7 +594,13 @@ shoushi,授时历,1281,,元,郭守敬,儒略历+格里高利历,lifa_tongzhi
         assert_eq!(src(300, r), Some(RiliSource::Reckoned("景初历")));
         assert_eq!(src(300, ZhongyuanPreference::ModernTable), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)));
         assert_eq!(src(700, r), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)));
-        assert_eq!(src(-104, r), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)), "太初改历当年，推步不覆盖");
+        assert_eq!(src(-104, r), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)), "元封六年，颛顼历未实现");
+        assert_eq!(src(-103, r), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)), "太初元年五月改历，推步不覆盖");
+        assert_eq!(src(-102, r), Some(RiliSource::Reckoned("太初历（三统历）")));
+        assert_eq!(src(500, r), Some(RiliSource::Reckoned("元嘉历")));
+        assert_eq!(src(550, r), Some(RiliSource::Reckoned("大明历（祖冲之）")));
+        assert_eq!(src(600, r), Some(RiliSource::Reckoned("张胄玄历（开皇十七年术不传，以大业历代推）")));
+        assert_eq!(src(610, r), Some(RiliSource::Reckoned("大业历")));
         assert_eq!(src(-300, r), None);
         assert_eq!(src(1915, r), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)), "民初历书编算法与今不同，取张表");
         assert_eq!(src(2026, r), None, "现行农历：推步优先即现算");
@@ -603,14 +608,15 @@ shoushi,授时历,1281,,元,郭守敬,儒略历+格里高利历,lifa_tongzhi
         assert_eq!(src(300, r), zhongyuan_year_months(None, 300, r).map(|r| r.1), "推步不依赖历表");
     }
 
-    /// 中原一线推步与张培瑜历表逐月比较，不同之月逐条钉住（四分 85—236、开皇 590—596 全同；景初 237—444 四月不同）。
+    /// 中原一线推步与张培瑜历表逐月比较，不同之月逐条钉住（三统 −102—84、四分 85—236、元嘉 445—509、大明 510—589、
+    /// 开皇 590—596、大业 597—618 全同；景初 237—444 四月不同）。
     /// 这几月本纪无可判定的记载（如 314 年正月推步壬申、张表辛未，《晋书·愍帝纪》「正月己巳朔」两家皆不合），
     /// 依资料可靠性次序缺省取推步；张表的取舍多同汪曰桢《历代长术辑要》，未注依据。
     #[test]
     fn zhongyuan_reckoning_vs_zhang_table() {
         let Some(z) = zhang_table() else { return };
         let mut diff = Vec::new();
-        for y in (85..=444).chain(590..=596) {
+        for y in -102..=618 {
             let (r, _) = zhongyuan_year_months(None, y, ZhongyuanPreference::Reckoning).unwrap();
             let t = z.year_months(y).unwrap();
             assert_eq!(r.len(), t.len(), "{y} 年月数");

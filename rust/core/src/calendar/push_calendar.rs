@@ -82,15 +82,157 @@ pub fn year_months(params: &LiParams, lunar_year: i32) -> Vec<(i64, u8, bool)> {
         .collect()
 }
 
-/// 按历名取已实现、并经术文核验（见 doc/calendar/calendar-compendium.md「平朔诸历：以术文核验」）的平朔推步参数。
-/// 名称与 `data/calendar/汇总/zhongyuan_calendar_periods.csv` 的历名一致；未实现的历返回 None，由第 4 层退到下一级来源。
-pub fn reckoner_for_lifa(name: &str) -> Option<LiParams> {
-    match name {
-        "四分历" => Some(sifen_params()),
-        "景初历" => Some(jingchu_params()),
-        "开皇历" => Some(kaihuang_params()),
-        _ => None,
+/// 精确整数的平朔平气推步：上元为甲子日夜半，合朔与气首（冬至，或雨水）同时。
+///
+/// - 朔：上元起第 k 朔在第 ⌊k·月法/日法⌋ 日（月法即通数，朔策 = 月法/日法）；
+/// - 气：岁实 = `sui_num/sui_den` 日；`year0` 岁天正冬至距上元 `ji0` 岁（术文「积年」，算外），即第 ji0·岁实 日；
+///   气首为雨水者（元嘉历），上元是雨水，冬至在其前 1/6 岁；中气每 1/12 岁，取所在之日；
+/// - 置闰：十一月为含冬至之月；两冬至间 13 月者，以其间第一个无中气之月为闰，闰月名从前月；
+/// - 历元的儒略日数只由术文定：上元须是甲子日，且 `year0` 岁天正冬至须落在实际冬至前后 30 日内（60 日一周，唯一）。
+///   不借今人历表对齐。
+///
+/// 与 [LiParams]（浮点、历元取自廖育栋程序）不同，本式全部是整数运算，参数逐项出自术文，见
+/// `doc/calendar/rili-sources.md`「第二期」。
+#[derive(Clone, Copy, Debug)]
+pub struct ExactPingLi {
+    /// 月法（通数）
+    pub yue: i64,
+    /// 日法
+    pub ri: i64,
+    /// 岁实分子、分母（日）
+    pub sui_num: i64,
+    pub sui_den: i64,
+    /// 积年所指之岁（天文纪年，该岁天正冬至在上一公历年十二月）
+    pub year0: i32,
+    /// 上元至 year0 岁天正冬至的积年（算外）
+    pub ji0: i64,
+    /// 上元为雨水（元嘉历），否则为冬至
+    pub qishou_yushui: bool,
+}
+
+impl ExactPingLi {
+    /// y 岁天正冬至距上元的日数 × 12·岁实分母（整数）。
+    fn dongzhi_12(&self, y: i32) -> i128 {
+        let ji = self.ji0 as i128 + (y - self.year0) as i128;
+        let q = if self.qishou_yushui { -2 * self.sui_num as i128 } else { 0 };
+        12 * ji * self.sui_num as i128 + q
     }
+
+    fn day_of_12(&self, v: i128) -> i64 {
+        v.div_euclid(12 * self.sui_den as i128) as i64
+    }
+
+    fn shuo_day(&self, k: i64) -> i64 {
+        ((k as i128 * self.yue as i128).div_euclid(self.ri as i128)) as i64
+    }
+
+    /// 上元（第 0 日）的儒略日数：甲子日，且 year0 岁天正冬至距实际冬至（平均回归年自 2000 年冬至外推）不过 30 日。
+    pub fn epoch_jdn(&self) -> i64 {
+        let d = self.day_of_12(self.dongzhi_12(self.year0));
+        // 2000-12-21 冬至 JDN 2451900；回归年 365.2422 日
+        let approx = 2451900 + (36_524_220i64 * ((self.year0 - 1 - 2000) as i64)).div_euclid(100_000);
+        let lo = approx - d - 30;
+        (lo..=lo + 60).find(|&e| (e + 49).rem_euclid(60) == 0 && (e + d - approx).abs() <= 30).expect("历元")
+    }
+
+    /// 冬至岁 y（y−1 年十一月至 y 年十月）各月：(上元起日数, 岁, 月, 闰)。
+    fn span(&self, y: i32) -> Vec<(i64, i32, u8, bool)> {
+        let d0 = self.dongzhi_12(y);
+        let d1 = self.dongzhi_12(y + 1);
+        let (dz0, dz1) = (self.day_of_12(d0), self.day_of_12(d1));
+        // 含冬至之月的朔
+        let mut k = ((dz0 as i128 * self.ri as i128) / self.yue as i128) as i64 - 2;
+        while self.shuo_day(k + 1) <= dz0 {
+            k += 1;
+        }
+        let mut starts = Vec::with_capacity(15);
+        while self.shuo_day(k) <= dz1 {
+            starts.push(self.shuo_day(k));
+            k += 1;
+        }
+        // 每月 [starts[i], starts[i+1])；最后一个含下一冬至，属下一冬至岁
+        let n = starts.len() - 1;
+        let zq: Vec<i64> = (0..13).map(|i| self.day_of_12(d0 + i as i128 * self.sui_num as i128)).collect();
+        let leap = if n == 13 {
+            (1..13).find(|&i| !zq.iter().any(|&z| starts[i] <= z && z < starts[i + 1]))
+        } else {
+            None
+        };
+        let mut out = Vec::with_capacity(n);
+        let (mut lab, mut yy) = (11u8, y - 1);
+        let (mut plab, mut pyy) = (11u8, y - 1);
+        for (i, &s) in starts[..n].iter().enumerate() {
+            if Some(i) == leap {
+                out.push((s, pyy, plab, true));
+                continue;
+            }
+            out.push((s, yy, lab, false));
+            (plab, pyy) = (lab, yy);
+            lab += 1;
+            if lab == 13 {
+                (lab, yy) = (1, y);
+            }
+        }
+        out
+    }
+
+    /// 农历年 y（正月至十二月，含闰）各月：(朔日 JDN, 月, 闰否)。
+    pub fn year_months(&self, lunar_year: i32) -> Vec<(i64, u8, bool)> {
+        let e = self.epoch_jdn();
+        self.span(lunar_year)
+            .into_iter()
+            .chain(self.span(lunar_year + 1))
+            .filter(|&(_, yy, _, _)| yy == lunar_year)
+            .map(|(s, _, m, leap)| (s + e, m, leap))
+            .collect()
+    }
+}
+
+/// 三统历（《汉书·律历志》）：日法 81，月法 2392；统法 1539，岁实 562120/1539；上元至太初元年（前 104，天文纪年 −103）
+/// 天正冬至 143127 岁（与 `han_pingshuo_check.py` 同一积年口径）。
+pub fn santong_exact() -> ExactPingLi {
+    ExactPingLi { yue: 2392, ri: 81, sui_num: 562120, sui_den: 1539, year0: -104, ji0: 143126, qishou_yushui: false }
+}
+
+/// 元嘉历（何承天，《宋书·律历志下》）：日法 752，通数 22207；度法 304，岁实 111035/304；上元庚辰甲子纪首（雨水）
+/// 至元嘉二十年（443）5703 岁算外。
+pub fn yuanjia_exact() -> ExactPingLi {
+    ExactPingLi { yue: 22207, ri: 752, sui_num: 111035, sui_den: 304, year0: 443, ji0: 5703, qishou_yushui: true }
+}
+
+/// 大明历（祖冲之，《宋书·律历志下》）：日法 3939，月法 116321；纪法 39491，岁实 14423804/39491；上元甲子
+/// 至大明七年（463）51939 岁算外。
+pub fn daming_zu_exact() -> ExactPingLi {
+    ExactPingLi { yue: 116321, ri: 3939, sui_num: 14423804, sui_den: 39491, year0: 463, ji0: 51939, qishou_yushui: false }
+}
+
+/// 大业历（张胄玄，《隋书·律历志中》所录大业四年戊辰所定之术）：日法 1144，月法 33783；度法 42640，岁分 15573963；
+/// 甲子元至大业四年（608）1427644 岁算外。597—607 年所行开皇十七年术未载，以本术代推。
+pub fn daye_exact() -> ExactPingLi {
+    ExactPingLi { yue: 33783, ri: 1144, sui_num: 15573963, sui_den: 42640, year0: 608, ji0: 1427644, qishou_yushui: false }
+}
+
+/// 按历名（`data/calendar/汇总/zhongyuan_calendar_periods.csv`）推某农历年各月 (朔日 JDN, 月, 闰否)。
+/// 只收已实现、参数经术文核验之历（见 doc/calendar/calendar-compendium.md「平朔诸历：以术文核验」与
+/// doc/calendar/rili-sources.md）；其余返回 None，由第 4 层退到下一级来源。
+pub fn reckon_lifa_year(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, bool)>> {
+    let exact = match name {
+        "太初历（三统历）" => Some(santong_exact()),
+        "元嘉历" => Some(yuanjia_exact()),
+        "大明历（祖冲之）" => Some(daming_zu_exact()),
+        "大业历" | "张胄玄历（开皇十七年术不传，以大业历代推）" => Some(daye_exact()),
+        _ => None,
+    };
+    if let Some(e) = exact {
+        return Some(e.year_months(lunar_year));
+    }
+    let p = match name {
+        "四分历" => sifen_params(),
+        "景初历" => jingchu_params(),
+        "开皇历" => kaihuang_params(),
+        _ => return None,
+    };
+    Some(year_months(&p, lunar_year))
 }
 
 /// 推步政权某岁各月 (朔日 JDN, 月序, 闰否)；返回所用历术名。政权或年份不在表内返回 None。
@@ -412,6 +554,27 @@ pub fn gregorian_to_all_regimes_lunar(g_year: i32, g_month: i32, g_day: i32) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 精确平朔诸历的上元：只由术文积年与甲子日定出（不借历表），钉住其儒略日数；上元皆甲子日
+    #[test]
+    fn exact_pingli_epochs() {
+        for (li, e) in [(santong_exact(), -50593729), (yuanjia_exact(), -200089), (daming_zu_exact(), -17080189), (daye_exact(), -519493909)] {
+            assert_eq!(li.epoch_jdn(), e);
+            assert_eq!((e + 49).rem_euclid(60), 0, "上元甲子");
+        }
+    }
+
+    /// 精确推步与浮点 LiParams 无关的一例：元嘉二十年（443）《宋书》「上元庚辰甲子纪首」，岁首雨水；
+    /// 大明七年（463）冬至前后月序完整
+    #[test]
+    fn exact_pingli_year_shapes() {
+        for (li, y) in [(yuanjia_exact(), 443), (daming_zu_exact(), 463), (santong_exact(), 0), (daye_exact(), 610)] {
+            let m = li.year_months(y);
+            assert!(m.len() == 12 || m.len() == 13, "{y} 年月数 {}", m.len());
+            assert_eq!((m[0].1, m[0].2), (1, false));
+            assert!(m.windows(2).all(|w| (29..=30).contains(&(w[1].0 - w[0].0))), "{y} 月长");
+        }
+    }
 
     /// 398—444 年南北同用景初历：北朝推步与实历朔日表（南朝宋，《三千五百年历日天象》据历还原）逐月比对。
     /// 两者都是景初历的复原，相合只说明本实现与该书的推步一致，不是史实验证。闰月位置全同；朔日只有 430 年二月不同
