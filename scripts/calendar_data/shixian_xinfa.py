@@ -334,18 +334,31 @@ def shuo_times(d0, d1, yongshi=True):
     return out
 
 
+# 置闰之界：顺治初沿崇祯新法「專以合朔為主」，以中气与合朔时刻比较；其后改为以日比较（中气所在日在月内即属本月）。
+# 本纪顺治二年（1645）「閏六月」唯时刻法得之；顺治五年（1648）閏四月、十年閏六月及康熙诸闰（1662、1680、1697、1699、1716）
+# 唯以日法得之；1646、1647 两法所得相同，改制之年在顺治三至五年间无从细分，取冬至岁 1647 为末。
+SHIKE_RUN_LAST = 1647
+
+
 def year_months(y, yongshi=True):
-    """冬至岁 y：(朔日 JDN, 月序, 闰否)。中气用时定日；无中气之月为闰"""
+    """冬至岁 y：(朔日 JDN, 月序, 闰否)。无中气之月为闰。中气属月：冬至岁 ≤ SHIKE_RUN_LAST 以合朔时刻为界——卷八李天经
+    崇祯十五年题本「新法置閏專以合朔為主，若中氣適在合朔時刻前者，是中氣尚屬前月之晦則無閏；若在合朔日時後者，則前月當有閏
+    而無疑也」，卷九十七「月有閏者，太陽躔一宫之時與月會合二次以成者也」；此后以日为界——《清史稿·时宪志一》康熙八年南怀仁
+    「雨水為正月中氣，是月二十九日值雨水，即為康熙九年正月，不應置閏」。中气、合朔皆用时；月首以合朔用时所在日。"""
     dz0, dz1 = dongzhi(y), dongzhi(y + 1)
     zh = [cross_sun(30 * k, math.floor(dz0) + int(30.4 * k) - 3) for k in range(12)] + [dz1]
-    zday = [math.floor(t + ri_cha(t)) if yongshi else math.floor(t) for t in zh]
-    sh = shuo_times(math.floor(dz0) - 32, math.floor(dz1) + 32, yongshi)
-    days = [math.floor(t) for t in sh]
-    i0 = max(i for i, d in enumerate(days) if d <= zday[0])
-    i1 = max(i for i, d in enumerate(days) if d <= zday[12])
-    ms = days[i0:i1 + 1]
+    zt = [t + ri_cha(t) if yongshi else t for t in zh]          # 中气时刻（用时）
+    sh = shuo_times(math.floor(dz0) - 32, math.floor(dz1) + 32, yongshi)   # 合朔时刻（用时）
+    shike = y <= SHIKE_RUN_LAST
+    # 以时刻为界则比较时刻，以日为界则比较所在日（含天正之定：冬至所在之月）
+    key_s = sh if shike else [math.floor(t) for t in sh]
+    key_z = zt if shike else [math.floor(z) for z in zt]
+    i0 = max(i for i, t in enumerate(key_s) if t <= key_z[0])
+    i1 = max(i for i, t in enumerate(key_s) if t <= key_z[12])
+    ks = key_s[i0:i1 + 1]
+    ms = [math.floor(t) for t in sh[i0:i1 + 1]]
     n = i1 - i0
-    has = [any(ms[i] <= z < ms[i + 1] for z in zday) for i in range(n)]
+    has = [any(ks[i] <= z < ks[i + 1] for z in key_z) for i in range(n)]
     leap = next(i for i in range(1, n) if not has[i]) if n == 13 else None
     out, mo = [], 11
     for i in range(n):

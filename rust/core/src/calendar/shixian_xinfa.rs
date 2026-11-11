@@ -273,22 +273,34 @@ fn shuo_times(d0: i64, d1: i64) -> Vec<Real> {
 }
 
 /// 冬至岁 y：(朔日 JDN, 月序, 闰否)，自天正至次年天正前；中气、定朔皆以用时定日，无中气之月为闰
+/// 置闰以合朔时刻为界之末年（冬至岁）。卷八李天经崇祯十五年题本「新法置閏專以合朔為主，若中氣適在合朔時刻前者，是中氣尚屬
+/// 前月之晦則無閏；若在合朔日時後者，則前月當有閏而無疑也」；其后以日为界（《清史稿·时宪志一》康熙八年南怀仁「是月二十九日值
+/// 雨水，即為康熙九年正月」）。本纪顺治二年閏六月唯时刻法得之，顺治五年閏四月以下诸闰唯以日法得之；1646、1647 两法同，取 1647。
+const SHIKE_RUN_LAST: i32 = 1647;
+
 pub fn sui_months(y: i32) -> Vec<(i64, u8, bool)> {
     let (dz0, dz1) = (dongzhi(y), dongzhi(y + 1));
     let f0 = dz0.to_i64_floor();
-    let mut zday: Vec<i64> = (0..12)
+    // 中气、合朔皆用时
+    let mut zt: Vec<Real> = (0..12)
         .map(|k| {
             let t = cross_sun(30.0 * k as f64, f0 + (30.4 * k as f64) as i64 - 3);
-            (t + ri_cha(t)).to_i64_floor()
+            t + ri_cha(t)
         })
         .collect();
-    zday.push((dz1 + ri_cha(dz1)).to_i64_floor());
-    let days: Vec<i64> = shuo_times(f0 - 32, dz1.to_i64_floor() + 32).iter().map(|t| t.to_i64_floor()).collect();
-    let i0 = days.iter().rposition(|&d| d <= zday[0]).expect("天正");
-    let i1 = days.iter().rposition(|&d| d <= zday[12]).expect("次年天正");
-    let ms = &days[i0..=i1];
+    zt.push(dz1 + ri_cha(dz1));
+    let sh = shuo_times(f0 - 32, dz1.to_i64_floor() + 32);
+    // 置闰之界：冬至岁 ≤ SHIKE_RUN_LAST 以合朔时刻比较（崇祯新法「專以合朔為主」），此后以所在日比较（见 SHIKE_RUN_LAST）
+    let shike = y <= SHIKE_RUN_LAST;
+    let key = |t: &Real| if shike { *t } else { t.floor() };
+    let key_s: Vec<Real> = sh.iter().map(key).collect();
+    let key_z: Vec<Real> = zt.iter().map(key).collect();
+    let i0 = key_s.iter().rposition(|d| *d <= key_z[0]).expect("天正");
+    let i1 = key_s.iter().rposition(|d| *d <= key_z[12]).expect("次年天正");
+    let ks = &key_s[i0..=i1];
+    let ms: Vec<i64> = sh[i0..=i1].iter().map(|t| t.to_i64_floor()).collect();
     let n = i1 - i0;
-    let has: Vec<bool> = (0..n).map(|i| zday.iter().any(|&z| ms[i] <= z && z < ms[i + 1])).collect();
+    let has: Vec<bool> = (0..n).map(|i| key_z.iter().any(|z| ks[i] <= *z && *z < ks[i + 1])).collect();
     let leap = if n == 13 { (1..n).find(|&i| !has[i]) } else { None };
     let mut out: Vec<(i64, u8, bool)> = Vec::with_capacity(n);
     let mut mo = 11u8;
