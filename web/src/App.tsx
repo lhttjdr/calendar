@@ -101,7 +101,7 @@ function getStoredRealBackend(): RealBackendVariant {
 type DayInfoLayerKey =
   | 'astro_synodic' // 天文·事件层：合朔时刻
   | 'astro_solarTerm' // 天文·事件层：节气交节（含平气对比）
-  | 'calendar_eraNames' // 历法·派生层：政权·帝王·年号（含并存政权）
+  | 'calendar_eraNames' // 历法·派生层：政权·帝王·年号（同年各政权）
   | 'calendar_regimeCalendars' // 历法·独立基础层：其它政权推步历（蜀汉四分、东吴乾象等）
   | 'calendar_ganzhi' // 历法：干支历四柱
   | 'folk_jishi' // 民俗·独立基础层：纳音、值日宿与七曜、年月紫白九星
@@ -121,8 +121,8 @@ const DAY_INFO_LAYER_GROUPS: { title: string; items: { key: DayInfoLayerKey; lab
   {
     title: '历法',
     items: [
-      { key: 'calendar_eraNames', label: '政权·年号（含并存政权）' },
-      { key: 'calendar_regimeCalendars', label: '其它政权推步历（蜀汉/东吴等）' },
+      { key: 'calendar_eraNames', label: '政权·年号（同年各政权）' },
+      { key: 'calendar_regimeCalendars', label: '分政权推步历（蜀汉、东吴等）' },
       { key: 'calendar_ganzhi', label: '干支历四柱' },
     ],
   },
@@ -1058,14 +1058,16 @@ function App() {
                   type Era = { regime: string; emperor: string; era_name: string; era_year: string; era: string; is_primary?: boolean }
                   const eraMid = (p: Era) => [p.emperor, [p.era_name, p.era_year].filter(Boolean).join('') || p.era].filter(Boolean).join(' ')
 
+                  // 各历日一行一种，样式一律，不分主次（项目不设「主表」，中原一线与各政权并列）
+                  const lineStyle: React.CSSProperties = { fontSize: 14, fontWeight: 600, marginBottom: 4 }
                   const lines: React.ReactNode[] = []
                   lines.push(
-                    <div key="gregorian" style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
+                    <div key="gregorian" style={lineStyle}>
                       {westernName} 西元 {civilY > 0 ? `${civilY}年` : `前${1 - civilY}年`}{gregorianMonthDay}<LineTime format={clock} {...timeProps} />
                     </div>,
                   )
 
-                  // 主线
+                  // 中原一线
                   if (selectedLunarSlot != null) {
                     const monthDay = `${selectedLunarSlot.isLeapMonth ? '闰' : ''}${LUNAR_MONTH_NAMES[selectedLunarSlot.lunarMonth - 1]}月 ${lunarDayStr(selectedLunarSlot.dayOfMonth)}日`
                     let era = yearName(selectedLunarSlot.lunarYear)
@@ -1104,7 +1106,7 @@ function App() {
                       } catch { /* 年号解析失败时退回只写年份 */ }
                     }
                     lines.push(
-                      <div key="main" style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
+                      <div key="zhongyuan" style={lineStyle}>
                         {wasm?.get_calendar_name?.(selectedLunarSlot.lunarYear) ?? '农历'} {era} {monthDay}<LineTime format={timeOf} {...timeProps} />{hint}
                       </div>,
                     )
@@ -1116,23 +1118,22 @@ function App() {
                       )
                     }
                   } else if (selectedLunar != null) {
-                    lines.push(<div key="main" style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{selectedLunar}</div>)
+                    lines.push(<div key="zhongyuan" style={lineStyle}>{selectedLunar}</div>)
                   } else {
-                    lines.push(<div key="main" style={{ marginBottom: 4 }}><Text type="secondary">历日 —</Text></div>)
+                    lines.push(<div key="zhongyuan" style={lineStyle}>历日 —</div>)
                   }
 
-                  // 并存政权与分政权推步
+                  // 同年各政权年号与分政权推步，与中原一线同列
                   type RegimeDay = { region: string; calendar_name: string; lunar_year: number; month: number; is_leap: boolean; day: number }
                   let regimeDays: RegimeDay[] = []
                   if (wasm?.get_regimes_lunar_for_day != null) {
                     try {
                       const arr = JSON.parse(wasm.get_regimes_lunar_for_day(displayY, displayM, displayD))
                       if (Array.isArray(arr)) regimeDays = arr as RegimeDay[]
-                    } catch { /* 推步是补充信息，解析失败不影响主线 */ }
+                    } catch { /* 解析失败时只少这几行，不影响其他历日 */ }
                   }
                   const regimeMonthDay = (e: RegimeDay) => `${e.is_leap ? '闰' : ''}${LUNAR_MONTH_NAMES[e.month - 1]}月 ${lunarDayStr(e.day)}日`
                   const usedRegions = new Set<string>()
-                  const secondary: React.ReactNode[] = []
                   if (dayInfoLayers.calendar_eraNames && selectedLunarSlot != null && wasm?.get_era_name_parts_all != null) {
                     try {
                       const all = JSON.parse(wasm.get_era_name_parts_all(selectedLunarSlot.lunarYear)) as Era[]
@@ -1140,9 +1141,9 @@ function App() {
                         const own = regimeDays.find((e) => e.region.split('/').includes(p.regime))
                         if (own != null) usedRegions.add(own.region)
                         const era = `${p.regime} · ${eraMid(p) || '—'}`
-                        // 民国纪年配格里高利历；其余政权没有推步数据时不套用主线月日，如实写历未详
-                        secondary.push(
-                          <div key={`concurrent-${p.regime}`}>
+                        // 民国纪年配格里高利历；其余政权没有推步数据时不套用中原月日，如实写历未详
+                        lines.push(
+                          <div key={`concurrent-${p.regime}`} style={lineStyle}>
                             {p.regime === '中华民国'
                               ? <>格里高利历 {era} {gregorianMonthDay}<LineTime format={clock} {...timeProps} /></>
                               : own != null
@@ -1151,12 +1152,12 @@ function App() {
                           </div>,
                         )
                       }
-                    } catch { /* 并存政权是补充信息，解析失败不影响主线 */ }
+                    } catch { /* 解析失败时只少这几行，不影响其他历日 */ }
                   }
                   if (dayInfoLayers.calendar_regimeCalendars) {
                     for (const e of regimeDays.filter((x) => !usedRegions.has(x.region))) {
-                      secondary.push(
-                        <div key={`${e.region}-${e.calendar_name}`}>
+                      lines.push(
+                        <div key={`${e.region}-${e.calendar_name}`} style={lineStyle}>
                           {e.calendar_name} {e.region} {regimeMonthDay(e)}<LineTime format={timeOf} {...timeProps} />
                         </div>,
                       )
@@ -1168,7 +1169,6 @@ function App() {
                       <div style={{ fontSize: 13, fontWeight: 600 }}>星期{WEEKDAY_NAMES[weekdayIndex]}</div>
                       <Text type="secondary" style={{ fontSize: 11 }}>第{dayOfYear}天，第{weekOfYear}周</Text>
                       {!isLiveMode && isSelectedToday && <Tag color="blue" style={{ marginTop: 6 }}>今天</Tag>}
-                      {secondary.length > 0 && <div style={{ fontSize: 12, marginTop: 6, color: 'var(--text-2)' }}>{secondary}</div>}
                     </>
                   )
                 })()}

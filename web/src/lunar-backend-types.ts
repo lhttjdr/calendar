@@ -188,7 +188,7 @@ export interface LunarBackend {
   pingqi_li_name_wasm?(year: number): string
   /** 当地太阳时（小时）；mode 1=平太阳时 2=真太阳时 */
   local_solar_hours_wasm?(jd_ut: number, longitude_deg: number, mode: number, vsop87_ear: string): number
-  /** 主线该农历年行用之历的名称（麟德历、时宪历……）。 */
+  /** 中原一线该农历年行用之历的名称（麟德历、时宪历……）。 */
   get_calendar_name?(lunar_year: number): string
   /** 载入今人历表（张培瑜）CSV 文本 */
   init_zhang_table?(csv: string): boolean

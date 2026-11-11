@@ -481,7 +481,7 @@ pub fn get_era_name_parts_for_day(
 }
 
 
-/// 公历 (y,m,d) 下各推步政权（蜀、吴等）的农历月日，返回 JSON 数组 [{ region, calendar_name, lunar_year, month, is_leap, day }]。主表由前端提供。
+/// 公历 (y,m,d) 下各推步政权（蜀、吴等）的农历月日，返回 JSON 数组 [{ region, calendar_name, lunar_year, month, is_leap, day }]。中原一线另见 [resolve_zhongyuan_year]。
 #[wasm_bindgen(js_name = get_regimes_lunar_for_day)]
 pub fn get_regimes_lunar_for_day(g_year: i32, g_month: i32, g_day: i32) -> String {
     let mut entries = lunar_core::calendar::push_calendar::gregorian_to_all_regimes_lunar(
