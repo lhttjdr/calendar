@@ -2,7 +2,8 @@
 //!
 //! 由 `scripts/calendar_data/shixian_xinfa.py` 移植。日躔照《新法算书》卷二十五、二十六日躔表说复原；月离照表：
 //! 第一均数查卷三十三「太陰自行加減表」，太阴用时以「月離日差表」均之（卷三十二「月離表用法」：「太隂亦有日差表亦用以均其時，
-//! 其加減則用本號」），朔望「止用一均數，故白道上所得實平行度即為視經度」。太阴平行、自行以《清史稿·时宪志一》所载日行、根数
+//! 其加減則用本號」），朔望「止用一均數，故白道上所得實平行度即為視經度」；白道实平行再以卷三十三「黄白二道同升表」改为黄道经度
+//! （用法第十条「今細推黄道上正經度有本法，其本表曰黄白道同升表」，表说「用以密推黄道上之月離經度」）。太阴平行、自行以《清史稿·时宪志一》所载日行、根数
 //! 线性计算（恒年、日、时三表数字未转录）。依据与检验见 doc/calendar/calendar-compendium.md 第十一节。
 //! 日序：t = JDN + 日内比例，以京师子正为日首；中法宫度自冬至起。
 
@@ -49,6 +50,13 @@ fn root_moon() -> f64 {
 }
 fn root_zixing() -> f64 {
     180.0 + dms(25.0, 32.0, 15.0, 34.0, 0.0, 0.0)
+}
+/// 正交：戊辰根数 1 宫 0°0′14″，逆行日行 3′10″38‴（恒年表所用）
+fn root_jiao() -> f64 {
+    30.0 + dms(0.0, 0.0, 14.0, 0.0, 0.0, 0.0)
+}
+fn jiao_daily() -> f64 {
+    dms(0.0, 3.0, 10.0, 38.0, 0.0, 0.0)
 }
 
 fn rad(d: Real) -> Real {
@@ -157,6 +165,8 @@ struct Tabs {
     zixing: Vec<f64>,
     /// 月离日差表：0°—90°（秒，时）
     richa: Vec<f64>,
+    /// 黄白二道同升表：月距正交 0°—90°（秒）
+    tongsheng: Vec<f64>,
 }
 
 fn rows(text: &str) -> impl Iterator<Item = Vec<&str>> {
@@ -185,21 +195,23 @@ fn tabs() -> &'static Tabs {
         let zixing = (0..=1080).map(|i| v[&(i * 10)]).collect();
         let p2 = include_str!("../../../../data/calendar/xinfa_yueli_tables/zixing_part2.csv");
         let mut rc: HashMap<i64, f64> = HashMap::new();
+        let mut ts: HashMap<i64, f64> = HashMap::new();
         for f in rows(p2) {
-            if f[0] != "月离日差表" {
-                continue;
-            }
-            let g = match f[3] {
-                "星纪/鹑首" => 0,
-                "玄枵/鹑火" => 1,
-                "娵訾/鹑尾" => 2,
+            let (g, m) = match (f[0], f[3]) {
+                ("月离日差表", "星纪/鹑首") => (0, &mut rc),
+                ("月离日差表", "玄枵/鹑火") => (1, &mut rc),
+                ("月离日差表", "娵訾/鹑尾") => (2, &mut rc),
+                ("黄白二道同升表", "○/六") => (0, &mut ts),
+                ("黄白二道同升表", "一/七") => (1, &mut ts),
+                ("黄白二道同升表", "二/八") => (2, &mut ts),
                 _ => continue,
             };
             let x = g * 30 + f[4].parse::<i64>().unwrap();
-            rc.insert(x, f[9].parse::<f64>().unwrap() * 60.0 + f[10].parse::<f64>().unwrap());
+            m.insert(x, f[9].parse::<f64>().unwrap() * 60.0 + f[10].parse::<f64>().unwrap());
         }
         let richa = (0..=90).map(|x| rc[&x]).collect();
-        Tabs { zixing, richa }
+        let tongsheng = (0..=90).map(|x| ts[&x]).collect();
+        Tabs { zixing, richa, tongsheng }
     })
 }
 
@@ -227,14 +239,32 @@ fn moon_richa(lam: Real) -> Real {
     (if shun { sec } else { -sec }) / r(86400.0)
 }
 
-/// 用时 t 之 (太阴实平行, 太阳实行)
-fn moon_sun_yong(t: Real) -> (Real, Real) {
+/// 黄白二道同升差（度）：u 为月距正交。卷三十三表说「月距正交宫度以為引數……依本號以加以減于白道所得經度得黄道所求經度」，
+/// 表注「顺减逆加」：○一二宫、六七八宫减，三四五宫、九十十一宫加，极大 7′0″
+fn tongsheng(u: Real) -> Real {
+    let x = norm(u);
+    let q = (x / r(90.0)).to_i64_floor();
+    let rem = x - r(q as f64 * 90.0);
+    let shun = q.rem_euclid(2) == 0;
+    let arg = if shun { rem } else { r(90.0) - rem };
+    let sec = interp(&tabs().tongsheng, arg, 1.0);
+    (if shun { -sec } else { sec }) / r(3600.0)
+}
+
+/// 用时 t 之 (太阴白道实平行, 太阳实行, 太阴所用之时)
+fn moon_sun_yong(t: Real) -> (Real, Real, Real) {
     let lam = sun(t - ri_cha(t)).1;
     let tm = t + moon_richa(lam);
     let n = tm - r(ROOT_JDN as f64);
     let l = norm(r(root_moon()) + r(moon_daily()) * n);
     let a = norm(r(root_zixing()) + r(moon_zixing()) * n);
-    (norm(l + moon_jun1(a)), lam)
+    (norm(l + moon_jun1(a)), lam, tm)
+}
+
+/// 白道实平行 l（太阴所用之时 tm）改为黄道经度：正交用平行（朔望「交行無均數」），加减同升差
+fn moon_huang(l: Real, tm: Real) -> Real {
+    let jiao = norm(r(root_jiao()) - r(jiao_daily()) * (tm - r(ROOT_JDN as f64)));
+    norm(l + tongsheng(l - jiao))
 }
 
 // ---------------------------------------------------------------- 节气、定朔、排月
@@ -255,10 +285,12 @@ fn dongzhi(y: i32) -> Real {
     cross_sun(0.0, j - 8)
 }
 
+/// [d0, d1) 内定朔用时：逐日用时子正求日月相距（太阴黄道经度 − 太阳实行），两日中比例。太阴黄道经度 = 白道实平行加减同升差：
+/// 不加同升差则冬至岁 1645—1726 与张表不合 7 月、《清实录》九月合 2；加之不合 3 月（皆距子正 2.3 分钟内）、实录合 6
 fn shuo_times(d0: i64, d1: i64) -> Vec<Real> {
     let el = |d: i64| {
-        let (m, s) = moon_sun_yong(r(d as f64));
-        signed(m - s)
+        let (m, s, tm) = moon_sun_yong(r(d as f64));
+        signed(moon_huang(m, tm) - s)
     };
     let mut out = vec![];
     let mut e_d = el(d0);
@@ -335,14 +367,23 @@ mod tests {
     fn xinfa_jiaru_examples() {
         let t1 = r(2_317_083.0) + r((6.0 + 51.0 / 60.0) / 24.0);
         assert!((ri_cha(t1).as_f64() * 1440.0 - 24.0).abs() < 0.5);
-        let (m1, s1) = moon_sun_yong(t1);
+        let (m1, s1, _) = moon_sun_yong(t1);
         assert!((moon_richa(s1).as_f64() * 86400.0 + 596.0).abs() < 3.0, "9′56″ 减");
         assert!((fold(m1 - s1).as_f64() - 180.0).abs() < 0.02, "望");
         let t2 = r(2_317_260.0) + r((20.0 + 14.0 / 60.0) / 24.0);
         assert!((ri_cha(t2).as_f64() * 1440.0 - 11.0).abs() < 0.7);
-        let (m2, _) = moon_sun_yong(t2);
+        let (m2, _, _) = moon_sun_yong(t2);
         let want = 300.0 + 14.0 + 27.0 / 60.0;
         assert!((m2.as_f64() - want).abs() < 1.0 / 60.0, "{}", m2.as_f64());
+    }
+
+    /// 黄白二道同升表：月距正交 45° 极大 7′0″ 减，135° 加，0°、90° 为零
+    #[test]
+    fn tongsheng_table() {
+        assert!((tongsheng(r(45.0)).as_f64() * 3600.0 + 420.0).abs() < 0.5);
+        assert!((tongsheng(r(135.0)).as_f64() * 3600.0 - 420.0).abs() < 0.5);
+        assert!((tongsheng(r(225.0)).as_f64() * 3600.0 + 420.0).abs() < 0.5);
+        assert!(tongsheng(r(0.0)).as_f64().abs() < 1e-9 && tongsheng(r(90.0)).as_f64().abs() < 1e-9);
     }
 
     /// 与 Python 复原（data/calendar/shixian_xinfa_check.csv 用时朔日）逐月相同：冬至岁 1645—1729

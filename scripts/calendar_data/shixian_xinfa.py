@@ -17,6 +17,8 @@
   时刻：「先以所設之用時變為平時……太陽日差……反用之……太隂亦有日差表亦用以均其時其加減則用本號」——太阳用平时 = 用时 − 日差，
   太阴用时 = 用时 + 月离日差（卷三十三「月離日差表」，引数太阳所躔宫度，zixing_part2.csv，顺加逆减）。
   定朔：「以減太隂實平行……若無餘分即日月同度是為定朔……朔望時太隂止用一均數，故白道上所得實平行度即為視經度」；
+  白道实平行再以卷三十三「黄白二道同升表」（引数月距正交，顺减逆加，极大 7′）改为黄道经度——用法第十条「今細推黄道上正經度
+  有本法，其本表曰黄白道同升表」，表说「用以密推黄道上之月離經度」；朔望「交行無均數」，正交用平行。
   逐日用时子正求日月相距，两日中比例得定朔用时。二三均数表（卷三十四、三十五）只在朔望以外用，算例三自检用之。
 - 节气：日躔实行每 15° 一气，平时加日差为用时定日；置闰：无中气之月为闰。
 
@@ -197,6 +199,20 @@ def _load_richa():
 RICHA_TAB = _load_richa()
 
 
+def _load_tongsheng():
+    """黄白二道同升表（卷三十三）：引数月距正交 0°—90°（○一二宫顺数、九十十一宫逆数；六七八、三四五宫同），返回秒"""
+    order = {"○/六": 0, "一/七": 1, "二/八": 2}
+    v = {}
+    for r in _rows("zixing_part2.csv"):
+        if r["表"] != "黄白二道同升表":
+            continue
+        v[order[r["自行_宫"]] * 30 + int(r["自行_度"])] = int(r["分"]) * 60 + int(r["秒"])
+    return [v[x] for x in range(91)]
+
+
+TONGSHENG_TAB = _load_tongsheng()
+
+
 def interp(tab, x, step):
     """中比例：tab[i] 为引数 i·step 之值"""
     i = min(int(x // step), len(tab) - 2)
@@ -219,6 +235,27 @@ def moon_richa(lam):
     arg = r if shun else 90 - r
     sec = interp(RICHA_TAB, arg, 1)
     return (sec if shun else -sec) / 86400
+
+
+def tongsheng(u):
+    """黄白二道同升差（度）：u 为月距正交（白道经度 − 正交）。卷三十三表说「月距正交宫度以為引數……依本號以加以減于白道所得經度
+    得黄道所求經度」，表注「顺减逆加」：○一二宫、六七八宫（顺数）减，三四五宫、九十十一宫（逆数）加，极大 7′0″（月距交 45°）"""
+    x = norm(u)
+    q, r = divmod(x, 90)
+    shun = int(q) % 2 == 0
+    arg = r if shun else 90 - r
+    sec = interp(TONGSHENG_TAB, arg, 1)
+    return (-sec if shun else sec) / 3600
+
+
+def zhengjiao(t):
+    """t（太阴所用之时）之正交平行经度（中法）：「於本恒年表查本年正交行度去減本日時正交行度」，朔望「交行無均數」"""
+    return norm(ROOT_JIAO - JIAO_DAILY * (t - ROOT_JDN))
+
+
+def moon_huang(L, t):
+    """白道实平行 L（太阴所用之时 t）改为黄道经度：加减同升差"""
+    return norm(L + tongsheng(L - zhengjiao(t)))
 
 
 def moon_mean(t):
@@ -318,12 +355,18 @@ def dongzhi(y):
 
 
 def shuo_times(d0, d1, yongshi=True):
-    """[d0, d1) 内定朔时刻：用时子正逐日求日月相距（太阴实平行 − 太阳实行），两日中比例；yongshi=False 时一律作平时"""
+    """[d0, d1) 内定朔时刻：用时子正逐日求日月相距（太阴黄道经度 − 太阳实行），两日中比例；yongshi=False 时一律作平时。
+    太阴黄道经度 = 白道实平行（平行加第一均）加减黄白二道同升差（卷三十三）：卷三十二用法第五条「朔望時太隂止用一均數，故白道上
+    所得實平行度即為視經度」只说朔望不用二三均，第十条「月離厯指諸論皆於白道取太隂經度不於黄道者其差甚微故也，今細推黄道上正經度
+    有本法，其本表曰黄白道同升表」，卷三十三「二道同升表者用以密推黄道上之月離經度也」。同升差极大 7′，折合定朔约 14 分钟；
+    不加则冬至岁 1645—1725 与张表不合 7 月、《清实录》九月合 2，加之则不合 3 月（皆距子正 2.3 分钟内）、实录合 6，
+    对现代真合朔之 σ 由 13.1 分降为 7.8 分（见 doc/calendar/calendar-compendium.md 第十一节）。"""
     def el(d):
         if yongshi:
-            return signed(moon_shi(d)[0] - sun_yong(d))
+            L, _, tm = moon_shi(d)
+            return signed(moon_huang(L, tm) - sun_yong(d))
         L, a = moon_mean(d)
-        return signed(norm(L + moon_jun1(a)) - sun(d)[2])
+        return signed(moon_huang(norm(L + moon_jun1(a)), d) - sun(d)[2])
     out = []
     e_d = el(d0)
     for d in range(d0, d1):
@@ -440,7 +483,7 @@ if __name__ == "__main__":
             rows.append([y, ly, m, int(l), ymd(ja), ymd(jb), int(zh.get(ja) == (m, l)), int(zh.get(jb) == (m, l)), int(1666 <= ly <= 1669)])
     with open(root / "data/calendar/shixian_xinfa_check.csv", "w", encoding="utf-8", newline="") as fh:
         fh.write("# 清初时宪历「西洋新法」照表复原（scripts/calendar_data/shixian_xinfa.py；日躔照《新法算书》卷二十五、二十六，"
-                 "月离第一均照卷三十三太阴自行加减表、月离日差表，朔望止用一均）逐月朔日与张表比较：冬至岁 1645—1729。"
+                 "月离第一均照卷三十三太阴自行加减表、月离日差表，朔望止用一均，白道经度以黄白二道同升表改黄道）逐月朔日与张表比较：冬至岁 1645—1729。"
                  "用时 = 日用平时加日差、月用用时加月离日差，中气加日差定日；平时 = 一律平时。"
                  "大统 = 1 者为康熙五至八年复用大统之年，不以新法论。1726 年起行《历象考成》，只作对照。\n")
         w = csv.writer(fh)
