@@ -1208,8 +1208,6 @@ fn song(name: &str, f: i64, sui: i64, shuo: Q, zhuan: Q, ji: i64, y_ji: i32, day
 struct Shoushi {
     run_ying: i64,
     zhuan_ying: i64,
-    /// 大统「遲疾限行度內減去八百二十分」：限行度减日行
-    relative: bool,
     off: i64,
 }
 
@@ -1292,15 +1290,17 @@ impl DingshuoLi for Shoushi {
         let jing = &t0 + q(m) * ss_shuo();
         let r = &ru0 + q(m) * ss_shuo();
         let deg = ss_sun(&(&jing - &dz)) - ss_moon(&r);
-        let v = ss_speed(&r) * qr(82, 1000) - if self.relative { qr(82, 1000) } else { Q::zero() };
+        // 除数用月每限实行度，不减日行：《大统历日通轨》「以其下遲疾度分而一」，立成初限疾曆 679.3140、遲曆 832.0649 即 820 除以月实行度；
+        // 永乐十五年、万历三十三年钦天监刊本三处朔日亦证。《明史·历志》「遲疾限行度內減去八百二十分」与颁历不合。
+        let v = ss_speed(&r) * qr(82, 1000);
         let ding = &jing + deg / v * q(820);
         (jing, ding)
     }
 }
 
-fn shoushi(relative: bool) -> Shoushi {
+fn shoushi() -> Shoushi {
     // 《明史》称《大统历法通轨》所载为授时续定之数：闰应 202050、转应 130205（与《元史》历经 201850、131904 异），授时亦用之
-    Shoushi { run_ying: 202050, zhuan_ying: 130205, relative, off: align_offset(SS_QI_YING / SS_F, gregorian::civil_to_jdn(1280, 12, 14)) }
+    Shoushi { run_ying: 202050, zhuan_ying: 130205, off: align_offset(SS_QI_YING / SS_F, gregorian::civil_to_jdn(1280, 12, 14)) }
 }
 
 // ---------------------------------------------------------------- 按历名取
@@ -1365,8 +1365,8 @@ pub fn li_by_name(name: &str) -> Option<&'static dyn DingshuoLi> {
         )),
         "开禧历" => once!(song("开禧", 16900, 6172608, q(499067), qr(4656725396, 10000), 7848183, 1207, 0, false, None, (1206, 12, 15))),
         "成天历" => once!(song("成天", 7420, 2710101, q(219117), qr(2044551641, 10000), 71758147, 1271, 0, false, None, (1270, 12, 14))),
-        "授时历" => once!(shoushi(false)),
-        "大统历" => once!(shoushi(true)),
+        "授时历" => once!(shoushi()),
+        "大统历" => once!(shoushi()),
         _ => None,
     }
 }

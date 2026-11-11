@@ -6,7 +6,7 @@
 - 入转 = (中积 + 转应 − 闰余) mod 转终 27.5546；入缩历 = 半岁周 − 闰余。
 - 盈缩差（度）= (定差 − (平差 + 立差 x) x) x / 1e8：盈初缩末 5133200、24600、31；缩初盈末 4870600、22100、27。初限 88.909225 / 93.712025 日。
 - 迟疾差（度）= (11110000 − (28100 + 325 x) x) x / 1e8，x = 入迟疾历日 × 12.2 限，初限 84，中限 168。
-- 定朔 = 经朔 + (±盈缩差 ±迟疾差) × 820 ÷ 限行度（盈、迟为加）。限行度由迟疾差求导得月每限行度；大统「遲疾限行度內減去八百二十分」即减去日行。
+- 定朔 = 经朔 + (±盈缩差 ±迟疾差) × 820 ÷ 限行度（盈、迟为加）。限行度由迟疾差求导得月每限行度；限行度为月实行度，不减日行：《大统历日通轨》「以其下遲疾度分而一」，立成初限疾曆 679.3140、遲曆 832.0649 即 820 ÷ 月每限实行度；永乐十五年、万历三十三年刊本亦证。《明史·历志》「遲疾限行度內減去八百二十分」与颁历不合，不用。
 - 应数：《元史》历经闰应 201850、转应 131904；《明史》称《通轨》所载为授时续定之数：闰应 202050、转应 130205。
 无进朔（授时废之）。
 
@@ -67,8 +67,8 @@ def moon_speed(r):
 
 
 class Shoushi:
-    def __init__(self, name, run_ying, zhuan_ying, relative):
-        self.name, self.run_ying, self.zhuan_ying, self.relative = name, run_ying, zhuan_ying, relative
+    def __init__(self, name, run_ying, zhuan_ying):
+        self.name, self.run_ying, self.zhuan_ying = name, run_ying, zhuan_ying
 
     def moons(self, y0, y1):
         out = []
@@ -81,7 +81,7 @@ class Shoushi:
             for m in range(14):
                 jing = t0 + m * SHUO
                 deg = sun_diff(jing - dz) - moon_diff(ru0 + m * SHUO)    # 盈加、疾减
-                v = moon_speed(ru0 + m * SHUO) * Fr(82, 1000) - (Fr(82, 1000) if self.relative else 0)
+                v = moon_speed(ru0 + m * SHUO) * Fr(82, 1000)
                 out.append(jing + deg / v * 820)
         return sorted(set(out))
 
@@ -90,12 +90,12 @@ def main():
     dz = QI_YING // F
     off = c.align_offset(dz, g.jdn(1280, 12, 14))
     print("1281 年天正冬至", g.GANZHI[dz % 60], g.from_jdn(dz + off))
-    for name, ry, zy, rel, y0, y1, csv in (
-            ("授时（历经应数）", 201850, 131904, False, 1281, 1367, "shoushi_lijing_check.csv"),
-            ("授时（通轨应数）", 202050, 130205, False, 1281, 1367, "shoushi_tonggui_check.csv"),
-            ("大统", 202050, 130205, True, 1368, 1644, "datong_check.csv")):
+    for name, ry, zy, y0, y1, csv in (
+            ("授时（历经应数）", 201850, 131904, 1281, 1367, "shoushi_lijing_check.csv"),
+            ("授时（通轨应数）", 202050, 130205, 1281, 1367, "shoushi_tonggui_check.csv"),
+            ("大统", 202050, 130205, 1368, 1644, "datong_check.csv")):
         print("---", name)
-        li = Shoushi(name, ry, zy, rel)
+        li = Shoushi(name, ry, zy)
         c.compare(name, F, off, li.moons(y0 - 1, y1 + 2), y0, y1, csv,
                   f"{y0}—{y1} 年本纪明书朔日与{name}定朔（scripts/calendar_data/shoushi_dingshuo.py）、张表比较；授时以后无进朔。",
                   limit=lambda t: 24.0)
