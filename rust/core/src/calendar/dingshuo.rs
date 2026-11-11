@@ -1298,6 +1298,115 @@ impl DingshuoLi for Shoushi {
     }
 }
 
+/// 大统历：照《大统暦日通轨》步气朔术文查立成定朔（`data/calendar/datong_tonggui_licheng_used.csv`，由
+/// `scripts/calendar_data/datong_tonggui_dingshuo.py --export` 从两张转录表导出）。钦天监颁历用立成而非三次式：
+/// 迟疾历日率按转终 ÷ 336 一限累计，积度在八十二至八十五限另有取舍，与公式定朔逐月差中位 1.9 分、最大 29 分；
+/// 弘治十年十月、万历三十八年二月两月因此与《明实录》相合（公式推步差在子夜两侧）。
+/// 截分（术文未言，假定）：盈缩差、迟疾差截至表末位，加减差截至秒；不截结果相同。
+struct Tonggui {
+    /// (日率分, 损益秒每日分（损负）, 积度秒, 疾历列, 迟历列)
+    moon: Vec<(Q, Q, Q, Q, Q)>,
+    /// 太阳 (冬至表?, 积日) → (加分, 积分)
+    sun: std::collections::BTreeMap<(bool, i64), (Q, Q)>,
+    off: i64,
+}
+
+fn trunc_to(x: &Q, unit: &Q) -> Q {
+    (x / unit).trunc() * unit
+}
+
+impl Tonggui {
+    fn new() -> Self {
+        let csv = include_str!("../../../../data/calendar/datong_tonggui_licheng_used.csv");
+        let mut moon = Vec::new();
+        let mut sun = std::collections::BTreeMap::new();
+        for line in csv.lines().filter(|l| !l.starts_with('#') && !l.starts_with("类,")) {
+            let c: Vec<&str> = line.split(',').collect();
+            match c[0] {
+                "太阴" if !c[3].is_empty() => moon.push((parse_q(c[2]), parse_q(c[3]), parse_q(c[4]), parse_q(c[5]), parse_q(c[6]))),
+                "太阴" => moon.push((parse_q(c[2]), Q::zero(), Q::zero(), Q::zero(), Q::zero())),
+                "太阳" => {
+                    sun.insert((c[1] == "冬", c[2].parse::<i64>().unwrap()), (parse_q(c[3]), parse_q(c[4])));
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(moon.len(), 169, "太阴立成");
+        Tonggui { moon, sun, off: align_offset(SS_QI_YING / SS_F, gregorian::civil_to_jdn(1280, 12, 14)) }
+    }
+
+    /// 盈缩历 li（分，0—半岁周），ying 盈历否 → 盈缩差（度，盈正缩负）
+    fn ying_suo(&self, li: &Q, ying: bool) -> Q {
+        let half = qr(SS_SUI, 2);
+        let first = if ying { li < &(q(88 * SS_F + 9092) + qr(1, 4)) } else { li < &(q(93 * SS_F + 7120) + qr(1, 4)) };
+        // 盈初、缩末查冬至前后表；缩初、盈末查夏至前后表
+        let winter = if ying { first } else { !first };
+        let x = if first { li.clone() } else { &half - li };
+        let day = fl(&(&x / q(SS_F)));
+        let frac = &x - q(day * SS_F);
+        let (a, j) = &self.sun[&(winter, day)];
+        let part = trunc_to(&(a * frac / q(SS_F)), &qr(1, SS_F));
+        let deg = (j + part) / q(SS_F);
+        if ying {
+            deg
+        } else {
+            -deg
+        }
+    }
+
+    /// 迟疾历 li（分，0—小转中）→ (迟疾差（度，疾正迟负）, 限行度列)
+    fn chi_ji(&self, li: &Q, fast: bool) -> (Q, Q) {
+        let n = (0..168).filter(|&k| &self.moon[k].0 <= li).max().unwrap();
+        let (rl, sy, jd, ji, ch) = &self.moon[n];
+        let sec = trunc_to(&(jd + sy * (li - rl)), &qr(1, SS_F));
+        let deg = sec / q(SS_F);
+        if fast {
+            (deg, ji.clone())
+        } else {
+            (-deg, ch.clone())
+        }
+    }
+}
+
+impl DingshuoLi for Tonggui {
+    fn f(&self) -> i64 {
+        SS_F
+    }
+    fn off(&self) -> i64 {
+        self.off
+    }
+    fn sui(&self) -> Q {
+        q(SS_SUI)
+    }
+    fn dongzhi(&self, y: i32) -> Q {
+        q((y - 1281) as i64 * SS_SUI + SS_QI_YING)
+    }
+    fn month(&self, y: i32, m: i64) -> (Q, Q) {
+        let zj = q((y - 1281) as i64 * SS_SUI);
+        let shuo = ss_shuo();
+        let half = qr(SS_SUI, 2);
+        let run = md(&(&zj + q(202050)), &shuo);
+        let jing = &zj + q(SS_QI_YING) - &run + q(m) * &shuo;
+        // 天正经朔入缩历 = 半岁周 − 闰余，累加朔策，满半岁周去之，盈缩互易
+        let mut li_ys = &half - &run + q(m) * &shuo;
+        let mut ying = false;
+        while li_ys >= half {
+            li_ys -= &half;
+            ying = !ying;
+        }
+        let zz = md(&(&zj + q(130205) - &run + q(m) * &shuo), &q(SS_ZHUAN));
+        let zhong = q(137773);
+        let fast = zz < zhong;
+        let li_cj = if fast { zz } else { zz - zhong };
+        let ys = self.ying_suo(&li_ys, ying);
+        let (cj, col) = self.chi_ji(&li_cj, fast);
+        // 盈、迟为加，缩、疾为减；立成限行度列 ×100 即 820 ÷ 月每限行度
+        let jjc = trunc_to(&((ys - cj) * col * q(100)), &qr(1, 100));
+        let ding = &jing + jjc;
+        (jing, ding)
+    }
+}
+
 fn shoushi() -> Shoushi {
     // 《明史》称《大统历法通轨》所载为授时续定之数：闰应 202050、转应 130205（与《元史》历经 201850、131904 异），授时亦用之
     Shoushi { run_ying: 202050, zhuan_ying: 130205, off: align_offset(SS_QI_YING / SS_F, gregorian::civil_to_jdn(1280, 12, 14)) }
@@ -1366,7 +1475,7 @@ pub fn li_by_name(name: &str) -> Option<&'static dyn DingshuoLi> {
         "开禧历" => once!(song("开禧", 16900, 6172608, q(499067), qr(4656725396, 10000), 7848183, 1207, 0, false, None, (1206, 12, 15))),
         "成天历" => once!(song("成天", 7420, 2710101, q(219117), qr(2044551641, 10000), 71758147, 1271, 0, false, None, (1270, 12, 14))),
         "授时历" => once!(shoushi()),
-        "大统历" => once!(shoushi()),
+        "大统历" => once!(Tonggui::new()),
         _ => None,
     }
 }

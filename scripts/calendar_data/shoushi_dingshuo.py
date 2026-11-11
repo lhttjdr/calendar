@@ -95,9 +95,16 @@ def main():
             ("授时（通轨应数）", 202050, 130205, 1281, 1367, "shoushi_tonggui_check.csv"),
             ("大统", 202050, 130205, 1368, 1644, "datong_check.csv")):
         print("---", name)
-        li = Shoushi(name, ry, zy)
+        if name == "大统":
+            # 大统照《大统暦日通轨》查立成（datong_tonggui_dingshuo.py）；延迟导入，免循环
+            import datong_tonggui_dingshuo as tg
+            li = tg.Tonggui(*tg.load_tables(False), True)
+            src = "scripts/calendar_data/datong_tonggui_dingshuo.py 立成"
+        else:
+            li = Shoushi(name, ry, zy)
+            src = "scripts/calendar_data/shoushi_dingshuo.py"
         c.compare(name, F, off, li.moons(y0 - 1, y1 + 2), y0, y1, csv,
-                  f"{y0}—{y1} 年本纪明书朔日与{name}定朔（scripts/calendar_data/shoushi_dingshuo.py）、张表比较；授时以后无进朔。",
+                  f"{y0}—{y1} 年本纪明书朔日与{name}定朔（{src}）、张表比较；授时以后无进朔。",
                   limit=lambda t: 24.0)
 
 
