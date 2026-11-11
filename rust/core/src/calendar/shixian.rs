@@ -62,9 +62,6 @@ fn sind(d: Real) -> Real {
 fn cosd(d: Real) -> Real {
     rad(d).cos()
 }
-fn tand(d: Real) -> Real {
-    rad(d).tan()
-}
 fn atan2d(y: Real, x: Real) -> Real {
     y.atan2(x) * r(180.0) / Real::pi()
 }
@@ -97,6 +94,7 @@ fn dongzhi(y: i32) -> (Real, i32) {
 fn jdn_of(daynum: i64) -> i64 {
     EPOCH_DZ_JDN - 32 + daynum
 }
+#[cfg(test)]
 fn daynum_of(jdn: i64) -> i64 {
     jdn - (EPOCH_DZ_JDN - 32)
 }

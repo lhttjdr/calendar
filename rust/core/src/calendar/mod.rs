@@ -29,6 +29,7 @@ pub mod convert;
 pub mod daming_li;
 pub mod dingshuo;
 pub mod shixian;
+pub mod shixian_kaocheng;
 pub mod dunhuang;
 pub mod era_gaiyuan;
 pub mod era_names;
