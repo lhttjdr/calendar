@@ -506,6 +506,12 @@ const LD_CHISU: [i64; 28] = [
     0, 134, 251, 350, 428, 484, 517, 526, 512, 474, 412, 327, 223, 102, -29, -157, -272, -367, -441, -493, -521, -525, -505, -461, -393, -304, -196, -71,
 ];
 
+/// 盈朒定积取整：「凡分餘不成全而更不復須者，過半從一，無半棄之」（《旧唐书·历志二》，后句从严敦杰校；按绝对值）
+fn ld_round(x: Q) -> Q {
+    let half = qr(1, 2);
+    if x < q(0) { -q(fl(&(-x + half))) } else { q(fl(&(x + half))) }
+}
+
 impl Linde {
     /// 入变 x（日）→ 迟速积（分，速 +）：日内线性（「速要」）；十四日初减 102 后末增 29 入迟；二十八日只 743 分
     fn chisu(x: &Q) -> Q {
@@ -587,7 +593,7 @@ impl Linde {
             k += 1;
         }
         let kk = k.rem_euclid(24) as usize;
-        let yn = q(LD_YINGNU[kk]) + Self::sun_benshu(kk, &((&chq - dingqi(k)) / q(LD_F)));
+        let yn = ld_round(q(LD_YINGNU[kk]) + Self::sun_benshu(kk, &((&chq - dingqi(k)) / q(LD_F))));
         let bian = md(&(bian0 + qr(t0.rem_euclid(LD_F), LD_F) + qr(m * LD_SHUO, LD_F) + &yn / q(LD_F)), &(qr(LD_BIAN_ZHOU, LD_BIAN_QI) / q(LD_F)));
         &chq + yn - Self::chisu_benshu(&bian)
     }
@@ -624,7 +630,7 @@ impl DingshuoLi for Linde {
         // 日算含分，从刘金沂、赵澄秋《〈麟德历〉定朔计算法》）
         let t = (&chq - dingqi(k)) / q(LD_F);
         let div = if t >= q(15) { q(16) } else { q(15) };
-        let yn = q(LD_YINGNU[kk]) + q(LD_XIANHOU[kk]) * t / div;
+        let yn = ld_round(q(LD_YINGNU[kk]) + q(LD_XIANHOU[kk]) * t / div);
         let bian = md(&(bian0 + qr(t0.rem_euclid(LD_F), LD_F) + qr(m * LD_SHUO, LD_F) + &yn / q(LD_F)), &(qr(LD_BIAN_ZHOU, LD_BIAN_QI) / q(LD_F)));
         let ding = &chq + yn - Self::chisu(&bian);
         (chq, ding)
