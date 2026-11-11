@@ -1143,7 +1143,7 @@ function App() {
                         // 其余政权没有推步数据时不套用中原月日，如实写历日未详
                         const minguo = p.regime === '中华民国'
                         entries.push({
-                          key: `concurrent-${p.regime}`,
+                          key: `concurrent-${p.regime}-${p.era_name ?? ''}${p.era_year ?? ''}`,
                           title: `${p.regime} · ${eraStr}`,
                           date: minguo
                             ? <>{gregorianMonthDay}<LineTime format={clock} {...timeProps} /></>

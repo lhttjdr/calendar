@@ -1132,6 +1132,7 @@ def main() -> None:
         print(f"注意：{conflict_count} 处章节交界年份的政权记录内容有出入，两条都保留并加了 note，见上说明。")
 
     rows = apply_nanming(rows)
+    rows = apply_beiliang_yuanhe(rows)
     rows.sort(key=lambda r: (r["lunar_year"], 0 if r["is_primary"] else 1, r["regime"]))
     fill_earlier_eras_from_gaiyuan_day(rows)
     fill_emperor_names(rows)
@@ -1190,6 +1191,31 @@ def apply_nanming(rows: list[dict]) -> list[dict]:
         out.append(row(y, "鲁监国", "鲁王(朱以海)", era, n, "三月去监国号，奉表永历行在" if y == 1653 else "", source="傅以礼《残明大统历》"))
     for y in range(1662, 1684):
         out.append(row(y, "明郑", "延平王", "永历", y - 1646, "台湾称永历；闰六月降清" if y == 1683 else "台湾称永历", source="傅以礼《残明大统历》"))
+    return out
+
+
+def apply_beiliang_yuanhe(rows: list[dict]) -> list[dict]:
+    """北凉奉北魏正朔的「缘禾」「太缘」（北魏延和、太延的同音异写），史籍不载，见酒泉北凉石塔与吐鲁番文书：
+    白双且塔「凉故大沮渠缘禾三年岁次甲戌（434）七月上旬」；殷光明《北凉缘禾、太缘年号及相关问题之辨析》（《敦煌研究》1995.4）
+    据索塔、程塔以为北魏改元太延（435）后牧犍亦改奉太缘；彭琪《北凉缘禾年号蠡测》以为缘禾自壬申（432）用至己卯（439）。
+    高昌阚爽自立（435）后不随改，吐鲁番文书有缘禾五、六、十年，殷文谓沿用至太平真君三年（442）。与本朝义和、承和（永和）并列。"""
+    out = list(rows)
+    src = "殷光明1995《敦煌研究》；彭琪《北凉缘禾年号蠡测》"
+
+    def row(y, regime, emperor, era, n, note):
+        return {"lunar_year": y, "regime": regime, "emperor": emperor, "era_name": era, "era_year": n, "is_primary": 0,
+                "has_gaiyuan": 0, "gaiyuan_prev_era_name": "", "gaiyuan_prev_era_year": "", "gaiyuan_month": "",
+                "source": src, "note": note}
+
+    for y in range(432, 435):
+        out.append(row(y, "北凉", "沮渠蒙逊" if y < 433 else "沮渠牧犍(茂虔)", "缘禾", y - 431,
+                       "奉北魏延和正朔（同音异写），见石塔、吐鲁番文书" + ("；白双且塔「缘禾三年岁次甲戌」" if y == 434 else "")))
+    for y in range(435, 440):
+        out.append(row(y, "北凉", "沮渠牧犍(茂虔)", "太缘", y - 434,
+                       "奉北魏太延正朔（殷光明据索塔、程塔，北魏改元后改奉）；彭琪以为河西仍用缘禾" + str(y - 431) + "年"))
+    for y in range(435, 442):
+        out.append(row(y, "高昌", "阚爽", "缘禾", y - 431,
+                       "阚爽据高昌自立，沿用缘禾不改（吐鲁番文书有缘禾五、六、十年）；殷光明谓至 442 年"))
     return out
 
 
