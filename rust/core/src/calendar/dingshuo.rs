@@ -213,7 +213,7 @@ impl MoonTable {
 enum Jinshuo {
     /// 小余不小于 时/24 日 进
     Hours(i64),
-    /// 五纪、正元：距次日夜半不过（晨初余数 − 十刻）者进；夜半漏用大衍历定气初夜半漏，定气间线性（假定）
+    /// 五纪、正元：距次日夜半不过（晨初余数 − 十刻）者进；夜半漏按大衍步轨漏逐日递推（五纪「寫大衍舊術」，正元轨漏「悉如五紀法」）
     Lou,
     /// 宣明：秋分后 3/4；春分后按张培瑜等《中国古代历法》页 570 所算限值，气间线性
     Xuanming,
@@ -317,6 +317,38 @@ fn dayan_lou(i: usize) -> Q {
     qr(A[i].0 * 480 + A[i].1, 480)
 }
 
+/// 大衍历各定气初消息衰（百分之一分为单位，「息空（六十四）」作 64），冬至起；霜降「消廿四」从校勘记作三十四
+const DY_SHUAI: [i64; 24] = [64, 1191, 2242, 3025, 3578, 3950, 3965, 3889, 3356, 2838, 2012, 1012, 52, 1076, 2075, 2890, 3455, 3890, 3966, 3950, 3498, 2972, 2170, 1113];
+/// 陟降率（降 +、陟 −）；雨水、清明、处暑、寒露为初日之率，其后按 [DY_XIAN] 逐限损益
+const DY_ZHIJIANG: [i64; 24] = [78, 72, 53, 34, 78, 1, -5, -1, -32, -52, -63, -64, 64, 63, 52, 32, 99, 5, -1, -1, -34, -53, -72, -78];
+/// 「其距二分前後各一氣之外，陟降不等，皆以三日為限」：(气序, 各限每日损益)；雨水、处暑日损，清明、寒露日益（就绝对值言）
+const DY_XIAN: [(usize, [i64; 5]); 4] = [(4, [-12, -8, -3, -2, -1]), (7, [1, 2, 3, 8, 19]), (16, [-19, -8, -3, -2, -1]), (19, [1, 2, 3, 8, 12])];
+
+/// 大衍历步轨漏：定气 kk 初日后第 n 日的夜半漏（刻）。「各置其氣消息衰，依定氣所有日，每以陟降率陟減、降加其分，滿百從衰，
+/// 各得每日消息定衰」；「置消息定衰，滿象積為刻，不滿為分。各遞以息減、消加其氣初夜半漏，得每日夜半漏定數」（《新唐书·历志四上》）。
+/// 五纪「寫大衍舊術」，正元轨漏「悉如五紀法」，故二历同用。
+fn dayan_night_lou(kk: usize, n: i64) -> Q {
+    let base = dayan_lou(if kk <= 12 { kk } else { 24 - kk });
+    let xi = kk < 12;
+    let xian = DY_XIAN.iter().find(|x| x.0 == kk).map(|x| x.1);
+    let mut shuai = DY_SHUAI[kk];
+    let mut rate = DY_ZHIJIANG[kk].abs();
+    let sign = DY_ZHIJIANG[kk].signum();
+    let mut acc = 0i64;
+    for j in 0..n {
+        acc += shuai;
+        if let Some(d) = xian {
+            if j >= 1 {
+                rate = (rate + d[(((j - 1) / 3) as usize).min(4)]).max(0);
+            }
+        }
+        shuai += sign * rate;
+    }
+    // acc 以百分之一分计，象积 480 分为一刻
+    let delta = qr(acc, 100 * 480);
+    if xi { base - delta } else { base + delta }
+}
+
 impl DingshuoLi for Dayan {
     fn f(&self) -> i64 {
         self.f
@@ -342,12 +374,13 @@ impl DingshuoLi for Dayan {
         Some(match self.jinshuo {
             Jinshuo::Hours(h) => &f * qr(h, 24),
             Jinshuo::Lou => {
-                let d = md(&(t - q(self.tong(y))), &q(self.ce));
+                // 定朔所在日的夜半漏：自其定气初日逐日递推（[dayan_night_lou]）
+                let tong = q(self.tong(y));
+                let day = fl(&(t / &f));
+                let d = md(&(q(day) * &f - &tong), &q(self.ce));
                 let k = self.seg(&d);
-                let (a, b) = (k.rem_euclid(24) as usize, (k + 1).rem_euclid(24) as usize);
-                let la = dayan_lou(if a <= 12 { a } else { 24 - a });
-                let lb = dayan_lou(if b <= 12 { b } else { 24 - b });
-                let lou = &la + (lb - &la) * (&d - self.ding_qi(k)) / (self.ding_qi(k + 1) - self.ding_qi(k));
+                let qi_day = fl(&((&tong + self.ding_qi(k) + q(self.ce) * q(fl(&((q(day) * &f - &tong) / q(self.ce))))) / &f));
+                let lou = dayan_night_lou(k.rem_euclid(24) as usize, (day - qi_day).max(0));
                 // 24 − (漏 − 十刻) × 0.24 时
                 &f * (q(24) - (lou - q(10)) * qr(24, 100)) / q(24)
             }
@@ -1358,6 +1391,28 @@ mod tests {
 
     /// 宋诸历步晷漏：冬至日出 0.3 日、夏至 0.2 日（崇天、观天、明天按志文常数精确成立；观天从陈美东校「二千一百五少」），
     /// 春分前后连续；纪元历由赤道内外度求得，二至约 0.3/0.2 日、二分 0.25 日。
+    /// 大衍步轨漏逐日递推：气初日即表值；雨水按「三日為限」逐限日损 12、8、3、2、1，十五日陟降率之和 372，
+    /// 恰为雨水至惊蛰消息衰之差（35.78 → 39.50），读法得证；推满一气，夜半漏与次气初表值相差不过 30 分（象积 480 分为刻）。
+    #[test]
+    fn dayan_night_lou_recurrence() {
+        assert_eq!(dayan_night_lou(4, 0), dayan_lou(4));
+        // 雨水 15 日后之衰：直接复算
+        let mut shuai = DY_SHUAI[4];
+        let mut rate = 78;
+        for j in 0..15 {
+            if j >= 1 {
+                rate += DY_XIAN[0].1[((j - 1) / 3) as usize];
+            }
+            shuai += rate;
+        }
+        assert_eq!(shuai, DY_SHUAI[5]);
+        for (kk, n) in [(0usize, 14i64), (4, 15), (10, 16), (16, 15), (22, 15)] {
+            let next = dayan_lou(if kk + 1 <= 12 { kk + 1 } else { 23 - kk });
+            let diff = (dayan_night_lou(kk, n) - next).abs();
+            assert!(diff < qr(30, 480), "{kk}");
+        }
+    }
+
     #[test]
     fn song_sunrise_models() {
         for lou in [chongtian_lou(), guantian_lou(), mingtian_lou()] {
