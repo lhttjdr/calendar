@@ -620,8 +620,11 @@ impl DingshuoLi for Linde {
             k += 1;
         }
         let kk = k.rem_euclid(24) as usize;
-        let (a, b) = (dingqi(k), dingqi(k + 1));
-        let yn = q(LD_YINGNU[kk]) + q(LD_XIANHOU[kk]) * (&chq - &a) / (b - a);
+        // 速要：「以所入定氣日算乘先後率，十五而一……入氣日十五算者，十六而一」（《旧唐书·历志二》小注；
+        // 日算含分，从刘金沂、赵澄秋《〈麟德历〉定朔计算法》）
+        let t = (&chq - dingqi(k)) / q(LD_F);
+        let div = if t >= q(15) { q(16) } else { q(15) };
+        let yn = q(LD_YINGNU[kk]) + q(LD_XIANHOU[kk]) * t / div;
         let bian = md(&(bian0 + qr(t0.rem_euclid(LD_F), LD_F) + qr(m * LD_SHUO, LD_F) + &yn / q(LD_F)), &(qr(LD_BIAN_ZHOU, LD_BIAN_QI) / q(LD_F)));
         let ding = &chq + yn - Self::chisu(&bian);
         (chq, ding)
