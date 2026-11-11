@@ -28,6 +28,7 @@ pub mod chinese_lunar;
 pub mod convert;
 pub mod daming_li;
 pub mod dingshuo;
+pub mod song_early;
 pub mod shixian;
 pub mod shixian_kaocheng;
 pub mod dunhuang;
