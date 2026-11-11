@@ -59,6 +59,7 @@
 | `historical` | `ShuoriTable`：张表朔日 CSV；`year_data_from_months` 由逐月朔日构造岁数据 |
 | `artifacts` | 实物历日（《宝祐四年会天历》1256） |
 | `dingshuo` | 唐至明定朔诸历推步与排月（移植自 `scripts/calendar_data/*_dingshuo.py`，以 `dingshuo_reference.csv` 逐月核对） |
+| `shixian` | 清时宪历《历象考成后编》推步：日躔、月离、节气、合朔、置闰，合朔中气化用时定日（移植自 `scripts/calendar_data/shixian_houbian.py`，以 `shixian_houbian_check.csv` 核对） |
 | `lifa` | 第 4 层（仲裁/路由层）：中原一线行用之历与历日来源次序（`resolve_year`、`ZhongyuanPreference`），敦煌逐月取舍，历法总表解析 |
 | `month_labels` | 第 3 层：历史月序改制（新莽/景初建丑、武周/肃宗末建子）当时月名 ↔ 张表建寅月，`data/calendar/month_label_reforms.csv` |
 | `push_calendar` | 平朔+无中气置闰（首个无中气月为闰），各历术 `LiParams` 预设；`regime_year_months` 导出 `data/calendar/推步政权朔日表.csv` |

@@ -62,7 +62,7 @@ fn main() {
     let mut first_year: BTreeMap<&'static str, i32> = BTreeMap::new();
     // 逐年：推步与张表
     let mut reck: BTreeMap<i32, Vec<(i64, u8, bool)>> = BTreeMap::new();
-    for y in -102..=1644 {
+    for y in -102..=1913 {
         let Some((r, RiliSource::Reckoned(name))) = zhongyuan_year_months(None, y, ZhongyuanPreference::Reckoning) else { continue };
         let t = zhang.year_months(y).unwrap();
         let fy = *first_year.entry(name).or_insert(y);

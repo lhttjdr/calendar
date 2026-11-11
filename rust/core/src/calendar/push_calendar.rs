@@ -230,6 +230,8 @@ pub fn reckon_lifa_year(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, boo
         "四分历" => sifen_params(),
         "景初历" => jingchu_params(),
         "开皇历" => kaihuang_params(),
+        // 清《历象考成后编》（民国元年、二年历书沿用）
+        "时宪历（历象考成后编）" | "中华民国历书（沿用历象考成后编）" => return Some(super::shixian::year_months(lunar_year)),
         // 元初（1280）仍行金重修大明历
         "重修大明历" if lunar_year == 1280 => return Some(super::daming_li::year_months(lunar_year)),
         // 唐至明定朔诸历（限各历推步适用的年段）
