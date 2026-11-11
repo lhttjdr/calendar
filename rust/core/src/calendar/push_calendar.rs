@@ -290,7 +290,14 @@ pub fn regime_calendars() -> Vec<(&'static str, i32, i32, RegimeYearFn)> {
     fn jin(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
         (if y < 1182 { "大明历（杨级，以重修大明历代推）" } else { "重修大明历" }, super::daming_li::year_months(y))
     }
+    // 民国坊本时宪书、通书：官历自民国三年改用新法、太阳平时，民间历书仍按《历象考成后编》、用时推算，至 1930 年代不改
+    // （《民国元年至二十七年时宪书》汇集本：1914 年十月戊申朔即旧法九大十小，1933 年六月朔作 7 月 22 日）。
+    // 年限取汇集本所收（民国三年至二十七年）。见 doc/calendar/calendar-compendium.md「日历上的历名」民国条。
+    fn minjian(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        ("时宪书（坊本，沿用历象考成后编）", super::shixian::year_months(y))
+    }
     vec![
+        ("民间通书", 1914, 1938, minjian),
         ("蜀", 221, 263, shu),
         ("吴", 222, 280, wu),
         ("后秦", 384, 416, later_qin),
@@ -559,6 +566,16 @@ pub fn gregorian_to_all_regimes_lunar(g_year: i32, g_month: i32, g_day: i32) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 民国坊本沿用后编用时：1914 年十月朔 11 月 18 日（旧法九大十小，官历 11 月 17 日），1933 年六月朔 7 月 22 日（官历 23 日）
+    #[test]
+    fn minjian_tongshu_follows_houbian() {
+        let at = |y, m, d| gregorian_to_all_regimes_lunar(y, m, d).into_iter().find(|e| e.region == "民间通书").map(|e| (e.month, e.is_leap, e.day));
+        assert_eq!(at(1914, 11, 17), Some((9, false, 30)));
+        assert_eq!(at(1914, 11, 18), Some((10, false, 1)));
+        assert_eq!(at(1933, 7, 22), Some((6, false, 1)));
+        assert_eq!(at(1913, 6, 1), None, "1913 年以前不列");
+    }
 
     /// 精确平朔诸历的上元：只由术文积年与甲子日定出（不借历表），钉住其儒略日数；上元皆甲子日
     #[test]
