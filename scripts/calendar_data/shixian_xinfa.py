@@ -10,10 +10,15 @@
   距最高 30° 得 1°0′39″，距高冲 30° 两角并 30′46″ + 31′44″ = 1°2′30″，原文「一度二十分三十秒」之「二十」当作「〇二」）。
   引数 = 经数 + 最高冲（自最高冲起算），引数初宫至五宫均数为加。
   日差（卷二十六）：「測太陽行度以春分為本……從春分起算立日差表」，即（平行 − 赤经）变时，减去春分之值，加于平时得用时。
-- 月离：《新法算书》月离表（卷三十二至三十五）维基文库本只录说明，数字表不存；月离按表推，不能以《历象考成》作图公式代替
-  （表的取整、分段、插值与公式不同，近子夜之月可差一日；允禄「其數……仍新法算書西人第穀之舊」只言常数）。
-  故本脚本**不推月离、不排月**，只复原日躔并核原文算例。月离表可得途径：文渊阁四库影印本《新法算书》月离诸卷，
-  或顺治刊本《西洋新法历书》。下列太阴常数仅记录《清史稿》所载，暂不使用。
+- 月离（照表，《新法算书》卷三十二「月離表用法」）：「法於太隂恒年日時三表求各行數就本數并之」——恒年、日、时三表数字未转录，
+  以《清史稿》所载戊辰元太阴日行、根数线性计算（表即依此数造，差在表的取整内）。「以太隂自行為引數於前均表求均數……依本號加減於
+  太隂平行及自行得太隂實平行及實自行」：第一均数照卷三十三「太陰自行加減表」（data/calendar/xinfa_yueli_tables/zixing_part1.csv，
+  每 10′ 一格，零分「用中比例」）查，顺数○至五宫减、逆数六至十一宫加；存疑四格用同行相邻两格之中数。
+  时刻：「先以所設之用時變為平時……太陽日差……反用之……太隂亦有日差表亦用以均其時其加減則用本號」——太阳用平时 = 用时 − 日差，
+  太阴用时 = 用时 + 月离日差（卷三十三「月離日差表」，引数太阳所躔宫度，zixing_part2.csv，顺加逆减）。
+  定朔：「以減太隂實平行……若無餘分即日月同度是為定朔……朔望時太隂止用一均數，故白道上所得實平行度即為視經度」；
+  逐日用时子正求日月相距，两日中比例得定朔用时。二三均数表（卷三十四、三十五）只在朔望以外用，算例三自检用之。
+- 节气：日躔实行每 15° 一气，平时加日差为用时定日；置闰：无中气之月为闰。
 
 用法（仓库根）：uv run --project scripts python scripts/calendar_data/shixian_xinfa.py
 """
@@ -31,7 +36,7 @@ ROOT_GAO = D(5, 59, 59)                  # 清史稿「最高距冬至五度五�
 SUN_R, SUN_A = 100000.0, 1792.0          # 本天半径、两心差之半
 HUANG_CHI = D(23, 31, 30)                # 黄赤大距（新法；考成减二分为 23°29′30″）
 
-# ---------------------------------------------------------------- 太阴常数（清史稿卷四十五；月离表未得，暂不使用）
+# ---------------------------------------------------------------- 太阴常数（清史稿卷四十五）
 MOON_DAILY = D(13, 10, 35, 1)
 MOON_ZIXING = D(13, 3, 53, 56)           # 自行（引数）日行
 JIAO_DAILY = D(0, 3, 10)
@@ -115,8 +120,27 @@ def ri_cha(t):
     return _ri_cha_raw(t) - _ri_cha_raw(chunfen_near(t))
 
 
+_CF = {}
+
+
+def _chunfen_of(i):
+    """戊辰元起第 i 年之春分（日躔实行 90°）平时"""
+    if i not in _CF:
+        _CF[i] = _chunfen_scan(ROOT_JDN + 98 + round(i * SUI) + 8)
+    return _CF[i]
+
+
 def chunfen_near(t):
-    """t 之前最近春分（日躔实行 90°，中法）的平时"""
+    """t 之前最近春分的平时"""
+    i = math.floor((t - ROOT_JDN - 88) / SUI)
+    while _chunfen_of(i) > t:
+        i -= 1
+    while _chunfen_of(i + 1) <= t:
+        i += 1
+    return _chunfen_of(i)
+
+
+def _chunfen_scan(t):
     d = math.floor(t)
     for _ in range(400):
         a = signed(sun(d)[2] - 90)
@@ -125,6 +149,210 @@ def chunfen_near(t):
             return d - a / (b - a)
         d -= 1
     raise RuntimeError
+
+
+# ---------------------------------------------------------------- 月离表
+import csv as _csv
+from pathlib import Path as _Path
+_TAB = _Path(__file__).resolve().parents[2] / "data/calendar/xinfa_yueli_tables"
+
+
+def _rows(name):
+    return [r for r in _csv.DictReader(l for l in open(_TAB / name, encoding="utf-8") if not l.startswith("#"))]
+
+
+def _load_zixing():
+    """太阴自行加减表：自行 0°—180° 每 10′ 一格（秒），存疑格以同行相邻两格之中数代"""
+    v = {}
+    doubt = []
+    for r in _rows("zixing_part1.csv"):
+        k = int(r["自行_宫"]) * 1800 + int(r["自行_度"]) * 60 + int(r["自行_分"])
+        val = int(r["度"]) * 3600 + int(r["分"]) * 60 + int(r["秒"])
+        v[k] = val
+        if r["存疑"] == "1":
+            doubt.append(k)
+    for k in doubt:
+        v[k] = round((v[k - 10] + v[k + 10]) / 2)
+    return [v[k] for k in range(0, 10801, 10)], doubt
+
+
+ZIXING_TAB, ZIXING_DOUBT = _load_zixing()
+
+
+def _load_richa():
+    """月离日差表：引数太阳所躔宫度，顺数（星纪、玄枵、娵訾；鹑首、鹑火、鹑尾）加，逆数（实沈、大梁、降娄；析木、大火、寿星）减。
+    返回 0°—90°（自冬至或夏至起）的秒数（时）"""
+    order = {"星纪/鹑首": 0, "玄枵/鹑火": 1, "娵訾/鹑尾": 2}
+    v = {}
+    for r in _rows("zixing_part2.csv"):
+        if r["表"] != "月离日差表":
+            continue
+        x = order[r["自行_宫"]] * 30 + int(r["自行_度"])
+        v[x] = int(r["分"]) * 60 + int(r["秒"])
+    return [v[x] for x in range(91)]
+
+
+RICHA_TAB = _load_richa()
+
+
+def interp(tab, x, step):
+    """中比例：tab[i] 为引数 i·step 之值"""
+    i = min(int(x // step), len(tab) - 2)
+    f = x / step - i
+    return tab[i] + (tab[i + 1] - tab[i]) * f
+
+
+def moon_jun1(a):
+    """第一均数（度）：自行 a；顺数○至五宫减，逆数六至十一宫加"""
+    x = fold(a) * 60                       # 分
+    val = interp(ZIXING_TAB, x, 10) / 3600
+    return -val if norm(a) <= 180 else val
+
+
+def moon_richa(lam):
+    """月离日差（日）：lam 为太阳实行（中法，自冬至起）。冬至至春分、夏至至秋分为顺数，加；余为逆数，减"""
+    x = norm(lam)
+    q, r = divmod(x, 90)
+    shun = int(q) % 2 == 0
+    arg = r if shun else 90 - r
+    sec = interp(RICHA_TAB, arg, 1)
+    return (sec if shun else -sec) / 86400
+
+
+def moon_mean(t):
+    """t：太阴所用之时（日）：(平行, 自行)"""
+    n = t - ROOT_JDN
+    return norm(ROOT_MOON + MOON_DAILY * n), norm(ROOT_ZIXING + MOON_ZIXING * n)
+
+
+def moon_shi(t_yong):
+    """用时 t_yong 之太阴实平行（度）与实自行：太阴用时加月离日差（本号）"""
+    lam = sun(t_yong - ri_cha(t_yong))[2]
+    tm = t_yong + moon_richa(lam)
+    L, a = moon_mean(tm)
+    j = moon_jun1(a)
+    return norm(L + j), norm(a + j), tm
+
+
+def sun_yong(t_yong):
+    """用时 t_yong 之太阳实行：平时 = 用时 − 日差"""
+    return sun(t_yong - ri_cha(t_yong))[2]
+
+
+def _load_ersan():
+    """二三均数表：(月距日度 1—90, 实自行度) → 秒（加正减负）。卷三十四（er_san_jun_part1/2，月距日 1—30）、卷三十五（31—90）。
+    「直行……月距日或距日之衝」；逆数（月距日 90°—179°）以 f(180−D, 360−M) = −f(D, M) 读。存疑与残缺格以同行左右两格中数代。"""
+    v, bad = {}, set()
+    for name in ("er_san_jun_part1.csv", "er_san_jun_part2.csv", "er_san_jun_zongshu_juan35.csv"):
+        for r in _rows(name):
+            d = int(r["月距日_宫"]) * 30 + int(r["月距日_度"])
+            m = int(r["实自行_宫"]) * 30 + int(r["实自行_度"])
+            sign = -1 if ("減" in r["号"] or "减" in r["号"]) else 1
+            try:
+                val = int(r.get("度") or 0) * 3600 + int(r["分"] or 0) * 60 + (int(r["秒"]) if r.get("秒") else 0)
+            except ValueError:
+                val = None
+            if (d, m) in v and (r["存疑"] == "1" or val is None):
+                continue
+            v[(d, m)] = None if val is None else sign * val
+            if r["存疑"] == "1" or val is None:
+                bad.add((d, m))
+            else:
+                bad.discard((d, m))
+    for d, m in sorted(bad):
+        cols = sorted(mm for (dd, mm) in v if dd == d)
+        i = cols.index(m)
+        nb = [v[(d, cols[j])] for j in (i - 1, i + 1) if 0 <= j < len(cols) and (d, cols[j]) not in bad]
+        if not nb:   # 同行左右亦存疑（如一行皆疑）：取同列上下两行之中数
+            nb = [v[(dd, m)] for dd in (d - 1, d + 1) if (dd, m) in v and (dd, m) not in bad and v[(dd, m)] is not None]
+        if nb:
+            v[(d, m)] = round(sum(nb) / len(nb))
+    return v, sorted(bad)
+
+
+ERSAN, ERSAN_DOUBT = _load_ersan()
+
+
+def _ersan_row(d, m):
+    """月距日整度 d（0—90）一行，实自行 m 按该行所列之距中比例"""
+    if d == 0:
+        return 0.0
+    cols = sorted(mm for (dd, mm) in ERSAN if dd == d)
+    m = norm(m)
+    lo = max(c for c in cols if c <= m)
+    hi = min((c for c in cols if c > m), default=360)
+    vhi = ERSAN[(d, hi % 360)] if hi % 360 in cols or hi == 360 else ERSAN[(d, hi)]
+    return ERSAN[(d, lo)] + (vhi - ERSAN[(d, lo)]) * (m - lo) / (hi - lo)
+
+
+def ersan_jun(dist, m):
+    """二三均数（度）：dist 月距日（实平行 − 太阳实行），m 实自行。月距日以半周为周（「距日之衝」同）"""
+    x = norm(dist) % 180
+    if x <= 90:
+        d0 = int(x)
+        f = x - d0
+        a = _ersan_row(d0, m)
+        b = _ersan_row(min(d0 + 1, 90), m)
+        return (a + (b - a) * f) / 3600
+    return -ersan_jun(180 - x, 360 - m)
+
+
+# ---------------------------------------------------------------- 节气、定朔、排月
+def cross_sun(target, d):
+    """d 日起首个日躔实行过 target 的平时"""
+    for _ in range(800):
+        a = signed(sun(d)[2] - target)
+        b = signed(sun(d + 1)[2] - target)
+        if a < 0 <= b:
+            return d - a / (b - a)
+        d += 1
+    raise RuntimeError
+
+
+def dongzhi(y):
+    """冬至岁 y（天正冬至在 y−1 年十二月）的定冬至平时"""
+    j = ROOT_JDN + round((y - 1628) * SUI)
+    return cross_sun(0, j - 8)
+
+
+def shuo_times(d0, d1, yongshi=True):
+    """[d0, d1) 内定朔时刻：用时子正逐日求日月相距（太阴实平行 − 太阳实行），两日中比例；yongshi=False 时一律作平时"""
+    def el(d):
+        if yongshi:
+            return signed(moon_shi(d)[0] - sun_yong(d))
+        L, a = moon_mean(d)
+        return signed(norm(L + moon_jun1(a)) - sun(d)[2])
+    out = []
+    e_d = el(d0)
+    for d in range(d0, d1):
+        e_n = el(d + 1)
+        if e_d < 0 <= e_n:
+            out.append(d + (-e_d) / (e_n - e_d))
+        e_d = e_n
+    return out
+
+
+def year_months(y, yongshi=True):
+    """冬至岁 y：(朔日 JDN, 月序, 闰否)。中气用时定日；无中气之月为闰"""
+    dz0, dz1 = dongzhi(y), dongzhi(y + 1)
+    zh = [cross_sun(30 * k, math.floor(dz0) + int(30.4 * k) - 3) for k in range(12)] + [dz1]
+    zday = [math.floor(t + ri_cha(t)) if yongshi else math.floor(t) for t in zh]
+    sh = shuo_times(math.floor(dz0) - 32, math.floor(dz1) + 32, yongshi)
+    days = [math.floor(t) for t in sh]
+    i0 = max(i for i, d in enumerate(days) if d <= zday[0])
+    i1 = max(i for i, d in enumerate(days) if d <= zday[12])
+    ms = days[i0:i1 + 1]
+    n = i1 - i0
+    has = [any(ms[i] <= z < ms[i + 1] for z in zday) for i in range(n)]
+    leap = next(i for i in range(1, n) if not has[i]) if n == 13 else None
+    out, mo = [], 11
+    for i in range(n):
+        if i == leap:
+            out.append((ms[i], out[-1][1], True))
+            continue
+        out.append((ms[i], mo, False))
+        mo = mo % 12 + 1
+    return out
 
 
 if __name__ == "__main__":
@@ -156,3 +384,56 @@ if __name__ == "__main__":
             s = ((x - h) * 60 - m) * 60
             return f"{h:02d}:{m:02d}:{s:04.1f}"
         print(label, "平时", gz(math.floor(t)), hms(t), "日差", f"{rc * 1440:+.2f}分", "用时", gz(math.floor(t + rc)), hms(t + rc), "| 原文", want)
+
+    # ------------------------------------------------ 卷三十二月离假如三例
+    for label, j, h, mi, want in (("第一假如（崇祯四年十月十五日乙卯夜望，食甚丙辰用时 6:51）", 2317083, 6, 51, "日差 24 分加；太阴日差 9′56″ 减；望"),
+                                  ("第二假如（崇祯五年三月癸丑夜望，用时 20:14）", 2317260, 20, 14, "日差 11 分加；太阴日差 10 分减；月经大火 14°27′"),
+                                  ("第三假如（崇祯四年十月十二日壬子夜，癸丑用时 6:03）", 2317080, 6, 3, "太阴日差 6 分减；月距冬至 100°07′")):
+        T = j + (h + mi / 60) / 24
+        L, a, _ = moon_shi(T)
+        sl = sun_yong(T)
+        e = ersan_jun(L - sl, a)
+        v = norm(L + e)
+        print(label, f"日差 {ri_cha(T) * 1440:+.2f}分 太阴日差 {moon_richa(sl) * 1440:+.2f}分 实平行 {int(L // 30)}宫{L % 30:.3f}° "
+              f"日月相距 {norm(L - sl):.3f}° 加二三均实经 {int(v)}°{(v % 1) * 60:.2f}′ | 原文 {want}")
+
+    # ------------------------------------------------ 逐月与张表比较 → data/calendar/shixian_xinfa_check.csv
+    import csv
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[2]
+
+    def jdn(y, m, d):
+        a = (14 - m) // 12
+        yy, mm = y + 4800 - a, m + 12 * a - 3
+        return d + (153 * mm + 2) // 5 + 365 * yy + yy // 4 - yy // 100 + yy // 400 - 32045
+
+    def ymd(j):
+        a = j + 32044
+        b = (4 * a + 3) // 146097
+        c = a - 146097 * b // 4
+        d = (4 * c + 3) // 1461
+        e = c - 1461 * d // 4
+        m = (5 * e + 2) // 153
+        return f"{100 * b + d - 4800 + m // 10}-{m + 3 - 12 * (m // 10):02d}-{e - (153 * m + 2) // 5 + 1:02d}"
+    zh = {}
+    for r in csv.DictReader(open(root / "vendor/calendar/chinese_calendar/实历朔日表.csv", encoding="utf-8")):
+        zh[jdn(int(r["gregorian_year"]), int(r["gregorian_month"]), int(r["gregorian_day"]))] = (int(r["lunar_month"]), r["is_leap"] == "1")
+    rows = []
+    for y in range(1645, 1730):
+        for (ja, m, l), (jb, _, _) in zip(year_months(y, True), year_months(y, False)):
+            ly = y - 1 if m >= 11 else y
+            rows.append([y, ly, m, int(l), ymd(ja), ymd(jb), int(zh.get(ja) == (m, l)), int(zh.get(jb) == (m, l)), int(1666 <= ly <= 1669)])
+    with open(root / "data/calendar/shixian_xinfa_check.csv", "w", encoding="utf-8", newline="") as fh:
+        fh.write("# 清初时宪历「西洋新法」照表复原（scripts/calendar_data/shixian_xinfa.py；日躔照《新法算书》卷二十五、二十六，"
+                 "月离第一均照卷三十三太阴自行加减表、月离日差表，朔望止用一均）逐月朔日与张表比较：冬至岁 1645—1729。"
+                 "用时 = 日用平时加日差、月用用时加月离日差，中气加日差定日；平时 = 一律平时。"
+                 "大统 = 1 者为康熙五至八年复用大统之年，不以新法论。1726 年起行《历象考成》，只作对照。\n")
+        w = csv.writer(fh)
+        w.writerow(["冬至岁", "农历年", "月", "闰", "用时朔日", "平时朔日", "用时合张表", "平时合张表", "大统"])
+        w.writerows(rows)
+    xf = [r for r in rows if not r[8] and 1645 <= r[1] <= 1725]
+    print("新法期", len(xf), "月：用时合张表", sum(r[6] for r in xf), "，平时合", sum(r[7] for r in xf))
+    print("用时不合：", [(r[1], ("闰" if r[3] else "") + str(r[2]), r[4]) for r in xf if not r[6]])
+    dt = [r for r in rows if r[8]]
+    print("康熙五至八年", len(dt), "月：用时合张表", sum(r[6] for r in dt))
+

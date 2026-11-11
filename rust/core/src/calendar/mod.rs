@@ -31,6 +31,7 @@ pub mod dingshuo;
 pub mod song_early;
 pub mod shixian;
 pub mod shixian_kaocheng;
+pub mod shixian_xinfa;
 pub mod dunhuang;
 pub mod era_gaiyuan;
 pub mod era_names;

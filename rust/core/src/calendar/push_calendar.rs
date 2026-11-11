@@ -232,6 +232,10 @@ pub fn reckon_lifa_year(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, boo
         "开皇历" => kaihuang_params(),
         // 宋初应天、乾元、仪天
         "应天历" | "乾元历" | "仪天历" => return super::song_early::reckon_year(name, lunar_year),
+        // 清初汤若望新法（照《新法算书》表复原）
+        "时宪历" => return Some(super::shixian_xinfa::year_months(lunar_year)),
+        // 康熙五至七年复用大统
+        "大统历（康熙复用）" => return super::dingshuo::reckon_year("大统历", lunar_year),
         // 清《历象考成》（康熙甲子元法，雍正四年起）
         "时宪历（历象考成）" => return Some(super::shixian_kaocheng::year_months(lunar_year)),
         // 清《历象考成后编》（民国元年、二年历书沿用）
