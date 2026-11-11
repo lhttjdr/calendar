@@ -347,6 +347,7 @@ ziOffset 将「子月起」的月序映射到各历正月：-1=正月亥（闰�
 | 辽/金/元 947–1279 | 张表+修正 | LiaoJinYuanCorrection；平气 y<1085.5 Xuanming，否则 RevisedDaming |
 | 金 1137–1234（本项目） | 推步（定朔） | `calendar::daming_li` 重修大明历定朔、进朔；1182 年前杨级历以之代推（术文原限）；见 historical-calendar.md「金大明历」 |
 | 南明/明郑 1645–1683 | 预表+平气 | southernMingCalendarData 表；平气 Datong；1663 年 J8 修正 -1 |
+| 南明/鲁监国/明郑 1645–1683（本项目） | 推步（定朔） | 大统《通轨》立成（`dingshuo::reckon_year_any`）；傅以礼《残明大统历》核验见 calendar-compendium.md「南明大统」 |
 | 民间通书 1914–1938（本项目） | 推步（定朔） | `calendar::shixian` 《历象考成后编》用时；民国坊本时宪书沿旧法，见 calendar-compendium.md 民国条 |
 
 **北朝历术分段（WeiZhouSui）**：y<451.5 Jingchu → y<522.5 Xuanshi → y<558.5 Zhengguang → y<565.5 fakeMingKeRang → y<578.5 Tianhe → y<583.5 Daxiang → 否则 Kaihuang。换历年在代码中对节气有过渡年处理。

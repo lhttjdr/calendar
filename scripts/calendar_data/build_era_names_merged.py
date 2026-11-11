@@ -1131,6 +1131,7 @@ def main() -> None:
     if conflict_count:
         print(f"注意：{conflict_count} 处章节交界年份的政权记录内容有出入，两条都保留并加了 note，见上说明。")
 
+    rows = apply_nanming(rows)
     rows.sort(key=lambda r: (r["lunar_year"], 0 if r["is_primary"] else 1, r["regime"]))
     fill_earlier_eras_from_gaiyuan_day(rows)
     fill_emperor_names(rows)
@@ -1159,6 +1160,37 @@ def main() -> None:
     print(f"Wrote {csv_path} and {json_path}")
     print(f"总行数 {len(rows)}（主线 is_primary=1: {n_primary}，并存补充 is_primary=0: {len(rows) - n_primary}，"
           f"其中来自 fang_shiming 补充列的: {supplement_count}）")
+
+
+def apply_nanming(rows: list[dict]) -> list[dict]:
+    """南明、鲁监国、明郑年号：方诗铭 14 章「南」栏一格多段（1646 年隆武、绍武、桂王并列），forward_fill 只留末段，
+    致绍武误记桂王名下、隆武二年缺；1662 年以后明郑在台湾续用永历（至三十七年）原表不列。此处按傅以礼《残明大统历》
+    各年首行（`data/calendar/canming_datong_fuyili.csv`，二十五史补编本）与方诗铭 14 章重写：政权名「南」改「南明」，
+    另立「南明·绍武」「鲁监国」「明郑」。历日见 push_calendar::regime_calendars「南明」一路（大统推步）。"""
+    src = "fang_shiming:14_清纪年表；傅以礼《残明大统历》"
+    out = [r for r in rows if r["regime"] != "南"]
+
+    def row(y, regime, emperor, era, n, note="", prev=("", "", ""), source=src):
+        return {
+            "lunar_year": y, "regime": regime, "emperor": emperor, "era_name": era, "era_year": n, "is_primary": 0,
+            "has_gaiyuan": 1 if prev[0] else 0, "gaiyuan_prev_era_name": prev[0], "gaiyuan_prev_era_year": prev[1],
+            "gaiyuan_month": prev[2], "source": source, "note": note,
+        }
+
+    out.append(row(1644, "南明", "福王(朱由崧)", "崇祯", 17, "福王五月即位南京，仍用崇祯十七年，次年改元弘光"))
+    out.append(row(1645, "南明", "唐王(朱聿键)", "隆武", 1, "弘光元年五月南京陷；唐王闰六月即位福州改元隆武（傅以礼作「七月以後為隆武元年」）",
+                   ("弘光", 1, 6)))
+    out.append(row(1646, "南明", "唐王(朱聿键)", "隆武", 2, "八月唐王被执于汀州"))
+    out.append(row(1646, "南明·绍武", "唐王(朱聿𨮁)", "绍武", 1, "十一月立于广州，十二月城破，凡四十余日"))
+    for k, y in enumerate(range(1647, 1662), 1):
+        out.append(row(y, "南明", "桂王(朱由榔)", "永历", k, "桂王 1646 年十月监国肇庆，次年改元" if k == 1 else ("傅以礼注「明亡」" if y == 1661 else "")))
+    lu = [(1646, "监国", 1), (1647, "监国", 2), (1648, "监国", 3), (1649, "监国", 4),
+          (1650, "监国后", 1), (1651, "监国后", 2), (1652, "监国后", 3), (1653, "监国后", 4)]
+    for y, era, n in lu:
+        out.append(row(y, "鲁监国", "鲁王(朱以海)", era, n, "三月去监国号，奉表永历行在" if y == 1653 else "", source="傅以礼《残明大统历》"))
+    for y in range(1662, 1684):
+        out.append(row(y, "明郑", "延平王", "永历", y - 1646, "台湾称永历；闰六月降清" if y == 1683 else "台湾称永历", source="傅以礼《残明大统历》"))
+    return out
 
 
 def fill_emperor_names(rows: list[dict]) -> None:

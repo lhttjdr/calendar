@@ -1489,6 +1489,11 @@ pub fn reckon_year(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, bool)>> 
     Some(year_months(li_by_name(name)?, lunar_year))
 }
 
+/// 按历名推某农历年各月，不限中原一线行用年段：供分政权历日（如南明、明郑续用大统历，1645—1683）。
+pub fn reckon_year_any(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, bool)>> {
+    Some(year_months(li_by_name(name)?, lunar_year))
+}
+
 /// 已移植的定朔历名与适用年段（供检验与文档）。
 pub fn registry() -> &'static [(&'static str, &'static [(i32, i32)])] {
     REGISTRY

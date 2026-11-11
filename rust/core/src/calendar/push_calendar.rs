@@ -296,7 +296,14 @@ pub fn regime_calendars() -> Vec<(&'static str, i32, i32, RegimeYearFn)> {
     fn minjian(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
         ("时宪书（坊本，沿用历象考成后编）", super::shixian::year_months(y))
     }
+    // 南明、鲁监国、明郑续用大统历（1645—1683）：照《通轨》立成推步。傅以礼《残明大统历》483 月中 1645—1673 年
+    // 除原书两处大小误印外全合推步；1674 年以后（明郑）12 月不合，或合清时宪、或两皆不合，未见明郑历书实物，取推步。
+    // 见 doc/calendar/calendar-compendium.md「南明」与 data/calendar/canming_check.csv。
+    fn nanming(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        ("大统历", super::dingshuo::reckon_year_any("大统历", y).unwrap_or_default())
+    }
     vec![
+        ("南明/南明·绍武/鲁监国/明郑", 1645, 1683, nanming),
         ("民间通书", 1914, 1938, minjian),
         ("蜀", 221, 263, shu),
         ("吴", 222, 280, wu),
@@ -568,6 +575,16 @@ mod tests {
     use super::*;
 
     /// 民国坊本沿用后编用时：1914 年十月朔 11 月 18 日（旧法九大十小，官历 11 月 17 日），1933 年六月朔 7 月 22 日（官历 23 日）
+    /// 南明大统：永历二年闰三月（傅以礼《残明大统历》「閏三月丙寅朔」），清时宪是年闰四月
+    #[test]
+    fn nanming_follows_datong() {
+        let at = |y, m, d| gregorian_to_all_regimes_lunar(y, m, d).into_iter().find(|e| e.region.starts_with("南明")).map(|e| (e.lunar_year, e.month, e.is_leap, e.day));
+        assert_eq!(at(1645, 2, 26).map(|e| e.3), Some(1), "弘光元年二月甲寅朔");
+        assert_eq!(at(1648, 4, 23), Some((1648, 3, true, 1)), "永历二年闰三月丙寅朔");
+        assert_eq!(at(1648, 5, 22), Some((1648, 4, false, 1)), "四月乙未朔（清时宪是日为闰四月朔）");
+        assert!(gregorian_to_all_regimes_lunar(1640, 1, 1).iter().all(|e| !e.region.starts_with("南明")));
+    }
+
     #[test]
     fn minjian_tongshu_follows_houbian() {
         let at = |y, m, d| gregorian_to_all_regimes_lunar(y, m, d).into_iter().find(|e| e.region == "民间通书").map(|e| (e.month, e.is_leap, e.day));
