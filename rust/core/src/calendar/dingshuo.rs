@@ -1407,6 +1407,33 @@ impl DingshuoLi for Tonggui {
     }
 }
 
+/// 明郑大统（1662—1683）：照《通轨》立成推步，定朔在夜子初（23 时）以后者置次日。
+/// 依据：明郑颁历实物（Bodleian Sinica 58、88，剑桥 St John's S.14；永历二十五、三十、三十一年）36 月中，
+/// 推步定朔 23:48、23:40 两月实物皆作次日，20:08 以前者不移；纪年页闰月注（1653、1675）限界于 22:43—23:10。
+/// 节气交时全合北京子午线推步，故非台湾经度之差。见 doc/calendar/calendar-compendium.md「明郑颁历实物」。
+struct TongguiZichu(Tonggui);
+
+impl DingshuoLi for TongguiZichu {
+    fn f(&self) -> i64 {
+        self.0.f()
+    }
+    fn off(&self) -> i64 {
+        self.0.off()
+    }
+    fn sui(&self) -> Q {
+        self.0.sui()
+    }
+    fn dongzhi(&self, y: i32) -> Q {
+        self.0.dongzhi(y)
+    }
+    fn month(&self, y: i32, m: i64) -> (Q, Q) {
+        self.0.month(y, m)
+    }
+    fn jinshuo_limit(&self, _y: i32, _t: &Q) -> Option<Q> {
+        Some(qr(23 * SS_F, 24))
+    }
+}
+
 fn shoushi() -> Shoushi {
     // 《明史》称《大统历法通轨》所载为授时续定之数：闰应 202050、转应 130205（与《元史》历经 201850、131904 异），授时亦用之
     Shoushi { run_ying: 202050, zhuan_ying: 130205, off: align_offset(SS_QI_YING / SS_F, gregorian::civil_to_jdn(1280, 12, 14)) }
@@ -1476,6 +1503,7 @@ pub fn li_by_name(name: &str) -> Option<&'static dyn DingshuoLi> {
         "成天历" => once!(song("成天", 7420, 2710101, q(219117), qr(2044551641, 10000), 71758147, 1271, 0, false, None, (1270, 12, 14))),
         "授时历" => once!(shoushi()),
         "大统历" => once!(Tonggui::new()),
+        "大统历（明郑子初进朔）" => once!(TongguiZichu(Tonggui::new())),
         _ => None,
     }
 }

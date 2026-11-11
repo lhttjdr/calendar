@@ -1,5 +1,5 @@
 //! 南明、明郑大统历日核验：傅以礼《残明大统历》（`data/calendar/canming_datong_fuyili.csv`）与大统推步
-//! （《通轨》立成，`dingshuo::reckon_year_any("大统历")`）、张表（同年清时宪历）逐月比较。
+//! （《通轨》立成，`dingshuo::reckon_year_any("大统历")`；1662 年起明郑子初进朔）、张表（同年清时宪历）逐月比较。
 //!
 //! 用法（仓库根）：cargo run --release --manifest-path rust/Cargo.toml -p lunar-core --no-default-features --features real-f64 --example canming_check
 //! 输出 data/calendar/canming_check.csv，终端打印汇总与不合之条。
@@ -37,7 +37,8 @@ fn main() {
         if sg.chars().count() != 2 {
             continue;
         }
-        let (a, b) = (reckon_year_any("大统历", y).unwrap(), reckon_year_any("大统历", y + 1).unwrap());
+        let li = |yy: i32| if yy >= 1662 { "大统历（明郑子初进朔）" } else { "大统历" };
+        let (a, b) = (reckon_year_any(li(y), y).unwrap(), reckon_year_any(li(y + 1), y + 1).unwrap());
         let r = find(&a, &b, m, leap);
         let t = zhang.year_months(y).zip(zhang.year_months(y + 1)).and_then(|(a, b)| find(a, b, m, leap));
         let ok = |x: Option<(i64, &str, &str)>| x.map_or(0, |x| (x.1 == sg && (dx.is_empty() || x.2 == dx)) as u8);

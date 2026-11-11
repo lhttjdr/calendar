@@ -297,10 +297,15 @@ pub fn regime_calendars() -> Vec<(&'static str, i32, i32, RegimeYearFn)> {
         ("时宪书（坊本，沿用历象考成后编）", super::shixian::year_months(y))
     }
     // 南明、鲁监国、明郑续用大统历（1645—1683）：照《通轨》立成推步。傅以礼《残明大统历》483 月中 1645—1673 年
-    // 除原书两处大小误印外全合推步；1674 年以后（明郑）12 月不合，或合清时宪、或两皆不合，未见明郑历书实物，取推步。
+    // 除原书两处大小误印外全合推步；明郑（1662 起）依颁历实物（1671、1676、1677）定朔在夜子初以后者置次日。
     // 见 doc/calendar/calendar-compendium.md「南明」与 data/calendar/canming_check.csv。
     fn nanming(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
-        ("大统历", super::dingshuo::reckon_year_any("大统历", y).unwrap_or_default())
+        // 明郑（1662 起）颁历定朔在夜子初以后者置次日（实物三部为证，见 dingshuo::TongguiZichu）
+        if y >= 1662 {
+            ("大统历（明郑）", super::dingshuo::reckon_year_any("大统历（明郑子初进朔）", y).unwrap_or_default())
+        } else {
+            ("大统历", super::dingshuo::reckon_year_any("大统历", y).unwrap_or_default())
+        }
     }
     vec![
         ("南明/南明·绍武/鲁监国/明郑", 1645, 1683, nanming),
@@ -575,6 +580,10 @@ mod tests {
     use super::*;
 
     /// 民国坊本沿用后编用时：1914 年十月朔 11 月 18 日（旧法九大十小，官历 11 月 17 日），1933 年六月朔 7 月 22 日（官历 23 日）
+    fn reckon_mingzheng(y: i32) -> Vec<(i64, u8, bool)> {
+        super::super::dingshuo::reckon_year_any("大统历（明郑子初进朔）", y).unwrap()
+    }
+
     /// 南明大统：永历二年闰三月（傅以礼《残明大统历》「閏三月丙寅朔」），清时宪是年闰四月
     #[test]
     fn nanming_follows_datong() {
@@ -583,6 +592,11 @@ mod tests {
         assert_eq!(at(1648, 4, 23), Some((1648, 3, true, 1)), "永历二年闰三月丙寅朔");
         assert_eq!(at(1648, 5, 22), Some((1648, 4, false, 1)), "四月乙未朔（清时宪是日为闰四月朔）");
         assert!(gregorian_to_all_regimes_lunar(1640, 1, 1).iter().all(|e| !e.region.starts_with("南明")));
+        // 明郑实物：永历二十五年正月小甲寅（推步癸丑 23:48）、三十一年七月小丙子（推步乙亥 23:40）
+        let jdn = |y, m, d| gregorian::gregorian_to_jdn(y, m, d);
+        let first = |y: i32, m: u8| reckon_mingzheng(y).into_iter().find(|e| e.1 == m && !e.2).map(|e| e.0);
+        assert_eq!(first(1671, 1), Some(jdn(1671, 2, 10)), "1671 正月甲寅");
+        assert_eq!(first(1677, 7), Some(jdn(1677, 7, 30)), "1677 七月丙子");
     }
 
     #[test]
