@@ -768,6 +768,24 @@ def mark_inyear_gaiyuan(rows: list[dict]) -> None:
         )
 
 
+# 年号表.csv 年号前缀中的朝名（「宋太祖建隆」「后梁太祖开平」「武周天授」）；「元帝」「明帝」「明宗」之「元」「明」是谥号不是朝名
+ERA_PREFIX_REGIMES = ["后梁", "后唐", "后晋", "后汉", "后周", "武周", "魏", "晋", "宋", "齐", "梁", "陈", "隋", "唐", "元", "明", "清"]
+
+
+def split_era_prefix(prefix: str) -> tuple[str, str]:
+    """年号前缀 → (新朝名或空, 新君帝号或空)。朝名后余字不足两字者（元帝、明宗）整体作帝号。只有朝名而无帝号者
+    （「宋元徽」「后唐清泰」）只取武周（690 年改唐为周），其余不改政权。"""
+    for g in ERA_PREFIX_REGIMES:
+        if prefix.startswith(g):
+            rest = prefix[len(g):]
+            if len(rest) >= 2:
+                return g, rest
+            if rest == "":
+                return (g, "则天皇帝") if g == "武周" else ("", "")
+            break
+    return "", prefix if prefix.endswith(("帝", "宗", "祖", "主")) else ""
+
+
 def main() -> None:
     # ---------- 1. 主线：era_names.csv（天文纪年，原样为主，南北朝/五代按年份区间细化政权名）----------
     era_path = ROOT / "vendor/calendar/chinese_calendar/年号表.csv"
@@ -789,13 +807,33 @@ def main() -> None:
                 clean_name = MANUAL_ERA_NAME_FIXES[(y, regime)]
             else:
                 clean_name = clean_era_name(raw_era_name)
+            emperor = r["emperor_simp"]
+            regime0 = regime  # 人工修正表按年号表原政权名（年初之朝）索引
             if clean_name != raw_era_name and not note:
                 note = f"政权交接年，年号表.csv 原字段为「{raw_era_name}」，已剥离朝代/帝号或新君本名前缀。"
+            # 年号表.csv 一年两号之年：政权、帝号记年初（旧朝旧君），年号记年末（新君），前缀写明新君。
+            # 改为年末之君（与年号一致），年初之君写入注。
+            if clean_name != raw_era_name and raw_era_name.endswith(clean_name):
+                new_regime, new_emperor = split_era_prefix(raw_era_name[: len(raw_era_name) - len(clean_name)])
+                if new_emperor or new_regime:
+                    # 年初之君：帝号已带朝名者（晋恭帝、后周恭帝）不再加；非年内改元之年（陈后主各年）不注
+                    old = emperor if split_era_prefix(emperor)[0] else f"{regime}{emperor}"
+                    if not emperor or not int(r["has_gaiyuan"] or 0):
+                        old = ""
+                    prev = clean_era_name(r["gaiyuan_prev_era_name_simp"]) + (r["gaiyuan_prev_era_year_simp"] or "")
+                    if new_regime:
+                        regime = new_regime
+                    if new_emperor:
+                        # 南北朝、五代各行帝号惯带朝名（梁武帝、后晋高祖），随之
+                        dyn_style = r["regime_simp"] == "南北朝" or (r["regime_simp"] == "五代" and regime in ("后梁", "后唐", "后晋", "后汉", "后周"))
+                        emperor = f"{regime}{new_emperor}" if dyn_style else new_emperor
+                    if old and (new_regime or new_emperor):
+                        note += f" 年初为{old}{prev}；政权、帝号改记年末新君。"
             rows.append(
                 {
                     "lunar_year": y,
                     "regime": regime,
-                    "emperor": r["emperor_simp"],
+                    "emperor": emperor,
                     "era_name": clean_name,
                     "era_year": era_year if era_year is not None else "",
                     "is_primary": 1,
@@ -807,7 +845,7 @@ def main() -> None:
                     "note": note,
                 }
             )
-            fix = MANUAL_PRIMARY_FIXES.get((y, regime))
+            fix = MANUAL_PRIMARY_FIXES.get((y, regime0)) or MANUAL_PRIMARY_FIXES.get((y, regime))
             if fix:
                 rows[-1].update(fix["fields"])
                 rows[-1]["note"] = (note + " " if note else "") + fix["note"]
