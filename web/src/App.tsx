@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, createContext, useContext, lazy, Suspense } from 'react'
+import { useState, useEffect, useMemo, useRef, createContext, useContext, lazy, Suspense, Fragment } from 'react'
 import { Button, Card, Select, Radio, Checkbox, Flex, Typography, Tag, Spin, Alert, Modal, InputNumber } from 'antd'
 import { SettingOutlined, EyeOutlined } from '@ant-design/icons'
 import { getCurrentPosition } from './sensors'
@@ -1056,21 +1056,23 @@ function App() {
                   const yearName = (y: number) => (y > 0 ? `${yearToChinese(y)}年` : `西元前${yearToChinese(1 - y)}年`)
 
                   type Era = { regime: string; emperor: string; era_name: string; era_year: string; era: string; is_primary?: boolean }
-                  const eraMid = (p: Era) => [p.emperor, [p.era_name, p.era_year].filter(Boolean).join('') || p.era].filter(Boolean).join(' ')
 
-                  // 各历日一行一种，样式一律，不分主次（项目不设「主表」，中原一线与各政权并列）
-                  const lineStyle: React.CSSProperties = { fontSize: 14, fontWeight: 600, marginBottom: 4 }
-                  const lines: React.ReactNode[] = []
-                  lines.push(
-                    <div key="gregorian" style={lineStyle}>
-                      {westernName} 西元 {civilY > 0 ? `${civilY}年` : `前${1 - civilY}年`}{gregorianMonthDay}<LineTime format={clock} {...timeProps} />
-                    </div>,
-                  )
+                  // 各历日一块，样式一律，不分主次（项目不设「主表」，中原一线与各政权并列）。
+                  // 每块三层：标题（政权 · 年号）、月日与时刻、说明小字（历名、帝号、历日来源）。
+                  type Entry = { key: string; title: React.ReactNode; date: React.ReactNode; meta: React.ReactNode[] }
+                  const entries: Entry[] = []
+                  entries.push({
+                    key: 'gregorian',
+                    title: `西元${civilY > 0 ? `${civilY}年` : `前${1 - civilY}年`}${gregorianMonthDay}`,
+                    date: <>星期{WEEKDAY_NAMES[weekdayIndex]}<LineTime format={clock} {...timeProps} /></>,
+                    meta: [westernName, `第${dayOfYear}天，第${weekOfYear}周`],
+                  })
 
                   // 中原一线
                   if (selectedLunarSlot != null) {
-                    const monthDay = `${selectedLunarSlot.isLeapMonth ? '闰' : ''}${LUNAR_MONTH_NAMES[selectedLunarSlot.lunarMonth - 1]}月 ${lunarDayStr(selectedLunarSlot.dayOfMonth)}日`
-                    let era = yearName(selectedLunarSlot.lunarYear)
+                    const monthDay = `${selectedLunarSlot.isLeapMonth ? '闰' : ''}${LUNAR_MONTH_NAMES[selectedLunarSlot.lunarMonth - 1]}月${lunarDayStr(selectedLunarSlot.dayOfMonth)}日`
+                    let title = yearName(selectedLunarSlot.lunarYear)
+                    let emperor = ''
                     let hint = ''
                     if (dayInfoLayers.calendar_eraNames && (wasm?.get_era_name_parts_for_day != null || wasm?.get_era_name_parts != null)) {
                       try {
@@ -1099,40 +1101,36 @@ function App() {
                           : parts.has_gaiyuan && parts.gaiyuan_resolved === false && prevEraStr
                             ? `${prevEraStr}/${eraStr}`
                             : eraStr
-                        // 没有年号也没有年数（如中华人民共和国）时写年份，否则这一行缺「年」
-                        const mid = [parts.emperor, shown || yearName(selectedLunarSlot.lunarYear)].filter(Boolean).join(' ')
-                        era = parts.regime ? `${parts.regime} · ${mid}` : mid
-                        hint = parts.gaiyuan_on_this_day ? ' 改元' : parts.has_gaiyuan && parts.gaiyuan_resolved === false ? ' 改元日未补' : ''
+                        // 没有年号也没有年数（如中华人民共和国）时写年份
+                        const eraPart = shown || yearName(selectedLunarSlot.lunarYear)
+                        title = parts.regime ? `${parts.regime} · ${eraPart}` : eraPart
+                        emperor = parts.emperor
+                        hint = parts.gaiyuan_on_this_day ? '是日改元' : parts.has_gaiyuan && parts.gaiyuan_resolved === false ? '改元日未补' : ''
                       } catch { /* 年号解析失败时退回只写年份 */ }
                     }
-                    lines.push(
-                      <div key="zhongyuan" style={lineStyle}>
-                        {wasm?.get_calendar_name?.(selectedLunarSlot.lunarYear) ?? '农历'} {era} {monthDay}<LineTime format={timeOf} {...timeProps} />{hint}
-                      </div>,
-                    )
-                    if (selectedYearData?.riliSource) {
-                      lines.push(
-                        <div key="rili-source" style={{ marginBottom: 4 }}>
-                          <Text type="secondary" style={{ fontSize: 12 }}>历日：{selectedYearData.riliSource}</Text>
-                        </div>,
-                      )
-                    }
-                  } else if (selectedLunar != null) {
-                    lines.push(<div key="zhongyuan" style={lineStyle}>{selectedLunar}</div>)
+                    const calName = wasm?.get_calendar_name?.(selectedLunarSlot.lunarYear) ?? '农历'
+                    // 来源括注的历名与本块历名相同则省去，如「按术推步（元嘉历）」只写「按术推步」
+                    const source = selectedYearData?.riliSource?.replace(`（${calName}）`, '') ?? ''
+                    entries.push({
+                      key: 'zhongyuan',
+                      title,
+                      date: <>{monthDay}<LineTime format={timeOf} {...timeProps} /></>,
+                      meta: [calName, emperor, source, hint],
+                    })
                   } else {
-                    lines.push(<div key="zhongyuan" style={lineStyle}>历日 —</div>)
+                    entries.push({ key: 'zhongyuan', title: '农历', date: selectedLunar ?? '—', meta: [] })
                   }
 
-                  // 同年各政权年号与分政权推步，与中原一线同列
+                  // 同年各政权年号与分政权推步
                   type RegimeDay = { region: string; calendar_name: string; lunar_year: number; month: number; is_leap: boolean; day: number }
                   let regimeDays: RegimeDay[] = []
                   if (wasm?.get_regimes_lunar_for_day != null) {
                     try {
                       const arr = JSON.parse(wasm.get_regimes_lunar_for_day(displayY, displayM, displayD))
                       if (Array.isArray(arr)) regimeDays = arr as RegimeDay[]
-                    } catch { /* 解析失败时只少这几行，不影响其他历日 */ }
+                    } catch { /* 解析失败时只少这几块，不影响其他历日 */ }
                   }
-                  const regimeMonthDay = (e: RegimeDay) => `${e.is_leap ? '闰' : ''}${LUNAR_MONTH_NAMES[e.month - 1]}月 ${lunarDayStr(e.day)}日`
+                  const regimeMonthDay = (e: RegimeDay) => `${e.is_leap ? '闰' : ''}${LUNAR_MONTH_NAMES[e.month - 1]}月${lunarDayStr(e.day)}日`
                   const usedRegions = new Set<string>()
                   if (dayInfoLayers.calendar_eraNames && selectedLunarSlot != null && wasm?.get_era_name_parts_all != null) {
                     try {
@@ -1140,36 +1138,51 @@ function App() {
                       for (const p of Array.isArray(all) ? all.filter((x) => !x.is_primary && x.regime) : []) {
                         const own = regimeDays.find((e) => e.region.split('/').includes(p.regime))
                         if (own != null) usedRegions.add(own.region)
-                        const era = `${p.regime} · ${eraMid(p) || '—'}`
-                        // 民国纪年配格里高利历；其余政权没有推步数据时不套用中原月日，如实写历未详
-                        lines.push(
-                          <div key={`concurrent-${p.regime}`} style={lineStyle}>
-                            {p.regime === '中华民国'
-                              ? <>格里高利历 {era} {gregorianMonthDay}<LineTime format={clock} {...timeProps} /></>
-                              : own != null
-                                ? <>{own.calendar_name} {era} {regimeMonthDay(own)}<LineTime format={timeOf} {...timeProps} /></>
-                                : <>历未详 {era}</>}
-                          </div>,
-                        )
+                        const eraStr = [p.era_name, p.era_year].filter(Boolean).join('') || p.era || '—'
+                        // 中华民国（1949 年后）一块：历名《国民历》，日期按国历（格里高利历），依据见 doc/calendar/calendar-compendium.md「日历上的历名」；
+                        // 其余政权没有推步数据时不套用中原月日，如实写历日未详
+                        const minguo = p.regime === '中华民国'
+                        entries.push({
+                          key: `concurrent-${p.regime}`,
+                          title: `${p.regime} · ${eraStr}`,
+                          date: minguo
+                            ? <>{gregorianMonthDay}<LineTime format={clock} {...timeProps} /></>
+                            : own != null
+                              ? <>{regimeMonthDay(own)}<LineTime format={timeOf} {...timeProps} /></>
+                              : '历日未详',
+                          meta: [minguo ? '国民历' : own?.calendar_name ?? '', p.emperor],
+                        })
                       }
-                    } catch { /* 解析失败时只少这几行，不影响其他历日 */ }
+                    } catch { /* 解析失败时只少这几块，不影响其他历日 */ }
                   }
                   if (dayInfoLayers.calendar_regimeCalendars) {
                     for (const e of regimeDays.filter((x) => !usedRegions.has(x.region))) {
-                      lines.push(
-                        <div key={`${e.region}-${e.calendar_name}`} style={lineStyle}>
-                          {e.calendar_name} {e.region} {regimeMonthDay(e)}<LineTime format={timeOf} {...timeProps} />
-                        </div>,
-                      )
+                      entries.push({
+                        key: `${e.region}-${e.calendar_name}`,
+                        title: e.region,
+                        date: <>{regimeMonthDay(e)}<LineTime format={timeOf} {...timeProps} /></>,
+                        meta: [e.calendar_name],
+                      })
                     }
                   }
                   return (
-                    <>
-                      {lines}
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>星期{WEEKDAY_NAMES[weekdayIndex]}</div>
-                      <Text type="secondary" style={{ fontSize: 11 }}>第{dayOfYear}天，第{weekOfYear}周</Text>
+                    <div style={{ textAlign: 'left' }}>
+                      {entries.map((e, i) => {
+                        const meta = e.meta.filter((m) => m != null && m !== '')
+                        return (
+                          <div key={e.key} style={{ padding: '8px 0', borderTop: i > 0 ? '1px solid var(--border-1)' : undefined }}>
+                            <div style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.45 }}>{e.title}</div>
+                            <div style={{ fontSize: 14, lineHeight: 1.6 }}>{e.date}</div>
+                            {meta.length > 0 && (
+                              <div style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--text-2)' }}>
+                                {meta.map((m, j) => <Fragment key={j}>{j > 0 && ' · '}{m}</Fragment>)}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
                       {!isLiveMode && isSelectedToday && <Tag color="blue" style={{ marginTop: 6 }}>今天</Tag>}
-                    </>
+                    </div>
                   )
                 })()}
                 {/* 朔日：合朔时刻（天文，非实历） */}
