@@ -769,7 +769,86 @@ struct Song {
     cha: Option<SongCha>,
     sun: SongSun,
     moon: SongMoon,
+    /// 进朔用的日出分之术
+    lou: SongLou,
     off: i64,
+}
+
+/// 宋诸历求日出分之术（进朔限用）。北宋四历各据本历《宋史》步晷漏；南宋诸历志文「法與前曆同，此不載」，以纪元历之术代用。
+#[derive(Clone, Copy, PartialEq)]
+enum SongLou {
+    /// 崇天（卷七十二）：消息定数，x 为距二至平日（「所入氣日及加其氣下中積」，中积为常气积日）
+    Chongtian,
+    /// 观天（卷七十七）：消息定数，x 为午中定积日（加盈缩分）
+    Guantian,
+    /// 纪元（卷七十九）：午中日行积度 → 赤道内外度 → 日出分
+    Jiyuan,
+    /// 南宋诸历：纪元之术代用（按一日之比）
+    JiyuanProxy,
+}
+
+/// 消息定数法（崇天、明天、观天）：距冬至 x（日或度）→ 日出分占一日之比。
+/// 常数 = a·u²/fa（u 为距最近二至），定数 = 常数 + (b − 常数)·常数/c；春分后晨分 = p + 定数，秋分后 = q − 定数；日出分 = 晨分 + 昏明。
+struct XiaoxiLou {
+    l: Q,
+    a: i64,
+    fa: i64,
+    b: Q,
+    c: i64,
+    p: Q,
+    q: Q,
+    hm: Q,
+    f: i64,
+}
+
+impl XiaoxiLou {
+    fn sunrise(&self, x: &Q) -> Q {
+        let l = &self.l;
+        let m = md(x, &(q(2) * l));
+        let half = l / q(2);
+        let chunfen_hou = m >= half && m < &half * q(3);
+        let s = md(x, l);
+        let u = if &s * q(2) <= *l { s } else { l - s };
+        let chang = q(self.a) * &u * &u / q(self.fa);
+        let ding = &chang + (&self.b - &chang) * &chang / q(self.c);
+        let chen = if chunfen_hou { &self.p + ding } else { &self.q - ding };
+        (chen + &self.hm) / q(self.f)
+    }
+    /// 春分之日（距冬至一象）日出分之比
+    fn sunrise_chunfen(&self) -> Q {
+        self.sunrise(&(&self.l / q(2)))
+    }
+}
+
+fn chongtian_lou() -> XiaoxiLou {
+    XiaoxiLou { l: qr(18262, 100), a: 500, fa: 7873, b: qr(1059, 2), c: 2350, p: qr(7413, 4), q: qr(11649, 4), hm: qr(1059, 4), f: 10590 }
+}
+
+/// 观天「春分後加二千一百少」从陈美东《古历新探》第七章（书页 197—198）校作二千一百五少：夏至日出恰 0.2 日
+fn guantian_lou() -> XiaoxiLou {
+    XiaoxiLou { l: qr(18262, 100), a: 700, fa: 9703, b: qr(1203, 2), c: 2670, p: qr(8421, 4), q: qr(13233, 4), hm: qr(1203, 4), f: 12030 }
+}
+
+fn mingtian_lou() -> XiaoxiLou {
+    XiaoxiLou { l: qr(182 * MT_F + 24250, MT_F), a: 2500, fa: 10689, b: q(1950), c: 8650, p: q(6825), q: q(10725), hm: q(975), f: MT_F }
+}
+
+/// 纪元历（卷七十九）：午中日行积度 x（度，距冬至）→ 日出分占一日之比。
+/// 「並置之於上，列象限於下……冬至前後五百一十七而一，夏至前後四百而一……如三十四萬八千八百五十六而一」得赤道内外度 δ，
+/// 日出分 = 1822½ ± 3630δ/239（赤道外加、内减），日法 7290。
+fn jiyuan_sunrise(x: &Q) -> Q {
+    let l = qr(182 * 7290 + 4533, 7290);
+    let xiang = &l / q(2);
+    let m = md(x, &(q(2) * &l));
+    let near_dongzhi = m < xiang || m >= &xiang * q(3);
+    let s = md(x, &l);
+    let u = if s <= xiang { s } else { &l - s };
+    let a = &u + &u * (&xiang - &u) / q(if near_dongzhi { 517 } else { 400 });
+    let b = &xiang - a;
+    let delta = q(1000) * &b * (&l - &b) / q(348856);
+    let d = q(3630) * delta / q(239);
+    let sr = if near_dongzhi { qr(3645, 2) + d } else { qr(3645, 2) - d };
+    sr / q(7290)
 }
 
 impl Song {
@@ -834,6 +913,16 @@ impl Song {
 
 /// 观天历：入盈缩限（距天正冬至 t 分）→ 朏朒定数（朒 +）。积 = x(2L − x) × 100 / D，x 为距二至或距二分之全日，日内线性。
 fn guantian_sun(t: &Q, f: i64) -> Q {
+    guantian_curve(t, f, qr(100, 366), qr(100, 407))
+}
+
+/// 观天历盈缩分（度，盈 +）：「相減相乘……在盈初、縮末，以三千二百九十四除之；在盈末、縮初，以三千六百五十九除之，皆爲度」
+fn guantian_deg(t: &Q, f: i64) -> Q {
+    guantian_curve(t, f, qr(1, 3294), qr(1, 3659))
+}
+
+/// 观天历日躔曲线 x(2L − x) × k（盈初缩末 k1、盈末缩初 k2），x 为距二至或距二分之全日，日内线性
+fn guantian_curve(t: &Q, f: i64, k1: Q, k2: Q) -> Q {
     let hz = qr(182 * f + 7480, f);
     let (l1, l2) = (qr(88 * f + 10958, f), qr(93 * f + 8552, f));
     let d = t / q(f);
@@ -842,16 +931,16 @@ fn guantian_sun(t: &Q, f: i64) -> Q {
     let val = |u: &Q| -> Q {
         if ying {
             if *u <= l1 {
-                u * (q(2) * &l1 - u) * q(100) / q(366)
+                u * (q(2) * &l1 - u) * &k1
             } else {
                 let v = &hz - u;
-                &v * (q(2) * &l2 - &v) * q(100) / q(407)
+                &v * (q(2) * &l2 - &v) * &k2
             }
         } else if *u <= l2 {
-            u * (q(2) * &l2 - u) * q(100) / q(407)
+            u * (q(2) * &l2 - u) * &k2
         } else {
             let v = &hz - u;
-            &v * (q(2) * &l1 - &v) * q(100) / q(366)
+            &v * (q(2) * &l1 - &v) * &k1
         }
     };
     let i = fl(&x);
@@ -889,21 +978,69 @@ impl DingshuoLi for Song {
         let ding = &jing + self.sun_def(&(&jing - &tong)) + self.moon_def(&md(&(base + q(m) * &self.shuo), &self.zhuan));
         (jing, ding)
     }
-    /// 纪元历注文：秋分后小余 ≥ 3/4 日法；春分后限减（春分日出分 − 定朔日出分）/3。崇天历：小余不小于日入分者进。
-    /// 日出分借金重修大明历表（宋诸历未存），属假定。
     fn jinshuo_limit(&self, y: i32, t: &Q) -> Option<Q> {
+        Some(song_jinshuo_limit(
+            self.f,
+            &q(self.sui),
+            |noon| self.since_dongzhi(y, noon),
+            t,
+            self.rinru,
+            |x| self.sunrise(x),
+            self.sunrise_chunfen(),
+            |d| self.yingsuo_deg(d),
+        ))
+    }
+}
+
+impl Song {
+    /// 进朔限所用之日（定朔所在日午中）距天正冬至的盈缩改正（度）：崇天中积用常气，不加；观天按本历盈缩分之术；
+    /// 纪元先后数与朏朒积成比例（春分先二萬四千、朒一千三百九，单位万分度）；南宋诸历以纪元之比折算。
+    fn yingsuo_deg(&self, d: &Q) -> Q {
+        match self.lou {
+            SongLou::Chongtian => q(0),
+            SongLou::Guantian => guantian_deg(&md(d, &q(self.sui)), self.f),
+            SongLou::Jiyuan | SongLou::JiyuanProxy => self.sun_def(d) / q(self.f) * q(7290) * q(24000) / q(1309 * 10000),
+        }
+    }
+    fn sunrise(&self, x: &Q) -> Q {
+        match self.lou {
+            SongLou::Chongtian => chongtian_lou().sunrise(x),
+            SongLou::Guantian => guantian_lou().sunrise(x),
+            SongLou::Jiyuan | SongLou::JiyuanProxy => jiyuan_sunrise(x),
+        }
+    }
+    fn sunrise_chunfen(&self) -> Q {
+        match self.lou {
+            SongLou::Chongtian => chongtian_lou().sunrise_chunfen(),
+            SongLou::Guantian => guantian_lou().sunrise_chunfen(),
+            SongLou::Jiyuan | SongLou::JiyuanProxy => jiyuan_sunrise(&qr(182 * 7290 + 4533, 2 * 7290)),
+        }
+    }
+}
+
+/// 宋诸历进朔（纪元历注文，明天、观天同）：秋分后小余 ≥ 3/4 日法；春分后限减（春分日出分 − 定朔日出分）/3。崇天：小余不小于日入分者进。
+/// 日出分按各历步晷漏于定朔所在日午中求之（`SongLou`），南宋诸历代用纪元之术。
+fn song_jinshuo_limit(f: i64, sui: &Q, d_at: impl Fn(&Q) -> Q, t: &Q, rinru: bool, sunrise: impl Fn(&Q) -> Q, chunfen: Q, yingsuo: impl Fn(&Q) -> Q) -> Q {
+    let fq = q(f);
+    let noon = (q(fl(&(t / &fq))) + qr(1, 2)) * &fq;
+    let d = d_at(&noon);
+    let x = &d / &fq + yingsuo(&d);
+    let sr = sunrise(&x);
+    if rinru {
+        return &fq * (q(1) - sr);
+    }
+    let qi = sui / q(24);
+    if d >= &qi * q(6) && d < &qi * q(18) {
+        return &fq * (qr(3, 4) - (chunfen - sr) / q(3));
+    }
+    &fq * qr(3, 4)
+}
+
+impl Song {
+    /// 时刻 t 所属岁距该岁天正冬至（分）
+    fn since_dongzhi(&self, y: i32, t: &Q) -> Q {
         let sui = q(self.sui);
-        let d = (y - 1..=y + 2).map(|yy| t - self.tong(yy)).find(|d| !d.is_negative() && *d < sui).unwrap_or_else(|| md(&(t - self.tong(y)), &sui));
-        let f = q(self.f);
-        let frac = &d / &sui;
-        if self.rinru {
-            return Some(&f * (q(1) - super::daming_li::sunrise_day_fraction(&frac)));
-        }
-        if d >= self.qi() * q(6) && d < self.qi() * q(18) {
-            let sr = super::daming_li::sunrise_day_fraction(&frac);
-            return Some(&f * (qr(3, 4) - (super::daming_li::sunrise_chunfen_fraction() - sr) / q(3)));
-        }
-        Some(&f * qr(3, 4))
+        (y - 1..=y + 2).map(|yy| t - self.tong(yy)).find(|d| !d.is_negative() && *d < sui).unwrap_or_else(|| md(&(t - self.tong(y)), &sui))
     }
 }
 
@@ -975,13 +1112,23 @@ impl DingshuoLi for Mingtian {
         let jing = (jy + m) * MT_SHUO;
         (q(jing), q(jing) + Self::sun_def(&q(jing - tong)) + Self::moon_of(jy + m))
     }
+    /// 明天历注文：秋分后 3/4；「春分後，其定朔晨分差如春分之日者，三約之，以減四分之三」。晨分按本历步晷漏（卷七十五），
+    /// 消息定数用「日中日度」：平日加盈缩差度（x(L − x)/4135，即盈缩定差 × 567/(400 × 4135)）。
     fn jinshuo_limit(&self, y: i32, t: &Q) -> Option<Q> {
-        // 与纪元历同法（宋诸历通例）
-        let s = Song {
-            f: MT_F, sui: MT_SUI, shuo: q(MT_SHUO), zhuan: q(1), ji: MT_JI, y_ji: 1064, rinru: false, cha: None,
-            sun: SongSun::Guantian, moon: SongMoon { days: vec![] }, off: 0,
-        };
-        s.jinshuo_limit(y, t)
+        let sui = q(MT_SUI);
+        let lou = mingtian_lou();
+        Some(song_jinshuo_limit(
+            MT_F,
+            &sui,
+            |noon| {
+                (y - 1..=y + 2).map(|yy| noon - q(Self::tong(yy))).find(|d| !d.is_negative() && *d < sui).unwrap_or_else(|| md(&(noon - q(Self::tong(y))), &sui))
+            },
+            t,
+            false,
+            |x| lou.sunrise(x),
+            lou.sunrise_chunfen(),
+            |d| Self::sun_def(d) * q(567) / q(400 * 4135),
+        ))
     }
 }
 
@@ -1011,7 +1158,13 @@ fn song_tables(name: &str) -> (Option<Vec<(i64, i64, Q, Q)>>, SongMoon) {
 fn song(name: &str, f: i64, sui: i64, shuo: Q, zhuan: Q, ji: i64, y_ji: i32, day0: i64, rinru: bool, cha: Option<SongCha>, approx: (i32, i32, i32)) -> Song {
     let (sun, moon) = song_tables(name);
     let sun = sun.map_or(SongSun::Guantian, SongSun::Table);
-    let mut s = Song { f, sui, shuo, zhuan, ji, y_ji, rinru, cha, sun, moon, off: 0 };
+    let lou = match name {
+        "崇天" => SongLou::Chongtian,
+        "观天" => SongLou::Guantian,
+        "纪元" => SongLou::Jiyuan,
+        _ => SongLou::JiyuanProxy,
+    };
+    let mut s = Song { f, sui, shuo, zhuan, ji, y_ji, rinru, cha, sun, moon, lou, off: 0 };
     let dz = fl(&(s.tong(y_ji) / q(f)));
     s.off = align_offset(dz + day0, gregorian::civil_to_jdn(approx.0, approx.1, approx.2)) + day0;
     s
@@ -1202,6 +1355,29 @@ pub fn registry() -> &'static [(&'static str, &'static [(i32, i32)])] {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 宋诸历步晷漏：冬至日出 0.3 日、夏至 0.2 日（崇天、观天、明天按志文常数精确成立；观天从陈美东校「二千一百五少」），
+    /// 春分前后连续；纪元历由赤道内外度求得，二至约 0.3/0.2 日、二分 0.25 日。
+    #[test]
+    fn song_sunrise_models() {
+        for lou in [chongtian_lou(), guantian_lou(), mingtian_lou()] {
+            let l = lou.l.clone();
+            assert_eq!(lou.sunrise(&q(0)), qr(3, 10), "冬至");
+            assert_eq!(lou.sunrise(&l), qr(1, 5), "夏至");
+            let half = &l / q(2);
+            let eps = qr(1, 1_000_000);
+            let (a, b) = (lou.sunrise(&(&half - &eps)), lou.sunrise(&(&half + &eps)));
+            assert!((a - b).abs() < qr(1, 100_000), "春分连续");
+        }
+        let near = |x: Q, v: f64| {
+            let got = x.to_f64().unwrap();
+            assert!((got - v).abs() < 0.001, "{got} vs {v}");
+        };
+        let l = qr(182 * 7290 + 4533, 7290);
+        near(jiyuan_sunrise(&q(0)), 0.3);
+        near(jiyuan_sunrise(&l), 0.2);
+        near(jiyuan_sunrise(&(&l / q(2))), 0.25);
+    }
 
     /// 移植与 Python 复原逐月相同：`data/calendar/dingshuo_reference.csv`（每历隔 3 岁，自天正经朔起 14 月的定朔分）
     #[test]

@@ -2,7 +2,9 @@
 
 算法（纪元历术文）：经朔 + 入气朏朒定数（恒气，每气内逐日损益率等差，「求每日盈缩分先后数」）+ 入转朏朒定数（「朏减朒加」）= 定朔。
 进朔（纪元历注文，崇天历另有「朔小餘如日入分已上者，進一日」）：秋分后小余 ≥ 3/4 日法；春分后限减（春分日出分 − 定朔日出分）/ 3；有交者不进（未实现）。
-日出分未取本历之表，用 daming_dingshuo.py 的二十四气日出分（比例）代之，属假定；影响只在夏半年临限之月。
+日出分于定朔所在日午中按各历《宋史》步晷漏求之：崇天（卷七十二）、明天（卷七十五）、观天（卷七十七）用消息定数求晨分，
+纪元（卷七十九）由午中日行积度求赤道内外度再求日出分；南宋诸历志文「法與前曆同，此不載」，代用纪元之术（按一日之比）。
+观天「春分後加二千一百少」从陈美东《古历新探》第七章校作二千一百五少。
 
 用法（仓库根）：uv run --project scripts python scripts/calendar_data/song_dingshuo.py
 """
@@ -13,7 +15,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent / "qinhan_eval"))
-import daming_dingshuo as dm  # noqa: E402
 import dingshuo_check as c  # noqa: E402
 import gaiyuan_date as g  # noqa: E402
 import houhanshu_star_records as hh  # noqa: E402
@@ -202,18 +203,78 @@ class Li:
                 out.append(ding)
         return sorted(set(out))
 
+    def yingsuo_deg(self, d):
+        """定朔所在日午中距冬至之盈缩（度）：崇天中积为常气积日，不加；观天按本历盈缩分术；明天盈缩差度 = 定差 × 567/(400 × 4135)；
+        纪元先后数与朏朒积成比例（春分先二萬四千、朒一千三百九，万分度）；南宋诸历以纪元之比折算。"""
+        if self.name == "崇天":
+            return Fr(0)
+        if self.name == "观天":
+            return guantian_curve(d % self.sui, self.f, Fr(1, 3294), Fr(1, 3659))
+        if self.name == "明天":
+            return self.sun_def(d) * 567 / (400 * 4135)
+        return self.sun_def(d) / self.f * 7290 * 24000 / (1309 * 10000)
+
+    def sunrise(self, x):
+        if self.name in LOU:
+            return xiaoxi_sunrise(LOU[self.name], x)
+        return jiyuan_sunrise(x)
+
+    def sunrise_chunfen(self):
+        if self.name in LOU:
+            return xiaoxi_sunrise(LOU[self.name], LOU[self.name]["l"] / 2)
+        return jiyuan_sunrise(JY_L / 2)
+
     def limit(self, t):
+        """进朔限（时）"""
+        noon = (t // self.f + Fr(1, 2)) * self.f
         y = g.from_jdn(int(t // self.f) + self.off)[0]
         for yy in (y + 1, y, y + 2):
-            d = t - self.tong(yy)
+            d = noon - self.tong(yy)
             if 0 <= d < self.sui:
                 break
+        x = Fr(d) / self.f + self.yingsuo_deg(Fr(d))
+        sr = self.sunrise(x)
         if self.rinru:   # 崇天：「朔小餘如日入分已上者，進一日」
-            return float((1 - dm.sunrise(d * dm.QI / self.qi) / dm.F) * 24)
+            return float((1 - sr) * 24)
         if 6 * self.qi <= d < 18 * self.qi:
-            sr = dm.sunrise(d * dm.QI / self.qi) / dm.F
-            return float(18 - (dm.SUNRISE[6] / dm.F - sr) * 24 / 3)
+            return float((Fr(3, 4) - (self.sunrise_chunfen() - sr) / 3) * 24)
         return 18.0
+
+
+def xiaoxi_sunrise(p, x):
+    """消息定数法（崇天、明天、观天）：距冬至 x（日或度）→ 日出分之比。常数 = a·u²/fa（u 距最近二至），
+    定数 = 常数 + (b − 常数)·常数/c；春分后晨分 = p + 定数，秋分后 = q − 定数；日出分 = 晨分 + 昏明。"""
+    l = p["l"]
+    m = x % (2 * l)
+    chunfen_hou = l / 2 <= m < 3 * l / 2
+    s = x % l
+    u = s if 2 * s <= l else l - s
+    chang = Fr(p["a"]) * u * u / p["fa"]
+    ding = chang + (p["b"] - chang) * chang / p["c"]
+    chen = p["p"] + ding if chunfen_hou else p["q"] - ding
+    return (chen + p["hm"]) / p["f"]
+
+
+LOU = {
+    "崇天": dict(l=Fr(18262, 100), a=500, fa=7873, b=Fr(1059, 2), c=2350, p=Fr(7413, 4), q=Fr(11649, 4), hm=Fr(1059, 4), f=10590),
+    "观天": dict(l=Fr(18262, 100), a=700, fa=9703, b=Fr(1203, 2), c=2670, p=Fr(8421, 4), q=Fr(13233, 4), hm=Fr(1203, 4), f=12030),
+    "明天": dict(l=Fr(182 * 39000 + 24250, 39000), a=2500, fa=10689, b=Fr(1950), c=8650, p=Fr(6825), q=Fr(10725), hm=Fr(975), f=39000),
+}
+JY_L = Fr(182 * 7290 + 4533, 7290)
+
+
+def jiyuan_sunrise(x):
+    """纪元历：午中日行积度 x → 赤道内外度 δ = 1000·b(L − b)/348856（b = 象限 − [u + u(象限 − u)/517 或 /400]）→
+    日出分 = 1822½ ± 3630δ/239（赤道外加、内减），日法 7290。"""
+    l, xiang = JY_L, JY_L / 2
+    m = x % (2 * l)
+    near_dongzhi = m < xiang or m >= 3 * xiang
+    s = x % l
+    u = s if s <= xiang else l - s
+    a = u + u * (xiang - u) / (517 if near_dongzhi else 400)
+    b = xiang - a
+    dd = Fr(3630) * (Fr(1000) * b * (l - b) / 348856) / 239
+    return (Fr(3645, 2) + (dd if near_dongzhi else -dd)) / 7290
 
 
 JIYUAN = Li("纪元", "宋史/卷079", "宋史/卷079", 7290, 2662626, 215278, Fr(200873 * 10000 + 990, 10000),
@@ -227,6 +288,11 @@ CHONGTIAN = Li("崇天", "宋史/卷072", "宋史/卷072", 10590, 3867940, 31272
 
 def guantian_sun(t, f):
     """观天历：入盈缩限（距天正冬至 t 分）→ 朏朒定数（朒 +）。积 = x(2L − x) × 100 / D，x 为距二至或距二分之全日，日内线性。"""
+    return guantian_curve(t, f, Fr(100, 366), Fr(100, 407))
+
+
+def guantian_curve(t, f, k1, k2):
+    """观天历日躔曲线 x(2L − x) × k（盈初缩末 k1、盈末缩初 k2）；k 取 100/366、100/407 得朏朒积，取 1/3294、1/3659 得盈缩分（度）。"""
     hz = Fr(182 * f + 7480, f)
     l1, l2 = Fr(88 * f + 10958, f), Fr(93 * f + 8552, f)
     d = Fr(t) / f
@@ -235,8 +301,8 @@ def guantian_sun(t, f):
 
     def val(u):
         if half == 1:      # 盈初（366）、盈末（407，距夏至）
-            return u * (2 * l1 - u) * 100 / 366 if u <= l1 else (hz - u) * (2 * l2 - (hz - u)) * 100 / 407
-        return u * (2 * l2 - u) * 100 / 407 if u <= l2 else (hz - u) * (2 * l1 - (hz - u)) * 100 / 366   # 缩初（407）、缩末（366）
+            return u * (2 * l1 - u) * k1 if u <= l1 else (hz - u) * (2 * l2 - (hz - u)) * k2
+        return u * (2 * l2 - u) * k2 if u <= l2 else (hz - u) * (2 * l1 - (hz - u)) * k1   # 缩初（407）、缩末（366）
     i = int(x)
     return half * (val(Fr(i)) + (val(min(Fr(i + 1), hz)) - val(Fr(i))) * (x - i))
 
@@ -311,7 +377,7 @@ def run(li, y0, y1, approx, skip=()):
     li.off = c.align_offset(dz + li.day0, g.jdn(*approx)) + li.day0
     print(f"--- {li.name}历：月离闭合 {li.closure}；{li.y_ji} 年天正冬至", g.ganzhi_of_jdn(dz + li.off), g.from_jdn(dz + li.off))
     c.compare(li.name, li.f, li.off, li.moons(y0 - 2, y1 + 3), y0, y1, f"song_{li.name}_check.csv",
-              f"{y0}—{y1} 年《宋史》本纪明书朔日与{li.name}历定朔（scripts/calendar_data/song_dingshuo.py）、张表比较；进朔限术文，夏半年日出分为假定。",
+              f"{y0}—{y1} 年《宋史》本纪明书朔日与{li.name}历定朔（scripts/calendar_data/song_dingshuo.py）、张表比较；进朔限术文，日出分按本历步晷漏（南宋诸历代用纪元之术）。",
               limit=li.limit, books={"songshi_benji"}, skip=set(skip))
 
 
