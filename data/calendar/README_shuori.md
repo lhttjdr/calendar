@@ -338,5 +338,6 @@ in_month（日干支在该历所记之月）、jdn、julian、position（原文�
 | `jiaohui_jinshuo_months.csv` | 同上 | 各历入食限而过进朔限、或在正月之月：定朔、日出入、去交、术蚀、食甚、排月朔与张表、本纪、史载日食对照 |
 | `jiaohui_options_eval.csv` | `rust/core/examples/jiaohui_options_eval.rs` | 交会规则各选项（`JiaoOptions`）逐历与张表同日数、本纪合数 |
 | `beichao_shuo_kaozheng.csv` | 手录 | 北朝、隋本纪明书朔日推步不合之条与北周 559—565 年闰位逐条考证：历、年、月、闰、本纪朔、推步朔、张表朔、上游朔、证据出处、原文、结论（见 `doc/calendar/push-algorithms.md` §3.7） |
+| `liao_shike_shuo.csv` | OCR 抽取 + 图像核读（2026-11-18） | 辽代刻石朔日（向南《辽代石刻文编》《辽代石刻文续编》录文）：书、书页（印刷页码）、年、纪年、月、石刻朔（「(推)」为由某日干支倒推）、辽推步朔（宣明，947—1087）、张表朔、合推步、合张表、核读（不合两表者看原页图像所下结论）、原文（OCR，未核读者或有误字） |
 | `zhongyuan_reckoning_eval.csv` | `rust/core/examples/zhongyuan_reckoning_eval.rs` | 中原一线逐历：月数、与张表同日之月、闰位不同之岁、本纪明书朔日条数、合推步、合张表、只合其一 |
 | `zhongyuan_reckoning_benji.csv` | 同上 | 推步与张表不同、或本纪只合其一之条 |
