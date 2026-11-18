@@ -256,7 +256,8 @@ CALENDAR_DATA_PATH=/tmp/ChineseCalendar/src/calendarData.js node scripts/calenda
 《旧唐书》（`jiutangshu_benji`）、《新唐书》（`xintangshu_benji`）、《旧五代史》（`jiuwudaishi_benji`）、《新五代史》（`xinwudaishi_benji`）、
 《宋史》（`songshi_benji`）、《辽史》（`liaoshi_benji`）、《金史》（`jinshi_benji`）、《元史》（`yuanshi_benji`）、《明史》（`mingshi_benji`）。
 列：regime、era、year_in_era、year（天文纪年）、month（所记月序，闰月前加「闰」）、month_name、leap、ganzhi、calendar（该政权所用历表）、
-in_month（日干支在该历所记之月）、jdn、julian、position（原文明书「朔」者为「朔」）、text。`<书>_閏月.csv` 记本纪「閏月」及其前所记之月
+in_month（日干支在该历所记之月）、jdn、julian、position（原文明书「朔」者为「朔」）、buzi（1 = 其「朔」为点校本补字「干支〔朔〕」，原文无朔，
+不作明书朔日；目前只《元史》有，73 条；text 中保留「〔朔〕」）、text。其余各书暂无此列，读者按缺列作 0。`<书>_閏月.csv` 记本纪「閏月」及其前所记之月
 （leap_after）。用于 `scripts/calendar_data/discriminating_records.py` 以一手日期检验张表与各推步表（结论见 `doc/calendar/push-algorithms.md`
 §3.3—3.6），及 `scripts/calendar_data/verify_benji_rili.py` 以明书朔日与閏月位置核验张表（见下）。本纪月份更替常不书，in_month = 0 者多为此，
 非历表之误（在各表下同样不在月）；《旧唐书》本纪略书月份尤多。
@@ -331,5 +332,6 @@ in_month（日干支在该历所记之月）、jdn、julian、position（原文�
 |---|---|---|
 | `dingshuo_reference.csv` | `scripts/calendar_data/export_dingshuo_reference.py` | 唐至明定朔诸历复原（Python）的定朔：历、日法、上元日序 → JDN 之差、冬至岁、自天正经朔起第 m 月、定朔分（精确分数）。每历隔 3 岁取样，供 `rust/core/src/calendar/dingshuo.rs` 逐月核对 |
 | `dingshuo_song_tables.csv` | 同上 | 宋诸历日躔（气序、朏朒积、符号、定初率、日差）与月离表（日序、朏朒积、损益率；分段日为初数、初率、末率），自维基文库底本解析并经校改，Rust 内嵌读入 |
+| `dingshuo_exceptions.csv` | 手录（依据见 `tang_shuo_kaozheng.csv`、`wudai_shuo_kaozheng.csv`、`song_shuo_kaozheng.csv`） | 定朔诸历史载例外：历、年、月、闰、调整后朔日 JDN 与干支、调整（进 / 不进 / 退 / 置闰）、依据。`dingshuo.rs` 排月时应用并核对 JDN；「有交不进朔」「正月有交令食在晦」因无入交推步只收史载已考之月，属近似 |
 | `zhongyuan_reckoning_eval.csv` | `rust/core/examples/zhongyuan_reckoning_eval.rs` | 中原一线逐历：月数、与张表同日之月、闰位不同之岁、本纪明书朔日条数、合推步、合张表、只合其一 |
 | `zhongyuan_reckoning_benji.csv` | 同上 | 推步与张表不同、或本纪只合其一之条 |

@@ -8,7 +8,10 @@
   分毫不差，先历据此校出讹字）。本项目读「下以損益率展」为乘其补数（日躔补至百，月离「餘進位」后补至千），此为据表闭合的解释。
 - 乾元、仪天之表以逐日（逐气）损益与积闭合校讹（见 FIXES）。
 - 进朔：「視朔所入辰分皆與二分相減，餘二收，用減八分之六，其朔定小餘如此；以上者進一日」——辰分读作该日晨分（卷六十九
-  步晷漏），二收读作折半；差之正负两读：A 取有号（夏减冬加），B 取绝对值（皆减）。有交不进朔未实现。
+  步晷漏）。读法：A 有号折半，B 绝对值折半（「皆」、「二收」读折半），D 有号不折半（限 = 3/4 −（该日晨分 − 二分晨分）/日法）。
+  应天取 B（改 D 本纪 66→65）；乾元、仪天取 D（乾元本纪 49→52：994 年正月、四月，996 年七月，1001 年正月一并得解，
+  见 data/calendar/song_shuo_kaozheng.csv；2026-11-13 前三历皆取 B）。有交不进朔未实现。
+- 行用：乾元至 1001 年，仪天自 1002 年（《宋史》卷六十八「咸平四年三月，曆成來上，賜號儀天曆」，咸平四年历日已先颁）。
 - 中气用常气（恒气）；无中气之月为闰。
 
 用法（仓库根）：uv run --project scripts python scripts/calendar_data/song_early_dingshuo.py
@@ -382,11 +385,13 @@ def sui_shuo(li, y, ji_shift=0, jin="A"):
 
 
 def jin_limit(li, t_day, mode):
-    """进朔限（日之分数）：3/4 −（该日晨分 − 二分晨分）/2 / 日法（A 有号）或 3/4 − |…|/2（B）"""
+    """进朔限（日之分数）：A 3/4 −（二分晨分 − 该日晨分）/2 / 日法；B 3/4 − |…|/2 / 日法；D 3/4 −（该日晨分 − 二分晨分）/ 日法"""
     if mode is None:
         return None
     c = li.chen(t_day)
     e = li.erfen() if isinstance(li, Yitian) else li.erfen_chen
+    if mode == "D":
+        return 0.75 - (c - e) / li.F
     diff = (e - c) / 2 if mode == "A" else abs(e - c) / 2
     return 0.75 - diff / li.F
 
@@ -416,7 +421,8 @@ def year_months(li, y, ji_shift=0, jin="A"):
 
 
 LIS = {"应天历": Yingtian(), "乾元历": Qianyuan(), "仪天历": Yitian()}
-SPANS = {"应天历": (964, 983), "乾元历": (984, 1000), "仪天历": (1001, 1023)}   # 983 续用应天：《宋史》本纪 982 年「閏月戊子朔」在十二月后，合应天
+# 983 续用应天：《宋史》本纪 982 年「閏月戊子朔」在十二月后，合应天；1001 年仍乾元：仪天「咸平四年三月，曆成來上」
+SPANS = {"应天历": (964, 983), "乾元历": (984, 1001), "仪天历": (1002, 1023)}
 
 
 def lunar_year_months(li, n, ji_shift=0, jin="A"):
@@ -474,7 +480,7 @@ def evaluate(ji_shift=0, jin="A"):
     return res
 
 
-JIN = "B"   # 进朔读法：B（「皆」取绝对值）本纪合数较 A 多一条，与张表同月多四；A 列入报告
+JIN = {"应天历": "B", "乾元历": "D", "仪天历": "D"}   # 进朔读法，见文首；三历皆 B 为 2026-11-13 前旧做法
 
 
 def ymd_s(j):
@@ -491,20 +497,20 @@ if __name__ == "__main__":
     path = ROOT / "data/calendar/song_early_check.csv"
     with open(path, "w", encoding="utf-8", newline="") as fh:
         fh.write("# 宋初应天、乾元、仪天三历复原（scripts/calendar_data/song_early_dingshuo.py）：逐月朔日与张表比较（类=月），"
-                 "《宋史》本纪明书朔日逐条检验（类=本纪）；定朔小余与进朔限以时计，进朔读法 B。\n")
+                 "《宋史》本纪明书朔日逐条检验（类=本纪）；定朔小余与进朔限以时计，进朔读法应天 B、乾元仪天 D。\n")
         w = csv.writer(fh)
         w.writerow(["类", "历", "农历年", "月", "闰", "推步朔日", "张表朔日", "本纪朔日", "合张表", "合本纪", "定朔小余（时）", "进朔限（时）", "原文"])
         for name, li in LIS.items():
             y0, y1 = SPANS[name]
             info = {}
             for y in range(y0 - 1, y1 + 3):
-                out, dz = sui_shuo(li, y, 0, JIN)
+                out, dz = sui_shuo(li, y, 0, JIN[name])
                 for _, ding, day in out:
-                    info[day] = (ding % 1 * 24, jin_limit(li, math.floor(ding) - dz, JIN) * 24)
+                    info[day] = (ding % 1 * 24, jin_limit(li, math.floor(ding) - dz, JIN[name]) * 24)
             same = tot = 0
             months = {}
             for n in range(y0, y1 + 1):
-                ms = lunar_year_months(li, n, 0, JIN)
+                ms = lunar_year_months(li, n, 0, JIN[name])
                 months[n] = ms
                 t = zh.get(n, [])
                 for e in ms:

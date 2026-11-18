@@ -1,6 +1,7 @@
 """以本纪的一手日期核验张表（实历朔日表，据张培瑜等复原）：
 
 1. 明书朔日：本纪「某月某干支朔」（data/calendar/本纪纪日/<书>.csv 中 position = 朔）与张表该月朔日逐条比对，不合者记日差；
+   点校本补字「干支〔朔〕」（buzi = 1，《元史》）原文无朔，不计；
    有同系推步表者（北朝、吴蜀等，discriminating_records.FAMILY）一并比对；
 2. 闰位：本纪「閏月」所接之月（<书>_閏月.csv）与张表当年闰位比对（本纪常略书月份，閏月只保证在所记最后一月之后，张表闰位更晚者为略书相容）。
 本纪月份更替常不书，故不用「在月率」评张表；明书朔日与闰位不受此影响。
@@ -48,6 +49,7 @@ def kind(main, t, gz, diff):
 def main():
     tabs = d.tables()
     out, stat = [], defaultdict(lambda: defaultdict(lambda: [0, 0, 0, 0, 0]))
+    buzi_skipped = defaultdict(int)
     for path in sorted(glob.glob(str(ROOT / "data/calendar/本纪纪日/*.csv"))):
         if path.endswith("_閏月.csv"):
             continue
@@ -55,6 +57,10 @@ def main():
         seen = set()
         for r in csv.DictReader(open(path, encoding="utf-8")):
             if r.get("position") != "朔" or not r["month"].lstrip("闰").isdigit():
+                continue
+            if r.get("buzi") == "1":
+                # 点校本补字「干支〔朔〕」：原文无「朔」，点校者据推算补入（如《元史》至元十八年三月、十九年十二月），不是明书朔日
+                buzi_skipped[book] += 1
                 continue
             y, lab, regime = int(r["year"]), r["month"], r["regime"]
             key = (y, lab, r["ganzhi"])
@@ -125,7 +131,7 @@ def main():
         w = csv.DictWriter(f, fieldnames=list(out[0].keys()))
         w.writeheader()
         w.writerows(out)
-    print("一、明书朔日")
+    print("一、明书朔日" + ("（剔除点校本补字「〔朔〕」：" + "、".join(f"{b} {n} 条" for b, n in buzi_skipped.items()) + "）" if buzi_skipped else ""))
     for dyn in ORDER:
         cells = "；".join(f"{col} {ok}/{n}" + (f"（不合者：朔差一二日 {a}、差一月 {b}、其他 {c}）" if col == "张表" else "")
                          for col, (n, ok, a, b, c) in stat[dyn].items())

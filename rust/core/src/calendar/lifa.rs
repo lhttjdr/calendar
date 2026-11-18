@@ -143,10 +143,11 @@ pub enum ZhongyuanPreference {
     ModernTable,
 }
 
-/// 本纪明书朔日检验中推步相合少于张表之历（2026-11-10 检验：没有一条只合推步而不合张表；这些历各有若干条只合张表）。
-/// 逐历取法下这些历缺省取张表。测试 `reckoning_below_table_matches_eval` 与检验结果核对。
-pub const RECKONING_BELOW_TABLE: &[&str] =
-    &["戊寅元历", "麟德历", "大衍历", "五纪历", "正元历", "宣明历", "崇玄历（宣明气朔）", "应天历", "乾元历", "仪天历", "崇天历", "观天历", "成天历", "授时历", "时宪历"];
+/// 本纪明书朔日检验中推步相合少于张表之历（这些历各有若干条只合张表）。逐历取法下这些历缺省取张表。
+/// 测试 `reckoning_below_table_matches_eval` 与检验结果核对。2026-11-13 唐宋定朔诸历补排月细则（三大二小、麟德正月进朔、
+/// 大衍分段进朔限、史载例外表、乾元仪天读法 D 与行用年段，见 `dingshuo`、`song_early`）后，戊寅、麟德、大衍、乾元、仪天、崇天、
+/// 观天、成天推步与张表本纪合数相等，移出此表（改取推步）。
+pub const RECKONING_BELOW_TABLE: &[&str] = &["五纪历", "正元历", "宣明历", "崇玄历（宣明气朔）", "应天历", "授时历", "时宪历"];
 
 /// 现行农历的历名前缀（`zhongyuan_calendar_periods.csv`）：其规则即定气定朔，现算就是按术推步。
 const MODERN_RULE_PREFIX: &str = "农历（GB/T 33661";
@@ -608,7 +609,8 @@ shoushi,授时历,1281,,元,郭守敬,儒略历+格里高利历,lifa_tongzhi
         assert!(matches!(src(1256, ZhongyuanPreference::ModernTable), Some(RiliSource::Artifact(_))));
         assert_eq!(src(300, r), Some(RiliSource::Reckoned("景初历")));
         assert_eq!(src(300, ZhongyuanPreference::ModernTable), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)));
-        assert_eq!(src(700, r), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)));
+        assert_eq!(src(700, r), Some(RiliSource::Reckoned("麟德历")), "麟德补正月进朔、史载移闰后本纪与张表持平，取推步");
+        assert_eq!(src(800, r), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)), "正元推步不及张表，取张表");
         assert_eq!(src(-104, r), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)), "元封六年，颛顼历未实现");
         assert_eq!(src(-103, r), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)), "太初元年五月改历，推步不覆盖");
         assert_eq!(src(-102, r), Some(RiliSource::Reckoned("太初历（三统历）")));

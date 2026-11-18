@@ -108,7 +108,7 @@ def main():
             off = (g.GANZHI.index(r["ganzhi"]) - (s0 + 49) % 60) % 60
             ok = s0 + off < e0
             v = f"{'在月' if ok else '不在月'}（朔{g.ganzhi_of_jdn(s0)}）"
-            if kind != "凌犯" and r.get("position") == "朔":
+            if kind != "凌犯" and r.get("position") == "朔" and r.get("buzi") != "1":  # 点校本补字「〔朔〕」不是明书朔日
                 v += "朔合" if off == 0 else "朔不合"
             # 记录之日：在月取当月该干支日；不在月取离该月最近的同名干支日（落在邻月），供天象比较两历的候选日期
             jd = s0 + off if ok else min((s0 + off - 60, s0 + off), key=lambda x: abs(x - (s0 + e0) // 2))

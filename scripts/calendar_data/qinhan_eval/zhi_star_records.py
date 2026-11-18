@@ -568,11 +568,18 @@ def regime_of(year, regimes):
     return [r for y, r in regimes if y <= year][-1]
 
 
-def section_text(title, head, stop, corrections=()):
+# 点校本补字「〔朔〕」（维基文库《元史》等「丙申〔朔〕」）：原文无「朔」，点校者据推算补入，不是明书朔日。纪日节以此不可见符号
+# 标在「朔」后，纪日记 buzi = 1（verify_benji_rili 等不作明书朔日检验），输出文字还原作「〔朔〕」
+BUZI = "\u2063"
+
+
+def section_text(title, head, stop, corrections=(), mark_buzi=False):
     t = hh.fetch(title)
     t = re.sub(r"-\{([^{}]*)\}-", r"\1", t)  # 维基文库繁简转换标记「-{丑}-」
     t = re.sub(r"\[\[(?:[^\[\]|]*\|)?([^\[\]|]*)\]\]", r"\1", t)  # 维基链接「改元[[w:乾統|乾統]]」「[[w:韓綜|綜]]」取显示文字
     t = t.replace("{{gap}}", "")  # 段首缩进模板（《三国志》），留着会使「{{gap}}五鳳元年」超出日期前缀长度
+    if mark_buzi:
+        t = t.replace("〔朔〕", "朔" + BUZI)
     # 点校本改字：「十（二）〔一〕月」删圆括号内字、补方括号内字，取改正后文字
     t = re.sub(r"（[^（）〔〕\n]{1,8}）(?=〔)", "", t)
     t = re.sub(r"〔([^〔〕\n]{1,8})〕", r"\1", t)
@@ -691,7 +698,8 @@ def main(book):
                           year=year, month=("闰" if leap else "") + (str(mon) if mon else ""), month_name=mon_name or "",
                           leap=int(leap), ganzhi=gz, calendar=calendar_label(calendar_of(year, cfg, cur_regime)),
                           in_month=int(s0 + off < e0), jdn=s0 + off if s0 + off < e0 else "", julian=f"{y0}-{m0:02d}-{d0:02d}",
-                          position=pos_mark, text=sent.strip()[:60]))  # position：「某月某朔」明书朔日者记「朔」
+                          position=pos_mark, buzi=buzi_mark if pos_mark == "朔" else 0,
+                          text=sent.strip()[:60]))  # position：「某月某朔」明书朔日者记「朔」；buzi：其「朔」为点校本补字
 
     # 节：凌犯（sections）、只取日月食（eclipse_sections）、只取纪日（date_sections，第四项为该卷政权）
     sections = [(sec, "star") for sec in cfg["sections"]] + [(sec, "eclipse") for sec in cfg.get("eclipse_sections", [])] + \
@@ -704,8 +712,9 @@ def main(book):
         default_body = NAMES[sec[3]] if len(sec) > 3 and sec[3] and not date_only else None
         solar_dates = len(sec) > 4 and sec[4] == "solar_dates"  # 节内带朔日期即日食（《旧唐书》）
         pos_mark, last_ecl, last_ecl_sent = "", None, -1
+        buzi_mark = 0
         last_target = None
-        text = section_text(title, head, stop, cfg.get("corrections", ()))
+        text = section_text(title, head, stop, cfg.get("corrections", ()), mark_buzi=date_only)
         if cfg.get("simplified"):
             text = _OPENCC.convert(text)  # 简体原文（维基文库《明史》天文志）转繁体，与年号表繁体写法、本解析器正则一致
         carried = (era_start, era_label, cur_regime, prev_year, yr, mon, mon_name, leap, hou) if prev_eclipse_only else None
@@ -764,6 +773,8 @@ def main(book):
                 sent_no += 1
                 for clause in expand_together(re.split(r"[，；：「」『』\s]", DATE_AND.sub("，§", sent)), DATE):
                     clause = clause.strip("　 ")
+                    buzi_clause = BUZI in clause
+                    clause = clause.replace(BUZI, "")
                     if not clause:
                         continue
                     clause = re.sub(r"十有(?=[一二三四五六七八九])", "十", clause)  # 「十有六年」「十有一月」（《魏书》等）
@@ -892,6 +903,7 @@ def main(book):
                             fresh_sentence = sent_no
                         if m["gz"] or m["mon"] or m["leap"] or m["day"] or m["day0"]:
                             pos_mark = "朔" if "朔" in clause else ("晦" if "晦" in clause else "")
+                            buzi_mark = int(pos_mark == "朔" and buzi_clause)
                         if solar_dates and m["gz"] and pos_mark == "朔":
                             # 《旧唐书·災異》日食以朔日列举（「武德元年十月壬申朔，四年八月丙戌朔……」），不另书「日食」
                             last_ecl = add_eclipse("solar", sent, "", "不蝕" if re.search(r"不[蝕食]", sent) else "")
@@ -1010,7 +1022,7 @@ def main(book):
     for r in rows:
         for k, v in r.items():
             if isinstance(v, str):
-                r[k] = v.replace(",", "，").replace('"', "＂").replace("\n", " ").replace("\r", "")
+                r[k] = v.replace(",", "，").replace('"', "＂").replace("\n", " ").replace("\r", "").replace("朔" + BUZI, "〔朔〕").replace(BUZI, "")
     if rows:  # 只取日月食的调试配置可无凌犯记录
         with open(out_path, "w", encoding="utf-8", newline="") as f:
             w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
@@ -1022,13 +1034,13 @@ def main(book):
         with open(ddir / f"{book}.csv", "w", encoding="utf-8", newline="") as f:
             w = csv.DictWriter(f, fieldnames=list(dates[0].keys()))
             w.writeheader()
-            w.writerows([{k: (v.replace(",", "，") if isinstance(v, str) else v) for k, v in d.items()} for d in dates])
+            w.writerows([{k: (v.replace(",", "，").replace("朔" + BUZI, "〔朔〕").replace(BUZI, "") if isinstance(v, str) else v) for k, v in d.items()} for d in dates])
         print(f"本纪纪日/{book}.csv", len(dates), "条，干支不在月", sum(not d["in_month"] for d in dates))
     if leap_marks:
         with open(ROOT / "data/calendar/本纪纪日" / f"{book}_閏月.csv", "w", encoding="utf-8", newline="") as f:
             w = csv.DictWriter(f, fieldnames=list(leap_marks[0].keys()))
             w.writeheader()
-            w.writerows([{k: (v.replace(",", "，") if isinstance(v, str) else v) for k, v in d.items()} for d in leap_marks])
+            w.writerows([{k: (v.replace(",", "，").replace("朔" + BUZI, "〔朔〕").replace(BUZI, "") if isinstance(v, str) else v) for k, v in d.items()} for d in leap_marks])
         print(f"本纪纪日/{book}_閏月.csv", len(leap_marks), "条")
     for kind, recs in eclipses.items() if cfg.get("eclipses", True) else ():
         dst = ROOT / f"data/phenomena/{book}_{kind}_eclipses.csv"
@@ -1037,7 +1049,7 @@ def main(book):
         for r in recs:
             for k, v in r.items():
                 if isinstance(v, str):
-                    r[k] = v.replace(",", "，").replace('"', "＂").replace("\n", " ")
+                    r[k] = v.replace(",", "，").replace('"', "＂").replace("\n", " ").replace("朔" + BUZI, "〔朔〕").replace(BUZI, "")
         with open(dst, "w", encoding="utf-8", newline="") as f:
             w = csv.DictWriter(f, fieldnames=list(recs[0].keys()))
             w.writeheader()
