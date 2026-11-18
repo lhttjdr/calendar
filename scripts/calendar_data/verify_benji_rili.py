@@ -128,7 +128,9 @@ def main():
         o["他书同记"] = "、".join(sorted(by[(o["年"], o["月"], o["本纪朔"])] - {o["书"]}))
     with open(ROOT / "data/calendar/benji_shuo_check.csv", "w", encoding="utf-8", newline="") as f:
         f.write("# 本纪明书朔日与张表（及同系推步表）比对（scripts/calendar_data/verify_benji_rili.py）；差 = 本纪朔 − 该表朔（日）。\n")
-        w = csv.DictWriter(f, fieldnames=list(out[0].keys()))
+        # 列序固定（按首行键序会随首条是否不合而变：「类」「张表朔 JDN」只在不合时先插入）
+        w = csv.DictWriter(f, fieldnames=["书", "朝代", "政权", "年", "纪年", "月", "本纪朔", "张表", "张表朔 JDN", "本纪朔 JDN", "类",
+                                          "本项目推步", "上游推步", "日食", "原文", "旁证（张表/本纪朔）", "他书同记"])
         w.writeheader()
         w.writerows(out)
     print("一、明书朔日" + ("（剔除点校本补字「〔朔〕」：" + "、".join(f"{b} {n} 条" for b, n in buzi_skipped.items()) + "）" if buzi_skipped else ""))
