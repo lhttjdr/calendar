@@ -58,7 +58,7 @@
 | `gregorian` | 公历与 JD |
 | `historical` | `ShuoriTable`：张表朔日 CSV；`year_data_from_months` 由逐月朔日构造岁数据 |
 | `artifacts` | 实物历日（《宝祐四年会天历》1256） |
-| `dingshuo` | 唐至明定朔诸历推步与排月（移植自 `scripts/calendar_data/*_dingshuo.py`，以 `dingshuo_reference.csv` 逐月核对） |
+| `dingshuo` | 唐至明定朔诸历推步与排月（移植自 `scripts/calendar_data/*_dingshuo.py`，以 `dingshuo_reference.csv` 逐月核对）；唐宋诸历步交会与「有交不进」「正月有交」（`JiaoOptions`，移植自 `jiaohui.py`，以 `jiaohui_reference.csv` 核对） |
 | `song_early` | 宋初应天、乾元、仪天三历推步与排月（移植自 `scripts/calendar_data/song_early_dingshuo.py`，读法据王应伟《中国古历通解》） |
 | `shixian` | 清时宪历《历象考成后编》推步：日躔、月离、节气、合朔、置闰，合朔中气化用时定日（移植自 `scripts/calendar_data/shixian_houbian.py`，以 `shixian_houbian_check.csv` 核对） |
 | `shixian_xinfa` | 清初时宪历汤若望新法（1645—1725）：照《新法算书》日躔、月离表推定朔、节气（移植自 `scripts/calendar_data/shixian_xinfa.py`，表在 `data/calendar/xinfa_yueli_tables/`） |

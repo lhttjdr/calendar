@@ -332,7 +332,11 @@ in_month（日干支在该历所记之月）、jdn、julian、position（原文�
 |---|---|---|
 | `dingshuo_reference.csv` | `scripts/calendar_data/export_dingshuo_reference.py` | 唐至明定朔诸历复原（Python）的定朔：历、日法、上元日序 → JDN 之差、冬至岁、自天正经朔起第 m 月、定朔分（精确分数）。每历隔 3 岁取样，供 `rust/core/src/calendar/dingshuo.rs` 逐月核对 |
 | `dingshuo_song_tables.csv` | 同上 | 宋诸历日躔（气序、朏朒积、符号、定初率、日差）与月离表（日序、朏朒积、损益率；分段日为初数、初率、末率），自维基文库底本解析并经校改，Rust 内嵌读入 |
-| `dingshuo_exceptions.csv` | 手录（依据见 `tang_shuo_kaozheng.csv`、`wudai_shuo_kaozheng.csv`、`song_shuo_kaozheng.csv`） | 定朔诸历史载例外：历、年、月、闰、调整后朔日 JDN 与干支、调整（进 / 不进 / 退 / 置闰）、依据。`dingshuo.rs` 排月时应用并核对 JDN；「有交不进朔」「正月有交令食在晦」因无入交推步只收史载已考之月，属近似 |
+| `dingshuo_exceptions.csv` | 手录（依据见 `tang_shuo_kaozheng.csv`、`wudai_shuo_kaozheng.csv`、`song_shuo_kaozheng.csv`） | 定朔诸历史载例外：历、年、月、闰、调整后朔日 JDN 与干支、调整（进 / 不进 / 退 / 置闰）、依据。`dingshuo.rs` 排月时应用并核对 JDN；「有交不进朔」「正月有交令食在晦」2026-11-18 起按各历步交会推得（见 `jiaohui_reference.csv`），本表只留规则推不出之史载月 |
+| `jiaohui_reference.csv` | `scripts/calendar_data/jiaohui.py` | 唐宋诸历入交定与日食判定（Python）：历、冬至岁、自天正经朔起第 m 月、入交定分（精确分数）、蚀、阴历、食甚、定用（宣明、宋诸历）。每历隔 3 岁取样，供 `dingshuo.rs` 测试 `jiaohui_matches_python_reference` 逐月核对 |
+| `jiaohui_eclipse_check.csv` | `rust/core/examples/jiaohui_eclipse_check.rs` | 史载日食（新旧唐书、新旧五代史、宋史，同日合并）逐条：所在历之定朔、日出、入交定、去交、阴阳历、入食限、昼、术蚀、食甚、排月朔 |
+| `jiaohui_jinshuo_months.csv` | 同上 | 各历入食限而过进朔限、或在正月之月：定朔、日出入、去交、术蚀、食甚、排月朔与张表、本纪、史载日食对照 |
+| `jiaohui_options_eval.csv` | `rust/core/examples/jiaohui_options_eval.rs` | 交会规则各选项（`JiaoOptions`）逐历与张表同日数、本纪合数 |
 | `beichao_shuo_kaozheng.csv` | 手录 | 北朝、隋本纪明书朔日推步不合之条与北周 559—565 年闰位逐条考证：历、年、月、闰、本纪朔、推步朔、张表朔、上游朔、证据出处、原文、结论（见 `doc/calendar/push-algorithms.md` §3.7） |
 | `zhongyuan_reckoning_eval.csv` | `rust/core/examples/zhongyuan_reckoning_eval.rs` | 中原一线逐历：月数、与张表同日之月、闰位不同之岁、本纪明书朔日条数、合推步、合张表、只合其一 |
 | `zhongyuan_reckoning_benji.csv` | 同上 | 推步与张表不同、或本纪只合其一之条 |
