@@ -845,6 +845,8 @@ def main() -> None:
                     "note": note,
                 }
             )
+            if regime != regime0:
+                OPENING_REGIME[(y, regime)] = regime0
             fix = MANUAL_PRIMARY_FIXES.get((y, regime0)) or MANUAL_PRIMARY_FIXES.get((y, regime))
             if fix:
                 rows[-1].update(fix["fields"])
@@ -1287,6 +1289,10 @@ def fill_emperor_names(rows: list[dict]) -> None:
         print("emperor_personal_names.csv 未匹配到任何行（可能是本名表里写错了帝号）：", unused)
 
 
+# 改朝之年 (年, 年末新朝) → 年初旧朝：改元日表按年初之朝记（220 年「汉 献帝 建安→延康→黄初」），合并表该年改记年末新朝（魏）
+OPENING_REGIME: dict[tuple[int, str], str] = {}
+
+
 def fill_earlier_eras_from_gaiyuan_day(rows: list[dict]) -> None:
     """gaiyuan_earlier_eras：该年除主年号（era_name）与改元前年号（gaiyuan_prev_era_name）之外行用过的年号，「名年数」以 / 相隔、
     按先后。方诗铭表单元格三段以上者已在 forward_fill_column 取得；此处再按改元日表 data/calendar/era_gaiyuan_day.csv 补
@@ -1306,6 +1312,8 @@ def fill_earlier_eras_from_gaiyuan_day(rows: list[dict]) -> None:
     for r in rows:
         r.setdefault("gaiyuan_earlier_eras", "")
         ch = chains.get((r["lunar_year"], r["regime"]))
+        if not ch and r["is_primary"]:
+            ch = chains.get((r["lunar_year"], OPENING_REGIME.get((r["lunar_year"], r["regime"]), "")))
         if not ch:
             continue
         have = [x for x in r["gaiyuan_earlier_eras"].split("/") if x]

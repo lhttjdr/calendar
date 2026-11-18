@@ -10,7 +10,7 @@ fn main() {
     let mut n = 0;
     for (regime, y0, y1, _) in regime_calendars() {
         for y in y0..=y1 {
-            // 术不传、不推步之年（如北周 559—565 明克让历）不导出
+            // 无推步之年（历术函数给空表者）不导出
             let Some((cal, months)) = regime_year_months(regime, y) else { continue };
             for (jdn, m, leap) in months {
                 let (gy, gm, gd) = civil_from_jdn(jdn);
