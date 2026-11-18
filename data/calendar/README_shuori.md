@@ -160,9 +160,9 @@
 （「推步」「实历」等术语与证据层级见 `doc/calendar/calendar-compendium.md`。）
 
 张表以外、按推步得出的各政权逐月朔日：蜀（四分历 221–263）、吴（乾象历 222–280）、后秦（三纪历 384–416）、北凉（玄始历 398–439）、
-北魏—西魏—北周—隋（景初、玄始、正光、天和、大象、开皇历 398–590；559–565 年明克让等周历术不传，以正光历代推，calendar 列作「明克让等周历（术不传，以正光历代推）」）、东魏—北齐（正光、兴和、天保历 534–577）、金（重修大明历定朔、进朔 1137–1234，1182 年前杨级历以之代推）。
+北魏—西魏—北周—隋（景初、玄始、正光、天和、大象、开皇历 398–590；559–565 年明克让等周历术不传，以正光历代推，calendar 列作「明克让等周历（术不传，以正光历代推）」）、东魏—北齐（正光、兴和、天保历 534–577）、金（重修大明历定朔、进朔 1137–1234，1182 年前杨级历以之代推）、辽（947–1087，调元历与贾俊大明历术不传，以宣明历定朔、进朔代推，calendar 列作「调元历（宣明气朔）」「大明历（贾俊，以宣明代推）」；1088 年后闰位从宋，不推）、南明（大统历 1645–1683）、民间通书（1914–1938）。
 由 `rust/core/examples/export_regime_calendars.rs` 从 `calendar::push_calendar`（平朔、平气、无中气置闰，见
-`doc/calendar/push-algorithms.md`；金为定朔、恒气置闰，`calendar::daming_li`，见 `doc/calendar/historical-calendar.md`「金大明历」）
+`doc/calendar/push-algorithms.md`；金为定朔、恒气置闰，`calendar::daming_li`，见 `doc/calendar/historical-calendar.md`「金大明历」；辽见 `doc/calendar/calendar-compendium.md`「辽」）
 导出；本项目推算所得，不是上游原表。
 
 | 列名 | 含义 |

@@ -410,7 +410,7 @@ impl Paiyue {
     }
 
     fn span(&self) -> (i32, i32) {
-        let spans = REGISTRY.iter().filter(|(n, _)| self.names.contains(n)).flat_map(|(_, s)| s.iter());
+        let spans = REGISTRY.iter().chain(REGIME_REGISTRY).filter(|(n, _)| self.names.contains(n)).flat_map(|(_, s)| s.iter());
         let (a, b) = spans.fold((i32::MAX, i32::MIN), |(a, b), &(x, y)| (a.min(x), b.max(y)));
         (a - 2, b + 2)
     }
@@ -2197,6 +2197,15 @@ const REGISTRY: &[(&str, &[(i32, i32)])] = &[
     ("大统历", &[(1368, 1644), (1666, 1668)]),
 ];
 
+/// 中原一线以外分政权所用之定朔历（不入 [REGISTRY]，只经 [reckon_year_any] 取）：(历名, 排月年段)。
+const REGIME_REGISTRY: &[(&str, &[(i32, i32)])] = &[
+    // 辽 947—1087：大同元年得后晋调元历（马重绩「以《宣明》氣朔」），统和十二年（994）贾俊大明历，术皆不传，以宣明代推。
+    // 《辽史·历象志下》「朔考」序：宋元丰元年诏司天监考辽历，「遼己未歲（1079）氣朔與《宣明曆》合」。1088 年起本纪闰位合宋历、
+    // 不合宣明（日本宣明历同年闰位全合推步），辽后期另有所改，术不传，不推。细则同宣明（三大三小、有交应见亏初不进）；
+    // 五代 937、938 正月有交退日与例外表皆不及。见 doc/calendar/calendar-compendium.md「辽」。
+    ("宣明历（辽）", &[(947, 1087)]),
+];
+
 /// 「使不過三大二小」
 /// 唐大衍一系「使不過三大三小」（大衍术注原文；钱宝琮校作「三大二小」）。取原文：二小之读使宣明（含五代宣明气朔）强进
 /// 约二十余月，大衍本纪 61 不变、五纪 48→46、宣明 302→300、五代 332→329，张表同日亦减；三小、只限三大两读结果全同
@@ -2265,6 +2274,7 @@ fn build_paiyue(name: &str, o: &JiaoOptions) -> Option<Paiyue> {
             &["宣明历", "崇玄历（宣明气朔）", "调元历（宣明气朔）"],
             Rules { jiao_bujin: o.xuanming, zhengyue_jiao: zy(WUDAI_ZHENGYUE_JIAO, &[(822, 906, 1), (907, 956, -1)]), ..TANG_RUNS },
         ),
+        "宣明历（辽）" => Paiyue::new(xuanming(), &["宣明历（辽）"], Rules { jiao_bujin: o.xuanming, ..TANG_RUNS }),
         "崇天历" => Paiyue::new(song("崇天", 10590, 3867940, q(312729), qr(2918030594, 10000), 97556340, 1024, 0, true, None, (1023, 12, 18)), &["崇天历"], song_r),
         "明天历" => {
             let dz = Mingtian::tong(1064).div_euclid(MT_F);
@@ -2296,7 +2306,7 @@ fn paiyue_with(name: &str, o: &JiaoOptions) -> Option<&'static Paiyue> {
         "崇玄历（宣明气朔）" | "调元历（宣明气朔）" => "宣明历",
         _ => name,
     };
-    let key: &'static str = REGISTRY.iter().map(|(n, _)| *n).find(|n| *n == key)?;
+    let key: &'static str = REGISTRY.iter().chain(REGIME_REGISTRY).map(|(n, _)| *n).find(|n| *n == key)?;
     let mut m = C.get_or_init(Default::default).lock().unwrap();
     if let Some(p) = m.get(&(key, *o)) {
         return Some(p);
@@ -2400,7 +2410,7 @@ pub fn jiao_months(name: &str) -> Option<Vec<JiaoMonth>> {
         Some(p) => p.names.to_vec(),
         None => vec![name],
     };
-    let spans = REGISTRY.iter().filter(|(n, _)| names.contains(n)).flat_map(|(_, s)| s.iter());
+    let spans = REGISTRY.iter().chain(REGIME_REGISTRY).filter(|(n, _)| names.contains(n)).flat_map(|(_, s)| s.iter());
     let (a, b) = spans.fold((i32::MAX, i32::MIN), |(a, b), &(x, y)| (a.min(x), b.max(y)));
     let (y0, y1) = (a - 2, b + 2);
     let raw = raw_months(li, y0, y1);

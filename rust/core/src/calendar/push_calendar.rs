@@ -307,8 +307,18 @@ pub fn regime_calendars() -> Vec<(&'static str, i32, i32, RegimeYearFn)> {
             ("大统历", super::dingshuo::reckon_year_any("大统历", y).unwrap_or_default())
         }
     }
+    // 辽（947—1087）：大同元年（947）得后晋调元历，即马重绩「以《宣明》氣朔，《崇元》星緯」，气朔用宣明；统和十二年（994）
+    // 贾俊进《大明历》，术不传。《辽史·历象志》所载大明历是修史者以祖冲之法充之（志自言「歷書法禁不可得」），本纪不合（平朔）；
+    // 宋元丰元年司天监考辽历「遼己未歲（1079）氣朔與《宣明曆》合」，苏颂熙宁十年使辽「其國曆後宋曆一日」（冬至）亦合宣明，
+    // 故 994 年后仍以宣明代推。1088 年起本纪闰位六年合宋不合宣明，辽历另有所改而术不传，不推（日面板仍取张表）。
+    // 见 doc/calendar/calendar-compendium.md「辽」与 data/calendar/liao_shuo_kaozheng.csv。
+    fn liao(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        let months = super::dingshuo::reckon_year_any("宣明历（辽）", y).unwrap_or_default();
+        (if y < 994 { "调元历（宣明气朔）" } else { "大明历（贾俊，以宣明代推）" }, months)
+    }
     vec![
         ("南明/南明·绍武/鲁监国/明郑", 1645, 1683, nanming),
+        ("辽", 947, 1087, liao),
         ("民间通书", 1914, 1938, minjian),
         ("蜀", 221, 263, shu),
         ("吴", 222, 280, wu),
@@ -601,6 +611,28 @@ mod tests {
         let first = |y: i32, m: u8| reckon_mingzheng(y).into_iter().find(|e| e.1 == m && !e.2).map(|e| e.0);
         assert_eq!(first(1671, 1), Some(jdn(1671, 2, 10)), "1671 正月甲寅");
         assert_eq!(first(1677, 7), Some(jdn(1677, 7, 30)), "1677 七月丙子");
+    }
+
+    /// 辽（947—1087，宣明代推）：本纪明书朔日中宣明合而宋历（张表）不合者，及宣明闰位为本纪所证之年；1088 年起不推
+    #[test]
+    fn liao_follows_xuanming() {
+        use crate::calendar::gan_zhi::GAN_ZHI_60;
+        let shuo = |y: i32, m: u8, leap: bool| {
+            let (_, ms) = regime_year_months("辽", y).unwrap();
+            let j = ms.into_iter().find(|e| e.1 == m && e.2 == leap).unwrap().0;
+            GAN_ZHI_60[(j + 49).rem_euclid(60) as usize]
+        };
+        assert_eq!(shuo(994, 1, false), "癸丑", "统和十二年正月癸丑朔（宋历进作甲寅）");
+        assert_eq!(shuo(1022, 2, false), "辛丑", "太平二年二月辛丑朔（宋历庚子）");
+        assert_eq!(shuo(1040, 5, false), "乙卯", "重熙九年五月乙卯朔（宋历甲寅）");
+        assert_eq!(shuo(1059, 6, false), "甲子", "清宁五年六月甲子朔（宋历癸亥）");
+        let leap = |y: i32| regime_year_months("辽", y).unwrap().1.into_iter().find(|e| e.2).map(|e| e.1);
+        assert_eq!(leap(1001), Some(11), "统和十九年閏月己酉（宋历閏十二月）");
+        assert_eq!(leap(1077), Some(12), "大康三年閏十二月（宋历次年閏正月）");
+        assert_eq!(leap(1080), Some(8), "大康六年九月壬寅（宋历閏九月）");
+        assert_eq!(regime_year_months("辽", 993).unwrap().0, "调元历（宣明气朔）");
+        assert_eq!(regime_year_months("辽", 994).unwrap().0, "大明历（贾俊，以宣明代推）");
+        assert!(regime_year_months("辽", 946).is_none() && regime_year_months("辽", 1088).is_none());
     }
 
     #[test]
