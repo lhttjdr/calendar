@@ -148,7 +148,7 @@ pub enum ZhongyuanPreference {
 /// 大衍分段进朔限、史载例外表、乾元仪天读法 D 与行用年段，见 `dingshuo`、`song_early`）后，戊寅、麟德、大衍、乾元、仪天、崇天、
 /// 观天、成天推步与张表本纪合数相等，移出此表（改取推步）。2026-11-18 据唐宋存疑考证补例外表（774 年正月、927 年七月）、
 /// 五代 893—938、944—956 以崇玄恒气定闰（904 年闰四月）后，五纪、崇玄（宣明气朔）与张表持平，移出。
-pub const RECKONING_BELOW_TABLE: &[&str] = &["正元历", "宣明历", "应天历", "授时历", "时宪历"];
+pub const RECKONING_BELOW_TABLE: &[&str] = &["宣明历", "应天历", "授时历", "时宪历"];
 
 /// 现行农历的历名前缀（`zhongyuan_calendar_periods.csv`）：其规则即定气定朔，现算就是按术推步。
 const MODERN_RULE_PREFIX: &str = "农历（GB/T 33661";
@@ -611,7 +611,8 @@ shoushi,授时历,1281,,元,郭守敬,儒略历+格里高利历,lifa_tongzhi
         assert_eq!(src(300, r), Some(RiliSource::Reckoned("景初历")));
         assert_eq!(src(300, ZhongyuanPreference::ModernTable), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)));
         assert_eq!(src(700, r), Some(RiliSource::Reckoned("麟德历")), "麟德补正月进朔、史载移闰后本纪与张表持平，取推步");
-        assert_eq!(src(800, r), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)), "正元推步不及张表，取张表");
+        assert_eq!(src(800, r), Some(RiliSource::Reckoned("正元历")), "正元补 791 年墓志例外后本纪与张表持平，取推步");
+        assert_eq!(src(850, r), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)), "宣明推步不及张表，取张表");
         assert_eq!(src(-104, r), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)), "元封六年，颛顼历未实现");
         assert_eq!(src(-103, r), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)), "太初元年五月改历，推步不覆盖");
         assert_eq!(src(-102, r), Some(RiliSource::Reckoned("太初历（三统历）")));
