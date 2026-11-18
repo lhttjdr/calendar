@@ -1,7 +1,7 @@
-//! 唐宋诸历交会规则（`dingshuo::JiaoOptions`）各选项之检验：逐历与张表逐月同日数、本纪明书朔日合数（取本纪之法同
+//! 唐宋诸历排月选项（`dingshuo::PaiyueOptions`：交会规则、五代定闰中气）各选项之检验：逐历与张表逐月同日数、本纪明书朔日合数（取本纪之法同
 //! `zhongyuan_reckoning_eval`：除辽金北朝本纪、「其他」类），供定缺省。输出 data/calendar/jiaohui_options_eval.csv。
 //! 用法（仓库根）：cargo run --release --manifest-path rust/Cargo.toml -p lunar-core --no-default-features --features real-f64 --example jiaohui_options_eval
-use lunar_core::calendar::dingshuo::{reckon_year_with, registry, JiaoBujin, JiaoOptions, ZhengyueJiao};
+use lunar_core::calendar::dingshuo::{reckon_year_with, registry, JiaoBujin, PaiyueOptions, WudaiDingqi, ZhengyueJiao};
 use lunar_core::calendar::historical::ShuoriTable;
 use std::fmt::Write as _;
 
@@ -56,19 +56,21 @@ fn main() {
         let Ok(m) = m.parse::<u8>() else { continue };
         benji.push((y, m, leap, rec));
     }
-    let d = JiaoOptions::default();
-    let variants: Vec<(&str, JiaoOptions)> = vec![
+    let d = PaiyueOptions::default();
+    let variants: Vec<(&str, PaiyueOptions)> = vec![
         ("缺省", d),
-        ("交会规则全不用", JiaoOptions { xuanming: None, song: None, zhengyue: ZhengyueJiao::Off }),
-        ("宣明：夜食亦不进（阴历）", JiaoOptions { xuanming: Some(JiaoBujin { yin: true, wan_min: None }), ..d }),
-        ("宣明：夜食亦不进（不限阴阳历）", JiaoOptions { xuanming: Some(JiaoBujin { yin: false, wan_min: None }), ..d }),
-        ("宣明：不限阴阳历", JiaoOptions { xuanming: Some(JiaoBujin { yin: false, wan_min: Some(80) }), ..d }),
-        ("宣明：亏初取食甚减 40 分", JiaoOptions { xuanming: Some(JiaoBujin { yin: true, wan_min: Some(40) }), ..d }),
-        ("宣明：亏初取食甚减 120 分", JiaoOptions { xuanming: Some(JiaoBujin { yin: true, wan_min: Some(120) }), ..d }),
-        ("宋：只取阴历", JiaoOptions { song: Some(JiaoBujin { yin: true, wan_min: Some(0) }), ..d }),
-        ("宋：夜食亦不进", JiaoOptions { song: Some(JiaoBujin { yin: false, wan_min: None }), ..d }),
-        ("正月有交：不用", JiaoOptions { zhengyue: ZhengyueJiao::Off, ..d }),
-        ("正月有交：大衍一系全程", JiaoOptions { zhengyue: ZhengyueJiao::All, ..d }),
+        ("交会规则全不用", PaiyueOptions { xuanming: None, song: None, zhengyue: ZhengyueJiao::Off, ..d }),
+        ("宣明：夜食亦不进（阴历）", PaiyueOptions { xuanming: Some(JiaoBujin { yin: true, wan_min: None }), ..d }),
+        ("宣明：夜食亦不进（不限阴阳历）", PaiyueOptions { xuanming: Some(JiaoBujin { yin: false, wan_min: None }), ..d }),
+        ("宣明：不限阴阳历", PaiyueOptions { xuanming: Some(JiaoBujin { yin: false, wan_min: Some(80) }), ..d }),
+        ("宣明：亏初取食甚减 40 分", PaiyueOptions { xuanming: Some(JiaoBujin { yin: true, wan_min: Some(40) }), ..d }),
+        ("宣明：亏初取食甚减 120 分", PaiyueOptions { xuanming: Some(JiaoBujin { yin: true, wan_min: Some(120) }), ..d }),
+        ("宋：只取阴历", PaiyueOptions { song: Some(JiaoBujin { yin: true, wan_min: Some(0) }), ..d }),
+        ("宋：夜食亦不进", PaiyueOptions { song: Some(JiaoBujin { yin: false, wan_min: None }), ..d }),
+        ("正月有交：不用", PaiyueOptions { zhengyue: ZhengyueJiao::Off, ..d }),
+        ("正月有交：大衍一系全程", PaiyueOptions { zhengyue: ZhengyueJiao::All, ..d }),
+        ("五代定闰：全用宣明恒气", PaiyueOptions { wudai_dingqi: WudaiDingqi::Xuanming, ..d }),
+        ("五代定闰：893—956 全程崇玄恒气（含调元段）", PaiyueOptions { wudai_dingqi: WudaiDingqi::ChongxuanAll, ..d }),
     ];
     let reg = registry();
     let mut out = String::from("选项,历,月数,与张表同,本纪条数,本纪合推步\n");

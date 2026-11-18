@@ -12,7 +12,7 @@
 //!   唐大衍术注「使不過三大三小」（钱宝琮校作「三大二小」，本项目取原文，见 [TANG_RUNS]），五纪、正元、宣明承之。
 //!   逐月推：进朔会成连大超限则不进，不进会成连小超限则进，只改当月。
 //! - 麟德正月进朔（[Rules::zhengyue]）：684 年「詔二年元日用甲申，故進以癸未晦」，此后正月定朔过戌初（19 时）者进；他月不进。
-//! - 交会（[JiaoOptions]，2026-11-18 起）：照各历「步交會」求定朔入交定（[Jiaohui]，常数见 [JiaoConst] 诸处与 `song_jiao`），
+//! - 交会（[PaiyueOptions]，2026-11-18 起）：照各历「步交會」求定朔入交定（[Jiaohui]，常数见 [JiaoConst] 诸处与 `song_jiao`），
 //!   宣明、崇天另照志文日蚀术判有蚀与食甚（[Rishi]）。宣明「或有交，應見虧初，則否」、宋诸历「有食應見者，其朔不進」（[JiaoBujin]）：
 //!   过进朔限而有食、亏初不晚于日入者不进；大衍术注「正月朔有交、加時正見者……令虧在晦、二」只在史载有据之年
 //!   （[TANG_ZHENGYUE_JIAO]、[WUDAI_ZHENGYUE_JIAO]）。检验见 `examples/jiaohui_eclipse_check.rs`、`examples/jiaohui_options_eval.rs`，
@@ -88,6 +88,10 @@ pub trait DingshuoLi: Send + Sync {
     fn forced_leaps(&self) -> &[i64] {
         &[]
     }
+    /// 冬至岁 y 的十三中气（恒气，天正冬至起至下一冬至）所在日 JDN，排月定闰用。缺省按本历冬至、岁实十二等分
+    fn zhongqi(&self, y: i32) -> Vec<i64> {
+        zhongqi_hengqi(self, y)
+    }
     /// 冬至岁 y 第 m 月定朔加时之入交（[Jiaohui]）；None 为本历未复原步交会
     fn jiao(&self, _y: i32, _m: i64) -> Option<Jiaohui> {
         None
@@ -100,6 +104,13 @@ pub trait DingshuoLi: Send + Sync {
     fn rishi(&self, _y: i32, _m: i64) -> Option<Rishi> {
         None
     }
+}
+
+/// 冬至岁 y 的十三恒气中气所在日 JDN：天正冬至加岁实 k/12（k = 0..=12）
+fn zhongqi_hengqi<L: DingshuoLi + ?Sized>(li: &L, y: i32) -> Vec<i64> {
+    let f = q(li.f());
+    let (dz, sui) = (li.dongzhi(y), li.sui());
+    (0..=12).map(|k| fl(&((&dz + &sui * qr(k, 12)) / &f)) + li.off()).collect()
 }
 
 /// 照本历日蚀术判得之日食
@@ -398,6 +409,8 @@ struct Paiyue {
     /// 此历在 [REGISTRY] 与例外表中的历名
     names: &'static [&'static str],
     rules: Rules,
+    /// 定闰另用他历恒气中气之冬至岁段：(他历, [(起冬至岁, 止冬至岁)])。五代「宣明、崇玄參而成之」：朔用宣明定朔，中气用崇玄（[WudaiDingqi]）
+    zhongqi_li: Option<(Box<dyn DingshuoLi>, &'static [(i32, i32)])>,
     /// 细则全用：(朔日, 置闰之月)
     full: std::sync::OnceLock<(Vec<i64>, Vec<i64>)>,
     /// 只按术文进朔（旧做法，麟德「不過頻三」照旧）
@@ -406,7 +419,15 @@ struct Paiyue {
 
 impl Paiyue {
     fn new(li: impl DingshuoLi + 'static, names: &'static [&'static str], rules: Rules) -> Self {
-        Paiyue { li: Box::new(li), names, rules, full: Default::default(), plain: Default::default() }
+        Paiyue { li: Box::new(li), names, rules, zhongqi_li: None, full: Default::default(), plain: Default::default() }
+    }
+
+    /// 冬至岁段 spans 内定闰改用 qi 历之恒气中气
+    fn with_zhongqi(mut self, qi: impl DingshuoLi + 'static, spans: &'static [(i32, i32)]) -> Self {
+        if !spans.is_empty() {
+            self.zhongqi_li = Some((Box::new(qi), spans));
+        }
+        self
     }
 
     fn span(&self) -> (i32, i32) {
@@ -540,6 +561,12 @@ impl DingshuoLi for Paiyue {
     fn forced_leaps(&self) -> &[i64] {
         &self.days(true).1
     }
+    fn zhongqi(&self, y: i32) -> Vec<i64> {
+        match &self.zhongqi_li {
+            Some((qi, spans)) if spans.iter().any(|&(a, b)| (a..=b).contains(&y)) => qi.zhongqi(y),
+            _ => self.li.zhongqi(y),
+        }
+    }
 }
 
 /// [Paiyue] 只按术文进朔之视图（旧做法）
@@ -580,7 +607,6 @@ impl DingshuoLi for Shuwen {
 
 /// 冬至岁 y 的月：(朔日 JDN, 月序, 闰否)，自含冬至之月（十一月）起至下一含冬至之月前。
 fn sui_months(li: &dyn DingshuoLi, y: i32) -> Vec<(i64, u8, bool)> {
-    let off = li.off();
     // 每个经朔只由其所在冬至岁算一次（经朔 < 下一冬至岁天正经朔），免得相邻两岁所算定朔微异而重出
     let mut days: Vec<i64> = match li.fixed_days() {
         Some(all) => all.to_vec(),
@@ -588,9 +614,7 @@ fn sui_months(li: &dyn DingshuoLi, y: i32) -> Vec<(i64, u8, bool)> {
     };
     days.sort_unstable();
     days.dedup();
-    let sui = li.sui();
-    let f = q(li.f());
-    let zq: Vec<i64> = (0..=12).map(|k| fl(&((li.dongzhi(y) + &sui * qr(k, 12)) / &f)) + off).collect();
+    let zq = li.zhongqi(y);
     let (dz0, dz1) = (zq[0], zq[12]);
     let contains = |i: usize, d: i64| days[i] <= d && d < days[i + 1];
     let i0 = (0..days.len() - 1).find(|&i| contains(i, dz0)).expect("含冬至之月");
@@ -2213,17 +2237,38 @@ const REGIME_REGISTRY: &[(&str, &[(i32, i32)])] = &[
 const TANG_RUNS: Rules = Rules { runs: Some((3, 3)), pin_san: false, zhengyue: None, jiao_bujin: None, zhengyue_jiao: &[] };
 const SAN_DA_ER_XIAO: Rules = Rules { runs: Some((3, 2)), pin_san: false, zhengyue: None, jiao_bujin: None, zhengyue_jiao: &[] };
 
-/// 交会诸规则之选项（排月细则中「有交不进」「正月朔有交」两项）。缺省 [JiaoOptions::default] 依本纪检验而定，见
-/// `doc/calendar/calendar-compendium.md`「交会与进朔」。
+/// 排月选项：交会诸规则（「有交不进」「正月朔有交」）与五代定闰所用中气（[WudaiDingqi]）。缺省 [PaiyueOptions::default]
+/// 依本纪检验而定，见 `doc/calendar/calendar-compendium.md`「交会与进朔」「唐宋诸历本纪不合之考证」。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct JiaoOptions {
+pub struct PaiyueOptions {
     /// 宣明（含五代宣明气朔）「或有交，應見虧初，則否」；None 不用
     pub xuanming: Option<JiaoBujin>,
     /// 宋诸历「有食應見者，其朔不進」；None 不用
     pub song: Option<JiaoBujin>,
     /// 大衍术注「正月朔有交、加時正見者……令虧在晦、二」
     pub zhengyue: ZhengyueJiao,
+    /// 五代「崇玄历（宣明气朔）」定闰之中气
+    pub wudai_dingqi: WudaiDingqi,
 }
+
+/// 五代宣明气朔诸段定闰所用之中气。《旧五代史·历志》：「當時歲曆，猶用《宣明》《崇元》二法，參而成之」；后晋马重绩调元历
+/// 「以《宣明》氣朔，《崇元》星緯」。904 年（天祐元年）本纪、新唐书、旧五代史、《通鉴》（「夏四月辛巳……閏月丁酉」）皆闰四月，
+/// 宣明恒气得闰三月（日本行宣明同），崇玄恒气得闰四月：朔用宣明定朔、中气用崇玄恒气，即「參而成之」。
+/// 各段之冬至岁见 [WUDAI_CHONGXUAN_QI]、[WUDAI_CHONGXUAN_QI_ALL]；辽一路「宣明历（辽）」不在此列。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum WudaiDingqi {
+    /// 全用宣明恒气（旧做法，2026-11-18 前）
+    Xuanming,
+    /// 崇玄行用期 893—938 与复用期 944—956 用崇玄恒气，调元段 939—943 照马重绩「宣明氣朔」用宣明
+    Chongxuan,
+    /// 893—956 全程用崇玄恒气（调元段亦然），只供对照
+    ChongxuanAll,
+}
+
+/// 五代崇玄行用期（893—938）与复用期（944—956）之冬至岁
+pub const WUDAI_CHONGXUAN_QI: &[(i32, i32)] = &[(893, 938), (944, 956)];
+/// 五代 893—956 全程之冬至岁
+pub const WUDAI_CHONGXUAN_QI_ALL: &[(i32, i32)] = &[(893, 956)];
 
 /// 「正月朔有交」之适用范围
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -2237,14 +2282,15 @@ pub enum ZhengyueJiao {
     All,
 }
 
-impl Default for JiaoOptions {
+impl Default for PaiyueOptions {
     fn default() -> Self {
-        JiaoOptions {
+        PaiyueOptions {
             // 阴历之蚀、亏初（食甚减 80 分钟）不晚于日入：宣明本纪不变，五代宣明气朔张表同日 +3；夜食亦不进则本纪 −5
             xuanming: Some(JiaoBujin { yin: true, wan_min: Some(80) }),
             // 有食（崇天照志文日蚀术，余以入食限代之）、亏初（食甚减定用）不晚于日入；不限阴阳历
             song: Some(JiaoBujin { yin: false, wan_min: Some(0) }),
             zhengyue: ZhengyueJiao::Shizai,
+            wudai_dingqi: WudaiDingqi::Chongxuan,
         }
     }
 }
@@ -2255,7 +2301,7 @@ pub const TANG_ZHENGYUE_JIAO: &[(i32, i32, i64)] = &[(780, 780, 1)];
 pub const WUDAI_ZHENGYUE_JIAO: &[(i32, i32, i64)] = &[(937, 938, -1)];
 
 /// 历名 → 连同排月细则的历（按交会选项构造，宋诸历读表）。
-fn build_paiyue(name: &str, o: &JiaoOptions) -> Option<Paiyue> {
+fn build_paiyue(name: &str, o: &PaiyueOptions) -> Option<Paiyue> {
     let none = Rules::default();
     let song_r = Rules { jiao_bujin: o.song, ..SAN_DA_ER_XIAO };
     let zy = |shizai: &'static [(i32, i32, i64)], all: &'static [(i32, i32, i64)]| match o.zhengyue {
@@ -2273,6 +2319,14 @@ fn build_paiyue(name: &str, o: &JiaoOptions) -> Option<Paiyue> {
             xuanming(),
             &["宣明历", "崇玄历（宣明气朔）", "调元历（宣明气朔）"],
             Rules { jiao_bujin: o.xuanming, zhengyue_jiao: zy(WUDAI_ZHENGYUE_JIAO, &[(822, 906, 1), (907, 956, -1)]), ..TANG_RUNS },
+        )
+        .with_zhongqi(
+            chongxuan(),
+            match o.wudai_dingqi {
+                WudaiDingqi::Xuanming => &[],
+                WudaiDingqi::Chongxuan => WUDAI_CHONGXUAN_QI,
+                WudaiDingqi::ChongxuanAll => WUDAI_CHONGXUAN_QI_ALL,
+            },
         ),
         "宣明历（辽）" => Paiyue::new(xuanming(), &["宣明历（辽）"], Rules { jiao_bujin: o.xuanming, ..TANG_RUNS }),
         "崇天历" => Paiyue::new(song("崇天", 10590, 3867940, q(312729), qr(2918030594, 10000), 97556340, 1024, 0, true, None, (1023, 12, 18)), &["崇天历"], song_r),
@@ -2298,10 +2352,10 @@ fn build_paiyue(name: &str, o: &JiaoOptions) -> Option<Paiyue> {
 }
 
 /// 历名 + 交会选项 → 排月之历（惰性构造并缓存；宣明三名共一历）
-fn paiyue_with(name: &str, o: &JiaoOptions) -> Option<&'static Paiyue> {
+fn paiyue_with(name: &str, o: &PaiyueOptions) -> Option<&'static Paiyue> {
     use std::collections::HashMap;
     use std::sync::{Mutex, OnceLock};
-    static C: OnceLock<Mutex<HashMap<(&'static str, JiaoOptions), &'static Paiyue>>> = OnceLock::new();
+    static C: OnceLock<Mutex<HashMap<(&'static str, PaiyueOptions), &'static Paiyue>>> = OnceLock::new();
     let key = match name {
         "崇玄历（宣明气朔）" | "调元历（宣明气朔）" => "宣明历",
         _ => name,
@@ -2318,7 +2372,7 @@ fn paiyue_with(name: &str, o: &JiaoOptions) -> Option<&'static Paiyue> {
 
 /// 历名 → 连同排月细则的历（缺省交会选项）。
 fn paiyue_by_name(name: &str) -> Option<&'static Paiyue> {
-    paiyue_with(name, &JiaoOptions::default())
+    paiyue_with(name, &PaiyueOptions::default())
 }
 
 /// 历名 → 历（惰性构造，宋诸历读表）。
@@ -2366,7 +2420,7 @@ pub fn reckon_year_shuwen(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, b
 }
 
 /// 按历名推某农历年各月，交会诸规则按 `opts`（供检验各选项；缺省同 [reckon_year]）。不在 [paiyue_by_name] 诸历者同 [reckon_year]。
-pub fn reckon_year_with(name: &str, lunar_year: i32, opts: &JiaoOptions) -> Option<Vec<(i64, u8, bool)>> {
+pub fn reckon_year_with(name: &str, lunar_year: i32, opts: &PaiyueOptions) -> Option<Vec<(i64, u8, bool)>> {
     let (_, spans) = REGISTRY.iter().find(|(n, _)| *n == name)?;
     if !spans.iter().any(|&(a, b)| (a..=b).contains(&lunar_year)) {
         return None;
@@ -2565,6 +2619,10 @@ mod tests {
         assert_eq!(gz("成天历", 1275, 7), "庚午");
         // 消息：937 正月退作甲寅，二月随退作甲申
         assert_eq!(gz("崇玄历（宣明气朔）", 937, 2), "甲申");
+        // 五代「宣明、崇玄參而成之」：904 年宣明恒气闰三月，崇玄恒气闰四月（本纪、新唐书、旧五代史、通鉴同）
+        let leap = |o: WudaiDingqi| reckon_year_with("崇玄历（宣明气朔）", 904, &PaiyueOptions { wudai_dingqi: o, ..PaiyueOptions::default() }).unwrap().into_iter().find(|e| e.2).map(|e| e.1);
+        assert_eq!(leap(WudaiDingqi::Chongxuan), Some(4));
+        assert_eq!(leap(WudaiDingqi::Xuanming), Some(3));
         // 旧做法（只按术文进朔）仍可取
         let old = reckon_year_shuwen("崇天历", 1027).unwrap();
         assert_eq!(crate::calendar::gan_zhi::GAN_ZHI_60[(old[0].0 + 49).rem_euclid(60) as usize], "癸卯");
@@ -2606,7 +2664,7 @@ mod tests {
         assert_eq!(gz("崇天历", 1033, 6), "甲午");
         assert_eq!(gz("崇天历", 1039, 8), "庚申");
         // 规则不用时回到按术进朔
-        let off = JiaoOptions { xuanming: None, song: None, zhengyue: ZhengyueJiao::Off };
+        let off = PaiyueOptions { xuanming: None, song: None, zhengyue: ZhengyueJiao::Off, ..PaiyueOptions::default() };
         let j = reckon_year_with("崇天历", 1033, &off).unwrap().into_iter().find(|e| e.1 == 6 && !e.2).unwrap().0;
         assert_eq!(crate::calendar::gan_zhi::GAN_ZHI_60[(j + 49).rem_euclid(60) as usize], "乙未");
     }
@@ -2631,3 +2689,4 @@ mod tests {
         }
     }
 }
+
