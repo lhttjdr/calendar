@@ -1,4 +1,4 @@
-//! 导出推步政权（蜀、吴、后秦、北凉、北魏—西魏—北周—隋、东魏—北齐、金）的朔闰表到 data/calendar/推步政权朔日表.csv，
+//! 导出推步政权（蜀、吴、后秦、北凉、北魏—西魏—北周—隋、东魏—北齐、金、辽、南明、民间通书）的朔闰表到 data/calendar/推步政权朔日表.csv，
 //! 供史书检验脚本（scripts/calendar_data/gaiyuan_date.py 的 `regime_month_span`）换算中原一线以外各政权的日期。
 //! 日期为民用历（1582 年前儒略历），与实历朔日表一致。
 //! 用法（rust/ 目录）：cargo run --release -p lunar-core --example export_regime_calendars
@@ -10,7 +10,7 @@ fn main() {
     let mut n = 0;
     for (regime, y0, y1, _) in regime_calendars() {
         for y in y0..=y1 {
-            // 术不传、不推步之年（如北周 559—565 明克让历）不导出
+            // 无推步之年（历术函数给空表者）不导出
             let Some((cal, months)) = regime_year_months(regime, y) else { continue };
             for (jdn, m, leap) in months {
                 let (gy, gm, gd) = civil_from_jdn(jdn);

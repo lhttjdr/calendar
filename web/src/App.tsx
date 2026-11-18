@@ -122,7 +122,7 @@ const DAY_INFO_LAYER_GROUPS: { title: string; items: { key: DayInfoLayerKey; lab
     title: '历法',
     items: [
       { key: 'calendar_eraNames', label: '政权·年号（同年各政权）' },
-      { key: 'calendar_regimeCalendars', label: '分政权推步历（蜀汉、东吴等）' },
+      { key: 'calendar_regimeCalendars', label: '分政权与民间推步历（蜀汉、东吴、民国坊本等）' },
       { key: 'calendar_ganzhi', label: '干支历四柱' },
     ],
   },
@@ -1143,7 +1143,7 @@ function App() {
                         // 其余政权没有推步数据时不套用中原月日，如实写历日未详
                         const minguo = p.regime === '中华民国'
                         entries.push({
-                          key: `concurrent-${p.regime}`,
+                          key: `concurrent-${p.regime}-${p.era_name ?? ''}${p.era_year ?? ''}`,
                           title: `${p.regime} · ${eraStr}`,
                           date: minguo
                             ? <>{gregorianMonthDay}<LineTime format={clock} {...timeProps} /></>

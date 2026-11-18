@@ -10,7 +10,9 @@
 //! 1178 年十月），如实记录，不据以调参（2026-11-10 起：复原优先于拟合，见 doc/calendar/rili-sources.md）。
 //! 《金史》言杨级历日食「加時皆先天」「食乃後天」，其历元以本历常数不合（积年 383768657 配 1127、1137 年，冬至、闰余皆不合），
 //! 常数必有不同，故代推只是近似。
-//! 不实现：「有交，亏初在日入前者不进」（不算日食），「使不过三大二小」（只在连大连小时调整，本历 1130—1235 年无此情形）。
+//! 「使不過三大二小」（《金史》卷二十二，同崇天历文「隨其所近而進退之」）：逐月推，进朔会成连四大则不进，不进会成连三小则进，
+//! 只改当月（[runs_adjust]）。金代只 1151 年二月（代推杨级历期，进则成连四大，改不进；无本纪明书朔日可验）一处触发；
+//! 元初 1274 年六月、1275 年七月（《元史》本纪丙午、庚午朔）由此得解。2026-11-13 前不实现。不实现：「有交，亏初在日入前者不进」（不算日食）。
 
 use super::gregorian;
 use num_bigint::BigInt;
@@ -125,8 +127,8 @@ fn epoch_offset() -> i64 {
     gregorian::civil_to_jdn(1179, 12, 15) - dz
 }
 
-/// 冬至在 y−1 年之岁，自天正经朔起第 m 月的进朔后定朔日（上元日序）
-fn dingshuo_day(y: i32, m: i64, calib: &Q) -> i64 {
+/// 冬至在 y−1 年之岁，自天正经朔起第 m 月：(定朔所在日（上元日序）, 是否过进朔限, 经朔分)
+fn dingshuo_day(y: i32, m: i64, calib: &Q) -> (i64, bool, BigInt) {
     let tong = tongji(y);
     let run = &tong % BigInt::from(SHUO);
     let t0 = &tong - &run;
@@ -150,14 +152,79 @@ fn dingshuo_day(y: i32, m: i64, calib: &Q) -> i64 {
     } else {
         three_q
     };
-    day0 + carry + if xiao >= lim + calib { 1 } else { 0 }
+    (day0 + carry, xiao >= lim + calib, jing)
+}
+
+/// 「使不過三大二小」：days 为升序朔日、base 为各月定朔所在日。进朔会成连四大则不进，不进会成连三小则进，只改当月
+fn runs_adjust(days: &mut [i64], base: &[i64]) {
+    for i in 1..days.len() {
+        let run = |len: i64, d: &[i64]| (1..i).rev().take_while(|&j| d[j] - d[j - 1] == len).count();
+        let len = days[i] - days[i - 1];
+        if days[i] > base[i] && len == 30 && run(30, days) >= 3 {
+            days[i] -= 1;
+        } else if days[i] == base[i] && len == 29 && run(29, days) >= 2 {
+            days[i] += 1;
+        }
+    }
+}
+
+/// 一次排定的冬至岁年段（前后各留二岁）：金 1137—1234、元初 1280 年及成天历期间（1271—1279）对照
+const SPAN: (i32, i32) = (1128, 1292);
+
+/// SPAN 内全部朔日 JDN（升序，已按「三大二小」调整）
+fn all_days(calib: &Q) -> Vec<i64> {
+    let off = epoch_offset();
+    let mut raw: Vec<(i64, bool)> = Vec::new();
+    for y in SPAN.0..=SPAN.1 {
+        let next0 = dingshuo_day(y + 1, 0, calib).2;
+        for m in 0..15 {
+            let (day, jin, jing) = dingshuo_day(y, m, calib);
+            if jing >= next0 {
+                break;
+            }
+            raw.push((day + off, jin));
+        }
+    }
+    raw.sort_unstable();
+    raw.dedup_by_key(|x| x.0);
+    let base: Vec<i64> = raw.iter().map(|x| x.0).collect();
+    let mut days: Vec<i64> = raw.iter().map(|x| x.0 + i64::from(x.1)).collect();
+    runs_adjust(&mut days, &base);
+    days
+}
+
+/// [all_days] 按 calib 缓存
+fn cached_days(calib: &Q) -> std::sync::Arc<Vec<i64>> {
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex, OnceLock};
+    static C: OnceLock<Mutex<HashMap<String, Arc<Vec<i64>>>>> = OnceLock::new();
+    let key = calib.to_string();
+    if let Some(v) = C.get_or_init(Default::default).lock().unwrap().get(&key) {
+        return v.clone();
+    }
+    let v = Arc::new(all_days(calib));
+    C.get_or_init(Default::default).lock().unwrap().insert(key, v.clone());
+    v
 }
 
 /// 冬至在 y−1 年之岁的月：(朔日 JDN, 月序, 闰否)，自含冬至之月（十一月）起至下一含冬至之月前。
 fn sui_months(y: i32, calib: &Q) -> Vec<(i64, u8, bool)> {
+    sui_months_runs(y, calib, true)
+}
+
+/// 同 [sui_months]；runs 为 false 时逐岁现排、不加「三大二小」（2026-11-13 前做法）
+fn sui_months_runs(y: i32, calib: &Q, runs: bool) -> Vec<(i64, u8, bool)> {
     let calib = &if y < ZHAO_FIRST_SUI { calib.clone() } else { Q::zero() };
     let off = epoch_offset();
-    let days: Vec<i64> = (-2..16).map(|m| dingshuo_day(y, m, calib) + off).collect();
+    let days: Vec<i64> = if runs && (SPAN.0 + 1..SPAN.1).contains(&y) {
+        cached_days(calib).to_vec()
+    } else {
+        // 年段外逐岁现排，不加「三大二小」
+        (-2..16).map(|m| {
+            let (d, jin, _) = dingshuo_day(y, m, calib);
+            d + i64::from(jin) + off
+        }).collect()
+    };
     // 恒气中气日（冬至起偶数气），覆盖本岁与下岁冬至
     let zq: Vec<i64> = (0..=26)
         .step_by(2)
@@ -205,6 +272,8 @@ mod tests {
     use super::*;
     use crate::calendar::gan_zhi;
 
+    const CHANGED: [i32; 1] = [1151];
+
     fn gz(jdn: i64) -> usize {
         ((jdn + 49).rem_euclid(60)) as usize
     }
@@ -247,6 +316,18 @@ mod tests {
             let j = month(y, m, false);
             assert_eq!(gan_zhi::GAN_ZHI_60[gz(j)], gzs, "{y} 年 {m} 月");
         }
+    }
+
+    /// 「三大二小」：金 1137—1235 年只冬至岁 1151（二月不进）因此改动，无本纪明书朔日可验；元初 1274 年六月丙午、
+    /// 1275 年七月庚午（《元史》本纪，按术文进朔限为乙巳、己巳，不进则成连三小）
+    #[test]
+    fn san_da_er_xiao() {
+        let z = Q::zero();
+        let changed: Vec<i32> = (1137..=1235).filter(|&y| sui_months(y, &z) != sui_months_runs(y, &z, false)).collect();
+        assert_eq!(changed, CHANGED.to_vec());
+        assert_eq!(gz_of(1274, 6, false), "丙午");
+        assert_eq!(gz_of(1275, 7, false), "庚午");
+        assert_ne!(sui_months(1275, &z), sui_months_runs(1275, &z, false));
     }
 
     /// 1137—1234 年闰月

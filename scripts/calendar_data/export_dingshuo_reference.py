@@ -19,6 +19,7 @@ import dingshuo_check as c  # noqa: E402
 import gaiyuan_date as g  # noqa: E402
 import linde_dingshuo as ld  # noqa: E402
 import shoushi_dingshuo as ss  # noqa: E402
+import datong_tonggui_dingshuo as tg  # noqa: E402
 import song_dingshuo as sg  # noqa: E402
 import wuji_zhengyuan_dingshuo as wz  # noqa: E402
 import wuyin_dingshuo as wy  # noqa: E402
@@ -88,8 +89,7 @@ def shoushi():
     out = []
     dz = ss.QI_YING
     off = c.align_offset(dz // ss.F, g.jdn(1280, 12, 14))
-    for name, li, y0, y1 in (("授时", ss.Shoushi("授时", 202050, 130205, False), 1281, 1367),
-                             ("大统", ss.Shoushi("大统", 202050, 130205, True), 1368, 1644)):
+    for name, li, y0, y1 in (("授时", ss.Shoushi("授时", 202050, 130205), 1281, 1367),):
         def f(y, li=li):
             zj = (y - 1281) * ss.SUI
             dzz = zj + ss.QI_YING
@@ -100,10 +100,14 @@ def shoushi():
             for m in range(14):
                 jing = t0 + m * ss.SHUO
                 deg = ss.sun_diff(jing - dzz) - ss.moon_diff(ru0 + m * ss.SHUO)
-                v = ss.moon_speed(ru0 + m * ss.SHUO) * Fr(82, 1000) - (Fr(82, 1000) if li.relative else 0)
+                v = ss.moon_speed(ru0 + m * ss.SHUO) * Fr(82, 1000)
                 res.append(jing + deg / v * 820)
             return res
         out.append((name, ss.F, off, y0, y1, f))
+    # 大统：照《大统暦日通轨》查立成（datong_tonggui_dingshuo.py）
+    moon, sun = tg.load_tables(False)
+    t = tg.Tonggui(moon, sun, True)
+    out.append(("大统", ss.F, off, 1368, 1644, lambda y: [t.month((y - 1281) * ss.SUI, m)[0] for m in range(14)]))
     return out
 
 

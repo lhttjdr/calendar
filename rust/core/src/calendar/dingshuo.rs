@@ -7,7 +7,20 @@
 //! 逐月比对（测试 `matches_python_reference`）。
 //!
 //! 排月（Python 复原只算定朔，此处新增）：定朔所在日，小余过进朔限者进一日；恒气（常气）中气，十一月为含冬至之月，
-//! 两冬至间 13 月者以第一个无中气之月为闰。不实现：「有交，亏初在日入前者不进」、「使不过三大二小」。
+//! 两冬至间 13 月者以第一个无中气之月为闰。进朔之外的细则（[Paiyue]，各历行用年段前后各留二岁一次排定）：
+//! - 「使不過三大二小」（[Rules::runs]）：崇天历文「隨其所近而進退之，不過三大二小」（《宋史》卷七十一），明天以后宋诸历同；
+//!   唐大衍术注「使不過三大三小」（钱宝琮校作「三大二小」，本项目取原文，见 [TANG_RUNS]），五纪、正元、宣明承之。
+//!   逐月推：进朔会成连大超限则不进，不进会成连小超限则进，只改当月。
+//! - 麟德正月进朔（[Rules::zhengyue]）：684 年「詔二年元日用甲申，故進以癸未晦」，此后正月定朔过戌初（19 时）者进；他月不进。
+//! - 交会（[PaiyueOptions]，2026-11-18 起）：照各历「步交會」求定朔入交定（[Jiaohui]，常数见 [JiaoConst] 诸处与 `song_jiao`），
+//!   宣明、崇天另照志文日蚀术判有蚀与食甚（[Rishi]）。宣明「或有交，應見虧初，則否」、宋诸历「有食應見者，其朔不進」（[JiaoBujin]）：
+//!   过进朔限而有食、亏初不晚于日入者不进；大衍术注「正月朔有交、加時正見者……令虧在晦、二」只在史载有据之年
+//!   （[TANG_ZHENGYUE_JIAO]、[WUDAI_ZHENGYUE_JIAO]）。检验见 `examples/jiaohui_eclipse_check.rs`、`examples/jiaohui_options_eval.rs`，
+//!   Python 复原 `scripts/calendar_data/jiaohui.py`（逐月比对 `data/calendar/jiaohui_reference.csv`）。
+//! - 史载例外（`data/calendar/dingshuo_exceptions.csv`）：诏令改朔、中原移闰，及交会规则推不出之史载月（宣明 824、836 年夜食不进，
+//!   崇天 1044 年十一月）。
+//!
+//! 旧做法（2026-11-13 前）只按进朔限，不加上述细则，仍可由 [reckon_year_shuwen] 取得（麟德「不過頻三」照旧）。
 //! 全部用有理数（日法之分），进朔判定无浮点误差。
 
 use super::gregorian;
@@ -71,13 +84,113 @@ pub trait DingshuoLi: Send + Sync {
     fn fixed_days(&self) -> Option<&[i64]> {
         None
     }
+    /// 史载须置闰之月的朔日 JDN（[Paiyue] 据例外表给出）；排月时两冬至间 13 月者以此月为闰
+    fn forced_leaps(&self) -> &[i64] {
+        &[]
+    }
+    /// 冬至岁 y 的十三中气（恒气，天正冬至起至下一冬至）所在日 JDN，排月定闰用。缺省按本历冬至、岁实十二等分
+    fn zhongqi(&self, y: i32) -> Vec<i64> {
+        zhongqi_hengqi(self, y)
+    }
+    /// 冬至岁 y 第 m 月定朔加时之入交（[Jiaohui]）；None 为本历未复原步交会
+    fn jiao(&self, _y: i32, _m: i64) -> Option<Jiaohui> {
+        None
+    }
+    /// 时刻 t（属冬至岁 y）所在日之日出（占一日之比，夜半起算）；None 为未复原
+    fn sunrise(&self, _y: i32, _t: &Q) -> Option<Q> {
+        None
+    }
+    /// 冬至岁 y 第 m 月定朔之日食（照本历日蚀术加蚀差等）；None 为未复原，排月以 [Jiaohui::shixian] 代之
+    fn rishi(&self, _y: i32, _m: i64) -> Option<Rishi> {
+        None
+    }
 }
 
-fn day_of(li: &dyn DingshuoLi, y: i32, t: &Q) -> i64 {
+/// 冬至岁 y 的十三恒气中气所在日 JDN：天正冬至加岁实 k/12（k = 0..=12）
+fn zhongqi_hengqi<L: DingshuoLi + ?Sized>(li: &L, y: i32) -> Vec<i64> {
+    let f = q(li.f());
+    let (dz, sui) = (li.dongzhi(y), li.sui());
+    (0..=12).map(|k| fl(&((&dz + &sui * qr(k, 12)) / &f)) + li.off()).collect()
+}
+
+/// 照本历日蚀术判得之日食
+#[derive(Clone, Debug, PartialEq)]
+pub struct Rishi {
+    /// 有蚀
+    pub shi: bool,
+    /// 蚀在阴历（加减蚀差之后；阳历「不足減，反減蝕差」入阴历者亦为阴历）
+    pub yin: bool,
+    /// 食甚（蚀定余，占一日之比）
+    pub shen: Q,
+    /// 定用（食甚至亏初，占一日之比）；None 为本历未复原，排月取 [JiaoBujin::wan_min]
+    pub dingyong: Option<Q>,
+}
+
+/// 步交会常数（日法之分）。唐宋诸历同一术：经朔入交泛 = 朔积分 mod 交终；「以其日入氣朓朒定數，朓減、朒加交汎，為入交常」；
+/// 「以交率乘其日入轉朓朒定數，如交數而一，以朓減、朒加入交常，為入交定」；入交定在交中已下为阳历，已上去之为阴历；
+/// 「入交定如望差已下，交限已上，為入蝕限」（大衍，宋诸历「後限以下、前限已上」同）。
+#[derive(Clone)]
+struct JiaoConst {
+    /// 交终（分）
+    zhong: Q,
+    /// 望差（宋诸历「後限」，宣明「後準」）：入食限之半宽（分）
+    xian: Q,
+    /// 交率、交数
+    lv: i64,
+    shu: i64,
+    /// 入交泛之应（分，自上元起算者 0；统天「交差」）
+    cha: Q,
+}
+
+impl JiaoConst {
+    fn new(zhong: Q, xian: Q, lv: i64, shu: i64) -> Self {
+        JiaoConst { zhong, xian, lv, shu, cha: Q::zero() }
+    }
+    /// 经朔 jing（分，自上元）及其入气、入转朓朒定数（朒 +）→ 入交定（分，[0, 交终)）
+    fn ru(&self, jing: &Q, sun: &Q, moon: &Q, f: i64) -> Jiaohui {
+        let ru = md(&(md(&(jing - &self.cha), &self.zhong) + sun + moon * qr(self.lv, self.shu)), &self.zhong);
+        Jiaohui::new(ru, &self.zhong, &self.xian, f)
+    }
+}
+
+/// 定朔加时之入交（照各历「步交會」之简法：只到入交定日与入食限，不算气差、刻差等蚀差与食分）
+#[derive(Clone, Debug, PartialEq)]
+pub struct Jiaohui {
+    /// 入交定（日）
+    pub ru: Q,
+    /// 去交（日）：距最近交点（交初或交中）
+    pub qu: Q,
+    /// 月在阴历（入交定在交中已上）
+    pub yin: bool,
+    /// 交前（将至交点）；否则交后
+    pub qian: bool,
+    /// 入食限：去交不过望差（后限）
+    pub shixian: bool,
+}
+
+impl Jiaohui {
+    fn new(ru: Q, zhong: &Q, xian: &Q, f: i64) -> Self {
+        let half = zhong / q(2);
+        let yin = ru >= half;
+        let x = if yin { &ru - &half } else { ru.clone() };
+        let qian = &x * q(2) > half;
+        let qu = if qian { &half - &x } else { x };
+        let fq = q(f);
+        Jiaohui { shixian: qu <= *xian, ru: ru / &fq, qu: qu / &fq, yin, qian }
+    }
+}
+
+/// 定朔 t 所在日（上元日序）与是否过进朔限
+fn day_jin(li: &dyn DingshuoLi, y: i32, t: &Q) -> (i64, bool) {
     let f = q(li.f());
     let day = fl(&(t / &f));
     let xiao = t - q(day) * &f;
-    day + li.jinshuo_limit(y, t).map_or(0, |l| i64::from(xiao >= l))
+    (day, li.jinshuo_limit(y, t).is_some_and(|l| xiao >= l))
+}
+
+fn day_of(li: &dyn DingshuoLi, y: i32, t: &Q) -> i64 {
+    let (day, jin) = day_jin(li, y, t);
+    day + i64::from(jin)
 }
 
 /// 冬至岁 y0..=y1 的各月朔日：(JDN, 定小余占一日之比)，升序。每个经朔只由其所在冬至岁算一次（经朔 < 下一冬至岁天正经朔），
@@ -139,9 +252,361 @@ fn limit_runs(starts: &mut [(i64, Q)], max_run: usize) {
     }
 }
 
+/// 一月的定朔：定朔所在日（JDN）、是否过进朔限、定小余占一日之比
+struct RawMonth {
+    base: i64,
+    jin: bool,
+    frac: Q,
+    /// 入交（本历复原步交会者）
+    jiao: Option<Jiaohui>,
+    /// 定朔所在日之日出（占一日之比）
+    sunrise: Option<Q>,
+    /// 本历日蚀术所判（复原者）
+    rishi: Option<Rishi>,
+}
+
+impl RawMonth {
+    /// 加时在昼：日出 ≤ 定小余 ≤ 日入（日入 = 1 − 日出）
+    fn zhou(&self) -> bool {
+        self.sunrise.as_ref().is_some_and(|sr| self.frac >= *sr && self.frac <= q(1) - sr)
+    }
+}
+
+/// 冬至岁 y0..=y1 的各月定朔，升序；每个经朔只由其所在冬至岁算一次（同 [month_starts]）
+fn raw_months(li: &dyn DingshuoLi, y0: i32, y1: i32) -> Vec<RawMonth> {
+    let off = li.off();
+    let f = q(li.f());
+    let mut out = Vec::new();
+    for yy in y0..=y1 {
+        let next0 = li.month(yy + 1, 0).0;
+        for m in 0..15 {
+            let (jing, _) = li.month(yy, m);
+            if jing >= next0 {
+                break;
+            }
+            let ding = li.ding_for_calendar(yy, m);
+            let (day, jin) = day_jin(li, yy, &ding);
+            out.push(RawMonth { base: day + off, jin, frac: md(&ding, &f) / &f, jiao: li.jiao(yy, m), sunrise: li.sunrise(yy, &ding), rishi: li.rishi(yy, m) });
+        }
+    }
+    out.sort_by_key(|x| x.base);
+    out.dedup_by_key(|x| x.base);
+    out
+}
+
+/// 史载例外之调整（`data/calendar/dingshuo_exceptions.csv`「调整」列）
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Liwai {
+    /// 朔日 = 定朔所在日 + k（进 1、不进 0、退 −1）
+    Shift(i64),
+    /// 本月为闰
+    Leap,
+}
+
+/// 史载例外表：(历名, 调整后朔日 JDN, 调整)
+fn liwai_table() -> &'static [(String, i64, Liwai)] {
+    use std::sync::OnceLock;
+    static T: OnceLock<Vec<(String, i64, Liwai)>> = OnceLock::new();
+    T.get_or_init(|| {
+        let csv = include_str!("../../../../data/calendar/dingshuo_exceptions.csv");
+        csv.lines()
+            .filter(|l| !l.starts_with('#') && !l.starts_with("历,") && !l.trim().is_empty())
+            .map(|l| {
+                let c: Vec<&str> = l.split(',').collect();
+                let jdn: i64 = c[4].parse().expect("朔日JDN");
+                assert_eq!(crate::calendar::gan_zhi::GAN_ZHI_60[(jdn + 49).rem_euclid(60) as usize], c[5], "例外表 {l}");
+                let adj = match c[6] {
+                    "进" => Liwai::Shift(1),
+                    "不进" => Liwai::Shift(0),
+                    "退" => Liwai::Shift(-1),
+                    "置闰" => Liwai::Leap,
+                    x => panic!("例外表调整「{x}」"),
+                };
+                (c[0].to_string(), jdn, adj)
+            })
+            .collect()
+    })
+}
+
+/// 「消息前後一兩月，以定月之大小」（大衍「正月朔有交」条，麟德同）：第 i 月朔按史载移日后，相邻月长若出 29、30 日，
+/// 顺次移后月（向后）或前月（向前）一日，至月长复归 29、30 日为止。如 937 年正月退作甲寅，二月随退作甲申。
+fn xiaoxi(days: &mut [i64], i: usize) {
+    let mut j = i + 1;
+    while j < days.len() {
+        match days[j] - days[j - 1] {
+            l if l > 30 => days[j] -= 1,
+            l if l < 29 => days[j] += 1,
+            _ => break,
+        }
+        j += 1;
+    }
+    let mut j = i;
+    while j >= 1 {
+        match days[j] - days[j - 1] {
+            l if l > 30 => days[j - 1] += 1,
+            l if l < 29 => days[j - 1] -= 1,
+            _ => break,
+        }
+        j -= 1;
+    }
+}
+
+/// 进朔之外的排月细则
+#[derive(Clone, Copy, Default)]
+struct Rules {
+    /// 「使不過三大二小」：(连大至多, 连小至多)。逐月推，进朔会使连大超限则不进，不进会使连小超限则进，只改当月
+    runs: Option<(usize, usize)>,
+    /// 麟德「不過頻三」（[limit_runs]，旧有）
+    pin_san: bool,
+    /// 正月进朔：(起农历年, 限时)。正月（含雨水中气之月）定小余过限者进一日
+    zhengyue: Option<(i32, i64)>,
+    /// 有交不进（[JiaoBujin]）
+    jiao_bujin: Option<JiaoBujin>,
+    /// 「其正月朔有交、加時正見者，消息前後一兩月，以定大小，令虧在晦、二」（大衍术注）：(起农历年, 止农历年, 移日：
+    /// +1 进令亏在晦、−1 退令亏在二日)。只在史载有据之年段启用（见 [TANG_ZHENGYUE_JIAO]）
+    zhengyue_jiao: &'static [(i32, i32, i64)],
+}
+
+/// 「有交不进」：定小余过进朔限而本月有日食者不进。有食与否：本历复原日蚀术者（[DingshuoLi::rishi]）照之，否则以入食限
+/// （[Jiaohui::shixian]）代之。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct JiaoBujin {
+    /// 只取阴历之食（唐宋诸历「朔入蝕限，月在陰曆，則日蝕」；宣明阳历「不足減」入阴历者亦算）
+    pub yin: bool,
+    /// 「應見虧初」：亏初（食甚减半定用，此取定值若干分钟，一日 1440 分）不晚于日入者方不进；None 为夜食亦不进。
+    /// 食甚：复原日蚀术者用其蚀定余（[Rishi::shen]），否则用定朔加时
+    pub wan_min: Option<i64>,
+}
+
+impl JiaoBujin {
+    fn applies(&self, m: &RawMonth) -> bool {
+        let (shi, yin) = match (&m.rishi, &m.jiao) {
+            (Some(r), _) => (r.shi, r.yin),
+            (None, Some(j)) => (j.shixian, j.yin),
+            _ => return false,
+        };
+        if !shi || (self.yin && !yin) {
+            return false;
+        }
+        match (self.wan_min, &m.sunrise) {
+            (None, _) => true,
+            (Some(w), Some(sr)) => {
+                let kuichu = match &m.rishi {
+                    Some(Rishi { shen, dingyong: Some(dy), .. }) => shen - dy,
+                    Some(r) => &r.shen - qr(w, 1440),
+                    None => &m.frac - qr(w, 1440),
+                };
+                kuichu <= q(1) - sr
+            }
+            (Some(_), None) => false,
+        }
+    }
+}
+
+/// 一部定朔历连同其排月细则：各历行用年段（[REGISTRY] 中 `names` 诸名之年段）前后各留二岁，一次排定全部朔日。
+struct Paiyue {
+    li: Box<dyn DingshuoLi>,
+    /// 此历在 [REGISTRY] 与例外表中的历名
+    names: &'static [&'static str],
+    rules: Rules,
+    /// 定闰另用他历恒气中气之冬至岁段：(他历, [(起冬至岁, 止冬至岁)])。五代「宣明、崇玄參而成之」：朔用宣明定朔，中气用崇玄（[WudaiDingqi]）
+    zhongqi_li: Option<(Box<dyn DingshuoLi>, &'static [(i32, i32)])>,
+    /// 细则全用：(朔日, 置闰之月)
+    full: std::sync::OnceLock<(Vec<i64>, Vec<i64>)>,
+    /// 只按术文进朔（旧做法，麟德「不過頻三」照旧）
+    plain: std::sync::OnceLock<(Vec<i64>, Vec<i64>)>,
+}
+
+impl Paiyue {
+    fn new(li: impl DingshuoLi + 'static, names: &'static [&'static str], rules: Rules) -> Self {
+        Paiyue { li: Box::new(li), names, rules, zhongqi_li: None, full: Default::default(), plain: Default::default() }
+    }
+
+    /// 冬至岁段 spans 内定闰改用 qi 历之恒气中气
+    fn with_zhongqi(mut self, qi: impl DingshuoLi + 'static, spans: &'static [(i32, i32)]) -> Self {
+        if !spans.is_empty() {
+            self.zhongqi_li = Some((Box::new(qi), spans));
+        }
+        self
+    }
+
+    fn span(&self) -> (i32, i32) {
+        let spans = REGISTRY.iter().chain(REGIME_REGISTRY).filter(|(n, _)| self.names.contains(n)).flat_map(|(_, s)| s.iter());
+        let (a, b) = spans.fold((i32::MAX, i32::MIN), |(a, b), &(x, y)| (a.min(x), b.max(y)));
+        (a - 2, b + 2)
+    }
+
+    fn days(&self, full: bool) -> &(Vec<i64>, Vec<i64>) {
+        let cell = if full { &self.full } else { &self.plain };
+        cell.get_or_init(|| self.compute(full))
+    }
+
+    fn compute(&self, full: bool) -> (Vec<i64>, Vec<i64>) {
+        let li = self.li.as_ref();
+        let (y0, y1) = self.span();
+        let raw = raw_months(li, y0, y1);
+        let mut days: Vec<i64> = raw.iter().map(|m| m.base + i64::from(m.jin)).collect();
+        let mut locked = vec![false; days.len()];
+        let mut leaps = Vec::new();
+        let f = q(li.f());
+        if let (true, Some((from, h))) = (full, self.rules.zhengyue) {
+            for y in y0.max(from)..=y1 {
+                // 正月：含雨水（冬至后第二中气）之月
+                let yushui = fl(&((li.dongzhi(y) + li.sui() * qr(2, 12)) / &f)) + li.off();
+                if let Some(i) = days.iter().rposition(|&d| d <= yushui) {
+                    if days[i] == raw[i].base && raw[i].frac >= qr(h, 24) {
+                        days[i] += 1;
+                    }
+                }
+            }
+        }
+        if self.rules.pin_san {
+            let mut s: Vec<(i64, Q)> = days.iter().zip(&raw).map(|(&d, m)| (d, m.frac.clone())).collect();
+            limit_runs(&mut s, 3);
+            days = s.into_iter().map(|x| x.0).collect();
+        }
+        if full {
+            if let Some(jb) = self.rules.jiao_bujin {
+                for (i, m) in raw.iter().enumerate() {
+                    if m.jin && jb.applies(m) {
+                        days[i] = m.base;
+                        locked[i] = true;
+                    }
+                }
+            }
+            if !self.rules.zhengyue_jiao.is_empty() {
+                for y in y0..=y1 {
+                    let Some(&(_, _, k)) = self.rules.zhengyue_jiao.iter().find(|r| (r.0..=r.1).contains(&y)) else { continue };
+                    let yushui = fl(&((li.dongzhi(y) + li.sui() * qr(2, 12)) / &f)) + li.off();
+                    let Some(i) = days.iter().rposition(|&d| d <= yushui) else { continue };
+                    let m = &raw[i];
+                    let shi = m.rishi.as_ref().map_or_else(|| m.jiao.as_ref().is_some_and(|j| j.shixian), |r| r.shi);
+                    if shi && m.zhou() {
+                        days[i] = m.base + k;
+                        locked[i] = true;
+                        xiaoxi(&mut days, i);
+                    }
+                }
+            }
+            for (name, jdn, adj) in liwai_table().iter().filter(|r| self.names.contains(&r.0.as_str())) {
+                let Some(i) = raw.iter().position(|m| (m.base - jdn).abs() <= 1) else { continue };
+                match adj {
+                    Liwai::Shift(k) => {
+                        days[i] = raw[i].base + k;
+                        assert_eq!(days[i], *jdn, "{name} 例外 {jdn}：定朔所在日 {}", raw[i].base);
+                        locked[i] = true;
+                        xiaoxi(&mut days, i);
+                    }
+                    Liwai::Leap => {
+                        assert_eq!(days[i], *jdn, "{name} 置闰 {jdn}");
+                        leaps.push(*jdn);
+                        locked[i] = true;
+                    }
+                }
+            }
+            if let Some((max_big, max_small)) = self.rules.runs {
+                for i in 1..days.len() {
+                    if locked[i] || !(raw[i].base..=raw[i].base + 1).contains(&days[i]) {
+                        continue;
+                    }
+                    // 本月朔前已连续之大（30 日）、小（29 日）月数
+                    let run = |len: i64| (1..i).rev().take_while(|&j| days[j] - days[j - 1] == len).count();
+                    let len = days[i] - days[i - 1];
+                    if days[i] > raw[i].base && len == 30 && run(30) >= max_big {
+                        days[i] -= 1;
+                    } else if days[i] == raw[i].base && len == 29 && run(29) >= max_small {
+                        days[i] += 1;
+                    }
+                }
+            }
+        }
+        (days, leaps)
+    }
+}
+
+impl DingshuoLi for Paiyue {
+    fn f(&self) -> i64 {
+        self.li.f()
+    }
+    fn off(&self) -> i64 {
+        self.li.off()
+    }
+    fn sui(&self) -> Q {
+        self.li.sui()
+    }
+    fn dongzhi(&self, y: i32) -> Q {
+        self.li.dongzhi(y)
+    }
+    fn month(&self, y: i32, m: i64) -> (Q, Q) {
+        self.li.month(y, m)
+    }
+    fn jinshuo_limit(&self, y: i32, t: &Q) -> Option<Q> {
+        self.li.jinshuo_limit(y, t)
+    }
+    fn jiao(&self, y: i32, m: i64) -> Option<Jiaohui> {
+        self.li.jiao(y, m)
+    }
+    fn sunrise(&self, y: i32, t: &Q) -> Option<Q> {
+        self.li.sunrise(y, t)
+    }
+    fn rishi(&self, y: i32, m: i64) -> Option<Rishi> {
+        self.li.rishi(y, m)
+    }
+    fn ding_for_calendar(&self, y: i32, m: i64) -> Q {
+        self.li.ding_for_calendar(y, m)
+    }
+    fn fixed_days(&self) -> Option<&[i64]> {
+        Some(&self.days(true).0)
+    }
+    fn forced_leaps(&self) -> &[i64] {
+        &self.days(true).1
+    }
+    fn zhongqi(&self, y: i32) -> Vec<i64> {
+        match &self.zhongqi_li {
+            Some((qi, spans)) if spans.iter().any(|&(a, b)| (a..=b).contains(&y)) => qi.zhongqi(y),
+            _ => self.li.zhongqi(y),
+        }
+    }
+}
+
+/// [Paiyue] 只按术文进朔之视图（旧做法）
+struct Shuwen(&'static Paiyue);
+
+impl DingshuoLi for Shuwen {
+    fn f(&self) -> i64 {
+        self.0.f()
+    }
+    fn off(&self) -> i64 {
+        self.0.off()
+    }
+    fn sui(&self) -> Q {
+        self.0.sui()
+    }
+    fn dongzhi(&self, y: i32) -> Q {
+        self.0.dongzhi(y)
+    }
+    fn month(&self, y: i32, m: i64) -> (Q, Q) {
+        self.0.month(y, m)
+    }
+    fn jinshuo_limit(&self, y: i32, t: &Q) -> Option<Q> {
+        self.0.jinshuo_limit(y, t)
+    }
+    fn jiao(&self, y: i32, m: i64) -> Option<Jiaohui> {
+        self.0.jiao(y, m)
+    }
+    fn sunrise(&self, y: i32, t: &Q) -> Option<Q> {
+        self.0.sunrise(y, t)
+    }
+    fn rishi(&self, y: i32, m: i64) -> Option<Rishi> {
+        self.0.rishi(y, m)
+    }
+    fn fixed_days(&self) -> Option<&[i64]> {
+        Some(&self.0.days(false).0)
+    }
+}
+
 /// 冬至岁 y 的月：(朔日 JDN, 月序, 闰否)，自含冬至之月（十一月）起至下一含冬至之月前。
 fn sui_months(li: &dyn DingshuoLi, y: i32) -> Vec<(i64, u8, bool)> {
-    let off = li.off();
     // 每个经朔只由其所在冬至岁算一次（经朔 < 下一冬至岁天正经朔），免得相邻两岁所算定朔微异而重出
     let mut days: Vec<i64> = match li.fixed_days() {
         Some(all) => all.to_vec(),
@@ -149,15 +614,14 @@ fn sui_months(li: &dyn DingshuoLi, y: i32) -> Vec<(i64, u8, bool)> {
     };
     days.sort_unstable();
     days.dedup();
-    let sui = li.sui();
-    let f = q(li.f());
-    let zq: Vec<i64> = (0..=12).map(|k| fl(&((li.dongzhi(y) + &sui * qr(k, 12)) / &f)) + off).collect();
+    let zq = li.zhongqi(y);
     let (dz0, dz1) = (zq[0], zq[12]);
     let contains = |i: usize, d: i64| days[i] <= d && d < days[i + 1];
     let i0 = (0..days.len() - 1).find(|&i| contains(i, dz0)).expect("含冬至之月");
     let i1 = (0..days.len() - 1).find(|&i| contains(i, dz1)).expect("含下一冬至之月");
     assert!(i1 - i0 == 12 || i1 - i0 == 13, "冬至岁 {y}：两冬至间 {} 月", i1 - i0);
-    let leap = if i1 - i0 == 13 { (i0 + 1..i1).find(|&i| !zq.iter().any(|&z| contains(i, z))) } else { None };
+    let forced = (i0 + 1..i1).find(|&i| li.forced_leaps().contains(&days[i]));
+    let leap = if i1 - i0 == 13 { forced.or_else(|| (i0 + 1..i1).find(|&i| !zq.iter().any(|&z| contains(i, z)))) } else { None };
     let mut out: Vec<(i64, u8, bool)> = Vec::with_capacity(13);
     let mut label = 11u8;
     for i in i0..i1 {
@@ -237,8 +701,15 @@ struct Dayan {
     sun: Vec<i64>,
     /// 宣明分前后半周两表（半周 = 转终/2）
     moon: Vec<MoonTable>,
-    jinshuo: Jinshuo,
+    /// 进朔限：(起农历年, 限)，按农历年取最后一段起年不晚于者
+    jinshuo: Vec<(i32, Jinshuo)>,
     off: i64,
+    /// 步交会
+    jiao: Option<JiaoConst>,
+    /// 求日出所用之漏：None 用大衍步轨漏（[Dayan::night_lou]），崇玄用其晷漏术
+    chongxuan_lou: bool,
+    /// 宣明日蚀术（[Dayan::xuanming_rishi]）
+    xuanming_shi: bool,
 }
 
 impl Dayan {
@@ -308,6 +779,71 @@ impl Dayan {
         let guilou = if chunfen_hou { q(1752) + xiaoxi } else { q(2748) - xiaoxi };
         guilou * q(135) / q(100)
     }
+
+    /// 时刻 t（属冬至岁 y）所在日的夜半漏（刻）：大衍步轨漏，自其定气初日逐日递推（[dayan_night_lou]）
+    fn night_lou(&self, y: i32, t: &Q) -> Q {
+        let f = q(self.f);
+        let tong = q(self.tong(y));
+        let day = fl(&(t / &f));
+        let d = md(&(q(day) * &f - &tong), &q(self.ce));
+        let k = self.seg(&d);
+        let qi_day = fl(&((&tong + self.ding_qi(k) + q(self.ce) * q(fl(&((q(day) * &f - &tong) / q(self.ce))))) / &f));
+        dayan_night_lou(k.rem_euclid(24) as usize, (day - qi_day).max(0))
+    }
+
+    /// 宣明历日蚀（《新唐书·历志六上》卷三十上）。时差：「以定朔日出入辰刻距午正刻數，約百四十七，為時差。視定朔小餘如半法
+    /// 已下，以減半法，為初率；已上，減去半法，餘為末率。以乘時差，如刻法而一，初率以減，末率倍之，以加定朔小餘，為蝕定餘」。
+    /// 蚀差三项（单位统法之分，加减去交分）：
+    /// - 气差：二至之初 2350，距二至每日损 26，至二分而空；「以日出沒辰刻距午正刻數，約其朔日氣差，以乘食甚距午正刻數。所得以減
+    ///   氣差，為定數。春分後，陰曆加之，陽曆減之；秋分後，陰曆減之，陽曆加之」；
+    /// - 刻差：二至初日无，每日益 2.10（差分二、小分十），至 94.5 止（立春至立夏、立秋至立冬），复日损至二至；乘食甚距午刻数；
+    ///   「冬至後食甚在午正前，夏至後食甚在午正後，陰曆以減，陽曆以加」，反之陰加陽減；
+    /// - 加差：小雪 17、大雪 34、冬至 51、小寒 34、大寒 17（「立冬初日後，每氣增差十七……終于大寒，損盡」），食甚在午后者
+    ///   每刻累益，阴历减、阳历加。
+    /// 「同名相從，異名相銷」为蚀差，加减去交分为定分。阴历不足减者入阳历，不蚀；阳历不足减者入阴历，蚀。余者定分在阳历蚀限
+    /// 2640 与阴历蚀限 6060 之和 8700 已下者蚀（「如陽曆蝕限已下，為陽曆蝕……已上者，以陽曆蝕限減之，餘為陰曆蝕，以陰曆定法約之，
+    /// 以減十五」，即定分 < 8700 蚀分为正）。此读法与史载日食 36 条合 33（以阴阳历各用本限读只合 24），见 doc。
+    /// 日出用大衍步轨漏代宣明晷漏（近似）；距二至、二分之日数按恒气连续计。
+    fn xuanming_rishi(&self, y: i32, m: i64) -> Option<Rishi> {
+        let j = self.jiao(y, m)?;
+        let ding = self.month(y, m).1;
+        let fq = q(self.f);
+        let frac = md(&ding, &fq) / &fq;
+        let sr = self.sunrise(y, &ding)?;
+        let half = qr(1, 2);
+        let h = (&half - &sr) * q(100);
+        let shicha = q(147) / &h;
+        let shen = if frac <= half { &frac - (&half - &frac) * &shicha / q(84) } else { &frac + q(2) * (&frac - &half) * &shicha / q(84) };
+        let ju_wu = (&shen - &half).abs() * q(100);
+        let sui = q(self.ce) / &fq;
+        let d = md(&((&ding - q(self.tong(y))) / &fq), &sui);
+        let l = &sui / q(2);
+        let x = md(&d, &l);
+        let dz = if x <= &l / q(2) { x } else { &l - x };
+        let yin_s = |b: bool| if j.yin == b { q(1) } else { q(-1) };
+        // 气差
+        let qi = (q(2350) - q(26) * &dz).max(Q::zero());
+        let qi_d = &qi - &qi * &ju_wu / &h;
+        let chun = d >= &sui / q(4) && d < &sui * qr(3, 4);
+        let s_qi = yin_s(true) * if chun { q(1) } else { q(-1) } * qi_d;
+        // 刻差
+        let ke = (qr(21, 10) * &dz).min(qr(189, 2));
+        let am = shen < half;
+        let dzh = d < l;
+        let s_ke = if dzh == am { -yin_s(true) } else { yin_s(true) } * ke * &ju_wu;
+        // 加差
+        let k = fl(&(&d / (&sui / q(24))));
+        let jia = match k.rem_euclid(24) {
+            22 | 2 => 17,
+            23 | 1 => 34,
+            0 => 51,
+            _ => 0,
+        };
+        let s_jia = if am { Q::zero() } else { -yin_s(true) * q(jia) * (&shen - &half) * q(100) };
+        let ding_fen = &j.qu * &fq + s_qi + s_ke + s_jia;
+        let (shi, yin) = if ding_fen.is_negative() { (!j.yin, !j.yin) } else { (ding_fen < q(8700), j.yin) };
+        Some(Rishi { shi, yin, shen, dingyong: None })
+    }
 }
 
 /// 大衍历定气初夜半漏（刻），冬至至夏至，夏至后对称；春分、芒种从校勘记
@@ -369,18 +905,37 @@ impl DingshuoLi for Dayan {
         let ding = q(jing) + self.sun_def(&q(jing - tong)) + self.moon_def(&md(&q(jing), &self.zhuan));
         (q(jing), ding)
     }
+    fn jiao(&self, y: i32, m: i64) -> Option<Jiaohui> {
+        let jc = self.jiao.as_ref()?;
+        let tong = self.tong(y);
+        let jing = tong - tong.rem_euclid(self.she) + m * self.she;
+        Some(jc.ru(&q(jing), &self.sun_def(&q(jing - tong)), &self.moon_def(&md(&q(jing), &self.zhuan)), self.f))
+    }
+    /// 日出 = 晨初（夜半漏）+ 昏明二刻半。大衍、五纪、正元用大衍步轨漏；宣明志「晷漏、交會，則稍增損之」而漏表未复原，
+    /// 亦以大衍步轨漏代之（近似）；崇玄用其晷漏术之晨初余数
+    fn sunrise(&self, y: i32, t: &Q) -> Option<Q> {
+        if self.chongxuan_lou {
+            return Some(self.chongxuan_chenchu(y, t) / q(self.f) + qr(25, 1000));
+        }
+        Some((self.night_lou(y, t) + qr(5, 2)) / q(100))
+    }
+    fn rishi(&self, y: i32, m: i64) -> Option<Rishi> {
+        if self.xuanming_shi {
+            self.xuanming_rishi(y, m)
+        } else {
+            None
+        }
+    }
     fn jinshuo_limit(&self, y: i32, t: &Q) -> Option<Q> {
         let f = q(self.f);
-        Some(match self.jinshuo {
+        // 定朔所属农历年：过大寒（冬至后第一中气）者属冬至岁 y，否则属 y − 1（十一、十二月）
+        let ly = if t - q(self.tong(y)) >= q(self.ce) / q(12) { y } else { y - 1 };
+        let js = self.jinshuo.iter().rev().find(|(from, _)| *from <= ly).unwrap_or(&self.jinshuo[0]);
+        Some(match js.1 {
             Jinshuo::Hours(h) => &f * qr(h, 24),
             Jinshuo::Lou => {
                 // 定朔所在日的夜半漏：自其定气初日逐日递推（[dayan_night_lou]）
-                let tong = q(self.tong(y));
-                let day = fl(&(t / &f));
-                let d = md(&(q(day) * &f - &tong), &q(self.ce));
-                let k = self.seg(&d);
-                let qi_day = fl(&((&tong + self.ding_qi(k) + q(self.ce) * q(fl(&((q(day) * &f - &tong) / q(self.ce))))) / &f));
-                let lou = dayan_night_lou(k.rem_euclid(24) as usize, (day - qi_day).max(0));
+                let lou = self.night_lou(y, t);
                 // 24 − (漏 − 十刻) × 0.24 时
                 &f * (q(24) - (lou - q(10)) * qr(24, 100)) / q(24)
             }
@@ -413,8 +968,9 @@ fn sym(half: &[i64]) -> Vec<i64> {
     half.iter().copied().chain(half.iter().map(|x| -x)).collect()
 }
 
-fn make_dayan(f: i64, ce: i64, she: i64, zhuan: Q, ji: i64, y_ji: i32, xianhou: Vec<i64>, sun: Vec<i64>, moon: Vec<MoonTable>, jinshuo: Jinshuo, approx: (i32, i32, i32)) -> Dayan {
-    let mut d = Dayan { f, ce, she, zhuan, ji, y_ji, xianhou, sun, moon, jinshuo, off: 0 };
+#[allow(clippy::too_many_arguments)]
+fn make_dayan(f: i64, ce: i64, she: i64, zhuan: Q, ji: i64, y_ji: i32, xianhou: Vec<i64>, sun: Vec<i64>, moon: Vec<MoonTable>, jinshuo: Vec<(i32, Jinshuo)>, approx: (i32, i32, i32)) -> Dayan {
+    let mut d = Dayan { f, ce, she, zhuan, ji, y_ji, xianhou, sun, moon, jinshuo, off: 0, jiao: None, chongxuan_lou: false, xuanming_shi: false };
     let dz = d.tong(y_ji).div_euclid(f);
     d.off = align_offset(dz, gregorian::civil_to_jdn(approx.0, approx.1, approx.2));
     d
@@ -442,37 +998,52 @@ const CHONGXUAN_MOON: [Option<i64>; 28] = [
 ];
 
 fn dayan() -> Dayan {
-    make_dayan(
+    let mut d = make_dayan(
         3040, 1110343, 89773, qr(6701279, 80), 96961740, 724,
         vec![0, 2353, 4198, 5588, 6564, 7152, 7366, 7152, 6564, 5588, 4198, 2353, 0, -2353, -4198, -5588, -6564, -7152, -7366, -7152, -6564, -5588, -4198, -2353],
         vec![176, 138, 104, 73, 44, 16, -16, -44, -73, -104, -138, -176, -176, -138, -104, -73, -44, -16, 16, 44, 73, 104, 138, 176],
         vec![MoonTable { f: 3040, rates: &DAYAN_MOON, split: split4([(6, 2701, 48, 339, -6), (13, 2363, -231, 677, -66), (20, 2024, -36, 1016, 18), (27, 1686, 165, 1354, 0)]) }],
-        // 大衍历志无进朔明文；《新唐书·历志五》述五纪历「依大衍戌初進初朔」，取戌初 19 时
-        Jinshuo::Hours(19),
+        // 大衍历志无进朔明文。本历时期（729—757）用随季节的晨初限（同五纪「晨初餘數減十刻」，大衍步轨漏）：750 年正月定朔
+        // 19.98 时本纪不进（限约 20.3 时）；至德历（758 起）及五纪初年（763、764）改用戌初 19 时：《新唐书·历志五》述五纪历
+        // 「依大衍戌初進初朔」，762—764 年本纪诸月皆合 19 时。见 data/calendar/tang_shuo_kaozheng.csv。
+        // 旧做法（2026-11-13 前）大衍全程取戌初 19 时。
+        vec![(0, Jinshuo::Lou), (758, Jinshuo::Hours(19))],
         (723, 12, 21),
-    )
+    );
+    // 《新唐书·历志四下》步交會術：終數 827251322（秒法一萬）；望差一日四百八十三、秒九千三百三十九；交率 343，交數 4369。
+    // 「以交數去朔積分」之「交數」从校勘记作「終數」（點校本卷二十八下校勘记，舊志同）
+    d.jiao = Some(JiaoConst::new(qr(827251322, 10000), qr(35239339, 10000), 343, 4369));
+    d
 }
 
 fn wuji() -> Dayan {
-    make_dayan(
+    let mut d = make_dayan(
         1340, 489428, 39571, qr(1366156, 37), 269978, 762,
         sym(&[0, 1037, 1850, 2463, 2893, 3152, 3246, 3152, 2893, 2463, 1850, 1037]),
         sym(&[78, 61, 46, 32, 19, 7, -7, -19, -32, -46, -61, -78]),
         vec![MoonTable { f: 1340, rates: &WUJI_MOON, split: split4([(6, 1191, -8, 149, 1), (13, 1042, 105, 298, 30), (20, 892, 6, 448, -3), (27, 743, -75, 597, 0)]) }],
-        Jinshuo::Lou,
+        // 五纪晨初限自 765 年起；763、764 年仍行至德历戌初 19 时（763 年六月、764 年二月本纪合 19 时，不合晨初限）。
+        // 旧做法五纪全程晨初限。
+        vec![(0, Jinshuo::Hours(19)), (765, Jinshuo::Lou)],
         (761, 12, 19),
-    )
+    );
+    // 《新唐书·历志五》五紀：交終三億六千四百六十四萬三千七百六十七（秒法一萬）；望差一日二百一十三、秒三千一百一十六半；交率 61，交數 777
+    d.jiao = Some(JiaoConst::new(qr(364643767, 10000), qr(155331165, 100000), 61, 777));
+    d
 }
 
 fn zhengyuan() -> Dayan {
-    make_dayan(
+    let mut d = make_dayan(
         1095, 399943, 32336, qr(301720132, 10000), 402900, 784,
         sym(&[0, 848, 1512, 2013, 2364, 2576, 2653, 2576, 2364, 2013, 1512, 848]),
         sym(&[63, 50, 37, 26, 16, 6, -6, -16, -26, -37, -50, -63]),
         vec![MoonTable { f: 1095, rates: &ZHENGYUAN_MOON, split: split4([(6, 973, -7, 122, 1), (13, 851, 87, 244, 25), (20, 729, 5, 366, -2), (27, 607, -68, 488, 0)]) }],
-        Jinshuo::Lou,
+        vec![(0, Jinshuo::Lou)],
         (783, 12, 19),
-    )
+    );
+    // 《新唐书·历志五》正元：交終分二億九千七百九十七萬三千八百一十五（秒法一萬）；望差一日百七十四、秒三千九十二半；交率 61，交數 777
+    d.jiao = Some(JiaoConst::new(qr(297973815, 10000), qr(126930925, 100000), 61, 777));
+    d
 }
 
 fn xuanming() -> Dayan {
@@ -481,18 +1052,23 @@ fn xuanming() -> Dayan {
         rates,
         split: vec![(6, q(7465), s6.0, q(935), s6.1), (13, q(6529), s13, q(1), 0)],
     };
-    make_dayan(
+    let mut d = make_dayan(
         8400, 3068055, 248057, qr(23145819, 100), 7070138, 822,
         [0, 60, 110, 150, 180, 198, 204, 198, 180, 150, 110, 60, 0, -60, -110, -150, -180, -198, -204, -198, -180, -150, -110, -60].iter().map(|x| 100 * x).collect(),
         vec![449, 374, 299, 224, 135, 45, -45, -135, -224, -299, -374, -449, -449, -374, -299, -224, -135, -45, 45, 135, 224, 299, 374, 449],
         vec![half(&XUANMING_A, (53, -7), -646), half(&XUANMING_B, (-53, 7), 646)],
-        Jinshuo::Xuanming,
+        vec![(0, Jinshuo::Xuanming)],
         (821, 12, 19),
-    )
+    );
+    // 《新唐书·历志六上》宣明：終率二十二萬八千五百八十二、秒六千五百一十二；後準（望差）一日千三百三十七、秒千七百四十四；
+    // 交率 202，交數 2573
+    d.jiao = Some(JiaoConst::new(qr(2285826512, 10000), qr(97371744, 10000), 202, 2573));
+    d.xuanming_shi = true;
+    d
 }
 
 fn chongxuan() -> Dayan {
-    make_dayan(
+    let mut d = make_dayan(
         13500, 4930801, 398663, qr(37198697, 100), 53947308, 892,
         vec![0; 24],
         vec![782, 613, 462, 328, 200, 67, -67, -200, -328, -462, -613, -782, -782, -613, -462, -328, -200, -67, 67, 200, 328, 462, 613, 782],
@@ -507,17 +1083,20 @@ fn chongxuan() -> Dayan {
             ],
         }],
         // 志文进朔：小余 ≥ 29/40 日法，且距次日夜半不过晨初余数
-        Jinshuo::Chongxuan,
+        vec![(0, Jinshuo::Chongxuan)],
         (891, 12, 17),
-    )
+    );
+    // 《新唐书·历志六下》崇玄：交終分三十六萬七千三百六十四、秒九千六百七十三；望差一日二千一百四十九、秒百六十三半；
+    // 交率 262，交數 3350
+    d.jiao = Some(JiaoConst::new(qr(3673649673, 10000), qr(1564901635, 100000), 262, 3350));
+    d.chongxuan_lou = true;
+    d
 }
 
 // ---------------------------------------------------------------- 麟德
 
 struct Linde {
     off: i64,
-    /// 麟德历行用年段前后各留二岁的全部朔日（已按「不過頻三」调整）
-    days: std::sync::OnceLock<Vec<i64>>,
 }
 
 /// 麟德历气序（立春后启蛰在雨水前）中与后气先后率同数之八气：大寒、雨水、谷雨、芒种、大暑、白露、霜降、大雪
@@ -668,7 +1247,7 @@ impl DingshuoLi for Linde {
         let ding = &chq + yn - Self::chisu(&bian);
         (chq, ding)
     }
-    // 两唐书麟德历皆无进朔条文，按志文不进朔（缺省 None）。
+    // 两唐书麟德历皆无进朔条文，按志文不进朔（缺省 None）；684 年起中原正月进朔见 [Rules::zhengyue]。
     fn ding_for_calendar(&self, y: i32, m: i64) -> Q {
         let ding = self.month(y, m).1;
         let xiao = md(&ding, &q(LD_F));
@@ -678,19 +1257,11 @@ impl DingshuoLi for Linde {
             ding
         }
     }
-    /// 「不過頻三」（[limit_runs]）。「其正月朔有定加時正月者，消息前後各一兩月」须推交食，未实现。
-    fn fixed_days(&self) -> Option<&[i64]> {
-        Some(self.days.get_or_init(|| {
-            let mut s = month_starts(self, 663, 730);
-            limit_runs(&mut s, 3);
-            s.into_iter().map(|x| x.0).collect()
-        }))
-    }
 }
 
 fn linde() -> Linde {
     let dz_day = (LD_QI * LD_JI_664).div_euclid(LD_F);
-    Linde { off: align_offset(dz_day, gregorian::civil_to_jdn(663, 12, 20)), days: std::sync::OnceLock::new() }
+    Linde { off: align_offset(dz_day, gregorian::civil_to_jdn(663, 12, 20)) }
 }
 
 // ---------------------------------------------------------------- 戊寅（崔善为所较）
@@ -805,6 +1376,8 @@ struct Song {
     /// 进朔用的日出分之术
     lou: SongLou,
     off: i64,
+    /// 步交会
+    jiao: Option<JiaoConst>,
 }
 
 /// 宋诸历求日出分之术（进朔限用）。北宋四历各据本历《宋史》步晷漏；南宋诸历志文「法與前曆同，此不載」，以纪元历之术代用。
@@ -1011,6 +1584,70 @@ impl DingshuoLi for Song {
         let ding = &jing + self.sun_def(&(&jing - &tong)) + self.moon_def(&md(&(base + q(m) * &self.shuo), &self.zhuan));
         (jing, ding)
     }
+    fn jiao(&self, y: i32, m: i64) -> Option<Jiaohui> {
+        let jc = self.jiao.as_ref()?;
+        let tong = self.tong(y);
+        let t0 = self.first_shuo(y);
+        let base = match &self.cha {
+            Some(c) => md(&(&t0 - q(c.zhuan)), &self.zhuan),
+            None => md(&t0, &self.zhuan),
+        };
+        let jing = &t0 + q(m) * &self.shuo;
+        Some(jc.ru(&jing, &self.sun_def(&(&jing - &tong)), &self.moon_def(&md(&(base + q(m) * &self.shuo), &self.zhuan)), self.f))
+    }
+    /// 宋诸历日食（简法）：有食 = 入食限（[Jiaohui::shixian]），阴阳历按入交定；食甚 = 定朔小余以时差加减（「求食定餘」）：
+    /// 午前时差 =（半法 − 午前分）× 午前分 ÷ A，以减；午后 =（半法 − 午后分）× 午后分 ÷ B，以加。A、B（日法之分）崇天
+    /// 31770、13885（卷七十三），观天 36090、18045（卷七十八），纪元 10935、日法（卷八十；南宋诸历「法同前曆」，按一日之比
+    /// 用纪元之数）。不算气差、刻差与食分。
+    fn rishi(&self, y: i32, m: i64) -> Option<Rishi> {
+        if self.lou == SongLou::Chongtian {
+            return self.chongtian_rishi(y, m);
+        }
+        let j = self.jiao(y, m)?;
+        let fq = q(self.f);
+        let frac = md(&self.month(y, m).1, &fq) / &fq;
+        let (a, b) = match self.lou {
+            SongLou::Chongtian => (qr(31770, 10590), qr(13885, 10590)),
+            SongLou::Guantian => (qr(36090, 12030), qr(18045, 12030)),
+            SongLou::Jiyuan | SongLou::JiyuanProxy => (qr(10935, 7290), q(1)),
+        };
+        let half = qr(1, 2);
+        let shen = if frac <= half {
+            let x = &half - &frac;
+            &frac - (&half - &x) * &x / a
+        } else {
+            let x = &frac - &half;
+            &frac + (&half - &x) * &x / b
+        };
+        // 汎用分（食甚距亏初），以去交分代三差后之交前后分（近似）；定用 = 汎用 × 1337 / 转定分，转定分取其平 1337，即以汎用为定用
+        let qu = &j.qu * &fq;
+        let dingyong = match self.lou {
+            // 崇天：交前后分 ≤ 阳历食限 4200 为阳历食定分，已上覆减 11200 为阴历食定分；百约为 a，阳历 (84 − a)·a·100/185，
+            // 阴历 (140 − a)·a·100/514（枢法之分）
+            SongLou::Chongtian => {
+                let (a, k, d) = if qu <= q(4200) { (&qu / q(100), 84, 185) } else { ((q(11200) - &qu).max(Q::zero()) / q(100), 140, 514) };
+                (q(k) - &a) * &a * q(100) / q(d) / &fq
+            }
+            // 观天：阳历食限 4900，阴历覆减 12800；退二位为 a，阳 (98 − a)·a/250，阴 (158 − a)·a/650（约分，百分日）
+            SongLou::Guantian => {
+                let (a, k, d) = if qu <= q(4900) { (&qu / q(100), 98, 250) } else { ((q(12800) - &qu).max(Q::zero()) / q(100), 158, 650) };
+                (q(k) - &a) * &a / q(d) / q(100)
+            }
+            // 纪元：交前后分自相乘，退二位，阳历 198、阴历 317 而一，用减 583（日法 7290 之分）；南宋诸历按一日之比
+            SongLou::Jiyuan | SongLou::JiyuanProxy => {
+                let u = &qu * q(7290) / &fq;
+                ((q(583) - &u * &u / q(100) / q(if j.yin { 317 } else { 198 })) / q(7290)).max(Q::zero())
+            }
+        };
+        Some(Rishi { shi: j.shixian, yin: j.yin, shen, dingyong: Some(dingyong) })
+    }
+    /// 定朔所在日午中之日出（同进朔限所用，[song_jinshuo_limit]）
+    fn sunrise(&self, y: i32, t: &Q) -> Option<Q> {
+        let fq = q(self.f);
+        let noon = (q(fl(&(t / &fq))) + qr(1, 2)) * &fq;
+        let d = self.since_dongzhi(y, &noon);
+        Some(Song::sunrise(self, &(&d / &fq + self.yingsuo_deg(&d))))
+    }
     fn jinshuo_limit(&self, y: i32, t: &Q) -> Option<Q> {
         Some(song_jinshuo_limit(
             self.f,
@@ -1026,6 +1663,84 @@ impl DingshuoLi for Song {
 }
 
 impl Song {
+    /// 崇天历日食（《宋史》卷七十三步交會，枢法 10590）：
+    /// - 食定余：午前分 p =（半法 − 小余），时差 =（半法 − p）·p / 31770，以减；午后分 p =（小余 − 半法），时差 =（半法 − p）·p / 13885，
+    ///   以加。距午定分 = 午前后分 + 时差。
+    /// - 气差：中积（定朔距天正冬至，常气日）满二至限去之，距二至 u 日，气差 = 3533 − u²·100/236；定数 = 气差 − 气差 × 距午定分 / 半晝分
+    ///   （半晝分 = 半法 − 日出分）；春分后交初减、交中加，秋分后交初加、交中减。
+    /// - 刻差：x = 中积 mod 二至限，刻差 = (二至限 − x)·x·100/236；定数 = 刻差 × 距午定分 × 4 / 枢法；冬至后午前、夏至后午后交初加、交中减，
+    ///   反之交初减、交中加（「陽初陰末爲交初，陰初陽末爲交中」）。
+    /// - 时差：随食定余加减入交（午前减、午后加）。
+    /// - 日入食限：入交定加减三差，在中日已下不食；已上去中日，后限已下为交后分，前限已上覆减中日为交前分。交前后分 ≤ 阳历食限 4200
+    ///   为阳历食定分，已上覆减 11200 为阴历食定分，不足减不食。
+    /// - 汎用分：食定分百约为 a，阳历 (84 − a)·a·100/185，阴历 (140 − a)·a·100/514；定用分 = 汎用 × 1337 / 转定分（转定分由月离损益率
+    ///   折算，志表之转定分未入本项目之表）。
+    fn chongtian_rishi(&self, y: i32, m: i64) -> Option<Rishi> {
+        let jc = self.jiao.as_ref()?;
+        let j = self.jiao(y, m)?;
+        let fq = q(self.f);
+        let ding = self.month(y, m).1;
+        let xiao = md(&ding, &fq);
+        let banfa = &fq / q(2);
+        let (shicha, pm, p) = if xiao <= banfa {
+            let p = &banfa - &xiao;
+            ((&banfa - &p) * &p / q(31770), false, p)
+        } else {
+            let p = &xiao - &banfa;
+            ((&banfa - &p) * &p / q(13885), true, p)
+        };
+        let shen_fen = if pm { &xiao + &shicha } else { &xiao - &shicha };
+        let juwu = &p + &shicha;
+        let sr = <Song as DingshuoLi>::sunrise(self, y, &ding)? * &fq;
+        let banzhou = &banfa - &sr;
+        let zhongji = md(&(&ding - self.tong(y)), &q(self.sui)) / &fq;
+        let erzhi = qr(18262, 100);
+        let x = md(&zhongji, &erzhi);
+        let u = if x <= &erzhi / q(2) { x.clone() } else { &erzhi - &x };
+        let jiaozhong = j.yin != j.qian; // 阴初（阴历交后）、阳末（阳历交前）为交中
+        let jz = |v: Q| if jiaozhong { v } else { -v };
+        let qicha = q(3533) - &u * &u * q(100) / q(236);
+        let qi_d = &qicha - &qicha * &juwu / &banzhou;
+        let sui = q(self.sui) / &fq;
+        let chunfen_hou = zhongji >= &sui / q(4) && zhongji < &sui * qr(3, 4);
+        let d_qi = if chunfen_hou { jz(qi_d) } else { -jz(qi_d) };
+        let kecha = (&erzhi - &x) * &x * q(100) / q(236);
+        let ke_d = &kecha * &juwu * q(4) / &fq;
+        let dongzhi_hou = zhongji < erzhi;
+        let d_ke = if dongzhi_hou != pm { -jz(ke_d) } else { jz(ke_d) };
+        let d_shi = if pm { shicha.clone() } else { -shicha.clone() };
+        let zhong = &jc.zhong;
+        let zhongri = zhong / q(2);
+        let xr = md(&(&j.ru * &fq + d_qi + d_ke + d_shi), zhong);
+        let (houxian, qianxian) = (jc.xian.clone(), &zhongri - &jc.xian);
+        let fen = if xr < zhongri {
+            None
+        } else {
+            let w = &xr - &zhongri;
+            if w <= houxian {
+                Some(w)
+            } else if w >= qianxian {
+                Some(&zhongri - w)
+            } else {
+                None
+            }
+        };
+        let (shi, yang, a) = match fen {
+            Some(f) if f <= q(4200) => (true, true, f / q(100)),
+            Some(f) if f < q(11200) => (true, false, (q(11200) - f) / q(100)),
+            _ => (false, false, Q::zero()),
+        };
+        let fanyong = if yang { (q(84) - &a) * &a * q(100) / q(185) } else { (q(140) - &a) * &a * q(100) / q(514) };
+        // 转定分（月行一日之分，平 1337）：由入转损益率折算，月行 = 13.37 度 − 损益率 × 12.37 / 枢法（朒向益为月迟）
+        let t0 = self.first_shuo(y);
+        let x = md(&(md(&t0, &self.zhuan) + q(m) * &self.shuo), &self.zhuan);
+        let half_day = &fq / q(2);
+        let rate = self.moon_def(&md(&(&x + &half_day), &self.zhuan)) - self.moon_def(&md(&(&x - &half_day + &self.zhuan), &self.zhuan));
+        let zhuanding = q(1337) - rate * q(1237) / &fq;
+        let dingyong = fanyong * q(1337) / zhuanding;
+        Some(Rishi { shi, yin: shi, shen: shen_fen / &fq, dingyong: Some(dingyong / &fq) })
+    }
+
     /// 进朔限所用之日（定朔所在日午中）距天正冬至的盈缩改正（度）：崇天中积用常气，不加；观天按本历盈缩分之术；
     /// 纪元先后数与朏朒积成比例（春分先二萬四千、朒一千三百九，单位万分度）；南宋诸历以纪元之比折算。
     fn yingsuo_deg(&self, d: &Q) -> Q {
@@ -1187,6 +1902,41 @@ fn song_tables(name: &str) -> (Option<Vec<(i64, i64, Q, Q)>>, SongMoon) {
     (if sun.is_empty() { None } else { assert_eq!(sun.len(), 24); Some(sun) }, SongMoon { days })
 }
 
+/// 宋诸历步交会常数（《宋史·律历志》）：交终分、后限（望差，= 朔差之半）、交率、交数，秒母皆一万。
+/// 崇天卷七十三、观天卷七十八、纪元卷八十、统元乾道淳熙会元卷八十三（统元正文，三历注文）、统天开禧成天卷八十四（统天正文，二历注文）。
+/// 后限志有明文者（崇天、观天、统元、乾道）用之，余以朔差之半；明天以交初度另立一术，未复原。
+fn song_jiao(name: &str) -> Option<JiaoConst> {
+    let j = |zhong: i64, shuocha: i64, lv: i64, shu: i64| Some(JiaoConst::new(qr(zhong, 10000), qr(shuocha, 20000), lv, shu));
+    match name {
+        // 交終分二十八萬八千一百七十七、秒四千二百七十七；後限日一、餘一千六百八十五、秒七千八百六十一半（朔差二日三千三百七十一、秒五千七百二十三之半）
+        "崇天" => j(2881774277, 245515723, 141, 1796),
+        // 交終分三十二萬七千三百六十一、秒九千九百四十四；後限日一、餘一千九百一十五、秒五千二十八（朔差二日三千八百三十一、秒五十六之半）
+        "观天" => j(3273629944, 278900056, 183, 2331),
+        // 交終分一十九萬八千三百七十七、秒八百八十；朔差二日二千三百二十、秒九千一百二十（志不列後限，取半）
+        "纪元" => j(1983770880, 169009120, 324, 4127),
+        // 交終分一十八萬八千五百八十、秒六千四百五十七；後限一日一千一百三、秒一千七百七十一半
+        "统元" => j(1885806457, 160663543, 42, 535),
+        // 乾道八十一萬六千三百六十六、秒六千三十四；後限一日四千七百七十五、秒五千七百八十三；交率八十、交數一千一十九
+        "乾道" => j(8163666034, 695511566, 80, 1019),
+        // 淳熙交實一十五萬三千四百七十六、秒九千五百四十三；朔差二日一千七百九十五、秒六千五十七；交率六十一、交數七百七十七
+        "淳熙" => j(1534769543, 130756057, 61, 777),
+        // 會元一百五萬三千一百一十三、秒二千一百四十（注文「交率」，即交終）；朔差二日一萬二千三百二十、秒七千八百六十；交率五百七。
+        // 志不載會元交數，以交率 : 交數 = 朔差 : 朔實（他历皆然，统元 42/535 = 0.07850）推得 6458（507/6458 = 0.078507，朔差/朔實 0.078508）
+        "会元" => j(10531132140, 897207860, 507, 6458),
+        // 統天交實三十二萬六千五百四十七；交差八萬二百九十八（同轉差、閏差，自朔定積減之）；朔差二日三千八百二十一；交率十九、交數二百四十二
+        "统天" => {
+            let mut c = JiaoConst::new(q(326547), qr(27821, 2), 19, 242);
+            c.cha = q(80298);
+            Some(c)
+        }
+        // 開禧「交率」四十五萬九千八百八十六、秒四千八百二十五（即交終）；朔差二日五千三百八十、秒五千一百七十五
+        "开禧" => j(4598864825, 391805175, 19, 242),
+        // 成天交終分二十萬一千九百一十四、秒七千五十一；朔差二日二千三百六十二、秒二千九百四十九
+        "成天" => j(2019147051, 172022949, 19, 242),
+        _ => None,
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn song(name: &str, f: i64, sui: i64, shuo: Q, zhuan: Q, ji: i64, y_ji: i32, day0: i64, rinru: bool, cha: Option<SongCha>, approx: (i32, i32, i32)) -> Song {
     let (sun, moon) = song_tables(name);
@@ -1197,7 +1947,8 @@ fn song(name: &str, f: i64, sui: i64, shuo: Q, zhuan: Q, ji: i64, y_ji: i32, day
         "纪元" => SongLou::Jiyuan,
         _ => SongLou::JiyuanProxy,
     };
-    let mut s = Song { f, sui, shuo, zhuan, ji, y_ji, rinru, cha, sun, moon, lou, off: 0 };
+    let jiao = song_jiao(name);
+    let mut s = Song { f, sui, shuo, zhuan, ji, y_ji, rinru, cha, sun, moon, lou, off: 0, jiao };
     let dz = fl(&(s.tong(y_ji) / q(f)));
     s.off = align_offset(dz + day0, gregorian::civil_to_jdn(approx.0, approx.1, approx.2)) + day0;
     s
@@ -1208,8 +1959,6 @@ fn song(name: &str, f: i64, sui: i64, shuo: Q, zhuan: Q, ji: i64, y_ji: i32, day
 struct Shoushi {
     run_ying: i64,
     zhuan_ying: i64,
-    /// 大统「遲疾限行度內減去八百二十分」：限行度减日行
-    relative: bool,
     off: i64,
 }
 
@@ -1292,15 +2041,153 @@ impl DingshuoLi for Shoushi {
         let jing = &t0 + q(m) * ss_shuo();
         let r = &ru0 + q(m) * ss_shuo();
         let deg = ss_sun(&(&jing - &dz)) - ss_moon(&r);
-        let v = ss_speed(&r) * qr(82, 1000) - if self.relative { qr(82, 1000) } else { Q::zero() };
+        // 除数用月每限实行度，不减日行：《大统历日通轨》「以其下遲疾度分而一」，立成初限疾曆 679.3140、遲曆 832.0649 即 820 除以月实行度；
+        // 永乐十五年、万历三十三年钦天监刊本三处朔日亦证。《明史·历志》「遲疾限行度內減去八百二十分」与颁历不合。
+        let v = ss_speed(&r) * qr(82, 1000);
         let ding = &jing + deg / v * q(820);
         (jing, ding)
     }
 }
 
-fn shoushi(relative: bool) -> Shoushi {
+/// 大统历：照《大统暦日通轨》步气朔术文查立成定朔（`data/calendar/datong_tonggui_licheng_used.csv`，由
+/// `scripts/calendar_data/datong_tonggui_dingshuo.py --export` 从两张转录表导出）。钦天监颁历用立成而非三次式：
+/// 迟疾历日率按转终 ÷ 336 一限累计，积度在八十二至八十五限另有取舍，与公式定朔逐月差中位 1.9 分、最大 29 分；
+/// 弘治十年十月、万历三十八年二月两月因此与《明实录》相合（公式推步差在子夜两侧）。
+/// 截分（术文未言，假定）：盈缩差、迟疾差截至表末位，加减差截至秒；不截结果相同。
+struct Tonggui {
+    /// (日率分, 损益秒每日分（损负）, 积度秒, 疾历列, 迟历列)
+    moon: Vec<(Q, Q, Q, Q, Q)>,
+    /// 太阳 (冬至表?, 积日) → (加分, 积分)
+    sun: std::collections::BTreeMap<(bool, i64), (Q, Q)>,
+    off: i64,
+}
+
+fn trunc_to(x: &Q, unit: &Q) -> Q {
+    (x / unit).trunc() * unit
+}
+
+impl Tonggui {
+    fn new() -> Self {
+        let csv = include_str!("../../../../data/calendar/datong_tonggui_licheng_used.csv");
+        let mut moon = Vec::new();
+        let mut sun = std::collections::BTreeMap::new();
+        for line in csv.lines().filter(|l| !l.starts_with('#') && !l.starts_with("类,")) {
+            let c: Vec<&str> = line.split(',').collect();
+            match c[0] {
+                "太阴" if !c[3].is_empty() => moon.push((parse_q(c[2]), parse_q(c[3]), parse_q(c[4]), parse_q(c[5]), parse_q(c[6]))),
+                "太阴" => moon.push((parse_q(c[2]), Q::zero(), Q::zero(), Q::zero(), Q::zero())),
+                "太阳" => {
+                    sun.insert((c[1] == "冬", c[2].parse::<i64>().unwrap()), (parse_q(c[3]), parse_q(c[4])));
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(moon.len(), 169, "太阴立成");
+        Tonggui { moon, sun, off: align_offset(SS_QI_YING / SS_F, gregorian::civil_to_jdn(1280, 12, 14)) }
+    }
+
+    /// 盈缩历 li（分，0—半岁周），ying 盈历否 → 盈缩差（度，盈正缩负）
+    fn ying_suo(&self, li: &Q, ying: bool) -> Q {
+        let half = qr(SS_SUI, 2);
+        let first = if ying { li < &(q(88 * SS_F + 9092) + qr(1, 4)) } else { li < &(q(93 * SS_F + 7120) + qr(1, 4)) };
+        // 盈初、缩末查冬至前后表；缩初、盈末查夏至前后表
+        let winter = if ying { first } else { !first };
+        let x = if first { li.clone() } else { &half - li };
+        let day = fl(&(&x / q(SS_F)));
+        let frac = &x - q(day * SS_F);
+        let (a, j) = &self.sun[&(winter, day)];
+        let part = trunc_to(&(a * frac / q(SS_F)), &qr(1, SS_F));
+        let deg = (j + part) / q(SS_F);
+        if ying {
+            deg
+        } else {
+            -deg
+        }
+    }
+
+    /// 迟疾历 li（分，0—小转中）→ (迟疾差（度，疾正迟负）, 限行度列)
+    fn chi_ji(&self, li: &Q, fast: bool) -> (Q, Q) {
+        let n = (0..168).filter(|&k| &self.moon[k].0 <= li).max().unwrap();
+        let (rl, sy, jd, ji, ch) = &self.moon[n];
+        let sec = trunc_to(&(jd + sy * (li - rl)), &qr(1, SS_F));
+        let deg = sec / q(SS_F);
+        if fast {
+            (deg, ji.clone())
+        } else {
+            (-deg, ch.clone())
+        }
+    }
+}
+
+impl DingshuoLi for Tonggui {
+    fn f(&self) -> i64 {
+        SS_F
+    }
+    fn off(&self) -> i64 {
+        self.off
+    }
+    fn sui(&self) -> Q {
+        q(SS_SUI)
+    }
+    fn dongzhi(&self, y: i32) -> Q {
+        q((y - 1281) as i64 * SS_SUI + SS_QI_YING)
+    }
+    fn month(&self, y: i32, m: i64) -> (Q, Q) {
+        let zj = q((y - 1281) as i64 * SS_SUI);
+        let shuo = ss_shuo();
+        let half = qr(SS_SUI, 2);
+        let run = md(&(&zj + q(202050)), &shuo);
+        let jing = &zj + q(SS_QI_YING) - &run + q(m) * &shuo;
+        // 天正经朔入缩历 = 半岁周 − 闰余，累加朔策，满半岁周去之，盈缩互易
+        let mut li_ys = &half - &run + q(m) * &shuo;
+        let mut ying = false;
+        while li_ys >= half {
+            li_ys -= &half;
+            ying = !ying;
+        }
+        let zz = md(&(&zj + q(130205) - &run + q(m) * &shuo), &q(SS_ZHUAN));
+        let zhong = q(137773);
+        let fast = zz < zhong;
+        let li_cj = if fast { zz } else { zz - zhong };
+        let ys = self.ying_suo(&li_ys, ying);
+        let (cj, col) = self.chi_ji(&li_cj, fast);
+        // 盈、迟为加，缩、疾为减；立成限行度列 ×100 即 820 ÷ 月每限行度
+        let jjc = trunc_to(&((ys - cj) * col * q(100)), &qr(1, 100));
+        let ding = &jing + jjc;
+        (jing, ding)
+    }
+}
+
+/// 明郑大统（1662—1683）：照《通轨》立成推步，定朔在夜子初（23 时）以后者置次日。
+/// 依据：明郑颁历实物（Bodleian Sinica 58、88，剑桥 St John's S.14；永历二十五、三十、三十一年）36 月中，
+/// 推步定朔 23:48、23:40 两月实物皆作次日，20:08 以前者不移；纪年页闰月注（1653、1675）限界于 22:43—23:10。
+/// 节气交时全合北京子午线推步，故非台湾经度之差。见 doc/calendar/calendar-compendium.md「明郑颁历实物」。
+struct TongguiZichu(Tonggui);
+
+impl DingshuoLi for TongguiZichu {
+    fn f(&self) -> i64 {
+        self.0.f()
+    }
+    fn off(&self) -> i64 {
+        self.0.off()
+    }
+    fn sui(&self) -> Q {
+        self.0.sui()
+    }
+    fn dongzhi(&self, y: i32) -> Q {
+        self.0.dongzhi(y)
+    }
+    fn month(&self, y: i32, m: i64) -> (Q, Q) {
+        self.0.month(y, m)
+    }
+    fn jinshuo_limit(&self, _y: i32, _t: &Q) -> Option<Q> {
+        Some(qr(23 * SS_F, 24))
+    }
+}
+
+fn shoushi() -> Shoushi {
     // 《明史》称《大统历法通轨》所载为授时续定之数：闰应 202050、转应 130205（与《元史》历经 201850、131904 异），授时亦用之
-    Shoushi { run_ying: 202050, zhuan_ying: 130205, relative, off: align_offset(SS_QI_YING / SS_F, gregorian::civil_to_jdn(1280, 12, 14)) }
+    Shoushi { run_ying: 202050, zhuan_ying: 130205, off: align_offset(SS_QI_YING / SS_F, gregorian::civil_to_jdn(1280, 12, 14)) }
 }
 
 // ---------------------------------------------------------------- 按历名取
@@ -1315,6 +2202,10 @@ const REGISTRY: &[(&str, &[(i32, i32)])] = &[
     ("正元历", &[(784, 806)]),
     ("宣明历", &[(822, 892)]),
     ("崇玄历", &[(893, 938), (944, 955)]),
+    // 五代实行：「當時歲曆，猶用《宣明》《崇元》二法，參而成之」（《旧五代史·历志》）；马重绩「以《宣明》氣朔，《崇元》星緯」。
+    // 893—956 年本纪明书朔日 368 条：宣明推步合 360、崇玄术文 344。见 doc/calendar/calendar-compendium.md「崇玄」。
+    ("崇玄历（宣明气朔）", &[(893, 938), (944, 956)]),
+    ("调元历（宣明气朔）", &[(939, 943)]),
     ("崇天历", &[(1024, 1064), (1068, 1074)]),
     ("明天历", &[(1065, 1067)]),
     ("观天历", &[(1094, 1102)]),
@@ -1330,8 +2221,165 @@ const REGISTRY: &[(&str, &[(i32, i32)])] = &[
     ("大统历", &[(1368, 1644), (1666, 1668)]),
 ];
 
+/// 中原一线以外分政权所用之定朔历（不入 [REGISTRY]，只经 [reckon_year_any] 取）：(历名, 排月年段)。
+const REGIME_REGISTRY: &[(&str, &[(i32, i32)])] = &[
+    // 辽 947—1087：大同元年得后晋调元历（马重绩「以《宣明》氣朔」），统和十二年（994）贾俊大明历，术皆不传，以宣明代推。
+    // 《辽史·历象志下》「朔考」序：宋元丰元年诏司天监考辽历，「遼己未歲（1079）氣朔與《宣明曆》合」。1088 年起本纪闰位合宋历、
+    // 不合宣明（日本宣明历同年闰位全合推步），辽后期另有所改，术不传，不推。细则同宣明（三大三小、有交应见亏初不进）；
+    // 五代 937、938 正月有交退日与例外表皆不及。见 doc/calendar/calendar-compendium.md「辽」。
+    ("宣明历（辽）", &[(947, 1087)]),
+];
+
+/// 「使不過三大二小」
+/// 唐大衍一系「使不過三大三小」（大衍术注原文；钱宝琮校作「三大二小」）。取原文：二小之读使宣明（含五代宣明气朔）强进
+/// 约二十余月，大衍本纪 61 不变、五纪 48→46、宣明 302→300、五代 332→329，张表同日亦减；三小、只限三大两读结果全同
+/// （此期无连四小）。
+const TANG_RUNS: Rules = Rules { runs: Some((3, 3)), pin_san: false, zhengyue: None, jiao_bujin: None, zhengyue_jiao: &[] };
+const SAN_DA_ER_XIAO: Rules = Rules { runs: Some((3, 2)), pin_san: false, zhengyue: None, jiao_bujin: None, zhengyue_jiao: &[] };
+
+/// 排月选项：交会诸规则（「有交不进」「正月朔有交」）与五代定闰所用中气（[WudaiDingqi]）。缺省 [PaiyueOptions::default]
+/// 依本纪检验而定，见 `doc/calendar/calendar-compendium.md`「交会与进朔」「唐宋诸历本纪不合之考证」。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct PaiyueOptions {
+    /// 宣明（含五代宣明气朔）「或有交，應見虧初，則否」；None 不用
+    pub xuanming: Option<JiaoBujin>,
+    /// 宋诸历「有食應見者，其朔不進」；None 不用
+    pub song: Option<JiaoBujin>,
+    /// 大衍术注「正月朔有交、加時正見者……令虧在晦、二」
+    pub zhengyue: ZhengyueJiao,
+    /// 五代「崇玄历（宣明气朔）」定闰之中气
+    pub wudai_dingqi: WudaiDingqi,
+}
+
+/// 五代宣明气朔诸段定闰所用之中气。《旧五代史·历志》：「當時歲曆，猶用《宣明》《崇元》二法，參而成之」；后晋马重绩调元历
+/// 「以《宣明》氣朔，《崇元》星緯」。904 年（天祐元年）本纪、新唐书、旧五代史、《通鉴》（「夏四月辛巳……閏月丁酉」）皆闰四月，
+/// 宣明恒气得闰三月（日本行宣明同），崇玄恒气得闰四月：朔用宣明定朔、中气用崇玄恒气，即「參而成之」。
+/// 各段之冬至岁见 [WUDAI_CHONGXUAN_QI]、[WUDAI_CHONGXUAN_QI_ALL]；辽一路「宣明历（辽）」不在此列。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum WudaiDingqi {
+    /// 全用宣明恒气（旧做法，2026-11-18 前）
+    Xuanming,
+    /// 崇玄行用期 893—938 与复用期 944—956 用崇玄恒气，调元段 939—943 照马重绩「宣明氣朔」用宣明
+    Chongxuan,
+    /// 893—956 全程用崇玄恒气（调元段亦然），只供对照
+    ChongxuanAll,
+}
+
+/// 五代崇玄行用期（893—938）与复用期（944—956）之冬至岁
+pub const WUDAI_CHONGXUAN_QI: &[(i32, i32)] = &[(893, 938), (944, 956)];
+/// 五代 893—956 全程之冬至岁
+pub const WUDAI_CHONGXUAN_QI_ALL: &[(i32, i32)] = &[(893, 956)];
+
+/// 「正月朔有交」之适用范围
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ZhengyueJiao {
+    /// 不用
+    Off,
+    /// 只在史载有据之年（[TANG_ZHENGYUE_JIAO]、[WUDAI_ZHENGYUE_JIAO]）
+    Shizai,
+    /// 大衍一系全程（唐 +1 进令亏在晦，五代宣明气朔 −1 退令亏在二日）：本纪 781、789、790、874、892、901、911 年元日有交昼见而未移，
+    /// 全程用之与本纪不合，只供对照
+    All,
+}
+
+impl Default for PaiyueOptions {
+    fn default() -> Self {
+        PaiyueOptions {
+            // 阴历之蚀、亏初（食甚减 80 分钟）不晚于日入：宣明本纪不变，五代宣明气朔张表同日 +3；夜食亦不进则本纪 −5
+            xuanming: Some(JiaoBujin { yin: true, wan_min: Some(80) }),
+            // 有食（崇天照志文日蚀术，余以入食限代之）、亏初（食甚减定用）不晚于日入；不限阴阳历
+            song: Some(JiaoBujin { yin: false, wan_min: Some(0) }),
+            zhengyue: ZhengyueJiao::Shizai,
+            wudai_dingqi: WudaiDingqi::Chongxuan,
+        }
+    }
+}
+
+/// 史载正月朔有交移日之年（唐）：780 年（大历十五年）元日丙寅 15.46 时有交昼见，天文志「十二月丙寅晦，日有食之」，正月作丁卯
+pub const TANG_ZHENGYUE_JIAO: &[(i32, i32, i64)] = &[(780, 780, 1)];
+/// 史载正月朔有交移日之年（后晋）：937、938 年元日食，司天奏「正月二日」食（《五代会要》卷十），正月退一日
+pub const WUDAI_ZHENGYUE_JIAO: &[(i32, i32, i64)] = &[(937, 938, -1)];
+
+/// 历名 → 连同排月细则的历（按交会选项构造，宋诸历读表）。
+fn build_paiyue(name: &str, o: &PaiyueOptions) -> Option<Paiyue> {
+    let none = Rules::default();
+    let song_r = Rules { jiao_bujin: o.song, ..SAN_DA_ER_XIAO };
+    let zy = |shizai: &'static [(i32, i32, i64)], all: &'static [(i32, i32, i64)]| match o.zhengyue {
+        ZhengyueJiao::Off => &[][..],
+        ZhengyueJiao::Shizai => shizai,
+        ZhengyueJiao::All => all,
+    };
+    Some(match name {
+        "戊寅元历" => Paiyue::new(wuyin(false), &["戊寅元历"], none),
+        "麟德历" => Paiyue::new(linde(), &["麟德历"], Rules { runs: None, pin_san: true, zhengyue: Some((684, 19)), jiao_bujin: None, zhengyue_jiao: &[] }),
+        "大衍历" => Paiyue::new(dayan(), &["大衍历"], Rules { zhengyue_jiao: zy(&[], &[(729, 761, 1)]), ..TANG_RUNS }),
+        "五纪历" => Paiyue::new(wuji(), &["五纪历"], Rules { zhengyue_jiao: zy(TANG_ZHENGYUE_JIAO, &[(762, 783, 1)]), ..TANG_RUNS }),
+        "正元历" => Paiyue::new(zhengyuan(), &["正元历"], Rules { zhengyue_jiao: zy(&[], &[(784, 806, 1)]), ..TANG_RUNS }),
+        "宣明历" | "崇玄历（宣明气朔）" | "调元历（宣明气朔）" => Paiyue::new(
+            xuanming(),
+            &["宣明历", "崇玄历（宣明气朔）", "调元历（宣明气朔）"],
+            Rules { jiao_bujin: o.xuanming, zhengyue_jiao: zy(WUDAI_ZHENGYUE_JIAO, &[(822, 906, 1), (907, 956, -1)]), ..TANG_RUNS },
+        )
+        .with_zhongqi(
+            chongxuan(),
+            match o.wudai_dingqi {
+                WudaiDingqi::Xuanming => &[],
+                WudaiDingqi::Chongxuan => WUDAI_CHONGXUAN_QI,
+                WudaiDingqi::ChongxuanAll => WUDAI_CHONGXUAN_QI_ALL,
+            },
+        ),
+        "宣明历（辽）" => Paiyue::new(xuanming(), &["宣明历（辽）"], Rules { jiao_bujin: o.xuanming, ..TANG_RUNS }),
+        "崇天历" => Paiyue::new(song("崇天", 10590, 3867940, q(312729), qr(2918030594, 10000), 97556340, 1024, 0, true, None, (1023, 12, 18)), &["崇天历"], song_r),
+        "明天历" => {
+            let dz = Mingtian::tong(1064).div_euclid(MT_F);
+            Paiyue::new(Mingtian { off: align_offset(dz, gregorian::civil_to_jdn(1063, 12, 16)) }, &["明天历"], song_r)
+        }
+        "观天历" => Paiyue::new(song("观天", 12030, 4393880, q(355253), qr(3314820389, 10000), 5944808, 1092, 0, false, None, (1091, 12, 16)), &["观天历"], song_r),
+        "纪元历" => Paiyue::new(song("纪元", 7290, 2662626, q(215278), qr(2008730990, 10000), 28613466, 1106, 15, false, None, (1105, 12, 16)), &["纪元历"], song_r),
+        "统元历" => Paiyue::new(song("统元", 6930, 2531138, q(204647), qr(1909532563, 10000), 94251591, 1135, 0, false, None, (1134, 12, 15)), &["统元历"], song_r),
+        "乾道历" => Paiyue::new(song("乾道", 30000, 10957308, qr(88591776, 100), qr(8266377395, 10000), 91645823, 1167, 0, false, None, (1166, 12, 15)), &["乾道历"], song_r),
+        "淳熙历" => Paiyue::new(song("淳熙", 5640, 2059974, qr(16655256, 100), qr(1554079740, 10000), 52421972, 1176, 0, false, None, (1175, 12, 15)), &["淳熙历"], song_r),
+        "会元历" => Paiyue::new(song("会元", 38700, 14134932, q(1142834), qr(10663617310, 10000), 25494767, 1191, 0, false, None, (1190, 12, 15)), &["会元历"], song_r),
+        "统天历" => Paiyue::new(
+            song("统天", 12000, 4382910, q(354368), q(330655), 3835, 1199, 0, false, Some(SongCha { ju: 3830, qi: 237811, run: 21704, zhuan: 188800 }), (1198, 12, 15)),
+            &["统天历"],
+            song_r,
+        ),
+        "开禧历" => Paiyue::new(song("开禧", 16900, 6172608, q(499067), qr(4656725396, 10000), 7848183, 1207, 0, false, None, (1206, 12, 15)), &["开禧历"], song_r),
+        "成天历" => Paiyue::new(song("成天", 7420, 2710101, q(219117), qr(2044551641, 10000), 71758147, 1271, 0, false, None, (1270, 12, 14)), &["成天历"], song_r),
+        _ => return None,
+    })
+}
+
+/// 历名 + 交会选项 → 排月之历（惰性构造并缓存；宣明三名共一历）
+fn paiyue_with(name: &str, o: &PaiyueOptions) -> Option<&'static Paiyue> {
+    use std::collections::HashMap;
+    use std::sync::{Mutex, OnceLock};
+    static C: OnceLock<Mutex<HashMap<(&'static str, PaiyueOptions), &'static Paiyue>>> = OnceLock::new();
+    let key = match name {
+        "崇玄历（宣明气朔）" | "调元历（宣明气朔）" => "宣明历",
+        _ => name,
+    };
+    let key: &'static str = REGISTRY.iter().chain(REGIME_REGISTRY).map(|(n, _)| *n).find(|n| *n == key)?;
+    let mut m = C.get_or_init(Default::default).lock().unwrap();
+    if let Some(p) = m.get(&(key, *o)) {
+        return Some(p);
+    }
+    let p: &'static Paiyue = Box::leak(Box::new(build_paiyue(key, o)?));
+    m.insert((key, *o), p);
+    Some(p)
+}
+
+/// 历名 → 连同排月细则的历（缺省交会选项）。
+fn paiyue_by_name(name: &str) -> Option<&'static Paiyue> {
+    paiyue_with(name, &PaiyueOptions::default())
+}
+
 /// 历名 → 历（惰性构造，宋诸历读表）。
 pub fn li_by_name(name: &str) -> Option<&'static dyn DingshuoLi> {
+    if let Some(p) = paiyue_by_name(name) {
+        return Some(p);
+    }
     use std::sync::OnceLock;
     macro_rules! once {
         ($e:expr) => {{
@@ -1340,33 +2388,11 @@ pub fn li_by_name(name: &str) -> Option<&'static dyn DingshuoLi> {
         }};
     }
     match name {
-        "戊寅元历" => once!(wuyin(false)),
         "戊寅元历（平朔）" => once!(wuyin(true)),
-        "麟德历" => once!(linde()),
-        "大衍历" => once!(dayan()),
-        "五纪历" => once!(wuji()),
-        "正元历" => once!(zhengyuan()),
-        "宣明历" => once!(xuanming()),
         "崇玄历" => once!(chongxuan()),
-        "崇天历" => once!(song("崇天", 10590, 3867940, q(312729), qr(2918030594, 10000), 97556340, 1024, 0, true, None, (1023, 12, 18))),
-        "明天历" => once!({
-            let dz = Mingtian::tong(1064).div_euclid(MT_F);
-            Mingtian { off: align_offset(dz, gregorian::civil_to_jdn(1063, 12, 16)) }
-        }),
-        "观天历" => once!(song("观天", 12030, 4393880, q(355253), qr(3314820389, 10000), 5944808, 1092, 0, false, None, (1091, 12, 16))),
-        "纪元历" => once!(song("纪元", 7290, 2662626, q(215278), qr(2008730990, 10000), 28613466, 1106, 15, false, None, (1105, 12, 16))),
-        "统元历" => once!(song("统元", 6930, 2531138, q(204647), qr(1909532563, 10000), 94251591, 1135, 0, false, None, (1134, 12, 15))),
-        "乾道历" => once!(song("乾道", 30000, 10957308, qr(88591776, 100), qr(8266377395, 10000), 91645823, 1167, 0, false, None, (1166, 12, 15))),
-        "淳熙历" => once!(song("淳熙", 5640, 2059974, qr(16655256, 100), qr(1554079740, 10000), 52421972, 1176, 0, false, None, (1175, 12, 15))),
-        "会元历" => once!(song("会元", 38700, 14134932, q(1142834), qr(10663617310, 10000), 25494767, 1191, 0, false, None, (1190, 12, 15))),
-        "统天历" => once!(song(
-            "统天", 12000, 4382910, q(354368), q(330655), 3835, 1199, 0, false,
-            Some(SongCha { ju: 3830, qi: 237811, run: 21704, zhuan: 188800 }), (1198, 12, 15)
-        )),
-        "开禧历" => once!(song("开禧", 16900, 6172608, q(499067), qr(4656725396, 10000), 7848183, 1207, 0, false, None, (1206, 12, 15))),
-        "成天历" => once!(song("成天", 7420, 2710101, q(219117), qr(2044551641, 10000), 71758147, 1271, 0, false, None, (1270, 12, 14))),
-        "授时历" => once!(shoushi(false)),
-        "大统历" => once!(shoushi(true)),
+        "授时历" => once!(shoushi()),
+        "大统历" => once!(Tonggui::new()),
+        "大统历（明郑子初进朔）" => once!(TongguiZichu(Tonggui::new())),
         _ => None,
     }
 }
@@ -1378,6 +2404,89 @@ pub fn reckon_year(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, bool)>> 
         return None;
     }
     Some(year_months(li_by_name(name)?, lunar_year))
+}
+
+/// 按历名推某农历年各月，只按术文定朔、进朔（旧做法：不加「三大二小」、麟德正月进朔与史载例外；麟德「不過頻三」照旧），
+/// 供与 [reckon_year] 对照。不在 [paiyue_by_name] 诸历者同 [reckon_year]。
+pub fn reckon_year_shuwen(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, bool)>> {
+    let (_, spans) = REGISTRY.iter().find(|(n, _)| *n == name)?;
+    if !spans.iter().any(|&(a, b)| (a..=b).contains(&lunar_year)) {
+        return None;
+    }
+    match paiyue_by_name(name) {
+        Some(p) => Some(year_months(&Shuwen(p), lunar_year)),
+        None => Some(year_months(li_by_name(name)?, lunar_year)),
+    }
+}
+
+/// 按历名推某农历年各月，交会诸规则按 `opts`（供检验各选项；缺省同 [reckon_year]）。不在 [paiyue_by_name] 诸历者同 [reckon_year]。
+pub fn reckon_year_with(name: &str, lunar_year: i32, opts: &PaiyueOptions) -> Option<Vec<(i64, u8, bool)>> {
+    let (_, spans) = REGISTRY.iter().find(|(n, _)| *n == name)?;
+    if !spans.iter().any(|&(a, b)| (a..=b).contains(&lunar_year)) {
+        return None;
+    }
+    match paiyue_with(name, opts) {
+        Some(p) => Some(year_months(p, lunar_year)),
+        None => Some(year_months(li_by_name(name)?, lunar_year)),
+    }
+}
+
+/// 按历名推某农历年各月，不限中原一线行用年段：供分政权历日（如南明、明郑续用大统历，1645—1683）。
+pub fn reckon_year_any(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, bool)>> {
+    Some(year_months(li_by_name(name)?, lunar_year))
+}
+
+/// 一月之定朔与入交（供检验，见 `examples/jiaohui_eclipse_check.rs`）
+#[derive(Clone, Debug)]
+pub struct JiaoMonth {
+    /// 定朔所在日（JDN）
+    pub ding_jdn: i64,
+    /// 定小余（占一日之比）
+    pub frac: f64,
+    /// 定小余过进朔限
+    pub jin: bool,
+    /// 排月所得朔日（JDN；细则全用）
+    pub day: i64,
+    /// 入交
+    pub jiao: Option<Jiaohui>,
+    /// 日出（占一日之比）
+    pub sunrise: Option<f64>,
+    /// 加时在昼
+    pub zhou: bool,
+    /// 本历日蚀术所判
+    pub rishi: Option<Rishi>,
+}
+
+/// 按历名列其推步年段（前后各二岁）各月之定朔与入交；本历未复原步交会者 `jiao` 为 None。
+pub fn jiao_months(name: &str) -> Option<Vec<JiaoMonth>> {
+    let li = li_by_name(name)?;
+    let names: Vec<&str> = match paiyue_by_name(name) {
+        Some(p) => p.names.to_vec(),
+        None => vec![name],
+    };
+    let spans = REGISTRY.iter().chain(REGIME_REGISTRY).filter(|(n, _)| names.contains(n)).flat_map(|(_, s)| s.iter());
+    let (a, b) = spans.fold((i32::MAX, i32::MIN), |(a, b), &(x, y)| (a.min(x), b.max(y)));
+    let (y0, y1) = (a - 2, b + 2);
+    let raw = raw_months(li, y0, y1);
+    let days: Vec<i64> = match paiyue_by_name(name) {
+        Some(p) if p.span() == (y0, y1) => p.days(true).0.clone(),
+        _ => raw.iter().map(|m| m.base + i64::from(m.jin)).collect(),
+    };
+    Some(
+        raw.iter()
+            .zip(days)
+            .map(|(m, day)| JiaoMonth {
+                ding_jdn: m.base,
+                frac: m.frac.to_f64().unwrap(),
+                jin: m.jin,
+                day,
+                jiao: m.jiao.clone(),
+                sunrise: m.sunrise.as_ref().map(|x| x.to_f64().unwrap()),
+                zhou: m.zhou(),
+                rishi: m.rishi.clone(),
+            })
+            .collect(),
+    )
 }
 
 /// 已移植的定朔历名与适用年段（供检验与文档）。
@@ -1477,6 +2586,89 @@ mod tests {
         assert!(n > 4000);
     }
 
+    /// 史载例外表逐条落实于排月：该历该年该月（含闰）之朔即表中 JDN；并钉住各细则所解之月
+    #[test]
+    fn liwai_and_rules_applied() {
+        let csv = include_str!("../../../../data/calendar/dingshuo_exceptions.csv");
+        let mut n = 0;
+        for line in csv.lines().filter(|l| !l.starts_with('#') && !l.starts_with("历,") && !l.trim().is_empty()) {
+            let c: Vec<&str> = line.split(',').collect();
+            let (y, m, leap, jdn): (i32, u8, bool, i64) = (c[1].parse().unwrap(), c[2].parse().unwrap(), c[3] == "1", c[4].parse().unwrap());
+            let months = reckon_year(c[0], y).unwrap();
+            assert!(months.contains(&(jdn, m, leap)), "{} {y} 年 {m} 月：{months:?}", c[0]);
+            n += 1;
+        }
+        assert_eq!(n, liwai_table().len());
+        let gz = |name: &str, y: i32, m: u8| {
+            let j = reckon_year(name, y).unwrap().into_iter().find(|e| e.1 == m && !e.2).unwrap().0;
+            crate::calendar::gan_zhi::GAN_ZHI_60[(j + 49).rem_euclid(60) as usize]
+        };
+        // 麟德正月进朔（本纪）
+        assert_eq!(gz("麟德历", 684, 1), "甲申");
+        assert_eq!(gz("麟德历", 711, 1), "丁未");
+        assert_eq!(gz("麟德历", 712, 1), "辛未");
+        // 大衍晨初限（750 正月不进）、至德戌初限（763 六月、764 二月进）
+        assert_eq!(gz("大衍历", 750, 1), "庚寅");
+        assert_eq!(gz("五纪历", 763, 6), "癸酉");
+        assert_eq!(gz("五纪历", 764, 2), "己巳");
+        // 三大三小（779 正月）、三大二小（崇天 1027 正月、观天 1097 正月、成天 1274 六月、1275 七月）
+        assert_eq!(gz("五纪历", 779, 1), "壬寅");
+        assert_eq!(gz("崇天历", 1027, 1), "壬寅");
+        assert_eq!(gz("观天历", 1097, 1), "丙戌");
+        assert_eq!(gz("成天历", 1274, 6), "丙午");
+        assert_eq!(gz("成天历", 1275, 7), "庚午");
+        // 消息：937 正月退作甲寅，二月随退作甲申
+        assert_eq!(gz("崇玄历（宣明气朔）", 937, 2), "甲申");
+        // 五代「宣明、崇玄參而成之」：904 年宣明恒气闰三月，崇玄恒气闰四月（本纪、新唐书、旧五代史、通鉴同）
+        let leap = |o: WudaiDingqi| reckon_year_with("崇玄历（宣明气朔）", 904, &PaiyueOptions { wudai_dingqi: o, ..PaiyueOptions::default() }).unwrap().into_iter().find(|e| e.2).map(|e| e.1);
+        assert_eq!(leap(WudaiDingqi::Chongxuan), Some(4));
+        assert_eq!(leap(WudaiDingqi::Xuanming), Some(3));
+        // 旧做法（只按术文进朔）仍可取
+        let old = reckon_year_shuwen("崇天历", 1027).unwrap();
+        assert_eq!(crate::calendar::gan_zhi::GAN_ZHI_60[(old[0].0 + 49).rem_euclid(60) as usize], "癸卯");
+    }
+
+    /// 入交定与日食判定与 Python 复原逐月相同：`data/calendar/jiaohui_reference.csv`（scripts/calendar_data/jiaohui.py）
+    #[test]
+    fn jiaohui_matches_python_reference() {
+        let csv = std::fs::read_to_string(crate::repo::repo_root().join("data/calendar/jiaohui_reference.csv")).unwrap();
+        let mut n = 0;
+        for line in csv.lines().filter(|l| !l.starts_with('#') && !l.starts_with("历,")) {
+            let c: Vec<&str> = line.split(',').collect();
+            let li = li_by_name(&format!("{}历", c[0])).unwrap();
+            let (y, m): (i32, i64) = (c[1].parse().unwrap(), c[2].parse().unwrap());
+            let j = li.jiao(y, m).unwrap();
+            assert_eq!(j.ru * q(li.f()), parse_q(c[3]), "{} {y} 岁第 {m} 月入交定", c[0]);
+            if !c[4].is_empty() {
+                let r = li.rishi(y, m).unwrap();
+                assert_eq!((u8::from(r.shi).to_string(), u8::from(r.yin).to_string()), (c[4].to_string(), c[5].to_string()), "{} {y} {m} 蚀", c[0]);
+                assert_eq!(r.shen, parse_q(c[6]), "{} {y} {m} 食甚", c[0]);
+                assert_eq!(r.dingyong.map(|d| d.to_string()).unwrap_or_default(), if c[7].is_empty() { String::new() } else { parse_q(c[7]).to_string() });
+            }
+            n += 1;
+        }
+        assert!(n > 2000);
+    }
+
+    /// 交会规则所推之月：正月有交（780 进、937—938 退）、有食應見者不进（1033 年六月）；崇天日蚀术判 1039 年八月不蚀而进
+    #[test]
+    fn jiaohui_rules_applied() {
+        let gz = |name: &str, y: i32, m: u8| {
+            let j = reckon_year(name, y).unwrap().into_iter().find(|e| e.1 == m && !e.2).unwrap().0;
+            crate::calendar::gan_zhi::GAN_ZHI_60[(j + 49).rem_euclid(60) as usize]
+        };
+        assert_eq!(gz("五纪历", 780, 1), "丁卯");
+        assert_eq!(gz("崇玄历（宣明气朔）", 937, 1), "甲寅");
+        assert_eq!(gz("崇玄历（宣明气朔）", 938, 1), "戊申");
+        assert_eq!(gz("崇玄历（宣明气朔）", 938, 2), "戊寅");
+        assert_eq!(gz("崇天历", 1033, 6), "甲午");
+        assert_eq!(gz("崇天历", 1039, 8), "庚申");
+        // 规则不用时回到按术进朔
+        let off = PaiyueOptions { xuanming: None, song: None, zhengyue: ZhengyueJiao::Off, ..PaiyueOptions::default() };
+        let j = reckon_year_with("崇天历", 1033, &off).unwrap().into_iter().find(|e| e.1 == 6 && !e.2).unwrap().0;
+        assert_eq!(crate::calendar::gan_zhi::GAN_ZHI_60[(j + 49).rem_euclid(60) as usize], "乙未");
+    }
+
     /// 各历在其年段内逐年排月：每年 12 或 13 月，月长 29、30 日，前后年首尾相接
     #[test]
     fn year_months_well_formed() {
@@ -1497,3 +2689,4 @@ mod tests {
         }
     }
 }
+

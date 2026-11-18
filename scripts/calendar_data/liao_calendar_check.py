@@ -21,7 +21,7 @@ import gaiyuan_date as g  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 ZU_LUNAR = Fr(29 * 3939 + 2090, 3939)
-PERIODS = ((907, 946, "辽初（未有历）"), (947, 993, "乙未元历（调元历）"), (994, 1125, "贾俊大明历"))
+PERIODS = ((907, 946, "辽初（未有历）"), (947, 993, "乙未元历（调元历）"), (994, 1087, "贾俊大明历（宣明代推期）"), (1088, 1125, "贾俊大明历（气有改，不推）"))
 
 
 def zu_tianzheng(y):
@@ -49,7 +49,9 @@ def zu_days(y0, y1):
 
 
 def main():
-    mt = d.tables()["张表"]
+    tabs = d.tables()
+    mt = tabs["张表"]
+    xm = {v for v in tabs.get("推步:辽", {}).values()}
     lc = set(zu_days(500, 600))
     lc_main = [v for (y, _, _), v in mt.items() if 510 <= y <= 588]
     print(f"祖冲之大明历验证：梁陈 510—588 张表朔在平朔推步 {sum(v in lc for v in lc_main)}/{len(lc_main)}")
@@ -71,10 +73,12 @@ def main():
         out.append({"年": y, "纪年": r["纪年"], "月": r["月"], "时期": next(p for lo, hi, p in PERIODS if lo <= y <= hi),
                     "本纪朔": r["本纪朔"], "宋历（张表）": g.ganzhi_of_jdn(s), "祖冲之平朔": g.ganzhi_of_jdn(z),
                     "金大明定朔": g.ganzhi_of_jdn(k), "定朔小余（时）": f"{h:.2f}", "进朔限（时）": f"{lim:.2f}",
-                    "金大明进朔": g.ganzhi_of_jdn(jn), "合宋": int(rec == s), "合祖冲之": int(rec == z), "合金大明": int(rec == jn),
+                    "金大明进朔": g.ganzhi_of_jdn(jn),
+                    "宣明推步": g.ganzhi_of_jdn(min(xm, key=lambda x: abs(x - s))) if 947 <= y <= 1087 else "",
+                    "合宋": int(rec == s), "合宣明推步": int(rec in xm) if 947 <= y <= 1087 else "", "合祖冲之": int(rec == z), "合金大明": int(rec == jn),
                     "原文": r["原文"]})
     with open(ROOT / "data/calendar/liao_calendar_check.csv", "w", encoding="utf-8", newline="") as f:
-        f.write("# 《辽史》本纪明书朔日与宋历（张表）、祖冲之大明历平朔（历象志所载）、金重修大明历定朔上推之比较"
+        f.write("# 《辽史》本纪明书朔日与宋历（张表）、祖冲之大明历平朔（历象志所载）、金重修大明历定朔上推、宣明代推（分政权「辽」947—1087）之比较"
                 "（scripts/calendar_data/liao_calendar_check.py）；进朔限为术文原限加经验改正 0.25 时（同 1182 年前代推）。\n")
         w = csv.DictWriter(f, fieldnames=list(out[0].keys()))
         w.writeheader()
@@ -82,7 +86,7 @@ def main():
     for lo, hi, p in PERIODS:
         sub = [o for o in out if lo <= o["年"] <= hi]
         print(f"{p} {lo}—{hi}：{len(sub)} 条，合宋 {sum(o['合宋'] for o in sub)}，合祖冲之平朔 {sum(o['合祖冲之'] for o in sub)}，"
-              f"合金大明 {sum(o['合金大明'] for o in sub)}")
+              f"合金大明 {sum(o['合金大明'] for o in sub)}，合宣明推步 {sum(o['合宣明推步'] or 0 for o in sub)}")
     base = [v for (y, _, _), v in mt.items() if 994 <= y <= 1125]
     zs = set(zu)
     print(f"对照：994—1125 张表（宋定朔）朔在祖冲之平朔 {sum(v in zs for v in base)}/{len(base)}（定朔与平朔偶合之率）")

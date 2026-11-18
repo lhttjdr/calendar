@@ -1,9 +1,11 @@
-//! 宋初应天历（964—982）、乾元历（983—1000）、仪天历（1001—1023）定朔与排月。
+//! 宋初应天历（964—983）、乾元历（984—1001）、仪天历（1002—1023）定朔与排月。
 //!
 //! 由 `scripts/calendar_data/song_early_dingshuo.py` 移植，照《宋史》卷六十八、六十九（三历同表分栏）复原，读法参王应伟
 //! 《中国古历通解》第六章第一节。要点：应天岁盈作 730635（王应伟书页 511）；乾元转分作 16202.1204（同书页 526 校订者按）；
 //! 「下以損益率展」读作乘其补数（日躔补至百、月离进位后补至千），据表闭合；诸表讹字据逐日损益与积闭合校正；
-//! 进朔限 = 日法 3/4 −（该日晨分与二分晨分差之绝对值）/2；中气用常气。依据与检验见脚本文首与 `data/calendar/song_early_check.csv`。
+//! 进朔「視朔所入辰分皆與二分相減，餘二收，用減八分之六」两读（[JinRead]）：应天取 B（差之绝对值折半），乾元、仪天取 D（有号差、
+//! 不折半）；中气用常气。行用年段：应天 964—983，乾元 984—1001，仪天 1002—1023（《宋史》卷六十八「咸平四年三月，曆成來上，
+//! 賜號儀天曆」，咸平四年（1001）历日此前已颁，仍是乾元）。依据与检验见脚本文首与 `data/calendar/song_early_check.csv`。
 
 use crate::math::real::{real, Real, RealOps};
 
@@ -15,6 +17,17 @@ fn jul_jdn(y: i32, m: i32, d: i32) -> i64 {
     let a = (14 - m) / 12;
     let (yy, mm) = ((y + 4800 - a) as i64, (m + 12 * a - 3) as i64);
     d as i64 + (153 * mm + 2) / 5 + 365 * yy + yy / 4 - 32083
+}
+
+/// 进朔限读法
+#[derive(Clone, Copy, PartialEq)]
+pub enum JinRead {
+    /// 3/4 − |该日晨分 − 二分晨分| / 2 / 日法（「皆」取绝对值、「二收」读折半）：应天用之（改 D 则本纪 66→65）；
+    /// 乾元、仪天 2026-11-13 前亦用之
+    B,
+    /// 3/4 −（该日晨分 − 二分晨分）/ 日法（有号、不折半）：冬季限低于 3/4、夏季高于。乾元本纪 994 年正月、四月，996 年七月，
+    /// 1001 年正月一并得解（data/calendar/song_shuo_kaozheng.csv），本纪 49→52
+    D,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -63,6 +76,8 @@ const YI_QIAN: f64 = 182.62228;
 
 struct Li {
     kind: Kind,
+    /// 进朔限读法
+    read: JinRead,
     /// 日法
     f: i64,
     ji_base: i64,
@@ -70,9 +85,9 @@ struct Li {
 }
 
 const LIS: [(&str, Li, i32, i32); 3] = [
-    ("应天历", Li { kind: Kind::Yingtian, f: 10002, ji_base: 4_825_558, y_base: 962 }, 964, 983),
-    ("乾元历", Li { kind: Kind::Qianyuan, f: 2940, ji_base: 30_543_977, y_base: 981 }, 984, 1000),
-    ("仪天历", Li { kind: Kind::Yitian, f: 10100, ji_base: 716_497, y_base: 1001 }, 1001, 1023),
+    ("应天历", Li { kind: Kind::Yingtian, read: JinRead::B, f: 10002, ji_base: 4_825_558, y_base: 962 }, 964, 983),
+    ("乾元历", Li { kind: Kind::Qianyuan, read: JinRead::D, f: 2940, ji_base: 30_543_977, y_base: 981 }, 984, 1001),
+    ("仪天历", Li { kind: Kind::Yitian, read: JinRead::D, f: 10100, ji_base: 716_497, y_base: 1001 }, 1002, 1023),
 ];
 
 impl Li {
@@ -273,9 +288,13 @@ impl Li {
             Kind::Yitian => r(yitian_chen(YI_L1)),
         }
     }
-    /// 进朔限（日之分数）：3/4 − |二分晨分 − 该日晨分| / 2 / 日法
-    fn jin_limit(&self, t_day: Real) -> Real {
-        r(0.75) - (self.erfen_chen() - self.chen(t_day)).abs() / r(2.0) / r(self.f as f64)
+    /// 进朔限（日之分数），读法见 [JinRead]
+    fn jin_limit(&self, t_day: Real, read: JinRead) -> Real {
+        let diff = self.chen(t_day) - self.erfen_chen();
+        match read {
+            JinRead::B => r(0.75) - diff.abs() / r(2.0) / r(self.f as f64),
+            JinRead::D => r(0.75) - diff / r(self.f as f64),
+        }
     }
 }
 
@@ -326,7 +345,7 @@ fn dongzhi_abs(li: &Li, y: i32) -> Real {
 }
 
 /// 冬至岁 y 自天正经朔起 14 月的进朔后朔日（JDN）
-fn sui_days(li: &Li, y: i32) -> (Vec<i64>, Real) {
+fn sui_days(li: &Li, y: i32, read: JinRead) -> (Vec<i64>, Real) {
     let dz = dongzhi_abs(li, y);
     let (_, run, x0) = li.epoch(y);
     let jing0 = dz - run;
@@ -337,17 +356,17 @@ fn sui_days(li: &Li, y: i32) -> (Vec<i64>, Real) {
             let jing = jing0 + mm;
             let ding = jing + (li.sun_def(jing - dz) + li.moon_def(x0 + mm)) / f;
             let day = ding.floor();
-            let lim = li.jin_limit(day - dz);
+            let lim = li.jin_limit(day - dz, read);
             day.to_i64_floor() + i64::from(ding - day >= lim)
         })
         .collect();
     (out, dz)
 }
 
-fn sui_months(li: &Li, y: i32) -> Vec<(i64, u8, bool)> {
-    let (a, _) = sui_days(li, y - 1);
-    let (b, dz) = sui_days(li, y);
-    let (c, dz2) = sui_days(li, y + 1);
+fn sui_months(li: &Li, y: i32, read: JinRead) -> Vec<(i64, u8, bool)> {
+    let (a, _) = sui_days(li, y - 1, read);
+    let (b, dz) = sui_days(li, y, read);
+    let (c, dz2) = sui_days(li, y + 1, read);
     let qi = (dz2 - dz) / r(24.0);
     let zhong: Vec<i64> = (0..13).map(|k| (dz + r(2.0 * k as f64) * qi).to_i64_floor()).collect();
     let mut days: Vec<i64> = a.into_iter().chain(b).chain(c).collect();
@@ -375,14 +394,20 @@ fn sui_months(li: &Li, y: i32) -> Vec<(i64, u8, bool)> {
 
 /// 按历名推某农历年各月 (朔日 JDN, 月序, 闰否)，正月至十二月（含闰）；历名或年份不在适用年段返回 None
 pub fn reckon_year(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, bool)>> {
+    let (_, li, _, _) = LIS.iter().find(|(n, _, _, _)| *n == name)?;
+    reckon_year_with(name, lunar_year, li.read)
+}
+
+/// 同 [reckon_year]，指定进朔读法（如乾元、仪天取旧读法 [JinRead::B] 对照）
+pub fn reckon_year_with(name: &str, lunar_year: i32, read: JinRead) -> Option<Vec<(i64, u8, bool)>> {
     let (_, li, y0, y1) = LIS.iter().find(|(n, _, _, _)| *n == name)?;
     if !(*y0..=*y1).contains(&lunar_year) {
         return None;
     }
-    let head = sui_months(li, lunar_year);
+    let head = sui_months(li, lunar_year, read);
     let k = head.iter().position(|e| e.1 == 1 && !e.2)?;
     let mut out = head[k..].to_vec();
-    out.extend(sui_months(li, lunar_year + 1).into_iter().take_while(|e| e.1 >= 11));
+    out.extend(sui_months(li, lunar_year + 1, read).into_iter().take_while(|e| e.1 >= 11));
     Some(out)
 }
 
@@ -402,7 +427,7 @@ mod tests {
             }
             want.entry((f[1].to_string(), f[2].parse().unwrap())).or_default().push((f[5].to_string(), f[3].parse().unwrap(), f[4] == "1"));
         }
-        assert_eq!(want.len(), 60, "三历 20 + 17 + 23 年");
+        assert_eq!(want.len(), 60, "三历 20 + 18 + 22 年");
         for ((name, y), ms) in want {
             let got: Vec<(String, u8, bool)> = reckon_year(&name, y)
                 .unwrap()

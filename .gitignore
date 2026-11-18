@@ -83,3 +83,6 @@ scripts/sky_culture/_cache/
 
 # 部署时生成的预算岁数据表（rust/core/examples/gen_year_table.rs）
 web/public/data/precomputed/
+
+# 抓取/渲染的原文缓存（史书录文、实录、网盘清单等，1 GB 级，可由 scripts/calendar_data/*_fetch.py 重抓）
+/hanshu_cache/

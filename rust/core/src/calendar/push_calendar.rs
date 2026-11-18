@@ -290,7 +290,36 @@ pub fn regime_calendars() -> Vec<(&'static str, i32, i32, RegimeYearFn)> {
     fn jin(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
         (if y < 1182 { "大明历（杨级，以重修大明历代推）" } else { "重修大明历" }, super::daming_li::year_months(y))
     }
+    // 民国坊本时宪书、通书：官历自民国三年改用新法、太阳平时，民间历书仍按《历象考成后编》、用时推算，至 1930 年代不改
+    // （《民国元年至二十七年时宪书》汇集本：1914 年十月戊申朔即旧法九大十小，1933 年六月朔作 7 月 22 日）。
+    // 年限取汇集本所收（民国三年至二十七年）。见 doc/calendar/calendar-compendium.md「日历上的历名」民国条。
+    fn minjian(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        ("时宪书（坊本，沿用历象考成后编）", super::shixian::year_months(y))
+    }
+    // 南明、鲁监国、明郑续用大统历（1645—1683）：照《通轨》立成推步。傅以礼《残明大统历》483 月中 1645—1673 年
+    // 除原书两处大小误印外全合推步；明郑（1662 起）依颁历实物（1671、1676、1677）定朔在夜子初以后者置次日。
+    // 见 doc/calendar/calendar-compendium.md「南明」与 data/calendar/canming_check.csv。
+    fn nanming(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        // 明郑（1662 起）颁历定朔在夜子初以后者置次日（实物三部为证，见 dingshuo::TongguiZichu）
+        if y >= 1662 {
+            ("大统历（明郑）", super::dingshuo::reckon_year_any("大统历（明郑子初进朔）", y).unwrap_or_default())
+        } else {
+            ("大统历", super::dingshuo::reckon_year_any("大统历", y).unwrap_or_default())
+        }
+    }
+    // 辽（947—1087）：大同元年（947）得后晋调元历，即马重绩「以《宣明》氣朔，《崇元》星緯」，气朔用宣明；统和十二年（994）
+    // 贾俊进《大明历》，术不传。《辽史·历象志》所载大明历是修史者以祖冲之法充之（志自言「歷書法禁不可得」），本纪不合（平朔）；
+    // 宋元丰元年司天监考辽历「遼己未歲（1079）氣朔與《宣明曆》合」，苏颂熙宁十年使辽「其國曆後宋曆一日」（冬至）亦合宣明，
+    // 故 994 年后仍以宣明代推。1088 年起本纪闰位六年合宋不合宣明，辽历另有所改而术不传，不推（日面板仍取张表）。
+    // 见 doc/calendar/calendar-compendium.md「辽」与 data/calendar/liao_shuo_kaozheng.csv。
+    fn liao(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        let months = super::dingshuo::reckon_year_any("宣明历（辽）", y).unwrap_or_default();
+        (if y < 994 { "调元历（宣明气朔）" } else { "大明历（贾俊，以宣明代推）" }, months)
+    }
     vec![
+        ("南明/南明·绍武/鲁监国/明郑", 1645, 1683, nanming),
+        ("辽", 947, 1087, liao),
+        ("民间通书", 1914, 1938, minjian),
         ("蜀", 221, 263, shu),
         ("吴", 222, 280, wu),
         ("后秦", 384, 416, later_qin),
@@ -500,8 +529,12 @@ fn wei_zhou_sui_params_for_year(g_year: i32) -> Option<(&'static str, LiParams)>
     } else if (g_year as f64) < 558.5 {
         ("正光历", zhengguang_params())
     } else if (g_year as f64) < 565.5 {
-        // 559—565 年北周所行明克让等历，术不传（《隋书·律历志中》），无从复原，不给推步
-        return None;
+        // 559—565 年北周：武成元年（559）诏明克让、庾季才等造周历，「采祖暅舊議，通簡南北之術……故周、齊並時，而曆差一日。
+        // 克讓儒者，不處日官，以其書下于太史」（《隋书·律历志中》），术不传；此前「西魏入關，尚行李業興《正光曆》法」，
+        // 大象元年马显等表称「曆變壬子，元用甲寅」——天和历（甲寅元）所代者仍是壬子元（正光历为壬子元）。故以正光历代推：
+        // 本纪明书朔日 9 条全合；《周书》保定二年闰正、四年闰九与正光历闰二、闰十不合（如实保留，不据以改，周历置闰之法不传）。
+        // 上游以正光历冬至加 0.4 日拟合此二闰，是拟设，不用。见 doc/calendar/push-algorithms.md「北朝历术分段」
+        ("明克让等周历（术不传，以正光历代推）", zhengguang_params())
     } else if (g_year as f64) < 578.5 {
         ("天和历", tianhe_params())
     } else if (g_year as f64) < 583.5 {
@@ -559,6 +592,57 @@ pub fn gregorian_to_all_regimes_lunar(g_year: i32, g_month: i32, g_day: i32) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 民国坊本沿用后编用时：1914 年十月朔 11 月 18 日（旧法九大十小，官历 11 月 17 日），1933 年六月朔 7 月 22 日（官历 23 日）
+    fn reckon_mingzheng(y: i32) -> Vec<(i64, u8, bool)> {
+        super::super::dingshuo::reckon_year_any("大统历（明郑子初进朔）", y).unwrap()
+    }
+
+    /// 南明大统：永历二年闰三月（傅以礼《残明大统历》「閏三月丙寅朔」），清时宪是年闰四月
+    #[test]
+    fn nanming_follows_datong() {
+        let at = |y, m, d| gregorian_to_all_regimes_lunar(y, m, d).into_iter().find(|e| e.region.starts_with("南明")).map(|e| (e.lunar_year, e.month, e.is_leap, e.day));
+        assert_eq!(at(1645, 2, 26).map(|e| e.3), Some(1), "弘光元年二月甲寅朔");
+        assert_eq!(at(1648, 4, 23), Some((1648, 3, true, 1)), "永历二年闰三月丙寅朔");
+        assert_eq!(at(1648, 5, 22), Some((1648, 4, false, 1)), "四月乙未朔（清时宪是日为闰四月朔）");
+        assert!(gregorian_to_all_regimes_lunar(1640, 1, 1).iter().all(|e| !e.region.starts_with("南明")));
+        // 明郑实物：永历二十五年正月小甲寅（推步癸丑 23:48）、三十一年七月小丙子（推步乙亥 23:40）
+        let jdn = |y, m, d| gregorian::gregorian_to_jdn(y, m, d);
+        let first = |y: i32, m: u8| reckon_mingzheng(y).into_iter().find(|e| e.1 == m && !e.2).map(|e| e.0);
+        assert_eq!(first(1671, 1), Some(jdn(1671, 2, 10)), "1671 正月甲寅");
+        assert_eq!(first(1677, 7), Some(jdn(1677, 7, 30)), "1677 七月丙子");
+    }
+
+    /// 辽（947—1087，宣明代推）：本纪明书朔日中宣明合而宋历（张表）不合者，及宣明闰位为本纪所证之年；1088 年起不推
+    #[test]
+    fn liao_follows_xuanming() {
+        use crate::calendar::gan_zhi::GAN_ZHI_60;
+        let shuo = |y: i32, m: u8, leap: bool| {
+            let (_, ms) = regime_year_months("辽", y).unwrap();
+            let j = ms.into_iter().find(|e| e.1 == m && e.2 == leap).unwrap().0;
+            GAN_ZHI_60[(j + 49).rem_euclid(60) as usize]
+        };
+        assert_eq!(shuo(994, 1, false), "癸丑", "统和十二年正月癸丑朔（宋历进作甲寅）");
+        assert_eq!(shuo(1022, 2, false), "辛丑", "太平二年二月辛丑朔（宋历庚子）");
+        assert_eq!(shuo(1040, 5, false), "乙卯", "重熙九年五月乙卯朔（宋历甲寅）");
+        assert_eq!(shuo(1059, 6, false), "甲子", "清宁五年六月甲子朔（宋历癸亥）");
+        let leap = |y: i32| regime_year_months("辽", y).unwrap().1.into_iter().find(|e| e.2).map(|e| e.1);
+        assert_eq!(leap(1001), Some(11), "统和十九年閏月己酉（宋历閏十二月）");
+        assert_eq!(leap(1077), Some(12), "大康三年閏十二月（宋历次年閏正月）");
+        assert_eq!(leap(1080), Some(8), "大康六年九月壬寅（宋历閏九月）");
+        assert_eq!(regime_year_months("辽", 993).unwrap().0, "调元历（宣明气朔）");
+        assert_eq!(regime_year_months("辽", 994).unwrap().0, "大明历（贾俊，以宣明代推）");
+        assert!(regime_year_months("辽", 946).is_none() && regime_year_months("辽", 1088).is_none());
+    }
+
+    #[test]
+    fn minjian_tongshu_follows_houbian() {
+        let at = |y, m, d| gregorian_to_all_regimes_lunar(y, m, d).into_iter().find(|e| e.region == "民间通书").map(|e| (e.month, e.is_leap, e.day));
+        assert_eq!(at(1914, 11, 17), Some((9, false, 30)));
+        assert_eq!(at(1914, 11, 18), Some((10, false, 1)));
+        assert_eq!(at(1933, 7, 22), Some((6, false, 1)));
+        assert_eq!(at(1913, 6, 1), None, "1913 年以前不列");
+    }
 
     /// 精确平朔诸历的上元：只由术文积年与甲子日定出（不借历表），钉住其儒略日数；上元皆甲子日
     #[test]
@@ -655,10 +739,14 @@ mod tests {
         }
         leap_diff.sort();
         day_diff.sort();
-        // 559—565 年北周明克让历术不传，不推步（原为廖育栋拟设），这几年不比
-        assert!(n > 4800, "比对月数 {n}");
+        assert!(n > 4880, "比对月数 {n}"); // 闰位不同之岁不逐月比
         // 东魏/北齐 551：上游自 551 年用天保历（闰二），本实现据《北齐书》纪日与閏月位置沿用兴和历至 551 年（闰四）
-        assert_eq!(leap_diff, vec![("东魏/北齐", 551), ("吴", 222)], "闰位不同之岁");
+        // 北周 562、564：本项目以正光历代推明克让等周历（闰二、闰十），上游拟设正光冬至加 0.4 日（闰正、闰九，合《周书》）
+        assert_eq!(
+            leap_diff,
+            vec![("东魏/北齐", 551), ("北魏/西魏/北周/隋", 562), ("北魏/西魏/北周/隋", 564), ("吴", 222)],
+            "闰位不同之岁"
+        );
         assert_eq!(
             day_diff,
             vec![("北凉", 430, 2, 1), ("北魏/西魏/北周/隋", 430, 2, 1), ("吴", 244, 12, 1), ("吴", 247, 9, -1)],

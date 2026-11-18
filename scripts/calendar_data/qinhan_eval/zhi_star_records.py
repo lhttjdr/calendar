@@ -13,6 +13,9 @@
   rust/core calendar::month_labels 同源）换算到实历朔日表的建寅月；「後十二月」亦然；
 - 多天体相合作一条（「水、木、火三合於東井」）；每段开始时日期上下文恢复为上一段段首纪年（可按书关闭）；「奄」同「掩」；
 - 年数超出当前年号、且同段先前另有年号时，回到先前年号（占辞后应验叙述改写了年号，如「青龙二年……景初元年……四年三月」）；
+- 本纪纪日（date_sections）：明书「改元為某」者，年号表该年号元年与改元之年相差一年以上、而表记该政权当年另有改元时，
+  元年即改元之年（表所收是别时同名年号或未收此名：《魏书》南安王余 452 年「永平」，表作「承平」，北魏「永平」只有 508 年）；
+  卷所定政权（及 regime_era_extra 所许前代）以外的「年号+年」不切换纪年，其后同段不书年号的年月日也不承当前年号；
 - 只按历法换算日期，不用天象。
 
 用法（仓库根）：uv run --project scripts python scripts/calendar_data/qinhan_eval/zhi_star_records.py <book>
@@ -108,9 +111,52 @@ def era_starts_merged(regimes, y0, y1):
     只印「元光⑧1」不印興定六），正月改元者原文不会有该年的旧年号纪年，故只放宽年数越界判断。"""
     out = {}
     starts_by_regime = {}
-    for r in csv.DictReader(open(MERGED_ERAS, encoding="utf-8")):
+    all_rows = list(csv.DictReader(open(MERGED_ERAS, encoding="utf-8")))
+    # (年, 年号, 元年) → 该年以之为主年号的政权；各年有行的政权、主线（is_primary）政权：判改元前年号属哪一政权
+    main_owner, regimes_in_year, primary_of_year = {}, {}, {}
+    for r in all_rows:
         y = int(r["lunar_year"])
-        if r["regime"] not in regimes or not y0 - 1 <= y <= y1 + 1 or not r["era_name"] or not r["era_year"]:
+        regimes_in_year.setdefault(y, set()).add(r["regime"])
+        if r["is_primary"] == "1":
+            primary_of_year[y] = r["regime"]
+        if r["era_name"] and r["era_year"]:
+            main_owner.setdefault((y, r["era_name"], y - int(r["era_year"]) + 1), set()).add(r["regime"])
+
+    def prev_regimes(row_regime, y, name, ps, primary):
+        """改元前年号（及更早年号）的政权。主线（is_primary）改朝之年合并表记年末新朝（1279 元至元，年初为宋祥兴二年；220 魏黄初，年初为汉
+        建安、延康），改元前年号属年初旧朝：
+        1. 上一年以同名同元年为主年号的政权不含本行政权者，归上一年之政权（祥兴归宋、建安归汉）；
+        2. 否则本行政权上一年无行（新朝）者，归上一年主线政权（延康、载初元年即在本年，上一年无此年号：归汉、唐）；
+        3. 余归本行政权（如意、證聖）。并存政权（非主线）行不改记新君，一律归本行政权（929 荆南年初所奉吴大和）。
+        不分归，则「偽稱宋祥興五年」使《元史》此后各年落到祥兴。"""
+        owners = main_owner.get((y - 1, name, ps))
+        if not primary:
+            return {row_regime}
+        if owners and row_regime not in owners:
+            return owners
+        if not owners and row_regime not in regimes_in_year.get(y - 1, ()) and primary_of_year.get(y - 1):
+            return {primary_of_year[y - 1]}
+        return {row_regime}
+
+    for r in all_rows:
+        y = int(r["lunar_year"])
+        if not y0 - 1 <= y <= y1 + 1 or not r["era_name"] or not r["era_year"]:
+            continue
+        # 年内改元前的年号（如意、證聖只行用于改元之年，主年号列不出现）；
+        # 一年三号以上者更早的年号（528 年北魏武泰，在建义、永安之前）：「名年数」以 / 相隔
+        prevs = []
+        if r.get("gaiyuan_prev_era_name") and r.get("gaiyuan_prev_era_year", "").isdigit():
+            prevs.append((r["gaiyuan_prev_era_name"], y - int(r["gaiyuan_prev_era_year"]) + 1))
+        for item in filter(None, (r.get("gaiyuan_earlier_eras") or "").split("/")):
+            mm = re.fullmatch(r"(\D+)(\d*)", item)
+            prevs.append((mm[1], y - int(mm[2] or 1) + 1))
+        for name, ps in prevs:
+            if not prev_regimes(r["regime"], y, name, ps, r["is_primary"] == "1") & set(regimes):
+                continue
+            ERA_LAST[ps] = max(ERA_LAST.get(ps, ps), y)
+            for nm in trad_variants(name):
+                out.setdefault(nm, set()).add(ps)
+        if r["regime"] not in regimes:
             continue
         start = y - int(r["era_year"]) + 1
         ERA_LAST[start] = max(ERA_LAST.get(start, start), y)
@@ -118,19 +164,6 @@ def era_starts_merged(regimes, y0, y1):
         for name in (r["era_name"],) + ERA_ALIASES.get(r["era_name"], ()):
             for nm in trad_variants(name):
                 out.setdefault(nm, set()).add(start)
-        # 年内改元前的年号（如意、證聖只行用于改元之年，主年号列不出现）
-        if r.get("gaiyuan_prev_era_name") and r.get("gaiyuan_prev_era_year", "").isdigit():
-            ps = y - int(r["gaiyuan_prev_era_year"]) + 1
-            ERA_LAST[ps] = max(ERA_LAST.get(ps, ps), y)
-            for nm in trad_variants(r["gaiyuan_prev_era_name"]):
-                out.setdefault(nm, set()).add(ps)
-        # 一年三号以上者更早的年号（528 年北魏武泰，在建义、永安之前）：「名年数」以 / 相隔
-        for item in filter(None, (r.get("gaiyuan_earlier_eras") or "").split("/")):
-            mm = re.fullmatch(r"(\D+)(\d*)", item)
-            ps = y - int(mm[2] or 1) + 1
-            ERA_LAST[ps] = max(ERA_LAST.get(ps, ps), y)
-            for nm in trad_variants(mm[1]):
-                out.setdefault(nm, set()).add(ps)
     for st in starts_by_regime.values():
         st = sorted(st)
         for a, b in zip(st, st[1:]):
@@ -382,8 +415,10 @@ BOOKS = {
     "songshi_benji": dict(
         sections=[], carry_context=True, para_reset=False,
         date_sections=[(f"宋史/卷{j:03d}", None, None, "宋") for j in range(1, 48)],
-        years=(920, 1280), start_year=927, regimes=[(960, "宋")], era_regimes=["后唐", "后晋", "后汉", "后周", "宋"],
-        regime_era_extra={"宋": ["后唐", "后晋", "后汉", "后周"]},
+        # 卷四十七二王纪以元年号纪年（维基文库「{{YL|至元十四年}}」）：许蒙古年号。合并年号表 1279 年原记于宋下的「至元」
+        # 已改记元（年号表一年两号之年记年末新君），不再借此混入宋的年号池
+        years=(920, 1280), start_year=927, regimes=[(960, "宋")], era_regimes=["后唐", "后晋", "后汉", "后周", "宋", "蒙古"],
+        regime_era_extra={"宋": ["后唐", "后晋", "后汉", "后周", "蒙古"]},
     ),
     "liaoshi_benji": dict(
         sections=[], carry_context=True, para_reset=False,
@@ -446,6 +481,7 @@ BOOKS = {
         date_sections=[(f"魏書/卷{j}", None, None, "北魏") for j in ("2", "3", "4上", "4下", "5", "6", "7上", "7下", "8", "9", "10", "11")]
         + [("魏書/卷12", None, None, "东魏")],
         years=(380, 551), start_year=386, regimes=[(386, "北魏"), (534, "东魏")], era_regimes=["北魏", "东魏"],
+        regime_era_extra={"东魏": ["北魏"]},  # 孝静纪卷首以北魏年号纪年
         regime_calendars={"北魏": [(-10000, "张表"), (398, "北魏/西魏/北周/隋")], "东魏": [(-10000, "东魏/北齐")]},
     ),
     # 《北齐书》本纪（卷一至八）：卷一、二神武、文襄（东魏纪年），卷三起北齐
@@ -453,6 +489,8 @@ BOOKS = {
         sections=[], carry_context=True, para_reset=False,
         date_sections=[(f"北齊書/卷{j}", None, None, "东魏") for j in (1, 2, 3)] + [(f"北齊書/卷{j}", None, None, "北齐") for j in range(4, 9)],
         years=(530, 578), start_year=531, regimes=[(534, "东魏"), (550, "北齐")], era_regimes=["东魏", "北齐", "北魏"],
+        # 神武纪以北魏年号纪年；文宣纪卷首传记与受禅前以东魏年号（「天平二年」「武定七年八月」）
+        regime_era_extra={"东魏": ["北魏"], "北齐": ["东魏"]},
         regime_calendars={"东魏": [(-10000, "东魏/北齐")], "北齐": [(-10000, "东魏/北齐")]},
     ),
     # 《周书》本纪（卷一至八）：卷一、二文帝（西魏纪年），卷三起北周
@@ -460,13 +498,23 @@ BOOKS = {
         sections=[], carry_context=True, para_reset=False,
         date_sections=[(f"周書/卷{j:02d}", None, None, "西魏") for j in (1, 2)] + [(f"周書/卷{j:02d}", None, None, "北周") for j in range(3, 9)],
         years=(530, 582), start_year=531, regimes=[(535, "西魏"), (557, "北周")], era_regimes=["西魏", "北周", "北魏"],
+        regime_era_extra={"西魏": ["北魏"], "北周": ["西魏"]},  # 文帝纪以北魏年号纪年；孝闵纪卷首以西魏年号
         regime_calendars={"西魏": [(-10000, "北魏/西魏/北周/隋")], "北周": [(-10000, "北魏/西魏/北周/隋")]},
+        # 西魏废帝、恭帝不立年号（卷二「魏廢帝元年春」「三年春正月……廢帝，尊立齊王廓，是為恭帝」「魏恭帝元年夏四月」，
+        # 废帝三年即恭帝元年 554）；卷三、四卷首传记亦书「魏恭帝三年」
+        reigns={"魏廢帝": ("西魏", 552, 554), "魏恭帝": ("西魏", 554, 556)},
+        # 北周孝闵帝、明帝前期称天王、不立年号：纪文只书「元年」「二年」（卷四「==元年==」节标题不入正文），以锚点句起算。
+        # 孝闵帝元年 557（卷三「元年春正月辛丑，即天王位」）；明帝 557 年九月即位，同年为元年（卷四卷首传记「秋九月癸亥，
+        # 至京師……即天王位」，其后「冬十月」「二年春正月」），三年（559）八月改元武成，纪文追书作「武成元年春正月」。
+        # 末项为在位末年：孝闵纪诏书「自始及終，二十三載」不是纪年
+        reign_anchors=[("周書/卷03", "元年春正月辛丑", "孝閔帝", "北周", 557, 557), ("周書/卷04", "秋九月癸亥", "明帝", "北周", 557, 559)],
     ),
     # 《隋书》本纪（卷一、二高祖）：平陈（589）前用北周历
     "suishu_benji": dict(
         sections=[], carry_context=True, para_reset=False,
         date_sections=[("隋書/卷01", None, None, "隋"), ("隋書/卷02", None, None, "隋")],
         years=(578, 605), start_year=579, regimes=[(581, "隋")], era_regimes=["隋", "北周"],
+        regime_era_extra={"隋": ["北周"]},  # 高祖纪受禅前以北周年号纪年
         regime_calendars={"隋": [(-10000, "北魏/西魏/北周/隋"), (589, "张表")]},
     ),
     "xinwudaishi": dict(
@@ -568,11 +616,30 @@ def regime_of(year, regimes):
     return [r for y, r in regimes if y <= year][-1]
 
 
-def section_text(title, head, stop, corrections=()):
+# 点校本补字「〔朔〕」（维基文库《元史》等「丙申〔朔〕」）：原文无「朔」，点校者据推算补入，不是明书朔日。纪日节以此不可见符号
+# 标在「朔」后，纪日记 buzi = 1（verify_benji_rili 等不作明书朔日检验），输出文字还原作「〔朔〕」
+BUZI = "\u2063"
+
+
+def clip60(sent):
+    """纪日 text 列：句首 60 字，补字标记 BUZI 不计字数（输出时「朔」+BUZI 还原作「〔朔〕」）。"""
+    s, out, n = sent.strip(), [], 0
+    for ch in s:
+        if ch != BUZI:
+            if n == 60:
+                break
+            n += 1
+        out.append(ch)
+    return "".join(out)
+
+
+def section_text(title, head, stop, corrections=(), mark_buzi=False):
     t = hh.fetch(title)
     t = re.sub(r"-\{([^{}]*)\}-", r"\1", t)  # 维基文库繁简转换标记「-{丑}-」
     t = re.sub(r"\[\[(?:[^\[\]|]*\|)?([^\[\]|]*)\]\]", r"\1", t)  # 维基链接「改元[[w:乾統|乾統]]」「[[w:韓綜|綜]]」取显示文字
     t = t.replace("{{gap}}", "")  # 段首缩进模板（《三国志》），留着会使「{{gap}}五鳳元年」超出日期前缀长度
+    if mark_buzi:
+        t = t.replace("〔朔〕", "朔" + BUZI)
     # 点校本改字：「十（二）〔一〕月」删圆括号内字、补方括号内字，取改正后文字
     t = re.sub(r"（[^（）〔〕\n]{1,8}）(?=〔)", "", t)
     t = re.sub(r"〔([^〔〕\n]{1,8})〕", r"\1", t)
@@ -600,7 +667,7 @@ def main(book):
     eras_by_regime = {r: era_starts_merged([r], *cfg["years"]) for r in cfg.get("era_regimes", [])} \
         if cfg.get("regime_markers") or cfg.get("date_sections") else {}
     era_re = "|".join(sorted(eras, key=len, reverse=True))
-    reigns = cfg.get("reigns", {})  # 无年号、以帝号纪年者：帝号 → (政权, 元年)
+    reigns = cfg.get("reigns", {})  # 无年号、以帝号纪年者：帝号 → (政权, 元年[, 末年])
     DATE = date_re(era_re, "|".join(sorted(reigns, key=len, reverse=True)) or None)
     # 段首分句以「年号+年数」起头而整句不成日期式（「天復元年五月自丁酉至于己亥」）：至少切换年号与年
     ERA_HEAD = re.compile(rf"^(?:{era_re})(?:{NUM})[年載]")
@@ -616,6 +683,32 @@ def main(book):
         hh.ALIASES.setdefault(_OPENCC_T2S.convert(k), v)
     rows, unmatched = [], []
     eclipses = {"solar": [], "lunar": []}
+    # 本纪改元句所定、年号表无对应元年的年号：(政权, 年号) → [元年]。年号表按一家（方诗铭）取名，短命年号或异名可能不收
+    # （《魏书》南安王余「改元為永平」，方表作「承平」），同政权又有同名年号（北魏宣武帝永平，508）；改元句本身即定元年
+    adhoc_eras = {}
+
+    def era_pool(era, regime):
+        """年号 → 可能的元年：先按当前政权取（同名年号按当时政权分），无则取全书年号池；并入改元句所定之元年。"""
+        base = eras_by_regime.get(regime, {}).get(era) or eras[era]
+        extra = adhoc_eras.get((regime, era), [])
+        return sorted(set(base) | set(extra)) if extra else base
+
+    def gaiyuan_start(era, regime, year):
+        """本纪改元句（明书「改元」「改年」）所定元年。年号表该年号元年取不早于改元之年前一年、最近者（同旧法：卷首传记的
+        年数常有脱漏，改元之年 year 可能偏早数年，《辽史》道宗纪「改元清寧」时 year 仍停在重熙二十一年）。所取元年与 year
+        相差一年以上、而年号表记该政权在 year 年另有改元（不计当前年号本身）者，年号表所收是别时同名年号（或未收此年号），
+        本次改元实在 year 年：元年取 year，记入 adhoc_eras 供其后「某年号某年」承接。例：《魏书》南安王余正平二年（452）
+        「改元為永平」，方诗铭表记此年号作「承平」，同政权表中「永平」只有宣武帝永平（508）。"""
+        pool = era_pool(era, regime)
+        cands = [s_ for s_ in pool if s_ >= year - 1] or pool
+        best = min(cands, key=lambda s_: abs(s_ - year))
+        if abs(best - year) <= 1:
+            return best
+        same = {era.translate(S2T), era_label.translate(S2T)}  # 年号池简繁两种写法并收
+        if any(year in starts for e_, starts in eras_by_regime.get(regime, {}).items() if e_.translate(S2T) not in same):
+            adhoc_eras.setdefault((regime, era), []).append(year)
+            return year
+        return best
 
     def month_span_of(year, mon, mon_name, hou, leap, cur_regime):
         """所记之月（当时月名）→ (朔 JDN, 下月朔 JDN, 表月)；无此月抛异常。"""
@@ -691,7 +784,8 @@ def main(book):
                           year=year, month=("闰" if leap else "") + (str(mon) if mon else ""), month_name=mon_name or "",
                           leap=int(leap), ganzhi=gz, calendar=calendar_label(calendar_of(year, cfg, cur_regime)),
                           in_month=int(s0 + off < e0), jdn=s0 + off if s0 + off < e0 else "", julian=f"{y0}-{m0:02d}-{d0:02d}",
-                          position=pos_mark, text=sent.strip()[:60]))  # position：「某月某朔」明书朔日者记「朔」
+                          position=pos_mark, buzi=buzi_mark if pos_mark == "朔" else 0,
+                          text=clip60(sent)))  # position：「某月某朔」明书朔日者记「朔」；buzi：其「朔」为点校本补字
 
     # 节：凌犯（sections）、只取日月食（eclipse_sections）、只取纪日（date_sections，第四项为该卷政权）
     sections = [(sec, "star") for sec in cfg["sections"]] + [(sec, "eclipse") for sec in cfg.get("eclipse_sections", [])] + \
@@ -704,8 +798,9 @@ def main(book):
         default_body = NAMES[sec[3]] if len(sec) > 3 and sec[3] and not date_only else None
         solar_dates = len(sec) > 4 and sec[4] == "solar_dates"  # 节内带朔日期即日食（《旧唐书》）
         pos_mark, last_ecl, last_ecl_sent = "", None, -1
+        buzi_mark = 0
         last_target = None
-        text = section_text(title, head, stop, cfg.get("corrections", ()))
+        text = section_text(title, head, stop, cfg.get("corrections", ()), mark_buzi=date_only)
         if cfg.get("simplified"):
             text = _OPENCC.convert(text)  # 简体原文（维基文库《明史》天文志）转繁体，与年号表繁体写法、本解析器正则一致
         carried = (era_start, era_label, cur_regime, prev_year, yr, mon, mon_name, leap, hou) if prev_eclipse_only else None
@@ -724,6 +819,9 @@ def main(book):
         if date_only and len(sec) > 3 and sec[3]:
             cur_regime = sec[3]  # 纪日节指定政权（定年号池与历表）
         para_first_clause = retro = after_death = year_closed = chronicle = False
+        # reign_anchors：(节, 锚点句首, 帝号, 政权, 元年, 末年)，节内首个以锚点起头的分句起按该帝纪年
+        anchors, anchors_used = [a for a in cfg.get("reign_anchors", ()) if a[0] == title], []
+        reign_last = None  # 当前帝号纪年的末年：其后不书年号、帝号而年数越出者（诏书「二十三載」）不作纪年
         last_bodies, last_sentence, fresh_sentence = None, -1, -1
         sent_no = 0
         lead_ctx = None
@@ -764,6 +862,8 @@ def main(book):
                 sent_no += 1
                 for clause in expand_together(re.split(r"[，；：「」『』\s]", DATE_AND.sub("，§", sent)), DATE):
                     clause = clause.strip("　 ")
+                    buzi_clause = BUZI in clause
+                    clause = clause.replace(BUZI, "")
                     if not clause:
                         continue
                     clause = re.sub(r"十有(?=[一二三四五六七八九])", "十", clause)  # 「十有六年」「十有一月」（《魏书》等）
@@ -782,22 +882,35 @@ def main(book):
                             if mk.match(clause):
                                 cur_regime = rg
                                 break
+                    anc = next((a for a in anchors if a not in anchors_used and clause.startswith(a[1])), None)
+                    if anc is not None:
+                        # 无年号、纪文也不书帝号的在位纪年（《周书》孝闵、明帝纪「元年」「二年」）：锚点句起为该帝元年
+                        anchors_used.append(anc)
+                        era_label, cur_regime, era_start, reign_last = anc[2], anc[3], anc[4], anc[5]
+                        yr, outer_era, retro = 1, None, False
                     mn_ = NEXT_GAIYUAN.match(clause)
                     if mn_ and era_start is not None and yr is not None:
                         # 「明年改元建中」：本年仍为旧年号，次年为新年号元年；其后「至四年十月」即建中四年（旧唐书天文志「德宗即位。
                         # 明年改元建中。至四年十月，朱泚亂」）。以元年前一年（年数 0）记当前年
                         cur = era_start + yr - 1
-                        pool = eras_by_regime.get(cur_regime, {}).get(mn_["era"]) or eras[mn_["era"]]
+                        pool = era_pool(mn_["era"], cur_regime)
+                        if date_only and cur + 1 not in pool and gaiyuan_start(mn_["era"], cur_regime, cur + 1) == cur + 1:
+                            pool = era_pool(mn_["era"], cur_regime)  # 年号表次年另有改元而无此名：同 gaiyuan_start，以次年为元年
                         if cur + 1 in pool:
-                            era_start, era_label, yr, outer_era = cur + 1, mn_["era"], 0, None
+                            era_start, era_label, yr, outer_era, reign_last = cur + 1, mn_["era"], 0, None, None
                         continue
                     mg_ = GAIYUAN.match(clause)
                     if mg_ and "明年" not in clause and (mg_["era"] != era_label or era_start is None):  # 「明年改元建中」为预告
-                        pool = eras_by_regime.get(cur_regime, {}).get(mg_["era"]) or eras[mg_["era"]]
+                        pool = era_pool(mg_["era"], cur_regime)
                         # 本纪：改元在当前年或其后，按当前年取（累计最大年会被追述、身后事抬高：卷末「泰常五年」使「改年為永興」取到 532）
                         ref = era_start + yr - 1 if date_only and era_start is not None and yr is not None else prev_year
-                        cands = [s_ for s_ in pool if s_ >= ref - (1 if date_only else 2)] or pool
-                        era_start, era_label, outer_era = min(cands, key=lambda s_: abs(s_ - ref)), mg_["era"], None
+                        if date_only and era_start is not None and yr is not None and re.search(r"改[元年]", clause):
+                            # 明书「改元」「改年」者元年在当年：年号表所收同名年号远在他年、表记当年另有改元时不跳过去（见 gaiyuan_start）
+                            new_start = gaiyuan_start(mg_["era"], cur_regime, ref)
+                        else:
+                            cands = [s_ for s_ in pool if s_ >= ref - (1 if date_only else 2)] or pool
+                            new_start = min(cands, key=lambda s_: abs(s_ - ref))
+                        era_start, era_label, outer_era, reign_last = new_start, mg_["era"], None, None
                         yr = 1
                         prev_year = max(prev_year, era_start)
                         continue
@@ -810,17 +923,25 @@ def main(book):
                         # 纪日节已定政权：只认该政权（及 regime_era_extra 所列前代）的年号，「永安宮」之类不作纪年
                         allowed = [cur_regime] + cfg.get("regime_era_extra", {}).get(cur_regime, [])
                         if not any(m["era"] in eras_by_regime.get(r_, {}) for r_ in allowed):
+                            if m["yr"]:
+                                # 「某年号某年」是别政权纪年：其后同段不书年号的「某年」「某月」也属该纪年，不承当前年号
+                                # （同 retro：到下一个认得的年号或下一段为止），以免接到上卷或传前的年号上
+                                retro = True
                             continue
                     if not m and para_first_date and (mh := ERA_HEAD.match(clause)):  # 只限段首，段中多为追述
                         m = DATE.match(mh.group(0))
                     if m and retro and not m["era"] and not m["emp"]:
                         continue
+                    if m and m["yr"] and not m["era"] and not m["emp"] and reign_last is not None and era_start is not None \
+                            and era_start + hh.cnnum(m["yr"]) - 1 > reign_last:
+                        continue
                     if m and any(m.group(k) for k in ("emp", "era", "yr", "mon", "gz", "xun", "leap", "day", "day0")):
                         if m["emp"] and not m["era"]:
-                            cur_regime, era_start = reigns[m["emp"]]
+                            cur_regime, era_start = reigns[m["emp"]][:2]
+                            reign_last = reigns[m["emp"]][2] if len(reigns[m["emp"]]) > 2 else None
                             era_label, outer_era = m["emp"], None
                         if m["era"]:
-                            pool = eras_by_regime.get(cur_regime, {}).get(m["era"]) or eras[m["era"]]
+                            pool = era_pool(m["era"], cur_regime)
                             # 年号前明书朝代（「魏明帝太和」「晉武帝泰始」）：只在该朝年代内取（《宋书·五行志》各门类自魏重起，
                             # 「不早于前文」之法失效）
                             span = dynasty_span(clause[: clause.find(m["era"])], cfg["regimes"])
@@ -843,7 +964,7 @@ def main(book):
                                 # 否则其后「三年」「四年」都落到所追述的年号上。只比当前年、不比累计最大年，免得一处误跳连累其后
                                 retro = True  # 其后同段不书年号的年月日（海陵王纪「永明十年……十一年……」）同属追述
                                 continue
-                            retro = False
+                            retro, reign_last = False, None
                             if new_start != era_start:
                                 outer_era, outer_label = era_start, era_label
                             era_start, era_label = new_start, m["era"]
@@ -868,7 +989,7 @@ def main(book):
                                 # 本纪「六月……閏月……」：閏月接在所记前一月之后，为闰位的直接证据
                                 leap_marks.append(dict(regime=cur_regime or regime_of(era_start + yr - 1, cfg["regimes"]),
                                                        era=era_label.translate(S2T), year_in_era=yr, year=era_start + yr - 1,
-                                                       leap_after=mon, text=sent.strip()[:60]))
+                                                       leap_after=mon, text=clip60(sent)))
                             leap = bool(m["leap"])
                             old_mon = mon
                             if m["mon"] and m["mon"][0] == "建":  # 肃宗元年以斗建名月（建子月=十一月）
@@ -892,6 +1013,7 @@ def main(book):
                             fresh_sentence = sent_no
                         if m["gz"] or m["mon"] or m["leap"] or m["day"] or m["day0"]:
                             pos_mark = "朔" if "朔" in clause else ("晦" if "晦" in clause else "")
+                            buzi_mark = int(pos_mark == "朔" and buzi_clause)
                         if solar_dates and m["gz"] and pos_mark == "朔":
                             # 《旧唐书·災異》日食以朔日列举（「武德元年十月壬申朔，四年八月丙戌朔……」），不另书「日食」
                             last_ecl = add_eclipse("solar", sent, "", "不蝕" if re.search(r"不[蝕食]", sent) else "")
@@ -1007,10 +1129,12 @@ def main(book):
                         lodge_deg=ld[1] if ld else "", text=sent.strip()[:120],
                     ))
                     last_bodies, last_sentence, last_target = bodies, sent_no, target
+        missed = [a[1] for a in anchors if a not in anchors_used]
+        assert not missed, f"{title} 帝号纪年锚点未见于正文：{missed}"
     for r in rows:
         for k, v in r.items():
             if isinstance(v, str):
-                r[k] = v.replace(",", "，").replace('"', "＂").replace("\n", " ").replace("\r", "")
+                r[k] = v.replace(",", "，").replace('"', "＂").replace("\n", " ").replace("\r", "").replace("朔" + BUZI, "〔朔〕").replace(BUZI, "")
     if rows:  # 只取日月食的调试配置可无凌犯记录
         with open(out_path, "w", encoding="utf-8", newline="") as f:
             w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
@@ -1022,13 +1146,13 @@ def main(book):
         with open(ddir / f"{book}.csv", "w", encoding="utf-8", newline="") as f:
             w = csv.DictWriter(f, fieldnames=list(dates[0].keys()))
             w.writeheader()
-            w.writerows([{k: (v.replace(",", "，") if isinstance(v, str) else v) for k, v in d.items()} for d in dates])
+            w.writerows([{k: (v.replace(",", "，").replace("朔" + BUZI, "〔朔〕").replace(BUZI, "") if isinstance(v, str) else v) for k, v in d.items()} for d in dates])
         print(f"本纪纪日/{book}.csv", len(dates), "条，干支不在月", sum(not d["in_month"] for d in dates))
     if leap_marks:
         with open(ROOT / "data/calendar/本纪纪日" / f"{book}_閏月.csv", "w", encoding="utf-8", newline="") as f:
             w = csv.DictWriter(f, fieldnames=list(leap_marks[0].keys()))
             w.writeheader()
-            w.writerows([{k: (v.replace(",", "，") if isinstance(v, str) else v) for k, v in d.items()} for d in leap_marks])
+            w.writerows([{k: (v.replace(",", "，").replace("朔" + BUZI, "〔朔〕").replace(BUZI, "") if isinstance(v, str) else v) for k, v in d.items()} for d in leap_marks])
         print(f"本纪纪日/{book}_閏月.csv", len(leap_marks), "条")
     for kind, recs in eclipses.items() if cfg.get("eclipses", True) else ():
         dst = ROOT / f"data/phenomena/{book}_{kind}_eclipses.csv"
@@ -1037,7 +1161,7 @@ def main(book):
         for r in recs:
             for k, v in r.items():
                 if isinstance(v, str):
-                    r[k] = v.replace(",", "，").replace('"', "＂").replace("\n", " ")
+                    r[k] = v.replace(",", "，").replace('"', "＂").replace("\n", " ").replace("朔" + BUZI, "〔朔〕").replace(BUZI, "")
         with open(dst, "w", encoding="utf-8", newline="") as f:
             w = csv.DictWriter(f, fieldnames=list(recs[0].keys()))
             w.writeheader()

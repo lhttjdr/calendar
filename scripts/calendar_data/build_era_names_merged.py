@@ -768,6 +768,24 @@ def mark_inyear_gaiyuan(rows: list[dict]) -> None:
         )
 
 
+# 年号表.csv 年号前缀中的朝名（「宋太祖建隆」「后梁太祖开平」「武周天授」）；「元帝」「明帝」「明宗」之「元」「明」是谥号不是朝名
+ERA_PREFIX_REGIMES = ["后梁", "后唐", "后晋", "后汉", "后周", "武周", "魏", "晋", "宋", "齐", "梁", "陈", "隋", "唐", "元", "明", "清"]
+
+
+def split_era_prefix(prefix: str) -> tuple[str, str]:
+    """年号前缀 → (新朝名或空, 新君帝号或空)。朝名后余字不足两字者（元帝、明宗）整体作帝号。只有朝名而无帝号者
+    （「宋元徽」「后唐清泰」）只取武周（690 年改唐为周），其余不改政权。"""
+    for g in ERA_PREFIX_REGIMES:
+        if prefix.startswith(g):
+            rest = prefix[len(g):]
+            if len(rest) >= 2:
+                return g, rest
+            if rest == "":
+                return (g, "则天皇帝") if g == "武周" else ("", "")
+            break
+    return "", prefix if prefix.endswith(("帝", "宗", "祖", "主")) else ""
+
+
 def main() -> None:
     # ---------- 1. 主线：era_names.csv（天文纪年，原样为主，南北朝/五代按年份区间细化政权名）----------
     era_path = ROOT / "vendor/calendar/chinese_calendar/年号表.csv"
@@ -789,13 +807,33 @@ def main() -> None:
                 clean_name = MANUAL_ERA_NAME_FIXES[(y, regime)]
             else:
                 clean_name = clean_era_name(raw_era_name)
+            emperor = r["emperor_simp"]
+            regime0 = regime  # 人工修正表按年号表原政权名（年初之朝）索引
             if clean_name != raw_era_name and not note:
                 note = f"政权交接年，年号表.csv 原字段为「{raw_era_name}」，已剥离朝代/帝号或新君本名前缀。"
+            # 年号表.csv 一年两号之年：政权、帝号记年初（旧朝旧君），年号记年末（新君），前缀写明新君。
+            # 改为年末之君（与年号一致），年初之君写入注。
+            if clean_name != raw_era_name and raw_era_name.endswith(clean_name):
+                new_regime, new_emperor = split_era_prefix(raw_era_name[: len(raw_era_name) - len(clean_name)])
+                if new_emperor or new_regime:
+                    # 年初之君：帝号已带朝名者（晋恭帝、后周恭帝）不再加；非年内改元之年（陈后主各年）不注
+                    old = emperor if split_era_prefix(emperor)[0] else f"{regime}{emperor}"
+                    if not emperor or not int(r["has_gaiyuan"] or 0):
+                        old = ""
+                    prev = clean_era_name(r["gaiyuan_prev_era_name_simp"]) + (r["gaiyuan_prev_era_year_simp"] or "")
+                    if new_regime:
+                        regime = new_regime
+                    if new_emperor:
+                        # 南北朝、五代各行帝号惯带朝名（梁武帝、后晋高祖），随之
+                        dyn_style = r["regime_simp"] == "南北朝" or (r["regime_simp"] == "五代" and regime in ("后梁", "后唐", "后晋", "后汉", "后周"))
+                        emperor = f"{regime}{new_emperor}" if dyn_style else new_emperor
+                    if old and (new_regime or new_emperor):
+                        note += f" 年初为{old}{prev}；政权、帝号改记年末新君。"
             rows.append(
                 {
                     "lunar_year": y,
                     "regime": regime,
-                    "emperor": r["emperor_simp"],
+                    "emperor": emperor,
                     "era_name": clean_name,
                     "era_year": era_year if era_year is not None else "",
                     "is_primary": 1,
@@ -807,7 +845,9 @@ def main() -> None:
                     "note": note,
                 }
             )
-            fix = MANUAL_PRIMARY_FIXES.get((y, regime))
+            if regime != regime0:
+                OPENING_REGIME[(y, regime)] = regime0
+            fix = MANUAL_PRIMARY_FIXES.get((y, regime0)) or MANUAL_PRIMARY_FIXES.get((y, regime))
             if fix:
                 rows[-1].update(fix["fields"])
                 rows[-1]["note"] = (note + " " if note else "") + fix["note"]
@@ -1131,6 +1171,8 @@ def main() -> None:
     if conflict_count:
         print(f"注意：{conflict_count} 处章节交界年份的政权记录内容有出入，两条都保留并加了 note，见上说明。")
 
+    rows = apply_nanming(rows)
+    rows = apply_beiliang_yuanhe(rows)
     rows.sort(key=lambda r: (r["lunar_year"], 0 if r["is_primary"] else 1, r["regime"]))
     fill_earlier_eras_from_gaiyuan_day(rows)
     fill_emperor_names(rows)
@@ -1161,6 +1203,67 @@ def main() -> None:
           f"其中来自 fang_shiming 补充列的: {supplement_count}）")
 
 
+def apply_nanming(rows: list[dict]) -> list[dict]:
+    """南明、鲁监国、明郑年号：方诗铭 14 章「南」栏一格多段（1646 年隆武、绍武、桂王并列），forward_fill 只留末段，
+    致绍武误记桂王名下、隆武二年缺；1662 年以后明郑在台湾续用永历（至三十七年）原表不列。此处按傅以礼《残明大统历》
+    各年首行（`data/calendar/canming_datong_fuyili.csv`，二十五史补编本）与方诗铭 14 章重写：政权名「南」改「南明」，
+    另立「南明·绍武」「鲁监国」「明郑」。历日见 push_calendar::regime_calendars「南明」一路（大统推步）。"""
+    src = "fang_shiming:14_清纪年表；傅以礼《残明大统历》"
+    out = [r for r in rows if r["regime"] != "南"]
+
+    def row(y, regime, emperor, era, n, note="", prev=("", "", ""), source=src):
+        return {
+            "lunar_year": y, "regime": regime, "emperor": emperor, "era_name": era, "era_year": n, "is_primary": 0,
+            "has_gaiyuan": 1 if prev[0] else 0, "gaiyuan_prev_era_name": prev[0], "gaiyuan_prev_era_year": prev[1],
+            "gaiyuan_month": prev[2], "source": source, "note": note,
+        }
+
+    out.append(row(1644, "南明", "福王(朱由崧)", "崇祯", 17, "福王五月即位南京，仍用崇祯十七年，次年改元弘光"))
+    out.append(row(1645, "南明", "唐王(朱聿键)", "隆武", 1, "弘光元年五月南京陷；唐王闰六月即位福州改元隆武（傅以礼作「七月以後為隆武元年」）",
+                   ("弘光", 1, 6)))
+    out.append(row(1646, "南明", "唐王(朱聿键)", "隆武", 2, "八月唐王被执于汀州"))
+    out.append(row(1646, "南明·绍武", "唐王(朱聿𨮁)", "绍武", 1, "十一月立于广州，十二月城破，凡四十余日"))
+    for k, y in enumerate(range(1647, 1662), 1):
+        out.append(row(y, "南明", "桂王(朱由榔)", "永历", k, "桂王 1646 年十月监国肇庆，次年改元" if k == 1 else ("傅以礼注「明亡」" if y == 1661 else "")))
+    lu = [(1646, "监国", 1), (1647, "监国", 2), (1648, "监国", 3), (1649, "监国", 4),
+          (1650, "监国后", 1), (1651, "监国后", 2), (1652, "监国后", 3), (1653, "监国后", 4)]
+    for y, era, n in lu:
+        out.append(row(y, "鲁监国", "鲁王(朱以海)", era, n, "三月去监国号，奉表永历行在" if y == 1653 else "", source="傅以礼《残明大统历》"))
+    for y in range(1662, 1684):
+        out.append(row(y, "明郑", "延平王", "永历", y - 1646, "台湾称永历；闰六月降清" if y == 1683 else "台湾称永历", source="傅以礼《残明大统历》"))
+    return out
+
+
+def apply_beiliang_yuanhe(rows: list[dict]) -> list[dict]:
+    """北凉奉北魏正朔的「缘禾」「太缘」（北魏延和、太延的同音异写），史籍不载，见酒泉北凉石塔与吐鲁番文书：
+    白双且塔「凉故大沮渠缘禾三年岁次甲戌（434）七月上旬」；殷光明《北凉缘禾、太缘年号及相关问题之辨析》（《敦煌研究》1995.4）
+    据索塔、程塔以为北魏改元太延（435）后牧犍亦改奉太缘；彭琪《北凉缘禾年号蠡测》以为缘禾自壬申（432）用至己卯（439）。
+    高昌阚爽自立（435）后不随改，吐鲁番文书有缘禾五、六、十年，殷文谓沿用至太平真君三年（442）。与本朝义和、承和（永和）并列。"""
+    out = list(rows)
+    # 方诗铭 07 章转录 438、439 年作「承和2」「承和3」；方书年号索引承和只 437 年、建平「437—」，437 年承和改元建平，故作建平二、三年
+    for r in out:
+        if r["regime"] == "北凉" and r["lunar_year"] in (438, 439) and r["era_name"] == "承和":
+            r["era_name"] = "建平"
+            r["note"] = (r["note"] + " " if r["note"] else "") + "转录作承和；方诗铭年号索引承和只 437 年、建平 437 年起，改作建平。"
+    src = "殷光明1995《敦煌研究》；彭琪《北凉缘禾年号蠡测》"
+
+    def row(y, regime, emperor, era, n, note):
+        return {"lunar_year": y, "regime": regime, "emperor": emperor, "era_name": era, "era_year": n, "is_primary": 0,
+                "has_gaiyuan": 0, "gaiyuan_prev_era_name": "", "gaiyuan_prev_era_year": "", "gaiyuan_month": "",
+                "source": src, "note": note}
+
+    for y in range(432, 435):
+        out.append(row(y, "北凉", "沮渠蒙逊" if y < 433 else "沮渠牧犍(茂虔)", "缘禾", y - 431,
+                       "奉北魏延和正朔（同音异写），见石塔、吐鲁番文书" + ("；白双且塔「缘禾三年岁次甲戌」" if y == 434 else "")))
+    for y in range(435, 440):
+        out.append(row(y, "北凉", "沮渠牧犍(茂虔)", "太缘", y - 434,
+                       "奉北魏太延正朔（殷光明据索塔、程塔，北魏改元后改奉）；彭琪以为河西仍用缘禾" + str(y - 431) + "年"))
+    for y in range(435, 442):
+        out.append(row(y, "高昌", "阚爽", "缘禾", y - 431,
+                       "阚爽据高昌自立，沿用缘禾不改（吐鲁番文书有缘禾五、六、十年）；殷光明谓至 442 年"))
+    return out
+
+
 def fill_emperor_names(rows: list[dict]) -> None:
     """emperor_name：君主本名。按（政权, 帝号）匹配；帝号为空的行多为一组数帝，按（政权, 年号）匹配。"""
     by_title: dict[tuple[str, str], str] = {}
@@ -1186,6 +1289,10 @@ def fill_emperor_names(rows: list[dict]) -> None:
         print("emperor_personal_names.csv 未匹配到任何行（可能是本名表里写错了帝号）：", unused)
 
 
+# 改朝之年 (年, 年末新朝) → 年初旧朝：改元日表按年初之朝记（220 年「汉 献帝 建安→延康→黄初」），合并表该年改记年末新朝（魏）
+OPENING_REGIME: dict[tuple[int, str], str] = {}
+
+
 def fill_earlier_eras_from_gaiyuan_day(rows: list[dict]) -> None:
     """gaiyuan_earlier_eras：该年除主年号（era_name）与改元前年号（gaiyuan_prev_era_name）之外行用过的年号，「名年数」以 / 相隔、
     按先后。方诗铭表单元格三段以上者已在 forward_fill_column 取得；此处再按改元日表 data/calendar/era_gaiyuan_day.csv 补
@@ -1205,6 +1312,8 @@ def fill_earlier_eras_from_gaiyuan_day(rows: list[dict]) -> None:
     for r in rows:
         r.setdefault("gaiyuan_earlier_eras", "")
         ch = chains.get((r["lunar_year"], r["regime"]))
+        if not ch and r["is_primary"]:
+            ch = chains.get((r["lunar_year"], OPENING_REGIME.get((r["lunar_year"], r["regime"]), "")))
         if not ch:
             continue
         have = [x for x in r["gaiyuan_earlier_eras"].split("/") if x]

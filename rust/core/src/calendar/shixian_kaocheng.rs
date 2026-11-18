@@ -4,6 +4,7 @@
 //! 由 `scripts/calendar_data/shixian_kaocheng.py` 移植，照《清史稿·时宪志》卷四十八（康熙甲子元法中）逐步复原，
 //! 卷四十七作模型说明与自检（两弦、自行三宫「極大均數七度二十五分四十六秒」）。角度以度计；中法宫度自冬至起。
 //! 用时：太阴平行以时差行化至用时子正（「求用時太陰平行」），故合朔内插所得即用时；中气以时差总化用时定日。
+//! 颁历定日缺省用平时（实录两月、张表 198 月为证），见 [sui_months]。
 
 use crate::math::real::{real, Real, RealOps};
 
@@ -232,12 +233,17 @@ fn shuo_times(d0: i64, d1: i64, yongshi: bool) -> Vec<Real> {
     out
 }
 
-/// 冬至岁 y：(朔日 JDN, 月序, 闰否)，自天正至次年天正前（用时）。
+/// 冬至岁 y：(朔日 JDN, 月序, 闰否)，自天正至次年天正前（平时定日，缺省）。
+///
+/// 术文月离「求用時太陰平行」是用时，但颁历定日从平时：可判两法之月 1735 年八月、1740 年三月，《高宗实录》
+/// 「八月丁卯朔」「三月壬寅朔」皆合平时（用时分在子夜后约 2 分、前约 1 分，方向相反，非一常差），张表 1726—1741
+/// 年 198 月亦全合平时（用时 196）。故缺省平时，用时见 [sui_months_with]。见 doc/calendar/calendar-compendium.md「历象考成」。
 pub fn sui_months(y: i32) -> Vec<(i64, u8, bool)> {
-    sui_months_with(y, true)
+    sui_months_with(y, false)
 }
 
-fn sui_months_with(y: i32, yongshi: bool) -> Vec<(i64, u8, bool)> {
+/// yongshi：真为用时定日（合朔用时太阴平行、中气化用时），假为平时。
+pub fn sui_months_with(y: i32, yongshi: bool) -> Vec<(i64, u8, bool)> {
     let (q0, q1) = (jieqi_times(y), jieqi_times(y + 1));
     let conv = |t: Real| if yongshi { (t + shi_cha(t)).to_i64_floor() } else { t.to_i64_floor() };
     let mut zhong: Vec<i64> = (0..24).step_by(2).map(|k| conv(q0[k])).collect();
