@@ -500,6 +500,14 @@ BOOKS = {
         years=(530, 582), start_year=531, regimes=[(535, "西魏"), (557, "北周")], era_regimes=["西魏", "北周", "北魏"],
         regime_era_extra={"西魏": ["北魏"], "北周": ["西魏"]},  # 文帝纪以北魏年号纪年；孝闵纪卷首以西魏年号
         regime_calendars={"西魏": [(-10000, "北魏/西魏/北周/隋")], "北周": [(-10000, "北魏/西魏/北周/隋")]},
+        # 西魏废帝、恭帝不立年号（卷二「魏廢帝元年春」「三年春正月……廢帝，尊立齊王廓，是為恭帝」「魏恭帝元年夏四月」，
+        # 废帝三年即恭帝元年 554）；卷三、四卷首传记亦书「魏恭帝三年」
+        reigns={"魏廢帝": ("西魏", 552, 554), "魏恭帝": ("西魏", 554, 556)},
+        # 北周孝闵帝、明帝前期称天王、不立年号：纪文只书「元年」「二年」（卷四「==元年==」节标题不入正文），以锚点句起算。
+        # 孝闵帝元年 557（卷三「元年春正月辛丑，即天王位」）；明帝 557 年九月即位，同年为元年（卷四卷首传记「秋九月癸亥，
+        # 至京師……即天王位」，其后「冬十月」「二年春正月」），三年（559）八月改元武成，纪文追书作「武成元年春正月」。
+        # 末项为在位末年：孝闵纪诏书「自始及終，二十三載」不是纪年
+        reign_anchors=[("周書/卷03", "元年春正月辛丑", "孝閔帝", "北周", 557, 557), ("周書/卷04", "秋九月癸亥", "明帝", "北周", 557, 559)],
     ),
     # 《隋书》本纪（卷一、二高祖）：平陈（589）前用北周历
     "suishu_benji": dict(
@@ -659,7 +667,7 @@ def main(book):
     eras_by_regime = {r: era_starts_merged([r], *cfg["years"]) for r in cfg.get("era_regimes", [])} \
         if cfg.get("regime_markers") or cfg.get("date_sections") else {}
     era_re = "|".join(sorted(eras, key=len, reverse=True))
-    reigns = cfg.get("reigns", {})  # 无年号、以帝号纪年者：帝号 → (政权, 元年)
+    reigns = cfg.get("reigns", {})  # 无年号、以帝号纪年者：帝号 → (政权, 元年[, 末年])
     DATE = date_re(era_re, "|".join(sorted(reigns, key=len, reverse=True)) or None)
     # 段首分句以「年号+年数」起头而整句不成日期式（「天復元年五月自丁酉至于己亥」）：至少切换年号与年
     ERA_HEAD = re.compile(rf"^(?:{era_re})(?:{NUM})[年載]")
@@ -811,6 +819,9 @@ def main(book):
         if date_only and len(sec) > 3 and sec[3]:
             cur_regime = sec[3]  # 纪日节指定政权（定年号池与历表）
         para_first_clause = retro = after_death = year_closed = chronicle = False
+        # reign_anchors：(节, 锚点句首, 帝号, 政权, 元年, 末年)，节内首个以锚点起头的分句起按该帝纪年
+        anchors, anchors_used = [a for a in cfg.get("reign_anchors", ()) if a[0] == title], []
+        reign_last = None  # 当前帝号纪年的末年：其后不书年号、帝号而年数越出者（诏书「二十三載」）不作纪年
         last_bodies, last_sentence, fresh_sentence = None, -1, -1
         sent_no = 0
         lead_ctx = None
@@ -871,6 +882,12 @@ def main(book):
                             if mk.match(clause):
                                 cur_regime = rg
                                 break
+                    anc = next((a for a in anchors if a not in anchors_used and clause.startswith(a[1])), None)
+                    if anc is not None:
+                        # 无年号、纪文也不书帝号的在位纪年（《周书》孝闵、明帝纪「元年」「二年」）：锚点句起为该帝元年
+                        anchors_used.append(anc)
+                        era_label, cur_regime, era_start, reign_last = anc[2], anc[3], anc[4], anc[5]
+                        yr, outer_era, retro = 1, None, False
                     mn_ = NEXT_GAIYUAN.match(clause)
                     if mn_ and era_start is not None and yr is not None:
                         # 「明年改元建中」：本年仍为旧年号，次年为新年号元年；其后「至四年十月」即建中四年（旧唐书天文志「德宗即位。
@@ -880,7 +897,7 @@ def main(book):
                         if date_only and cur + 1 not in pool and gaiyuan_start(mn_["era"], cur_regime, cur + 1) == cur + 1:
                             pool = era_pool(mn_["era"], cur_regime)  # 年号表次年另有改元而无此名：同 gaiyuan_start，以次年为元年
                         if cur + 1 in pool:
-                            era_start, era_label, yr, outer_era = cur + 1, mn_["era"], 0, None
+                            era_start, era_label, yr, outer_era, reign_last = cur + 1, mn_["era"], 0, None, None
                         continue
                     mg_ = GAIYUAN.match(clause)
                     if mg_ and "明年" not in clause and (mg_["era"] != era_label or era_start is None):  # 「明年改元建中」为预告
@@ -893,7 +910,7 @@ def main(book):
                         else:
                             cands = [s_ for s_ in pool if s_ >= ref - (1 if date_only else 2)] or pool
                             new_start = min(cands, key=lambda s_: abs(s_ - ref))
-                        era_start, era_label, outer_era = new_start, mg_["era"], None
+                        era_start, era_label, outer_era, reign_last = new_start, mg_["era"], None, None
                         yr = 1
                         prev_year = max(prev_year, era_start)
                         continue
@@ -915,9 +932,13 @@ def main(book):
                         m = DATE.match(mh.group(0))
                     if m and retro and not m["era"] and not m["emp"]:
                         continue
+                    if m and m["yr"] and not m["era"] and not m["emp"] and reign_last is not None and era_start is not None \
+                            and era_start + hh.cnnum(m["yr"]) - 1 > reign_last:
+                        continue
                     if m and any(m.group(k) for k in ("emp", "era", "yr", "mon", "gz", "xun", "leap", "day", "day0")):
                         if m["emp"] and not m["era"]:
-                            cur_regime, era_start = reigns[m["emp"]]
+                            cur_regime, era_start = reigns[m["emp"]][:2]
+                            reign_last = reigns[m["emp"]][2] if len(reigns[m["emp"]]) > 2 else None
                             era_label, outer_era = m["emp"], None
                         if m["era"]:
                             pool = era_pool(m["era"], cur_regime)
@@ -943,7 +964,7 @@ def main(book):
                                 # 否则其后「三年」「四年」都落到所追述的年号上。只比当前年、不比累计最大年，免得一处误跳连累其后
                                 retro = True  # 其后同段不书年号的年月日（海陵王纪「永明十年……十一年……」）同属追述
                                 continue
-                            retro = False
+                            retro, reign_last = False, None
                             if new_start != era_start:
                                 outer_era, outer_label = era_start, era_label
                             era_start, era_label = new_start, m["era"]
@@ -1108,6 +1129,8 @@ def main(book):
                         lodge_deg=ld[1] if ld else "", text=sent.strip()[:120],
                     ))
                     last_bodies, last_sentence, last_target = bodies, sent_no, target
+        missed = [a[1] for a in anchors if a not in anchors_used]
+        assert not missed, f"{title} 帝号纪年锚点未见于正文：{missed}"
     for r in rows:
         for k, v in r.items():
             if isinstance(v, str):
