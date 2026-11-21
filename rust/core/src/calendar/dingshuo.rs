@@ -2233,6 +2233,9 @@ const REGIME_REGISTRY: &[(&str, &[(i32, i32)])] = &[
     // 旧法即正元；宣明「氣朔……皆因大衍舊術」，同属大衍一系，并作候选。
     ("正元历（代推观象）", &[(807, 821)]),
     ("宣明历（代推观象）", &[(807, 821)]),
+    // 张表观象段（即刘羲叟《长历》）比正元定朔系统偏晚，试以宣明进朔、平四分之三进朔加于正元定朔：本纪明书朔 103、105，皆不及（存作检验）
+    ("正元历（宣明进朔，代推观象）", &[(807, 821)]),
+    ("正元历（四分之三进朔，代推观象）", &[(807, 821)]),
     // 会天历（1253—1270）：术不传；前开禧、后成天，并作候选，另有 1256 年实物历日可验。
     ("开禧历（代推会天）", &[(1253, 1270)]),
     ("成天历（代推会天）", &[(1253, 1270)]),
@@ -2353,6 +2356,16 @@ fn build_paiyue(name: &str, o: &PaiyueOptions) -> Option<Paiyue> {
         "宣明历（辽）" => Paiyue::new(xuanming(), &["宣明历（辽）"], Rules { jiao_bujin: o.xuanming, ..TANG_RUNS }),
         "正元历（代推观象）" => Paiyue::new(zhengyuan(), &["正元历（代推观象）"], Rules { zhengyue_jiao: zy(&[], &[(807, 821, 1)]), ..TANG_RUNS }),
         "宣明历（代推观象）" => Paiyue::new(xuanming(), &["宣明历（代推观象）"], Rules { jiao_bujin: o.xuanming, ..TANG_RUNS }),
+        "正元历（宣明进朔，代推观象）" => Paiyue::new(
+            Dayan { jinshuo: vec![(0, Jinshuo::Xuanming)], ..zhengyuan() },
+            &["正元历（宣明进朔，代推观象）"],
+            Rules { zhengyue_jiao: zy(&[], &[(807, 821, 1)]), ..TANG_RUNS },
+        ),
+        "正元历（四分之三进朔，代推观象）" => Paiyue::new(
+            Dayan { jinshuo: vec![(0, Jinshuo::Hours(18))], ..zhengyuan() },
+            &["正元历（四分之三进朔，代推观象）"],
+            Rules { zhengyue_jiao: zy(&[], &[(807, 821, 1)]), ..TANG_RUNS },
+        ),
         "宣明历（代推钦天）" => Paiyue::new(xuanming(), &["宣明历（代推钦天）"], Rules { jiao_bujin: o.xuanming, ..TANG_RUNS }),
         "开禧历（代推会天）" => Paiyue::new(
             song("开禧", 16900, 6172608, q(499067), qr(4656725396, 10000), 7848183, 1207, 0, false, None, (1206, 12, 15)),

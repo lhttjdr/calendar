@@ -61,7 +61,7 @@ const SEGS: &[Seg] = &[
         years: (807, 821),
         regime: "唐",
         books: &["jiutangshu_benji", "xintangshu_benji"],
-        candidates: &["正元历（代推观象）", "宣明历（代推观象）"],
+        candidates: &["正元历（代推观象）", "宣明历（代推观象）", "正元历（宣明进朔，代推观象）", "正元历（四分之三进朔，代推观象）"],
     },
     Seg {
         name: "会天历",
