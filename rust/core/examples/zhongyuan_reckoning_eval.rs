@@ -51,6 +51,8 @@ struct Stat {
     hit_t: usize,
     only_r: usize,
     only_t: usize,
+    /// 已考为讹误（data/calendar/benji_shuo_errata.csv）而不计的本纪条数
+    errata: usize,
 }
 
 fn main() {
@@ -85,6 +87,13 @@ fn main() {
     let head = rows.iter().find(|r| r.first().is_some_and(|c| c == "书")).unwrap().clone();
     let col = |n: &str| head.iter().position(|h| h == n).unwrap();
     let (cb, cy, cm, cr, ct, ck, cx, cs) = (col("书"), col("年"), col("月"), col("本纪朔 JDN"), col("张表朔 JDN"), col("类"), col("原文"), col("政权"));
+    // 已考讹误的本纪朔日：不作证据，另计
+    let errata: std::collections::BTreeSet<(String, String, String)> = parse_csv(&read("data/calendar/benji_shuo_errata.csv"))
+        .into_iter()
+        .filter(|r| r.len() >= 3 && !r[0].starts_with('#') && r[0] != "书")
+        .map(|r| (r[0].clone(), r[1].clone(), r[2].clone()))
+        .collect();
+    let mut errata_seen = 0usize;
     let skip_books = ["liaoshi_benji", "jinshi_benji", "weishu_benji", "beiqishu_benji", "zhoushu_benji"];
     let mut detail = String::from("历,书,年,月,本纪朔,推步朔,张表朔,本纪合推步,本纪合张表,类,原文\n");
     for r in rows.iter().filter(|r| r.len() == head.len() && r[0] != "书") {
@@ -104,25 +113,34 @@ fn main() {
         let tj = zhang.year_months(y).and_then(|t| t.iter().find(|e| e.1 == m && e.2 == leap).map(|e| e.0));
         let (hr, ht) = (rj == Some(rec), tj == Some(rec));
         let s = stats.get_mut(&(fy, name)).unwrap();
-        s.n += 1;
-        s.hit_r += hr as usize;
-        s.hit_t += ht as usize;
-        s.only_r += (hr && !ht) as usize;
-        s.only_t += (ht && !hr) as usize;
+        let is_errata = errata.contains(&(r[cb].clone(), r[cy].clone(), r[cm].clone()));
+        if is_errata {
+            // 已考讹误：不计分，明细照列并注明
+            s.errata += 1;
+            errata_seen += 1;
+        } else {
+            s.n += 1;
+            s.hit_r += hr as usize;
+            s.hit_t += ht as usize;
+            s.only_r += (hr && !ht) as usize;
+            s.only_t += (ht && !hr) as usize;
+        }
         if hr != ht || rj != tj {
             let g = |j: Option<i64>| j.map_or("—", gz);
+            let kind = if is_errata { "已考讹不计" } else { r[ck].as_str() };
             detail += &format!(
                 "{},{},{},{},{},{},{},{},{},{},{}\n",
-                name, r[cb], y, r[cm], gz(rec), g(rj), g(tj), hr as u8, ht as u8, r[ck], r[cx].replace([',', '\n'], "，")
+                name, r[cb], y, r[cm], gz(rec), g(rj), g(tj), hr as u8, ht as u8, kind, r[cx].replace([',', '\n'], "，")
             );
         }
     }
-    let mut out = String::from("历,起,止,月数,与张表同,闰位不同之岁,本纪条数,本纪合推步,本纪合张表,只合推步,只合张表\n");
+    let mut out = String::from("历,起,止,月数,与张表同,闰位不同之岁,本纪条数,本纪合推步,本纪合张表,只合推步,只合张表,已考讹不计\n");
     for ((_, name), s) in &stats {
         let ld: Vec<String> = s.leap_diff.iter().map(|y| y.to_string()).collect();
-        out += &format!("{name},{},{},{},{},{},{},{},{},{},{}\n", s.years.0, s.years.1, s.months, s.same, ld.join(" "), s.n, s.hit_r, s.hit_t, s.only_r, s.only_t);
+        out += &format!("{name},{},{},{},{},{},{},{},{},{},{},{}\n", s.years.0, s.years.1, s.months, s.same, ld.join(" "), s.n, s.hit_r, s.hit_t, s.only_r, s.only_t, s.errata);
         println!("{name:<20} {}—{} 月 {} 同 {} 闰异 {:?} | 本纪 {} 推步 {} 张表 {} （只推步 {} 只张表 {}）", s.years.0, s.years.1, s.months, s.same, s.leap_diff, s.n, s.hit_r, s.hit_t, s.only_r, s.only_t);
     }
+    assert_eq!(errata_seen, errata.len(), "benji_shuo_errata.csv 每条都须在本纪检验表中找到");
     std::fs::write(root.join("data/calendar/zhongyuan_reckoning_eval.csv"), out).unwrap();
     std::fs::write(root.join("data/calendar/zhongyuan_reckoning_benji.csv"), detail).unwrap();
 }
