@@ -2248,6 +2248,8 @@ const REGIME_REGISTRY: &[(&str, &[(i32, i32)])] = &[
     ("开禧历（代推淳祐）", &[(1252, 1252)]),
     // 本天历（1277—1279）：益王、卫王海上所作，「今亡」（《宋史》卷八十二）；以成天代推。
     ("成天历（代推本天）", &[(1277, 1279)]),
+    // 钦天历（957—963）：术文在《新五代史》卷五十八，日躔、月离损益率表不存；前此气朔用宣明，作代推候选。
+    ("宣明历（代推钦天）", &[(957, 963)]),
 ];
 
 /// 「使不過三大二小」
@@ -2351,6 +2353,7 @@ fn build_paiyue(name: &str, o: &PaiyueOptions) -> Option<Paiyue> {
         "宣明历（辽）" => Paiyue::new(xuanming(), &["宣明历（辽）"], Rules { jiao_bujin: o.xuanming, ..TANG_RUNS }),
         "正元历（代推观象）" => Paiyue::new(zhengyuan(), &["正元历（代推观象）"], Rules { zhengyue_jiao: zy(&[], &[(807, 821, 1)]), ..TANG_RUNS }),
         "宣明历（代推观象）" => Paiyue::new(xuanming(), &["宣明历（代推观象）"], Rules { jiao_bujin: o.xuanming, ..TANG_RUNS }),
+        "宣明历（代推钦天）" => Paiyue::new(xuanming(), &["宣明历（代推钦天）"], Rules { jiao_bujin: o.xuanming, ..TANG_RUNS }),
         "开禧历（代推会天）" => Paiyue::new(
             song("开禧", 16900, 6172608, q(499067), qr(4656725396, 10000), 7848183, 1207, 0, false, None, (1206, 12, 15)),
             &["开禧历（代推会天）"],
