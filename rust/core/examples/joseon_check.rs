@@ -72,6 +72,10 @@ fn main() {
     for l in src.lines().filter(|l| !l.starts_with('#')).skip(1) {
         let c: Vec<&str> = l.split(',').collect();
         let (y, m, leap): (i32, u8, bool) = (c[2].parse().unwrap(), c[3].parse().unwrap(), c[4] == "1");
+        // 本程序核大统历（朝鲜 1653 年改行时宪历）；孝宗以后之行供清初时宪历旁证，不在此比较
+        if y > 1653 {
+            continue;
+        }
         let (sg, how, page, note) = (c[5], c[7], c[8], c.get(9).copied().unwrap_or(""));
         seen_years.insert(y);
         let r = reck.entry(y).or_insert_with(|| reckon(y)).clone();
