@@ -1,4 +1,4 @@
-"""抓取维基文库《朝鮮王朝實錄》太祖至仁祖（1392—1649）各年页面 wikitext，缓存到 hanshu_cache/joseon_sillok/（不入库）。
+"""抓取维基文库《朝鮮王朝實錄》太祖至肅宗（1392—1720）各年页面 wikitext，缓存到 hanshu_cache/joseon_sillok/（不入库）。
 
 先用 API（list=allpages, apprefix=朝鮮王朝實錄/）列页，存 titles.txt；再逐页取 action=raw。
 已缓存者跳过，可随时中断续抓；《光海君日記》各年子页中文维基文库缺，取韩文维基文库太白山本；每次请求间隔 ≥3 秒，失败（含 429/5xx）退避重试。
@@ -18,7 +18,8 @@ CACHE = Path("hanshu_cache/joseon_sillok")
 API = "https://zh.wikisource.org/w/api.php"
 RAW = "https://zh.wikisource.org/w/index.php?action=raw&title="
 REIGNS = ["太祖實錄", "定宗實錄", "太宗實錄", "世宗實錄", "文宗實錄", "端宗實錄", "世祖實錄", "睿宗實錄", "成宗實錄",
-          "燕山君日記", "中宗實錄", "仁宗實錄", "明宗實錄", "宣祖實錄", "宣祖修正實錄", "光海君日記", "仁祖實錄"]
+          "燕山君日記", "中宗實錄", "仁宗實錄", "明宗實錄", "宣祖實錄", "宣祖修正實錄", "光海君日記", "仁祖實錄",
+          "孝宗實錄", "顯宗實錄", "肅宗實錄"]  # 2026-11-21 补孝宗至肅宗（1649—1720），核清初时宪历
 # 《光海君日記》中文维基文库只有目录页（各年子页不存在），改取韩文维基文库的太白山本（中草本）原文
 KO_RAW = "https://ko.wikisource.org/w/index.php?action=raw&title="
 KO_TITLES = ["조선왕조실록/광해군일기태백산본/" + y for y in ["즉위년"] + [f"{n}년" for n in range(1, 16)]]
