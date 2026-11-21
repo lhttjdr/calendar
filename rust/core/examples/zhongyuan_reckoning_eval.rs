@@ -101,6 +101,10 @@ fn main() {
             continue;
         }
         let (Ok(y), Ok(rec)) = (r[cy].parse::<i32>(), r[cr].parse::<i64>()) else { continue };
+        // 元 1280 年以前行金重修大明历，不是中原一线（南宋）之历，其本纪纪日不检中原诸历
+        if r[cs] == "元" && y < 1280 {
+            continue;
+        }
         let Some(months) = reck.get(&y) else { continue };
         let (leap, m) = match r[cm].strip_prefix('闰').or_else(|| r[cm].strip_prefix('閏')) {
             Some(x) => (true, x),
