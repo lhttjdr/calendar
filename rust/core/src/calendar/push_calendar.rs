@@ -231,6 +231,7 @@ pub fn reckon_lifa_year(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, boo
         "景初历" => jingchu_params(),
         "开皇历" => kaihuang_params(),
         // 后周钦天历（957—963）：日躔、月离表不存，借应天定朔，进朔照钦天「日入後則進」
+        "戊寅元历（武德术不传，以贞观所较戊寅元历代推）" => return super::dingshuo::reckon_year_any("戊寅元历（代推武德）", lunar_year),
         "钦天历（日躔月离表不存，以应天定朔代推）" => return super::song_early::reckon_year("应天历（代推钦天）", lunar_year),
         // 宋初应天、乾元、仪天
         "应天历" | "乾元历" | "仪天历" => return super::song_early::reckon_year(name, lunar_year),

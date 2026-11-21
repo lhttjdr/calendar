@@ -74,6 +74,8 @@ const SEGS: &[Seg] = &[
     Seg { name: "奉元历", years: (1075, 1093), regime: "宋", books: &["songshi_benji"], candidates: &["崇天历（代推奉元）", "明天历（代推奉元）", "观天历（代推奉元）"] },
     Seg { name: "占天历", years: (1103, 1105), regime: "宋", books: &["songshi_benji"], candidates: &["观天历（代推占天）", "纪元历（代推占天）"] },
     Seg { name: "淳祐历", years: (1252, 1252), regime: "宋", books: &["songshi_benji"], candidates: &["开禧历（代推淳祐）"] },
+    Seg { name: "戊寅元历（武德）", years: (619, 626), regime: "唐", books: &["jiutangshu_benji", "xintangshu_benji"], candidates: &["戊寅元历（代推武德）"] },
+    Seg { name: "历术失载（南渡初）", years: (1128, 1132), regime: "宋", books: &["songshi_benji"], candidates: &["纪元历（代推南渡初）"] },
     Seg { name: "本天历", years: (1277, 1279), regime: "宋", books: &["songshi_benji"], candidates: &["成天历（代推本天）"] },
 ];
 

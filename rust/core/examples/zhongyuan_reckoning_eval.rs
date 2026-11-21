@@ -93,7 +93,11 @@ fn main() {
         .filter(|r| r.len() >= 3 && !r[0].starts_with('#') && r[0] != "书")
         .map(|r| (r[0].clone(), r[1].clone(), r[2].clone()))
         .collect();
-    let mut errata_seen = 0usize;
+    // 讹误表每条须在本纪检验总表中（防书名、年月写错）；落在取张表之段（如观象）者不进本表计分
+    let all_keys: std::collections::BTreeSet<(String, String, String)> =
+        rows.iter().filter(|r| r.len() == head.len()).map(|r| (r[cb].clone(), r[cy].clone(), r[cm].clone())).collect();
+    let missing: Vec<_> = errata.iter().filter(|k| !all_keys.contains(*k)).collect();
+    assert!(missing.is_empty(), "benji_shuo_errata.csv 有条目不在 benji_shuo_check.csv 中：{missing:?}");
     let skip_books = ["liaoshi_benji", "jinshi_benji", "weishu_benji", "beiqishu_benji", "zhoushu_benji"];
     let mut detail = String::from("历,书,年,月,本纪朔,推步朔,张表朔,本纪合推步,本纪合张表,类,原文\n");
     for r in rows.iter().filter(|r| r.len() == head.len() && r[0] != "书") {
@@ -121,7 +125,6 @@ fn main() {
         if is_errata {
             // 已考讹误：不计分，明细照列并注明
             s.errata += 1;
-            errata_seen += 1;
         } else {
             s.n += 1;
             s.hit_r += hr as usize;
@@ -144,7 +147,6 @@ fn main() {
         out += &format!("{name},{},{},{},{},{},{},{},{},{},{},{}\n", s.years.0, s.years.1, s.months, s.same, ld.join(" "), s.n, s.hit_r, s.hit_t, s.only_r, s.only_t, s.errata);
         println!("{name:<20} {}—{} 月 {} 同 {} 闰异 {:?} | 本纪 {} 推步 {} 张表 {} （只推步 {} 只张表 {}）", s.years.0, s.years.1, s.months, s.same, s.leap_diff, s.n, s.hit_r, s.hit_t, s.only_r, s.only_t);
     }
-    assert_eq!(errata_seen, errata.len(), "benji_shuo_errata.csv 每条都须在本纪检验表中找到");
     std::fs::write(root.join("data/calendar/zhongyuan_reckoning_eval.csv"), out).unwrap();
     std::fs::write(root.join("data/calendar/zhongyuan_reckoning_benji.csv"), detail).unwrap();
 }
