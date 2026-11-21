@@ -69,8 +69,10 @@ def main():
             seq.append((y, k[0], k[1], j)); prev = j
     # 本纪
     bl = [l for l in open('data/calendar/benji_shuo_check.csv', encoding='utf-8') if not l.startswith('#')]
+    er = {(r['书'], r['年'], r['月']) for r in csv.DictReader(l for l in open('data/calendar/benji_shuo_errata.csv', encoding='utf-8') if not l.startswith('#'))}
     bj = {}
     for r in csv.DictReader(bl):
+        if (r['书'], r['年'], r['月']) in er: continue
         if 'tangshu_benji' in r['书'] and 807 <= int(r['年']) <= 821 and r['类'] != '其他':
             bj.setdefault((int(r['年']), r['月']), []).append((r['书'], r['本纪朔'], int(r['本纪朔 JDN'])))
     # 正元推步
@@ -81,7 +83,7 @@ def main():
         y, m, lp, j = l.split(','); zy[(int(y), int(m), lp == '1')] = int(j)
     w = csv.writer(open('data/calendar/tongjian_mulu_807_821.csv', 'w', encoding='utf-8', newline=''))
     w.writerow(['# 《资治通鉴目录》（朔闰据刘羲叟《长历》）元和二年至长庆元年朔闰栏转录与展开：维基共享资源 SSID-12318604《資治通鑑目錄》卷22-24 PDF（2026-11-21 看图转录）；'
-                '目录每岁只列前月为小月之月，未列者 = 上月 + 30 日。对照张培瑜表、本项目正元历推步（代推观象）与新旧唐书本纪明书朔。由 scripts/calendar_data/tongjian_mulu_guanxiang.py 生成'])
+                '目录每岁只列前月为小月之月，未列者 = 上月 + 30 日。对照张培瑜表、本项目正元历推步（代推观象）与新旧唐书本纪明书朔（剔除 benji_shuo_errata.csv 已考讹误者）。由 scripts/calendar_data/tongjian_mulu_guanxiang.py 生成'])
     w.writerow(['年', '月', '闰', '目录原文（该岁）', 'PDF页', '目录朔', '张表朔', '正元推步朔', '本纪明书朔', '目录合本纪', '张表合本纪', '正元合本纪'])
     score = {'目录': 0, '张表': 0, '正元': 0, 'n': 0}
     for (y, m, lp, j) in seq:
