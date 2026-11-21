@@ -28,6 +28,9 @@ pub enum JinRead {
     /// 3/4 −（该日晨分 − 二分晨分）/ 日法（有号、不折半）：冬季限低于 3/4、夏季高于。乾元本纪 994 年正月、四月，996 年七月，
     /// 1001 年正月一并得解（data/calendar/song_shuo_kaozheng.csv），本纪 49→52
     D,
+    /// 日入后进：定朔小余过日入（1 − 晨分/日法 − 二刻半，即昏前二刻半）则进一日。后周钦天历「定朔加時日入後，則進一日」
+    /// （《新五代史》卷五十八）；钦天日躔、月离表不存，借应天定朔与晨分代推（`应天历（代推钦天）`，本纪 957—963 年 36/36）。
+    RiRu,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -84,10 +87,12 @@ struct Li {
     y_base: i32,
 }
 
-const LIS: [(&str, Li, i32, i32); 3] = [
+const LIS: [(&str, Li, i32, i32); 4] = [
     ("应天历", Li { kind: Kind::Yingtian, read: JinRead::B, f: 10002, ji_base: 4_825_558, y_base: 962 }, 964, 983),
     ("乾元历", Li { kind: Kind::Qianyuan, read: JinRead::D, f: 2940, ji_base: 30_543_977, y_base: 981 }, 984, 1001),
     ("仪天历", Li { kind: Kind::Yitian, read: JinRead::D, f: 10100, ji_base: 716_497, y_base: 1001 }, 1002, 1023),
+    // 钦天历（957—963）日躔、月离表不存：借应天定朔，进朔用钦天「日入後則進」（examples/lost_proxy_eval.rs）
+    ("应天历（代推钦天）", Li { kind: Kind::Yingtian, read: JinRead::RiRu, f: 10002, ji_base: 4_825_558, y_base: 962 }, 957, 963),
 ];
 
 impl Li {
@@ -294,6 +299,7 @@ impl Li {
         match read {
             JinRead::B => r(0.75) - diff.abs() / r(2.0) / r(self.f as f64),
             JinRead::D => r(0.75) - diff / r(self.f as f64),
+            JinRead::RiRu => r(1.0) - self.chen(t_day) / r(self.f as f64) - r(0.025),
         }
     }
 }

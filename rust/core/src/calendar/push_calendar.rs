@@ -230,6 +230,9 @@ pub fn reckon_lifa_year(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, boo
         "四分历" => sifen_params(),
         "景初历" => jingchu_params(),
         "开皇历" => kaihuang_params(),
+        // 后周钦天历（957—963）：日躔、月离表不存，借应天定朔，进朔照钦天「日入後則進」
+        "戊寅元历（武德术不传，以贞观所较戊寅元历代推）" => return super::dingshuo::reckon_year_any("戊寅元历（代推武德）", lunar_year),
+        "钦天历（日躔月离表不存，以应天定朔代推）" => return super::song_early::reckon_year("应天历（代推钦天）", lunar_year),
         // 宋初应天、乾元、仪天
         "应天历" | "乾元历" | "仪天历" => return super::song_early::reckon_year(name, lunar_year),
         // 清初汤若望新法（照《新法算书》表复原）
@@ -240,8 +243,12 @@ pub fn reckon_lifa_year(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, boo
         "时宪历（历象考成）" => return Some(super::shixian_kaocheng::year_months(lunar_year)),
         // 清《历象考成后编》（民国元年、二年历书沿用）
         "时宪历（历象考成后编）" | "中华民国历书（沿用历象考成后编）" => return Some(super::shixian::year_months(lunar_year)),
-        // 会天历术不传，1253—1269 以开禧历代推（1270 年本纪闰十月，代推不合，取张表）
+        // 会天历术不传，1253—1270 以开禧历代推（1270 年史载改闰入例外表）
         "会天历（术不传，以开禧历代推）" => return super::dingshuo::reckon_year_any("开禧历（代推会天）", lunar_year),
+        // 占天（1103—1105）、淳祐（1252）、本天（1277—1279）术不传，各以纪元、开禧、成天代推（本纪检验与张表持平）
+        "占天历（术不传，以纪元历代推）" => return super::dingshuo::reckon_year_any("纪元历（代推占天）", lunar_year),
+        "淳祐历（术不传，以开禧历代推）" => return super::dingshuo::reckon_year_any("开禧历（代推淳祐）", lunar_year),
+        "本天历（术不传，以成天历代推）" => return super::dingshuo::reckon_year_any("成天历（代推本天）", lunar_year),
         // 元初（1280）仍行金重修大明历
         "重修大明历" if lunar_year == 1280 => return Some(super::daming_li::year_months(lunar_year)),
         // 唐至明定朔诸历（限各历推步适用的年段）

@@ -6,6 +6,12 @@
 //! 用法（仓库根）：cargo run --release --manifest-path rust/Cargo.toml -p lunar-core --no-default-features --features real-f64 --example lost_proxy_eval
 use lunar_core::calendar::artifacts::zhongyuan_artifact_year;
 use lunar_core::calendar::dingshuo::reckon_year_any;
+use lunar_core::calendar::song_early;
+
+/// 候选推步：宋初诸历（应天等）之代推走 song_early，余走 dingshuo
+fn reckon(name: &str, y: i32) -> Option<Vec<(i64, u8, bool)>> {
+    if name.starts_with("应天历") { song_early::reckon_year(name, y) } else { reckon_year_any(name, y) }
+}
 use lunar_core::calendar::gan_zhi::GAN_ZHI_60;
 use lunar_core::calendar::historical::ShuoriTable;
 use std::collections::{BTreeMap, BTreeSet};
@@ -55,7 +61,7 @@ const SEGS: &[Seg] = &[
         years: (807, 821),
         regime: "唐",
         books: &["jiutangshu_benji", "xintangshu_benji"],
-        candidates: &["正元历（代推观象）", "宣明历（代推观象）"],
+        candidates: &["正元历（代推观象）", "宣明历（代推观象）", "正元历（宣明进朔，代推观象）", "正元历（四分之三进朔，代推观象）"],
     },
     Seg {
         name: "会天历",
@@ -64,6 +70,13 @@ const SEGS: &[Seg] = &[
         books: &["songshi_benji"],
         candidates: &["开禧历（代推会天）", "成天历（代推会天）"],
     },
+    Seg { name: "钦天历", years: (957, 963), regime: "", books: &["jiuwudaishi_benji", "xinwudaishi_benji", "songshi_benji"], candidates: &["宣明历（代推钦天）", "应天历（代推钦天）"] },
+    Seg { name: "奉元历", years: (1075, 1093), regime: "宋", books: &["songshi_benji"], candidates: &["崇天历（代推奉元）", "明天历（代推奉元）", "观天历（代推奉元）"] },
+    Seg { name: "占天历", years: (1103, 1105), regime: "宋", books: &["songshi_benji"], candidates: &["观天历（代推占天）", "纪元历（代推占天）"] },
+    Seg { name: "淳祐历", years: (1252, 1252), regime: "宋", books: &["songshi_benji"], candidates: &["开禧历（代推淳祐）"] },
+    Seg { name: "戊寅元历（武德）", years: (619, 626), regime: "唐", books: &["jiutangshu_benji", "xintangshu_benji"], candidates: &["戊寅元历（代推武德）"] },
+    Seg { name: "历术失载（南渡初）", years: (1128, 1132), regime: "宋", books: &["songshi_benji"], candidates: &["纪元历（代推南渡初）"] },
+    Seg { name: "本天历", years: (1277, 1279), regime: "宋", books: &["songshi_benji"], candidates: &["成天历（代推本天）"] },
 ];
 
 fn main() {
@@ -110,7 +123,7 @@ fn main() {
                     continue;
                 }
                 let (Ok(y), Ok(m)) = (r[3].parse::<i32>(), r[4].parse::<u8>()) else { continue };
-                if (seg.years.0..=seg.years.1).contains(&y) && r[0] == seg.regime {
+                if (seg.years.0..=seg.years.1).contains(&y) && (seg.regime.is_empty() || r[0] == seg.regime) {
                     leaps.entry(y).or_insert(m);
                 }
             }
@@ -123,7 +136,7 @@ fn main() {
             let Some(h) = rr.iter().find(|r| r.first().is_some_and(|c| c == "regime")).cloned() else { continue };
             let ci = |n: &str| h.iter().position(|x| x == n).unwrap();
             let (iy, im, il, ig, ix) = (ci("year"), ci("month"), ci("leap"), ci("ganzhi"), ci("text"));
-            for r in rr.iter().filter(|r| r.len() == h.len() && r[0] == seg.regime) {
+            for r in rr.iter().filter(|r| r.len() == h.len() && (seg.regime.is_empty() || r[0] == seg.regime)) {
                 let (Ok(y), Ok(m)) = (r[iy].parse::<i32>(), r[im].parse::<u8>()) else { continue };
                 if (seg.years.0..=seg.years.1).contains(&y) {
                     days.push((y, m, r[il] == "1", r[ig].clone(), r[ix].chars().take(24).collect::<String>().replace(',', "，")));
@@ -141,7 +154,7 @@ fn main() {
             let (mut months, mut same, mut leap_diff) = (0usize, 0usize, Vec::new());
             let mut rk: BTreeMap<i32, Vec<(i64, u8, bool)>> = BTreeMap::new();
             for y in seg.years.0..=seg.years.1 {
-                let r = reckon_year_any(cand, y).unwrap_or_default();
+                let r = reckon(cand, y).unwrap_or_default();
                 let t = tab(y);
                 months += r.len();
                 same += r.iter().filter(|m| t.contains(m)).count();
