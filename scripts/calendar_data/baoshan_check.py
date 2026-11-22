@@ -52,6 +52,8 @@ SUI = [
     ("盛公臱", "宋客盛公边聘于楚之岁", -317),
     ("於栽郢之⟨E1FF⟩(歲)", "东周之客许缊归胙于栽郢之岁", -316),
     ("於𦳦(栽)郢之⟨E1FF⟩(歲)", "东周之客许缊归胙于栽郢之岁", -316),
+    # 致胙之岁与归胙之岁分开系年（简 12、126、161、209 作「至(致)作(胙)」）：年份逐年扫描，不预设
+    ("至(致)作(胙)", "东周之客许缊致胙于栽郢之岁", "zhi"),
     ("郙之⟨E1FF⟩(歲)", "大司马悼滑救郙之岁", -315),
     # 系年不明之岁：单列，不计入任何一组
     ("監𠤳逅楚之⟨E1FF⟩(歲)", "囗客监𠤳逅楚之岁", None),
@@ -71,10 +73,32 @@ for m in mon_re.finditer(s):
     for key, name, y in SUI:
         if key in pre:
             sui = (name, y)
+            if y == "zhi":
+                break
     jian = re.search(r"#([^#]+)#", s[m.start():m.start() + 200])
     ctx = s[max(0, m.start() - 20):d.end() + 10].replace("\n", "").replace(",", "，")
     recs.append(dict(sui=sui[0] if sui else "", sui_year=(sui[1] if sui[1] is not None else "?") if sui else "", month_no=MONTHS[k][1], month=MONTHS[k][2],
                      gz=d.group(1), jian=jian.group(1) if jian else "", ctx=ctx))
+# 所䛠名单（简 161—196，「東周之客……至(致)作(胙)於𦳦(栽)郢之歲」下各官所䛠之人，按月、日先后列）：月名 + 一串干支
+SUOFU_MONTHS = [("峣昺", 4, "荆𡰥"), ("夏昺", 5, "夏𡰥"), ("亯月", 6, "享月"), ("夏⟨E12E⟩", 7, "夏柰"), ("八月", 8, "八月"),
+                ("九月", 9, "九月"), ("十月", 10, "十月"), ("⟨E268⟩月", 11, "爨月")]
+seg = s[s.index("#161#") - 300:s.index("==二 卜筮祭禱記録==")]
+seg = seg.replace("㫳", "辰").replace("晨(辰)", "辰").replace("晨", "辰").replace("梄(酉)", "酉").replace("乙梄", "乙酉")
+tok_re = re.compile("|".join("(" + re.escape(p) + ")" for p, _, _ in SUOFU_MONTHS) + "|(" + "|".join(GZ) + ")[，；：]|#(\\d+)#")
+cur, jian, suofu = None, "161", []
+for m in tok_re.finditer(seg):
+    if m.lastindex <= len(SUOFU_MONTHS) and m.group(m.lastindex):
+        cur = SUOFU_MONTHS[m.lastindex - 1]
+        continue
+    if m.group(len(SUOFU_MONTHS) + 2):
+        jian = str(int(m.group(len(SUOFU_MONTHS) + 2)) + 1)
+        continue
+    g = m.group(len(SUOFU_MONTHS) + 1)
+    if g and cur:
+        suofu.append(dict(sui="东周之客许缊致胙于栽郢之岁", sui_year="zhi", month_no=cur[1], month=cur[2], gz=g, jian=jian,
+                          ctx="所䛠：" + cur[2] + g))
+recs += suofu
+
 # 同岁同月同干支重出者（卜筮祭祷简多次贞问同一日）只计一次
 seen, uniq = set(), []
 for r in recs:
@@ -105,7 +129,8 @@ def hit(months, y_xia, h, gzi):
 
 
 rows = []
-known = [r for r in uniq if r["sui_year"] not in ("", "?")]
+known = [r for r in uniq if r["sui_year"] not in ("", "?", "zhi")]
+zhi = [r for r in uniq if r["sui_year"] == "zhi"]
 unknown = [r for r in uniq if r["sui_year"] == ""]
 other = [r for r in uniq if r["sui_year"] == "?"]
 for (name, rf), months in cal.items():
@@ -175,3 +200,51 @@ for r in rows[:40]:
     md.append(f"| {r['历']} | {r['闰法']} | {r['冬柰当夏正']} 月 | {r['系年平移']:+d} | {r['有岁合']}/{r['有岁条数']} | {r['岁不明最佳年合']}/{r['岁不明条数']} | {r['岁不明最佳年']} |")
 (ROOT / "doc/calendar/baoshan-checks.md").write_text("\n".join(md) + "\n", encoding="utf-8")
 print("合计", dict(zip([k[0] for k in H], tot)))
+
+# ---- 致胙之岁：组内检验（同月各干支须容于一月）与逐年扫描
+def span(ix):
+    return min(max((x - s0) % 60 for x in ix) for s0 in ix)
+
+
+zm = collections.defaultdict(list)
+for r in zhi:
+    zm[r["month_no"]].append(r)
+zmd = ["", "## 致胙之岁（分开系年）", "",
+       "简 12、126、209 及所䛠名单（简 161—196）作「東周之客……至(致)作(胙)於栽郢之歲」，与他简「䢜(歸)胙」分开，年份不预设、逐年扫描。"
+       "所䛠名单各官所䛠之人按月、日先后列，月名后接一串干支。", "",
+       "### 组内检验：同月各干支的最小跨度（须 ≤ 29 日方能同在一月）", "", "| 楚月 | 条数 | 跨度（日） | 干支（简） |", "|---|---|---|---|"]
+for n in sorted(zm):
+    ix = [GZ.index(r["gz"]) for r in zm[n]]
+    zmd.append(f"| {zm[n][0]['month']} | {len(ix)} | {span(ix)} | " + "、".join(f"{r['gz']}（{r['jian']}）" for r in zm[n]) + " |")
+# 去掉与同月他条冲突者再扫描：逐条剔除使跨度 ≤ 29 的最少条
+drop = []
+for n in sorted(zm):
+    rs = list(zm[n])
+    while len(rs) > 1 and span([GZ.index(r["gz"]) for r in rs]) > 29:
+        # 剔一条后跨度最小者为候选；并列时剔晚于下月已知日期者（与下月某日相比在其后 29 日以内）
+        nxt = [GZ.index(x["gz"]) for x in zm.get(n + 1, [])]
+        # 下月名单的起首日：使其各干支容于最短窗口的那一日
+        s_next = min(nxt, key=lambda s0: max((x - s0) % 60 for x in nxt)) if nxt else None
+        late = lambda r: s_next is not None and (GZ.index(r["gz"]) - s_next) % 60 < 30
+        sp = lambda r: span([GZ.index(x["gz"]) for x in rs if x is not r])
+        worst = min(rs, key=lambda r: (sp(r) > 29, not late(r), sp(r)))
+        drop.append(worst)
+        rs.remove(worst)
+zhi_ok = [r for r in zhi if r not in drop]
+zmd += ["", "组内冲突而剔除：" + ("、".join(f"{r['month']}{r['gz']}（简 {r['jian']}）" for r in drop) or "无"), "",
+        "### 逐年扫描（冬柰当夏正十月；剔除组内冲突之条后）", "",
+        "| 历 | 条数 | 最佳年（合数） | 次佳 |", "|---|---|---|---|"]
+for k in H:
+    sc = []
+    for Y in range(-325, -308):
+        c = 0
+        for r in zhi_ok:
+            h = (9 + r["month_no"] - 1) % 12 + 1
+            c += day_in(cal[k], Y - 1 if h >= 10 else Y, h, GZ.index(r["gz"])) > 0
+        sc.append((c, Y))
+    sc.sort(reverse=True)
+    zmd.append(f"| {k[0]} | {len(zhi_ok)} | 前 {1 - sc[0][1]}（{sc[0][0]}） | 前 {1 - sc[1][1]}（{sc[1][0]}）、前 {1 - sc[2][1]}（{sc[2][0]}） |")
+    print("致胙", k[0], len(zhi_ok), sc[:3])
+with open(ROOT / "doc/calendar/baoshan-checks.md", "a", encoding="utf-8") as f:
+    f.write("\n".join(zmd) + "\n")
+print("致胙之岁", len(zhi), "剔除", [(r["month"], r["gz"], r["jian"]) for r in drop])

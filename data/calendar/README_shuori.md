@@ -347,7 +347,7 @@ in_month（日干支在该历所记之月）、jdn、julian、position（原文�
 | `lirui_buxiu_constants.csv` | 转录（2026-11-21） | 清李锐《补修宋奉元术》《补修宋占天术》步气朔常数（积年、日法、岁周、朔实等）与原文，附自洽检验说明；《元史》卷五十三所列积年有讹 |
 | `hanshu_qinhan_benji.csv` | 转录（2026-11-22） | 《汉书》本纪卷一至卷六（高帝至太初元年四月）「某月某干支」纪日 81 条（书朔、晦 18），维基文库底本；纪年年（建亥）换为夏正年月（十至十二月属上一夏正年，后九月记闰九月）；`scripts/calendar_data/qinhan_eval/hanshu_benji_records.py` 生成 |
 | `xixia_song_shuorun.csv` | 转录（2026-11-22） | 彭向前《俄藏西夏历日文献整理研究》（2018）「西夏历与宋历朔闰对照表（1120—1207）」书页 469—514，1088 月：宋历与西夏历月序、大小、朔日、二历异同、文献；宋朔JDN 取张表，夏朔JDN 由干支差推得；「核」列注看图补录与书误。`scripts/calendar_data/xixia_songli_table.py`（OCR 后按坐标还原） |
-| `baoshan_records.csv` | 转录（2026-11-22） | 包山楚简明书「月名 + 干支之日」纪日 77 条（维基文库录文抽出，同岁同月同干支只留一条），岁名与《包山楚墓》系年；`scripts/calendar_data/baoshan_check.py` 生成 |
+| `baoshan_records.csv` | 转录（2026-11-22） | 包山楚简纪日 152 条：明书「月名 + 干支之日」者，与「致胙之岁」所䛠名单（简 161—196，月名后接一串干支）；维基文库录文抽出，同岁同月同干支只留一条；岁名与《包山楚墓》系年（致胙之岁 sui_year 记 zhi，逐年扫描），系年不明之岁记 ?；`scripts/calendar_data/baoshan_check.py` 生成 |
 | `baoshan_check.csv` | 检验（2026-11-22） | 包山纪日对汉传六历、颛顼历，按楚正月当夏正某月、系年平移各假设的合数；同上脚本 |
 | `guliuli_months_350_300.csv` | 推步（2026-11-22） | 前 341—前 300 年汉传六历（年终闰、无中气闰）与颛顼历逐月朔，月序换为夏正编号；`rust/core/examples/guliuli_months_export.rs` 导出 |
 | `qinhan_benji_check.csv` | 检验（2026-11-22） | 上表逐条对颛顼历推步（`calendar::zhuanxu`）与李忠林复原历（`calendar::qinhan_restore`）：该月朔、合否（书朔须恰为朔日，书晦须为末日，余者在月内）；`rust/core/examples/zhongyuan_reckoning_eval.rs` 生成 |
