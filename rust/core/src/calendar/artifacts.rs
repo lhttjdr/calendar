@@ -9,7 +9,10 @@
 //! - 明钦天监刊本《大统历》（台北「国家图书馆」藏，9 年），`data/calendar/datong_shiwu_months.csv`；
 //! - 《国家图书馆藏明代大统历日汇编》（北京图书馆出版社 2007，6 册），`data/calendar/datong_huibian_months_v12.csv`、`_v34.csv`、`_v56.csv`；
 //! - 清《时宪书》（国家图书馆等藏），`data/calendar/shixianshu_months.csv`、`shixianshu_netdisk_months.csv`。
-//! 转录与逐月比较见 `doc/calendar/calendar-compendium.md`「《国家图书馆藏明代大统历日汇编》」「时宪书」各节。
+//! - 秦汉初出土历谱、质日：岳麓秦简《质日》、周家台秦简《历谱》、张家山汉简《历谱》，`data/calendar/qinhan_shiwu_months.csv`
+//!   （按原书释文逐月转录；建亥年各月拼成夏正年，只收逐月衔接、月长 29/30 日之年，见 [qinhan_artifact_years]）。
+//! 转录与逐月比较见 `doc/calendar/calendar-compendium.md`「《国家图书馆藏明代大统历日汇编》」「时宪书」各节，秦汉初见
+//! `doc/calendar/qin-han-calendar-evaluation.md` 第七节。
 //! 南明（永历）大统历、民国时期民间时宪书不属中原一线官历，不收。敦煌具注历日是敦煌政权之历，见 [crate::calendar::dunhuang]。
 
 use super::gan_zhi::GAN_ZHI_60;
@@ -108,6 +111,64 @@ fn month_table_years<'a>(csv: &'a str, year_col: &str) -> Vec<(i32, Vec<(u8, boo
         .collect()
 }
 
+/// 秦汉初出土历谱、质日拼成的夏正整年（中原一线历日一律建寅编月：建亥年 y 的正月至九月、后九月与建亥年 y+1 的十月至十二月）。
+/// 只取成谱之本（岳麓《质日》、周家台《历谱》、张家山《历谱》），不取单条纪年文书（里耶）与转引；同月两本不同（只有秦始皇
+/// 三十四年三、五、七月，岳麓与周家台差一日）取岳麓——岳麓各月书大小、前后自洽，周家台此年整理者已指出正月、九月日序自相矛盾。
+/// 干支只定到 60 日一周，以颛顼历平朔所在之日为锚取最近者（实物与平朔相差不过一日）。
+fn qinhan_artifact_years() -> Vec<ArtifactYear> {
+    const SOURCES: [(&str, &str); 3] = [("岳麓", "岳麓秦简《质日》"), ("周家台", "周家台秦简《历谱》"), ("张家山", "张家山汉简《历谱》")];
+    let csv = include_str!("../../../../data/calendar/qinhan_shiwu_months.csv");
+    let mut lines = csv.lines().filter(|l| !l.starts_with('#') && !l.trim().is_empty());
+    let head: Vec<&str> = lines.next().expect("表头").split(',').collect();
+    let col = |n: &str| head.iter().position(|c| *c == n).unwrap_or_else(|| panic!("缺列 {n}"));
+    let (cs, cy, cm, cl, cg) = (col("来源"), col("年"), col("月"), col("闰"), col("朔干支"));
+    let rows: Vec<Vec<&str>> = lines.map(|l| l.split(',').collect()).collect();
+    // ((建亥年, 月, 闰), (朔日 JDN, 书名))，按 SOURCES 次序先到先得
+    let mut months: Vec<((i32, u8, bool), (i64, &'static str))> = Vec::new();
+    for (key, book) in SOURCES {
+        for f in rows.iter().filter(|f| f[cs] == key) {
+            let (n, m, leap) = (f[cy].parse::<i32>().expect("年"), f[cm].parse::<u8>().expect("月"), f[cl] == "1");
+            if months.iter().any(|e| e.0 == (n, m, leap)) {
+                continue;
+            }
+            let anchor = super::zhuanxu::jianhai_year_months(n)
+                .into_iter()
+                .find(|x| (x.1, x.2) == (m, leap))
+                .unwrap_or_else(|| panic!("{key} {n} 年无 {m} 月（闰 {leap}）"))
+                .0;
+            let jdn = (anchor - 29..=anchor + 30)
+                .filter(|&j| GAN_ZHI_60[ganzhi_index(j)] == f[cg])
+                .min_by_key(|&j| (j - anchor).abs())
+                .expect("干支");
+            months.push(((n, m, leap), (jdn, book)));
+        }
+    }
+    let get = |n: i32, m: u8, leap: bool| months.iter().find(|e| e.0 == (n, m, leap)).map(|e| e.1);
+    let mut ys: Vec<i32> = months.iter().map(|e| e.0 .0).collect();
+    ys.sort();
+    ys.dedup();
+    let mut out = Vec::new();
+    for y in ys {
+        let mut ms: Vec<(MonthStart, &'static str)> = Vec::new();
+        let keys = (1..=9u8).map(|m| (y, m, false)).chain([(y, 9, true)]).chain((10..=12u8).map(|m| (y + 1, m, false)));
+        for (n, m, leap) in keys {
+            if let Some((j, b)) = get(n, m, leap) {
+                ms.push(((j, m, leap), b));
+            }
+        }
+        let regular = ms.iter().filter(|x| !x.0 .2).count() == 12;
+        let contiguous = ms.windows(2).all(|w| (29..=30).contains(&(w[1].0 .0 - w[0].0 .0)));
+        if !(regular && contiguous) {
+            continue;
+        }
+        let mut books: Vec<&str> = ms.iter().map(|x| x.1).collect();
+        books.dedup();
+        let name: &'static str = Box::leak(books.join("、").into_boxed_str());
+        out.push(ArtifactYear { name, lunar_year: y, months: ms.into_iter().map(|x| x.0).collect() });
+    }
+    out
+}
+
 /// 中原一线的实物历日。
 pub fn zhongyuan_artifacts() -> &'static [ArtifactYear] {
     use std::sync::OnceLock;
@@ -136,6 +197,7 @@ pub fn zhongyuan_artifacts() -> &'static [ArtifactYear] {
                 }
             }
         }
+        all.extend(qinhan_artifact_years());
         all.sort_by_key(|a| a.lunar_year);
         all
     })
@@ -166,12 +228,30 @@ mod tests {
     #[test]
     fn ming_qing_artifacts_loaded() {
         let all = zhongyuan_artifacts();
-        assert_eq!(all.len(), 1 + 115);
+        assert_eq!(all.iter().filter(|a| a.lunar_year > 0).count(), 1 + 115);
         let a = zhongyuan_artifact_year(1610).unwrap();
         let feb = a.months.iter().find(|m| m.1 == 2 && !m.2).unwrap();
         assert_eq!(GAN_ZHI_60[ganzhi_index(feb.0)], "丁未");
         for y in [1646, 1658, 1676, 1679, 1714] {
             assert_eq!(zhongyuan_artifact_year(y).unwrap().name, "清《时宪书》");
+        }
+    }
+
+    /// 秦汉初出土历谱、质日拼成的夏正整年：秦 3 年（前 213—前 211；前 210 缺三十七年後九月，二世元年十月乙亥距九月乙亥 60 日）、汉初 10 年；张家山高祖九年七月丁酉（改朔）照录。
+    #[test]
+    fn qinhan_artifacts_loaded() {
+        let ys: Vec<i32> = zhongyuan_artifacts().iter().filter(|a| a.lunar_year < 0).map(|a| a.lunar_year).collect();
+        assert_eq!(ys, vec![-212, -211, -210, -200, -198, -197, -196, -195, -192, -191, -190, -189, -188]);
+        assert_eq!(zhongyuan_artifact_year(-212).unwrap().name, "岳麓秦简《质日》");
+        assert_eq!(zhongyuan_artifact_year(-211).unwrap().name, "岳麓秦简《质日》、周家台秦简《历谱》");
+        let y = zhongyuan_artifact_year(-197).unwrap();
+        let jul = y.months.iter().find(|m| (m.1, m.2) == (7, false)).unwrap();
+        assert_eq!(GAN_ZHI_60[ganzhi_index(jul.0)], "丁酉");
+        assert_eq!(y.months.len(), 12);
+        assert_eq!(zhongyuan_artifact_year(-198).unwrap().months.len(), 13, "高祖八年後九月辛丑");
+        // 实物年与本项目实用历推步逐月相同（推步的 δ 即由这些实物定出；秦始皇三十四年取岳麓）
+        for a in zhongyuan_artifacts().iter().filter(|a| a.lunar_year < 0) {
+            assert_eq!(Some(a.months.clone()), crate::calendar::qinhan_shiyong::year_months(a.lunar_year), "{}", a.lunar_year);
         }
     }
 }

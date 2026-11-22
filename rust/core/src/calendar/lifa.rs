@@ -151,8 +151,10 @@ pub enum ZhongyuanPreference {
 /// 例外后持平，移出。2026-11-21 检验跳过已考讹误的本纪朔日（`data/calendar/benji_shuo_errata.csv`：元 1300 年十月、1335 年八月
 /// 本纪误加「朔」，张表从之）后，授时与张表持平，移出；授时期推步与张表另有 6 月不同，皆近子夜，实际合朔都与推步同日。
 /// 2026-11-22 颛顼历推步接入：秦汉初《汉书》本纪书朔、晦 18 条推步合 7、复原历合 16（张表前 106 年起即同一复原），列入；
-/// 太初元年正月至四月即颛顼推步，随之列入。
-pub const RECKONING_BELOW_TABLE: &[&str] = &["颛顼历（秦汉初）", "太初历（太初元年，五月改历）", "宣明历", "应天历", "时宪历"];
+/// 太初元年正月至四月即颛顼推步，随之列入。同日改为秦汉初实用历推步（[super::qinhan_shiyong]：颛顼历置闰，合朔改正逐段由
+/// 岳麓、周家台、张家山、里耶等出土历日定出）后，本纪书朔晦 17 条推步合 15、复原历 15（高帝九年「六月乙未晦」与同月实物张家山
+/// 《历谱》七月丁酉相违，不计），持平，二者移出（改取推步；李忠林复原历只作对照）。
+pub const RECKONING_BELOW_TABLE: &[&str] = &["宣明历", "应天历", "时宪历"];
 
 /// 现行农历的历名前缀（`zhongyuan_calendar_periods.csv`）：其规则即定气定朔，现算就是按术推步。
 const MODERN_RULE_PREFIX: &str = "农历（GB/T 33661";
@@ -625,12 +627,16 @@ shoushi,授时历,1281,,元,郭守敬,儒略历+格里高利历,lifa_tongzhi
         assert_eq!(src(700, r), Some(RiliSource::Reckoned("麟德历")), "麟德补正月进朔、史载移闰后本纪与张表持平，取推步");
         assert_eq!(src(800, r), Some(RiliSource::Reckoned("正元历")), "正元补 791 年墓志例外后本纪与张表持平，取推步");
         assert_eq!(src(850, r), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)), "宣明推步不及张表，取张表");
-        assert_eq!(src(-104, r), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)), "元封六年，颛顼历推步不及张表");
-        assert_eq!(src(-104, all), Some(RiliSource::Reckoned("颛顼历（秦汉初）")));
-        assert_eq!(src(-103, r), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)), "太初元年：前四月颛顼推步不及张表");
-        assert_eq!(src(-103, all), Some(RiliSource::Reckoned("太初历（太初元年，五月改历）")));
-        assert_eq!(src(-150, r), Some(RiliSource::ModernTable(crate::calendar::qinhan_restore::QINHAN_TABLE_NAME)), "张表以前取秦汉初复原历");
-        assert_eq!(src(-150, all), Some(RiliSource::Reckoned("颛顼历（秦汉初）")));
+        assert_eq!(src(-104, r), Some(RiliSource::Reckoned("颛顼历（秦汉初）")), "元封六年，秦汉初实用历推步与张表本纪持平");
+        assert_eq!(src(-104, ZhongyuanPreference::ModernTable), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)));
+        assert_eq!(src(-103, r), Some(RiliSource::Reckoned("太初历（太初元年，五月改历）")));
+        assert_eq!(src(-150, r), Some(RiliSource::Reckoned("颛顼历（秦汉初）")), "张表以前取实用历推步");
+        assert_eq!(
+            src(-150, ZhongyuanPreference::ModernTable),
+            Some(RiliSource::ModernTable(crate::calendar::qinhan_restore::QINHAN_TABLE_NAME)),
+            "今人历表优先时取李忠林复原历"
+        );
+        assert!(matches!(src(-197, r), Some(RiliSource::Artifact(_))), "张家山汉简《历谱》");
         assert_eq!(src(-221, r), None, "秦统一以前不在中原一线");
         assert_eq!(src(-102, r), Some(RiliSource::Reckoned("太初历（三统历）")));
         assert_eq!(src(500, r), Some(RiliSource::Reckoned("元嘉历")));
@@ -671,7 +677,7 @@ shoushi,授时历,1281,,元,郭守敬,儒略历+格里高利历,lifa_tongzhi
                 below.push(c[0].to_string());
             }
         }
-        // 太初元年正月至四月就是颛顼历推步（五月起三统），本纪无书朔之条，随颛顼历
+        // 太初元年正月至四月就是秦汉初实用历推步（五月起三统），本纪无书朔之条，随「颛顼历（秦汉初）」
         if below.iter().any(|n| n == "颛顼历（秦汉初）") {
             below.push("太初历（太初元年，五月改历）".to_string());
         }
