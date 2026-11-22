@@ -2762,6 +2762,11 @@ mod tests {
                 .or_else(|| crate::calendar::push_calendar::reckon_lifa_year(c[0], y))
                 // 观象段古人长历（刘羲叟《长历》）的修正
                 .or_else(|| (c[0] == crate::calendar::liu_changli::LIU_CHANGLI_NAME).then(|| crate::calendar::liu_changli::year_months(y)).flatten())
+                // 分政权之修正：历名「政权：历名」
+                .or_else(|| {
+                    let (reg, li) = c[0].split_once('：')?;
+                    crate::calendar::push_calendar::regime_year_months(reg, y).filter(|x| x.0 == li).map(|x| x.1)
+                })
                 .unwrap();
             assert!(months.contains(&(jdn, m, leap)), "{} {y} 年 {m} 月：{months:?}", c[0]);
             n += 1;
