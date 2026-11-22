@@ -5,7 +5,7 @@
 //! 用法（仓库根）：cargo run --release --manifest-path rust/Cargo.toml -p lunar-core --no-default-features --features real-f64 --example regime_benji_eval
 use lunar_core::calendar::gan_zhi::GAN_ZHI_60;
 use lunar_core::calendar::historical::ShuoriTable;
-use lunar_core::calendar::push_calendar::regime_year_months;
+use lunar_core::calendar::push_calendar::{regime_year_months, regime_year_months_unrevised};
 use std::collections::BTreeMap;
 
 /// 史书政权名 → 分政权推步之键
@@ -57,6 +57,31 @@ struct Stat {
     shuo: usize,
     shuo_r: usize,
     shuo_t: usize,
+    /// 考证表「不计」之条（本纪月份、干支已考为讹，或解析之误）
+    excluded: usize,
+    /// 合推步之条中，推步不含史载例外表修正时不合者（辽金各条皆「本纪」类：推步临限或闰位，只有本纪可从）；合推步减去即纯推步之合数
+    benji_fix: usize,
+}
+
+/// 分政权考证表（`data/calendar/*_regime_kaozheng.csv`，列含 书、年、月、干支、处置、改作）中处置为「改月」「不计」之条：
+/// (书, 年, 月, 干支) → (处置, 改作)。「改月」= 本纪月名已考为讹（如辽 985 年「閏九月」实为九月，据同月「庚辰，重九」），按改作之月判；
+/// 「不计」= 不作检验之据。其余处置（存、已入例外表等）只是考证记录，不影响检验。
+fn kaozheng(root: &std::path::Path) -> BTreeMap<(String, String, String, String), (String, String)> {
+    let mut out = BTreeMap::new();
+    let Ok(dir) = std::fs::read_dir(root.join("data/calendar")) else { return out };
+    for e in dir.filter_map(|e| e.ok()) {
+        let name = e.file_name().to_string_lossy().to_string();
+        if !name.ends_with("_regime_kaozheng.csv") {
+            continue;
+        }
+        for r in csv_rows(&std::fs::read_to_string(e.path()).unwrap()) {
+            let (Some(c), Some(g)) = (r.get("处置"), r.get("改作")) else { break };
+            if c == "改月" || c == "不计" {
+                out.insert((r["书"].clone(), r["年"].clone(), r["月"].clone(), r["干支"].clone()), (c.clone(), g.clone()));
+            }
+        }
+    }
+    out
 }
 
 fn main() {
@@ -72,16 +97,45 @@ fn main() {
     let mut stats: BTreeMap<(String, String, String), Stat> = BTreeMap::new();
     let mut per = String::from("书,政权,推步之历,年,月,干支,位置,推步月首,推步合,张表月首,张表合,原文\n");
     let mut diff: Vec<String> = Vec::new();
+    let kz = kaozheng(&root);
     for path in files {
         let book = path.file_stem().unwrap().to_string_lossy().to_string();
+        // 上一条所记之年、月（不闰）：本纪「閏月」不书月数（月列只记「闰」），只保证闰月在所记最后一月之后
+        let mut last: Option<(i32, u8)> = None;
         for r in csv_rows(&std::fs::read_to_string(&path).unwrap()) {
+            let Ok(y) = r["year"].parse::<i32>() else { continue };
+            // 月列：「6」、「闰6」（閏六月）、「闰」（閏月，不书月数）
+            let ms = r["month"].trim_start_matches('闰');
+            let leap = r["leap"] == "1" || r["month"].starts_with('闰');
+            let m_written: Option<u8> = ms.chars().take_while(|c| c.is_ascii_digit()).collect::<String>().parse().ok();
+            if let (Some(m), false) = (m_written, leap) {
+                last = Some((y, m));
+            }
             let Some(key) = regime_key(&r["regime"]) else { continue };
-            let (Ok(y), Ok(m)) = (r["year"].parse::<i32>(), r["month"].parse::<u8>()) else { continue };
-            let leap = r["leap"] == "1";
             let Some(gi) = GAN_ZHI_60.iter().position(|g| *g == r["ganzhi"]) else { continue };
+            let fix = kz.get(&(book.clone(), r["year"].clone(), r["month"].clone(), r["ganzhi"].clone()));
+            if fix.is_some_and(|f| f.0 == "不计") {
+                stats.entry((key.to_string(), r["regime"].clone(), book.clone())).or_default().excluded += 1;
+                continue;
+            }
+            // 「改月」：按考证所改之月（如「9」「闰8」）判
+            let (m_written, leap) = match fix {
+                Some((_, g)) => (g.trim_start_matches('闰').parse::<u8>().ok(), g.starts_with('闰')),
+                None => (m_written, leap),
+            };
             let reg = |yy: i32| regime_year_months(key, yy).map(|x| x.1);
             let Some(li) = regime_year_months(key, y).map(|x| x.0) else { continue };
             let tab = |yy: i32| zhang.year_months(yy).map(|t| t.to_vec());
+            // 「閏月」不书月数：取该历当年闰月（须不早于上条所记之月，否则视为不合，月记 0）；两家各按其历之闰
+            let leap_of = |f: &dyn Fn(i32) -> Option<Vec<(i64, u8, bool)>>| -> u8 {
+                let lo = last.filter(|l| l.0 == y).map_or(1, |l| l.1);
+                f(y).unwrap_or_default().iter().find(|e| e.2 && e.1 >= lo).map_or(0, |e| e.1)
+            };
+            let (m, m_reg, m_tab) = match m_written {
+                Some(m) => (m, m, m),
+                None if leap => (0, leap_of(&reg), leap_of(&tab)),
+                None => continue,
+            };
             let pos = r.get("position").cloned().unwrap_or_default();
             let judge = |sp: Option<(i64, i64)>| -> (String, bool) {
                 let Some((a, b)) = sp else { return ("—".into(), false) };
@@ -89,10 +143,15 @@ fn main() {
                 let ok = d < b && match pos.as_str() { "朔" => d == a, "晦" => d == b - 1, _ => true };
                 (gz(a).to_string(), ok)
             };
-            let (gr, okr) = judge(span(&reg, y, m, leap));
-            let (gt, okt) = judge(span(&tab, y, m, leap));
+            let (gr, okr) = judge(span(&reg, y, m_reg, leap));
+            // 不含史载修正之推步：修正后合而修正前不合者计「史载修正而合」
+            let raw = |yy: i32| regime_year_months_unrevised(key, yy).map(|x| x.1);
+            let m_raw = if m == 0 { leap_of(&raw) } else { m_reg };
+            let fixed = okr && !judge(span(&raw, y, m_raw, leap)).1;
+            let (gt, okt) = judge(span(&tab, y, m_tab, leap));
             let text = r.get("text").cloned().unwrap_or_default().replace(',', "，");
-            let mn = format!("{}{}", if leap { "闰" } else { "" }, m);
+            let mn0 = if m == 0 { format!("闰（推步闰{m_reg}，张表闰{m_tab}）") } else { format!("{}{}", if leap { "闰" } else { "" }, m) };
+            let mn = if fix.is_some() { format!("{}→{mn0}（考证改月）", r["month"]) } else { mn0 };
             per += &format!("{book},{},{li},{y},{mn},{},{pos},{gr},{},{gt},{},{text}\n", r["regime"], r["ganzhi"], okr as u8, okt as u8);
             let s = stats.entry((key.to_string(), r["regime"].clone(), book.clone())).or_default();
             s.n += 1;
@@ -100,6 +159,7 @@ fn main() {
             s.t += okt as usize;
             s.only_r += (okr && !okt) as usize;
             s.only_t += (okt && !okr) as usize;
+            s.benji_fix += (okr && fixed) as usize;
             if pos == "朔" {
                 s.shuo += 1;
                 s.shuo_r += okr as usize;
@@ -123,12 +183,12 @@ fn main() {
         String::new(),
         "## 汇总".to_string(),
         String::new(),
-        "| 推步之键 | 史书政权 | 书 | 纪日 | 合推步 | 合张表 | 只合推步 | 只合张表 | 书朔 | 朔合推步 | 朔合张表 |".to_string(),
-        "|---|---|---|---|---|---|---|---|---|---|---|".to_string(),
+        "| 推步之键 | 史书政权 | 书 | 纪日 | 合推步 | 合张表 | 只合推步 | 只合张表 | 书朔 | 朔合推步 | 朔合张表 | 考讹不计 | 史载修正而合 |".to_string(),
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|".to_string(),
     ];
     for ((k, rg, b), s) in &stats {
-        md.push(format!("| {k} | {rg} | {b} | {} | {} | {} | {} | {} | {} | {} | {} |", s.n, s.r, s.t, s.only_r, s.only_t, s.shuo, s.shuo_r, s.shuo_t));
-        println!("{k} {rg} {b}: {} 推步 {} 张表 {} 只推 {} 只张 {} | 朔 {} {} {}", s.n, s.r, s.t, s.only_r, s.only_t, s.shuo, s.shuo_r, s.shuo_t);
+        md.push(format!("| {k} | {rg} | {b} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |", s.n, s.r, s.t, s.only_r, s.only_t, s.shuo, s.shuo_r, s.shuo_t, s.excluded, s.benji_fix));
+        println!("{k} {rg} {b}: {} 推步 {} 张表 {} 只推 {} 只张 {} | 朔 {} {} {} | 不计 {} 修正而合 {}", s.n, s.r, s.t, s.only_r, s.only_t, s.shuo, s.shuo_r, s.shuo_t, s.excluded, s.benji_fix);
     }
     md.extend([
         String::new(),
