@@ -172,6 +172,30 @@ pub fn shuo_ganzhi_xiaoyu(li: Liu, jdn_near: i64) -> (usize, i64) {
 
 // ---------------- 春秋鲁历 ----------------
 
+/// 春秋鲁历（据经文排定）的历名。
+pub const CHUNQIU_JINGWEN_NAME: &str = "春秋鲁历（据《春秋》经文排定）";
+
+/// 春秋鲁历由《春秋》经文历日直接排定之月表（`data/calendar/chunqiu_luli_months.csv`，`scripts/calendar_data/chunqiu_luli_rebuild.py`
+/// 生成）：平朔（朔策 30328/1027），逐年正月与岁末闰按经文纪日（书朔须朔、日食须在有食之合朔）与置闰节奏先验求最大后验，
+/// 每年注「经文定 / 无经文按建推定 / 未定」（后验见 `chunqiu_luli_rebuild.csv`）。分政权「鲁」缺省取此；张培瑜表 3-7
+/// （[chunqiu_year_months]）是同类拟合而不注各年依据，只作对照。y 超出范围返回空。
+pub fn chunqiu_jingwen_year_months(lunar_year: i32) -> Vec<(i64, u8, bool)> {
+    use std::collections::BTreeMap;
+    use std::sync::OnceLock;
+    static T: OnceLock<BTreeMap<i32, Vec<(i64, u8, bool)>>> = OnceLock::new();
+    T.get_or_init(|| {
+        let mut m: BTreeMap<i32, Vec<(i64, u8, bool)>> = BTreeMap::new();
+        for l in include_str!("../../../../data/calendar/chunqiu_luli_months.csv").lines().filter(|l| !l.starts_with('#') && !l.starts_with("年,")) {
+            let c: Vec<&str> = l.split(',').collect();
+            m.entry(c[0].parse().unwrap()).or_default().push((c[3].parse().unwrap(), c[1].parse().unwrap(), c[2] == "1"));
+        }
+        m
+    })
+    .get(&lunar_year)
+    .cloned()
+    .unwrap_or_default()
+}
+
 /// 春秋历闰年表（前 722—前 480 年，1 为闰）：上游 ytliu0 `chunqiu_cmonth`，出自张培瑜表 3-7。
 const CQ_LEAP: &str = "010010101001001001001010001001010001000011011001000100101001001100000101010100010100010100001001101001001001001001000101100100101000100100100101100010100100100101000100110010001100010100101001000101010100010011000010101000101010010010100100100";
 /// 春秋历首年（天文纪年，隐公元年前 722）。
