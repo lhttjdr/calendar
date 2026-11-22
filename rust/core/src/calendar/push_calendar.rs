@@ -299,10 +299,14 @@ fn reckon_lifa_year_raw(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, boo
 }
 
 /// 推步政权某岁各月 (朔日 JDN, 月序, 闰否)；返回所用历术名。政权或年份不在表内返回 None。
-/// 纯按历术推步，不改个别月份：张培瑜历表与推步不合处（如 430 年二月）是另一份复原的结果，依据未核，不据以改动。
+/// 按历术推步，不据今人历表改个别月份：张培瑜历表与推步不合处（如 430 年二月）是另一份复原的结果，依据未核，不据以改动。
+/// 本国史书明书而推步临限之月，可列入史载例外表（历名记作「政权：历名」，2026-11-22 起），由此应用。
 pub fn regime_year_months(regime: &str, lunar_year: i32) -> Option<(&'static str, Vec<(i64, u8, bool)>)> {
     let (_, _, _, pick) = regime_calendars().into_iter().find(|(r, y0, y1, _)| *r == regime && (*y0..=*y1).contains(&lunar_year))?;
-    Some(pick(lunar_year)).filter(|(_, m)| !m.is_empty())
+    let (name, mut months) = pick(lunar_year);
+    // 分政权的史载修正：例外表历名记作「政权：历名」（如「东魏/北齐：兴和历」），与中原一线同名之历分开
+    apply_shizai_liwai(&format!("{regime}：{name}"), &mut months);
+    Some((name, months)).filter(|(_, m)| !m.is_empty())
 }
 
 /// 某岁所用历术名与各月 (朔日 JDN, 月序, 闰否)。
