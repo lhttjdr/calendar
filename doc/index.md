@@ -56,6 +56,7 @@
 | [baoshan-checks.md](calendar/baoshan-checks.md) | 包山楚简纪日逐条检验（生成文件）：77 条纪日在颛顼、殷、鲁、周、黄帝、夏诸历中为月中第几日，各假设合数 |
 | [xincai-checks.md](calendar/xincai-checks.md) | 新蔡葛陵楚简纪日检验（生成文件）：31 条岁名·月·干支，组内自洽、前 450—前 350 年逐年相位窗口 |
 | [chu-sky-checks.md](calendar/chu-sky-checks.md) | 楚简纪日与实际月相对照（生成文件）：包山 87 条、新蔡前 398 年 19 条在颛顼平朔与看天（合朔日 + 0/1/2 日）下逐条合否 |
+| [zoumalou-checks.md](calendar/zoumalou-checks.md) | 走马楼吴简纪日（生成文件）：竹简壹至叁、《简牍集成》中带日序干支或书朔之简逐条（已对原书图版核对），与吴乾象推步、魏历比较，及吴、魏朔不同之月按月归并 |
 | [chunqiu-luli-checks.md](calendar/chunqiu-luli-checks.md) | 春秋鲁历据经文排定（生成文件）：月首模型与先验参数的边际似然比较、逐年正月与闰、标注（经文定/按建推定/未定）与后验、张表 3-7 对照 |
 | [regime-benji-checks.md](calendar/regime-benji-checks.md) | 分政权推步之史书逐条检验（生成文件）：吴、蜀、北朝诸国、辽、金等本纪纪日，以本国推步与中原张表两家判在月 |
 | [jiudian-yingshi-checks.md](calendar/jiudian-yingshi-checks.md) | 九店简 96「荆𡰥朔於营室」检验（生成文件）：前 350—前 250 逐年荆𡰥朔太阳赤经，亥正、丑正两假设下是否在营室 |
