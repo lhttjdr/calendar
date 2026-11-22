@@ -68,7 +68,7 @@ _OPENCC = opencc.OpenCC("s2t")
 # 史书用的异体（《宋史》熙甯、崇甯；OpenCC 只给正体「寧」）
 # 年号异名：史书所用写法与年号表（方诗铭）不同者。《辽史》道宗末年号作「壽隆」，方诗铭表作「寿昌」（辽碑与《东都事略》）
 ERA_ALIASES = {"寿昌": ("寿隆",)}
-EXTRA_VARIANTS = {"宁": ("甯",), "升": ("昇",), "启": ("啟",)}  # 甯：熙甯、咸甯；昇：昇明；啟：光啟（OpenCC 作「啓」）
+EXTRA_VARIANTS = {"宁": ("甯",), "升": ("昇",), "启": ("啟",), "麚": ("䴥",)}  # 甯：熙甯、咸甯；昇：昇明；啟：光啟（OpenCC 作「啓」）；䴥：北魏神麚（《魏书》作「神䴥」，428—431）
 _OPENCC_T2S = opencc.OpenCC("t2s")
 # 目标位置上的天体简称（「太白犯歲」「太白犯木」「熒惑、歲相犯」）：单字或后接「于/於/在」时视为天体
 TARGET_BODY_ABBR = {"岁": "Jupiter", "镇": "Saturn", "辰": "Mercury", "木": "Jupiter", "金": "Venus", "火": "Mars", "土": "Saturn",
@@ -483,6 +483,9 @@ BOOKS = {
         years=(380, 551), start_year=386, regimes=[(386, "北魏"), (534, "东魏")], era_regimes=["北魏", "东魏"],
         regime_era_extra={"东魏": ["北魏"]},  # 孝静纪卷首以北魏年号纪年
         regime_calendars={"北魏": [(-10000, "张表"), (398, "北魏/西魏/北周/隋")], "东魏": [(-10000, "东魏/北齐")]},
+        # 前废帝纪卷首传记末书「建義初」，纪文「春二月己巳，曄進至邙南」不书年，实为建明二年（531，同年二月改普泰）：
+        # 不补则其后诸日承「建義」作 528 年
+        corrections=[("魏書/卷11", "春二月己巳，曄進至邙南", "建明二年春二月己巳，曄進至邙南", "纪文略书年，补「建明二年」（同卷「改建明二年為普泰元年」）")],
     ),
     # 《北齐书》本纪（卷一至八）：卷一、二神武、文襄（东魏纪年），卷三起北齐
     "beiqishu_benji": dict(
@@ -516,6 +519,31 @@ BOOKS = {
         years=(578, 605), start_year=579, regimes=[(581, "隋")], era_regimes=["隋", "北周"],
         regime_era_extra={"隋": ["北周"]},  # 高祖纪受禅前以北周年号纪年
         regime_calendars={"隋": [(-10000, "北魏/西魏/北周/隋"), (589, "张表")]},
+    ),
+    # 《北史》本纪（卷一至十一；李延寿据魏、齐、周、隋诸史删述，与各国本史同源而文字、取舍有别，作他书对照）。
+    # 卷一自道武帝起（「魏之先」诸帝无年号纪年）；卷五北魏孝庄至孝武、西魏文帝、东魏孝静分段（西魏废帝、恭帝不立年号、纪日甚少，略）；
+    # 卷六神武、文襄以东魏纪年；卷九文帝以西魏纪年，孝闵、明帝前期不立年号，以锚点起算（同《周书》）；卷十二炀帝属中原一线，不取
+    "beishi_benji": dict(
+        sections=[], carry_context=True, para_reset=False,
+        date_sections=[("北史/卷001", "@==太祖道武帝==", "==论==", "北魏")]
+        + [(f"北史/卷{j:03d}", None, None, "北魏") for j in (2, 3, 4)]
+        + [("北史/卷005", None, "== 西魏 ==", "北魏"), ("北史/卷005", "@== 西魏 ==", "=== 廢帝欽 ===", "西魏"),
+           ("北史/卷005", "@== 東魏 ==", "== 論 ==", "东魏"), ("北史/卷006", None, None, "东魏")]
+        + [(f"北史/卷{j:03d}", None, None, "北齐") for j in (7, 8)]
+        + [("北史/卷009", None, "==閔帝==", "西魏"), ("北史/卷009", "@==閔帝==", "==論==", "北周"), ("北史/卷010", None, None, "北周"),
+           ("北史/卷011", None, None, "隋")],
+        years=(380, 605), start_year=386, regimes=[(386, "北魏")],
+        era_regimes=["北魏", "东魏", "西魏", "北齐", "北周", "隋"],
+        regime_era_extra={"东魏": ["北魏"], "西魏": ["北魏"], "北齐": ["东魏"], "北周": ["西魏"], "隋": ["北周"]},
+        regime_calendars={"北魏": [(-10000, "张表"), (398, "北魏/西魏/北周/隋")], "东魏": [(-10000, "东魏/北齐")],
+                          "西魏": [(-10000, "北魏/西魏/北周/隋")], "北齐": [(-10000, "东魏/北齐")],
+                          "北周": [(-10000, "北魏/西魏/北周/隋")], "隋": [(-10000, "北魏/西魏/北周/隋"), (589, "张表")]},
+        # 卷二太武帝纪「辛未，京兆王黎薨。二月，改元」不书年月与年号（实为神䴥元年，428）：补出，否则其后诸年承始光作 427—430
+        corrections=[("北史/卷002", "辛未，京兆王黎薨。二月，改元。", "神䴥元年春正月辛未，京兆王黎薨。二月，改元。",
+                      "「改元」不书年号、正月不书月，据《魏书·世祖纪上》「神䴥元年春正月……辛未，京兆王黎薨。二月，改元」补")],
+        # 卷九文帝纪书「恭帝元年四月」（无「魏」字），亦认作西魏恭帝纪年
+        reigns={"魏廢帝": ("西魏", 552, 554), "魏恭帝": ("西魏", 554, 556), "恭帝": ("西魏", 554, 556)},
+        reign_anchors=[("北史/卷009", "元年春正月", "孝閔帝", "北周", 557, 557), ("北史/卷009", "元年秋九月", "明帝", "北周", 557, 559)],
     ),
     "xinwudaishi": dict(
         sections=[("新五代史/卷59", None, None)],
@@ -820,7 +848,9 @@ def main(book):
             cur_regime = sec[3]  # 纪日节指定政权（定年号池与历表）
         para_first_clause = retro = after_death = year_closed = chronicle = False
         # reign_anchors：(节, 锚点句首, 帝号, 政权, 元年, 末年)，节内首个以锚点起头的分句起按该帝纪年
-        anchors, anchors_used = [a for a in cfg.get("reign_anchors", ()) if a[0] == title], []
+        # 一卷分作几节（《北史》卷九西魏文帝、北周孝闵明帝）时，锚点只归政权相同之节
+        anchors, anchors_used = [a for a in cfg.get("reign_anchors", ())
+                                 if a[0] == title and not (date_only and len(sec) > 3 and sec[3] and sec[3] != a[3])], []
         reign_last = None  # 当前帝号纪年的末年：其后不书年号、帝号而年数越出者（诏书「二十三載」）不作纪年
         last_bodies, last_sentence, fresh_sentence = None, -1, -1
         sent_no = 0
@@ -1146,7 +1176,9 @@ def main(book):
         with open(ddir / f"{book}.csv", "w", encoding="utf-8", newline="") as f:
             w = csv.DictWriter(f, fieldnames=list(dates[0].keys()))
             w.writeheader()
-            w.writerows([{k: (v.replace(",", "，").replace("朔" + BUZI, "〔朔〕").replace(BUZI, "") if isinstance(v, str) else v) for k, v in d.items()} for d in dates])
+            # 原文分句跨段时 text 含换行（《北史》卷八「乙卯，幼主即位」前），换作空格，免得一条纪日在 CSV 中断成两行
+            w.writerows([{k: (v.replace(",", "，").replace("\r", "").replace("\n", " ").replace("朔" + BUZI, "〔朔〕").replace(BUZI, "")
+                          if isinstance(v, str) else v) for k, v in d.items()} for d in dates])
         print(f"本纪纪日/{book}.csv", len(dates), "条，干支不在月", sum(not d["in_month"] for d in dates))
     if leap_marks:
         with open(ROOT / "data/calendar/本纪纪日" / f"{book}_閏月.csv", "w", encoding="utf-8", newline="") as f:
