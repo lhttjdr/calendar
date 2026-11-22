@@ -48,6 +48,7 @@ pub mod options;
 pub mod pingqi;
 pub mod push_calendar;
 pub mod qinhan_restore;
+pub mod qinhan_shiyong;
 pub mod system;
 pub mod timekeeping;
 pub mod xixia;

@@ -46,7 +46,7 @@
 |------|-----------|----------|------|
 | 春秋 722–481 BCE | 周历、鲁(春秋)历 | 推步 | `chunqiu_cmonth`, 古六历等 |
 | 战国 480–222 BCE | 周、鲁、颛顼(秦) | 推步 | `guliuli_calendar_cmonth(li, y, jdc)` |
-| 秦～汉初 -221～-104 | 颛顼历/秦与汉初历 | 推步 | `HanZhuanXu`、秦汉历复原 |
+| 秦～汉初 -221～-104 | 颛顼历/秦与汉初历 | 实物（出土历谱 13 年）+ 推步（实用历，合朔改正由出土历日定） | `qinhan_shiwu_months.csv`；李忠林复原（上游 `HanZhuanXu`）作对照 |
 | -105～2200 | **张表（各朝据历还原推步）** | **预存表** | `ChineseToGregorian()`，本仓库已导出；"据历还原"含义见上「张表来源与含义」 |
 | 三国 220–280 | **魏** | 张表 | 同上；三国三方历法差异详见下「三国魏蜀吴历法差异」 |
 | 三国 221–263 | **蜀** | 推步 | `cmonthDate_Shu`，**四分历** (Sifen) |
@@ -352,7 +352,8 @@ in_month（日干支在该历所记之月）、jdn、julian、position（原文�
 | `baoshan_check.csv` | 检验（2026-11-22） | 包山纪日对汉传六历、颛顼历，按楚正月当夏正某月、系年平移各假设的合数；同上脚本 |
 | `xincai_records.csv` | 转录（2026-11-22） | 新蔡葛陵楚简明书「岁名 + 月名 + 干支之日」纪日 31 条，据《新蔡葛陵楚墓》（大象出版社 2003）附录一释文书页 186—231 逐条转录：岁、月序、月、干支、简号、书页、注（岁名残补等）；`scripts/calendar_data/xincai_check.py` 检验 |
 | `guliuli_months_350_300.csv` | 推步（2026-11-22） | 前 341—前 300 年汉传六历（年终闰、无中气闰）与颛顼历逐月朔，月序换为夏正编号；`rust/core/examples/guliuli_months_export.rs` 导出 |
-| `qinhan_benji_check.csv` | 检验（2026-11-22） | 上表逐条对颛顼历推步（`calendar::zhuanxu`）与李忠林复原历（`calendar::qinhan_restore`）：该月朔、合否（书朔须恰为朔日，书晦须为末日，余者在月内）；`rust/core/examples/zhongyuan_reckoning_eval.rs` 生成 |
+| `qinhan_benji_check.csv` | 检验（2026-11-22） | 上表逐条对中原一线推步（秦汉初实用历推步 `calendar::qinhan_shiyong`，同日起；此前为颛顼历推步 `calendar::zhuanxu`）与李忠林复原历（`calendar::qinhan_restore`）：该月朔、合否（书朔须恰为朔日，书晦须为末日，余者在月内）；「实物合」：该年有出土历谱整年时对实物之合否（0 者不计入推步、复原之比较）；`rust/core/examples/zhongyuan_reckoning_eval.rs` 生成 |
+| `qinhan_shiwu_months.csv` | 看图转录（2026-11-22） | 秦汉初出土历日逐月朔：来源（岳麓秦简《质日》、周家台秦简《历谱》、张家山汉简《历谱》、里耶秦简纪年文书、转引张培瑜表 3-19/3-20）、纪年、年（建亥年，天文纪年）、月、闰（後九月）、朔干支、大小、依据（书/推/补）、简号、书页、注（原文与歧异）；文件头注明各书版本与 PDF 页对应。成谱之年拼夏正整年作实物历日（`calendar::artifacts`），全部条目定 `calendar::qinhan_shiyong` 合朔改正并逐月检验（`rust/core/examples/qinhan_shiwu_check.rs` → `doc/calendar/qinhan-shiwu-checks.md`） |
 | `lost_proxy_eval.csv`、`lost_proxy_detail.csv` | `rust/core/examples/lost_proxy_eval.rs` | 术不传之段（观象 807—821、奉元 1075—1093、占天 1103—1105、淳祐 1252、会天 1253—1270、本天 1277—1279）诸代推候选与张表：本纪明书朔、本纪閏月、本纪纪日在月、实物逐项汇总与不同之条 |
 | `zhongyuan_reckoning_eval.csv` | `rust/core/examples/zhongyuan_reckoning_eval.rs` | 中原一线逐历：月数、与张表同日之月、闰位不同之岁、本纪明书朔日条数、合推步、合张表、只合其一 |
 | `zhongyuan_reckoning_benji.csv` | 同上 | 推步与张表不同、或本纪只合其一之条 |

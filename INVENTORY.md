@@ -57,7 +57,7 @@
 | `gan_zhi` / `gan_zhi_options` | 干支 |
 | `gregorian` | 公历与 JD |
 | `historical` | `ShuoriTable`：张表朔日 CSV；`year_data_from_months` 由逐月朔日构造岁数据 |
-| `artifacts` | 实物历日（《宝祐四年会天历》1256） |
+| `artifacts` | 实物历日（《宝祐四年会天历》1256；明大统历 94 年、清时宪书 21 年；秦汉初出土历谱、质日拼成的夏正整年 13 年） |
 | `dingshuo` | 唐至明定朔诸历推步与排月（移植自 `scripts/calendar_data/*_dingshuo.py`，以 `dingshuo_reference.csv` 逐月核对）；唐宋诸历步交会与「有交不进」「正月有交」（`JiaoOptions`，移植自 `jiaohui.py`，以 `jiaohui_reference.csv` 核对） |
 | `song_early` | 宋初应天、乾元、仪天三历推步与排月（移植自 `scripts/calendar_data/song_early_dingshuo.py`，读法据王应伟《中国古历通解》） |
 | `shixian` | 清时宪历《历象考成后编》推步：日躔、月离、节气、合朔、置闰，合朔中气化用时定日（移植自 `scripts/calendar_data/shixian_houbian.py`，以 `shixian_houbian_check.csv` 核对） |
@@ -69,7 +69,8 @@
 | `guliuli` | 战国汉传六历整数推步（子正四历、夏历寅正正月含雨水；年终闰／年中无中气两法，以《中国古代历法》表 3-17、3-18 核对）与春秋鲁历（张培瑜表 3-7）；按国别接入 `push_calendar::regime_calendars`（鲁、秦、魏、楚）；`examples/guliuli_months_export.rs` 导出月表供包山楚简检验 |
 | `xixia` | 西夏历日 1120—1207（彭向前 2018 整理之 Инв.No.8085 等，`data/calendar/xixia_song_shuorun.csv` 内嵌；待考之月以宋历代） |
 | `zhuanxu` | 秦汉初颛顼历按术推步（前 366 年甲寅蔀首，冬至在十一月→文帝后元起雨水在正月置闰，后九月；以张培瑜等《中国古代历法》表 3-19—3-22 核对） |
-| `qinhan_restore` | 第 2 层今人历表：李忠林秦汉初复原历（−220—−104，张表以前中原一线取之；与 `scripts/calendar_data/qinhan_eval/hzx.py` 同） |
+| `qinhan_shiyong` | 秦汉初实用历推步（−220—太初元年四月）：颛顼历置闰，合朔加改正 δ，δ 逐段由出土历日（岳麓、周家台、张家山、里耶、转引元光元年历谱，`data/calendar/qinhan_shiwu_months.csv`）定出；高祖九年七月改朔例外；中原一线「颛顼历（秦汉初）」按术推步即此，逐月依据分类见 `doc/calendar/qinhan-shiwu-checks.md` |
+| `qinhan_restore` | 第 2 层今人历表：李忠林秦汉初复原历（−220—−104；只在「今人历表优先」下取用，余作对照；与 `scripts/calendar_data/qinhan_eval/hzx.py` 同） |
 | `jindai` | 第 2 层：近现代中原一线 1914—2016 按当时编算规则现算之月表（定气定朔；1914—1927 北京地方平时、1928 起东经 120°），月表 `data/calendar/jindai_months.csv` 由 `examples/jindai_months.rs` 生成，经 `push_calendar::reckon_lifa_year` 供仲裁；依据见 `doc/calendar/jindai-calendar.md` |
 | `options` / `system` | 选项与历法系统 |
 

@@ -9,6 +9,8 @@ use lunar_core::calendar::gan_zhi::GAN_ZHI_60;
 use lunar_core::calendar::historical::ShuoriTable;
 use lunar_core::calendar::lifa::{zhongyuan_year_months, RiliSource, ZhongyuanCalendarPeriods, ZhongyuanPreference};
 use lunar_core::calendar::month_labels::{standard_month_name, MonthLabel, MonthLabelReforms};
+use lunar_core::calendar::artifacts::zhongyuan_artifact_year;
+use lunar_core::calendar::push_calendar;
 use lunar_core::calendar::qinhan_restore;
 use std::collections::BTreeMap;
 
@@ -74,7 +76,16 @@ fn main() {
         zhang.year_months(y).map(|t| t.to_vec()).or_else(|| qinhan_restore::year_months(y)).unwrap()
     };
     for y in -220..=1913 {
-        let Some((r, RiliSource::Reckoned(name))) = zhongyuan_year_months(None, y, ZhongyuanPreference::Reckoning) else { continue };
+        // 直接按术推步（不经仲裁）：实物年也照推，推步与张表的比较不受实物接入影响
+        let name: &'static str = periods.name_for_lunar_year(y);
+        let r = match zhongyuan_year_months(None, y, ZhongyuanPreference::Reckoning) {
+            Some((r, RiliSource::Reckoned(_))) => r,
+            Some((_, RiliSource::Artifact(_))) => match push_calendar::reckon_lifa_year(name, y) {
+                Some(r) => r,
+                None => continue,
+            },
+            _ => continue,
+        };
         let t = table(y);
         let fy = *first_year.entry(name).or_insert(y);
         let s = stats.entry((fy, name)).or_default();
@@ -173,7 +184,7 @@ fn main() {
         let h = recs.iter().find(|r| r.first().is_some_and(|c| c == "卷")).unwrap().clone();
         let c = |n: &str| h.iter().position(|x| x == n).unwrap();
         let (cv, cn, cy, cm, cl, cg, cs, cx) = (c("卷"), c("纪年年"), c("夏正年"), c("月"), c("闰"), c("干支"), c("朔晦"), c("原文"));
-        let mut per = String::from("卷,纪年年,夏正年,月,干支,朔晦,推步该月朔,推步合,复原该月朔,复原合,原文\n");
+        let mut per = String::from("卷,纪年年,夏正年,月,干支,朔晦,推步该月朔,推步合,复原该月朔,复原合,实物合,原文\n");
         // 月 (朔, 下月朔)
         let span = |ms: &dyn Fn(i32) -> Vec<(i64, u8, bool)>, y: i32, m: u8, leap: bool| -> Option<(i64, i64)> {
             let mut all: Vec<(i64, u8, bool)> = ms(y);
@@ -181,7 +192,9 @@ fn main() {
             let i = all.iter().position(|e| e.1 == m && e.2 == leap)?;
             Some((all[i].0, all.get(i + 1)?.0))
         };
-        let reck_y = |y: i32| zhongyuan_year_months(None, y, ZhongyuanPreference::Reckoning).unwrap().0;
+        // 推步（不经实物）；实物年另取出土历谱（artifacts），本纪与同月实物相违者不计入推步、复原之比较（实物 > 史书）
+        let reck_y = |y: i32| push_calendar::reckon_lifa_year(periods.name_for_lunar_year(y), y).unwrap();
+        let art_y = |y: i32| zhongyuan_artifact_year(y).map_or_else(|| reck_y(y), |a| a.months.clone());
         for r in recs.iter().filter(|r| r.len() == h.len() && r[0] != "卷" && !r[0].starts_with('#')) {
             let (y, m, leap): (i32, u8, bool) = (r[cy].parse().unwrap(), r[cm].parse().unwrap(), r[cl] == "1");
             let gi = GAN_ZHI_60.iter().position(|g| *g == r[cg]).unwrap() as i64;
@@ -193,13 +206,21 @@ fn main() {
             };
             let (gr, okr) = judge(span(&reck_y, y, m, leap));
             let (gt, okt) = judge(span(&table, y, m, leap));
-            per += &format!("{},{},{},{}{},{},{},{},{},{},{},{}\n", r[cv], r[cn], y, if leap { "闰" } else { "" }, m, r[cg], r[cs], gr, okr as u8, gt, okt as u8, r[cx]);
+            let oka = zhongyuan_artifact_year(y).is_some().then(|| judge(span(&art_y, y, m, leap)).1);
+            let ka = oka.map_or("", |o| if o { "1" } else { "0" });
+            per += &format!("{},{},{},{}{},{},{},{},{},{},{},{},{}\n", r[cv], r[cn], y, if leap { "闰" } else { "" }, m, r[cg], r[cs], gr, okr as u8, gt, okt as u8, ka, r[cx]);
             if r[cs].is_empty() {
                 continue;
             }
             let name = periods.name_for_lunar_year(y);
             let fy = *first_year.iter().find(|(n, _)| **n == name).map(|(_, f)| f).unwrap();
             let s = stats.get_mut(&(fy, name)).unwrap();
+            if oka == Some(false) {
+                // 如高帝九年「六月乙未晦」：张家山《历谱》七月丁酉（胡家草场《岁纪》改朔），乙未为六月廿九——本纪从改朔前之原历
+                s.errata += 1;
+                detail += &format!("{},hanshu_benji,{},{}{},{}{},{},{},{},{},实物否定不计,{}\n", name, y, if leap { "闰" } else { "" }, m, r[cg], r[cs], gr, gt, okr as u8, okt as u8, r[cx]);
+                continue;
+            }
             s.n += 1;
             s.hit_r += okr as usize;
             s.hit_t += okt as usize;

@@ -60,6 +60,7 @@
 | [jiudian-yingshi-checks.md](calendar/jiudian-yingshi-checks.md) | 九店简 96「荆𡰥朔於营室」检验（生成文件）：前 350—前 250 逐年荆𡰥朔太阳赤经，亥正、丑正两假设下是否在营室 |
 | [zhanguo-calendars.md](calendar/zhanguo-calendars.md) | 春秋鲁历与战国古六历按国别接入：各国用历证据（秦颛顼、魏夏历、楚有争议）、汉传六历整数推步与《中国古代历法》表 3-17/3-18 逐格核对、年终闰与年中无中气两种闰法 |
 | [qin-han-calendar-evaluation.md](calendar/qin-han-calendar-evaluation.md) | 秦与汉初（前221—太初元年四月）历法复原接入评估：与张表衔接、《汉书》检验、待补的日月食与出土材料验证 |
+| [qinhan-shiwu-checks.md](calendar/qinhan-shiwu-checks.md) | 秦汉初出土历日（岳麓、周家台、张家山、里耶、转引元光元年历谱）逐月检验：各段合朔改正 δ 的可行区间与定界之条、实物对实用历推步/颛顼推步/李忠林复原历、前 221—太初元年四月各月依据分类（实物年/唯一/区间未定/段界未定）、与复原历不同之月（自动生成） |
 
 ## 三、工程实现（`engineering/`）
 
