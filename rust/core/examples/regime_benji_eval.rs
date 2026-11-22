@@ -5,7 +5,7 @@
 //! 用法（仓库根）：cargo run --release --manifest-path rust/Cargo.toml -p lunar-core --no-default-features --features real-f64 --example regime_benji_eval
 use lunar_core::calendar::gan_zhi::GAN_ZHI_60;
 use lunar_core::calendar::historical::ShuoriTable;
-use lunar_core::calendar::push_calendar::{regime_year_months, regime_year_months_unrevised};
+use lunar_core::calendar::push_calendar::{regime_year_months, regime_year_months_raw};
 use std::collections::BTreeMap;
 
 /// 史书政权名 → 分政权推步之键
@@ -59,8 +59,10 @@ struct Stat {
     shuo_t: usize,
     /// 考证表「不计」之条（本纪月份、干支已考为讹，或解析之误）
     excluded: usize,
-    /// 合推步之条中，推步不含史载例外表修正时不合者（辽金各条皆「本纪」类：推步临限或闰位，只有本纪可从）；合推步减去即纯推步之合数
+    /// 合推步之条中，纯推步不合、靠史载修正才合，且当年修正有「本纪」类者
     benji_fix: usize,
+    /// 同上，当年修正只有「他书」类者
+    other_fix: usize,
 }
 
 /// 分政权考证表（`data/calendar/*_regime_kaozheng.csv`，列含 书、年、月、干支、处置、改作）中处置为「改月」「不计」之条：
@@ -149,7 +151,7 @@ fn main() {
             };
             let (gr, okr) = judge(span(&reg, y, m_reg, leap));
             // 不含史载修正之推步：修正后合而修正前不合者计「史载修正而合」
-            let raw = |yy: i32| regime_year_months_unrevised(key, yy).map(|x| x.1);
+            let raw = |yy: i32| regime_year_months_raw(key, yy).map(|x| x.1);
             let m_raw = if m == 0 { leap_of(&raw) } else { m_reg };
             let fixed = okr && !judge(span(&raw, y, m_raw, leap)).1;
             let (gt, okt) = judge(span(&tab, y, m_tab, leap));
@@ -163,7 +165,16 @@ fn main() {
             s.t += okt as usize;
             s.only_r += (okr && !okt) as usize;
             s.only_t += (okt && !okr) as usize;
-            s.benji_fix += (okr && fixed) as usize;
+            if okr && fixed {
+                let benji = lunar_core::calendar::dingshuo::shizai_liwai()
+                    .iter()
+                    .any(|r| r.0.starts_with(&format!("{key}：")) && (r.1 == y || r.1 == y - 1 || r.1 == y + 1) && r.4 == "本纪");
+                if benji {
+                    s.benji_fix += 1;
+                } else {
+                    s.other_fix += 1;
+                }
+            }
             if pos == "朔" {
                 s.shuo += 1;
                 s.shuo_r += okr as usize;
@@ -187,12 +198,20 @@ fn main() {
         String::new(),
         "## 汇总".to_string(),
         String::new(),
-        "| 推步之键 | 史书政权 | 书 | 纪日 | 合推步 | 合张表 | 只合推步 | 只合张表 | 书朔 | 朔合推步 | 朔合张表 | 考讹不计 | 史载修正而合 |".to_string(),
-        "|---|---|---|---|---|---|---|---|---|---|---|---|---|".to_string(),
+        "「合推步」含史载修正（例外表历名「政权：历名」）；其中纯推步不合、靠修正才合者另列：「从本纪修正」= 当年修正有只据本纪之条，「他书修正」= 当年修正皆有本纪以外的记录；合推步减去二者即纯按术推步之合数。「考讹不计」= 考证表处置为「不计」之条。".to_string(),
+        String::new(),
+        "| 推步之键 | 史书政权 | 书 | 纪日 | 合推步 | 合张表 | 只合推步 | 只合张表 | 书朔 | 朔合推步 | 朔合张表 | 考讹不计 | 从本纪修正 | 他书修正 |".to_string(),
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|".to_string(),
     ];
     for ((k, rg, b), s) in &stats {
-        md.push(format!("| {k} | {rg} | {b} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |", s.n, s.r, s.t, s.only_r, s.only_t, s.shuo, s.shuo_r, s.shuo_t, s.excluded, s.benji_fix));
-        println!("{k} {rg} {b}: {} 推步 {} 张表 {} 只推 {} 只张 {} | 朔 {} {} {} | 不计 {} 修正而合 {}", s.n, s.r, s.t, s.only_r, s.only_t, s.shuo, s.shuo_r, s.shuo_t, s.excluded, s.benji_fix);
+        md.push(format!(
+            "| {k} | {rg} | {b} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
+            s.n, s.r, s.t, s.only_r, s.only_t, s.shuo, s.shuo_r, s.shuo_t, s.excluded, s.benji_fix, s.other_fix
+        ));
+        println!(
+            "{k} {rg} {b}: {} 推步 {} 张表 {} 只推 {} 只张 {} | 朔 {} {} {} | 不计 {} 修正 本纪 {} 他书 {}",
+            s.n, s.r, s.t, s.only_r, s.only_t, s.shuo, s.shuo_r, s.shuo_t, s.excluded, s.benji_fix, s.other_fix
+        );
     }
     md.extend([
         String::new(),

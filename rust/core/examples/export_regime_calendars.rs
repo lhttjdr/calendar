@@ -3,7 +3,7 @@
 //! 日期为民用历（1582 年前儒略历），与实历朔日表一致。
 //! 用法（rust/ 目录）：cargo run --release -p lunar-core --example export_regime_calendars
 use lunar_core::calendar::gregorian::civil_from_jdn;
-use lunar_core::calendar::push_calendar::{regime_calendars, regime_year_months};
+use lunar_core::calendar::push_calendar::{regime_calendars, regime_year_months_raw};
 
 fn main() {
     let mut out = String::from("regime,calendar,gregorian_year,gregorian_month,gregorian_day,lunar_year,lunar_month,is_leap\n");
@@ -11,7 +11,7 @@ fn main() {
     for (regime, y0, y1, _) in regime_calendars() {
         for y in y0..=y1 {
             // 无推步之年（历术函数给空表者）不导出
-            let Some((cal, months)) = regime_year_months(regime, y) else { continue };
+            let Some((cal, months)) = regime_year_months_raw(regime, y) else { continue };
             for (jdn, m, leap) in months {
                 let (gy, gm, gd) = civil_from_jdn(jdn);
                 out += &format!("{regime},{cal},{gy},{gm},{gd},{y},{m},{}\n", leap as u8);

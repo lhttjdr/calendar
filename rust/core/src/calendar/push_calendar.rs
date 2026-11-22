@@ -224,28 +224,15 @@ pub fn reckon_lifa_year(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, boo
 /// 史载例外（`data/calendar/dingshuo_exceptions.csv`）中历名即 `name` 的改朔之条，应用于推步结果：朔日与例外所记相差一日之月改作所记之日。
 /// 唐至明定朔诸历已在 [super::dingshuo] 排月时应用（此处相同即不动）；宋初应天等与清初新法无排月内的例外机制，在此应用。
 /// 改后相邻月长须仍为 29、30 日（「消息前後一兩月」之调整只在定朔诸历排月内做，此处出界即报错，须改由排月处理）。
-/// 「置闰」之条（2026-11-22 起，分政权推步用，如金 1162 年閏二月）：朔日为所记 JDN 之月改作闰月（月数承前月），本岁其余各月
-/// 顺次重排月数——闰位前后移动，月朔不变。已是闰月（定朔诸历排月内已置）则不动。
+/// 「置闰」之条（2026-11-22 起，分政权推步用，如金 1162 年閏二月、北周 562 年闰正）：见 [apply_shizai_leap]。
 pub(crate) fn apply_shizai_liwai(name: &str, months: &mut [(i64, u8, bool)]) {
+    let mut touched = Vec::new();
     for (li, _, jdn, leap, _) in super::dingshuo::shizai_liwai() {
         if li != name {
             continue;
         }
         if *leap {
-            let Some(i) = months.iter().position(|m| m.0 == *jdn) else { continue };
-            if months[i].2 {
-                continue;
-            }
-            assert!(i > 0 && !months[0].2 && months.iter().filter(|m| m.2).count() <= 1, "{name} 置闰 {jdn}：本岁月序不能重排");
-            let mut lab = months[0].1;
-            for (k, m) in months.iter_mut().enumerate().skip(1) {
-                if k == i {
-                    *m = (m.0, lab, true);
-                } else {
-                    lab = lab % 12 + 1;
-                    *m = (m.0, lab, false);
-                }
-            }
+            apply_shizai_leap(name, *jdn, months);
             continue;
         }
         let Some(i) = months.iter().position(|m| (m.0 - jdn).abs() == 1) else { continue };
@@ -253,9 +240,37 @@ pub(crate) fn apply_shizai_liwai(name: &str, months: &mut [(i64, u8, bool)]) {
             continue;
         }
         months[i].0 = *jdn;
+        touched.push(i);
+    }
+    // 月长在全部修正应用之后检查：相邻数月须一并移日者（「消息前後」），逐条应用时中间状态会出界
+    for &i in &touched {
         for k in i.max(1)..(i + 2).min(months.len()) {
             let len = months[k].0 - months[k - 1].0;
-            assert!((29..=30).contains(&len), "{name} 例外 {jdn}：改后月长 {len}");
+            assert!((29..=30).contains(&len), "{name} 例外 {}：改后月长 {len}", months[i].0);
+        }
+    }
+}
+
+/// 史载置闰（例外表「置闰」）应用于推步结果：朔日为 `jdn` 之月改为闰月（月序同前一月），推步原闰月改为平月，
+/// 两者之间诸月顺次重排月序；朔日不变。定朔诸历已在排月内置闰者（该月已是闰月）不动。
+/// 用于分政权（如北周保定二年闰正、四年闰九，天和二年闰六：本国史书所书闰位与推步不同）。
+fn apply_shizai_leap(name: &str, jdn: i64, months: &mut [(i64, u8, bool)]) {
+    let Some(i) = months.iter().position(|m| m.0 == jdn) else { return };
+    if months[i].2 {
+        return;
+    }
+    assert!(i >= 1, "{name} 置闰 {jdn}：闰月须在本岁首月之后");
+    let old = months.iter().position(|m| m.2).unwrap_or_else(|| panic!("{name} 置闰 {jdn}：推步本岁无闰，不能移闰"));
+    let (s, e) = (i.min(old), i.max(old));
+    let mut prev = months[s - 1].1;
+    for k in s..=e {
+        if k == i {
+            months[k].1 = prev;
+            months[k].2 = true;
+        } else {
+            prev = prev % 12 + 1;
+            months[k].1 = prev;
+            months[k].2 = false;
         }
     }
 }
@@ -321,14 +336,15 @@ fn reckon_lifa_year_raw(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, boo
 /// 按历术推步，不据今人历表改个别月份：张培瑜历表与推步不合处（如 430 年二月）是另一份复原的结果，依据未核，不据以改动。
 /// 本国史书明书而推步临限之月，可列入史载例外表（历名记作「政权：历名」，2026-11-22 起），由此应用。
 pub fn regime_year_months(regime: &str, lunar_year: i32) -> Option<(&'static str, Vec<(i64, u8, bool)>)> {
-    let (name, mut months) = regime_year_months_unrevised(regime, lunar_year)?;
+    let (name, mut months) = regime_year_months_raw(regime, lunar_year)?;
     // 分政权的史载修正：例外表历名记作「政权：历名」（如「东魏/北齐：兴和历」），与中原一线同名之历分开
     apply_shizai_liwai(&format!("{regime}：{name}"), &mut months);
     Some((name, months))
 }
 
-/// 同 [regime_year_months]，但不应用史载例外表（纯按术推步）；供检验区分「推步本身合」与「史载修正而合」。
-pub fn regime_year_months_unrevised(regime: &str, lunar_year: i32) -> Option<(&'static str, Vec<(i64, u8, bool)>)> {
+/// 同 [regime_year_months]，但不应用史载修正：纯按历术推步（`data/calendar/推步政权朔日表.csv` 由此导出，供与史书、
+/// 张表逐条判别时作「推步」一家）。
+pub fn regime_year_months_raw(regime: &str, lunar_year: i32) -> Option<(&'static str, Vec<(i64, u8, bool)>)> {
     let (_, _, _, pick) = regime_calendars().into_iter().find(|(r, y0, y1, _)| *r == regime && (*y0..=*y1).contains(&lunar_year))?;
     Some(pick(lunar_year)).filter(|(_, m)| !m.is_empty())
 }
@@ -863,7 +879,7 @@ mod tests {
         }
         let (mut leap_diff, mut day_diff, mut n) = (vec![], vec![], 0);
         for ((reg, y), mut theirs) in up {
-            let Some((_, ours)) = regime_year_months(reg, y) else { continue };
+            let Some((_, ours)) = regime_year_months_raw(reg, y) else { continue }; // 纯推步（不含史载修正）与上游纯推步比
             theirs.sort();
             let key = |v: &[(i64, u8, bool)]| v.iter().map(|e| (e.1, e.2)).collect::<Vec<_>>();
             if key(&ours) != key(&theirs) {
