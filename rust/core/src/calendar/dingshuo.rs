@@ -322,7 +322,25 @@ fn liwai_table() -> &'static [(String, i64, Liwai)] {
                     "置闰" => Liwai::Leap,
                     x => panic!("例外表调整「{x}」"),
                 };
+                assert!(matches!(c[7], "他书" | "本纪"), "例外表类别「{}」", c[7]);
                 (c[0].to_string(), jdn, adj)
+            })
+            .collect()
+    })
+}
+
+/// 史载例外表各条：(历名, 年, 调整后朔日 JDN, 是否置闰, 类别「他书」/「本纪」)。供定朔诸历以外的推步（宋初诸历、清初新法）
+/// 在推步结果上应用（[super::push_calendar::reckon_lifa_year]），及中原一线检验另计「从本纪修正」。
+pub fn shizai_liwai() -> &'static [(String, i32, i64, bool, String)] {
+    use std::sync::OnceLock;
+    static T: OnceLock<Vec<(String, i32, i64, bool, String)>> = OnceLock::new();
+    T.get_or_init(|| {
+        include_str!("../../../../data/calendar/dingshuo_exceptions.csv")
+            .lines()
+            .filter(|l| !l.starts_with('#') && !l.starts_with("历,") && !l.trim().is_empty())
+            .map(|l| {
+                let c: Vec<&str> = l.splitn(9, ',').collect();
+                (c[0].to_string(), c[1].parse().expect("年"), c[4].parse().expect("朔日JDN"), c[6] == "置闰", c[7].to_string())
             })
             .collect()
     })
@@ -2659,7 +2677,11 @@ mod tests {
             let c: Vec<&str> = line.split(',').collect();
             let (y, m, leap, jdn): (i32, u8, bool, i64) = (c[1].parse().unwrap(), c[2].parse().unwrap(), c[3] == "1", c[4].parse().unwrap());
             // 代推之历（如「开禧历（代推会天）」）登记于 REGIME_REGISTRY，不在 reckon_year 之列
-            let months = reckon_year(c[0], y).or_else(|| reckon_year_any(c[0], y)).unwrap();
+            // 宋初应天等与清初新法不在定朔排月之内，由 push_calendar::reckon_lifa_year 在推步结果上应用
+            let months = reckon_year(c[0], y)
+                .or_else(|| reckon_year_any(c[0], y))
+                .or_else(|| crate::calendar::push_calendar::reckon_lifa_year(c[0], y))
+                .unwrap();
             assert!(months.contains(&(jdn, m, leap)), "{} {y} 年 {m} 月：{months:?}", c[0]);
             n += 1;
         }

@@ -56,6 +56,8 @@ struct Stat {
     only_t: usize,
     /// 已考为讹误（data/calendar/benji_shuo_errata.csv）而不计的本纪条数
     errata: usize,
+    /// 合推步之条中，靠史载例外表「本纪」类修正（只有本纪明书、推步临限）才合者
+    benji_fix: usize,
 }
 
 fn main() {
@@ -204,10 +206,20 @@ fn main() {
         }
         std::fs::write(root.join("data/calendar/qinhan_benji_check.csv"), per).unwrap();
     }
-    let mut out = String::from("历,起,止,月数,与张表同,闰位不同之岁,本纪条数,本纪合推步,本纪合张表,只合推步,只合张表,已考讹不计\n");
+    // 史载例外表中「本纪」类之条（推步临限、只有本纪可从）：取用历日已按本纪修正，另计，「本纪合推步」减去即纯推步之合数
+    for (_, y, _, _, cat) in lunar_core::calendar::dingshuo::shizai_liwai() {
+        if cat != "本纪" {
+            continue;
+        }
+        let name = periods.name_for_lunar_year(*y);
+        if let Some(s) = first_year.get(name).and_then(|fy| stats.get_mut(&(*fy, name))) {
+            s.benji_fix += 1;
+        }
+    }
+    let mut out = String::from("历,起,止,月数,与张表同,闰位不同之岁,本纪条数,本纪合推步,本纪合张表,只合推步,只合张表,已考讹不计,从本纪修正\n");
     for ((_, name), s) in &stats {
         let ld: Vec<String> = s.leap_diff.iter().map(|y| y.to_string()).collect();
-        out += &format!("{name},{},{},{},{},{},{},{},{},{},{},{}\n", s.years.0, s.years.1, s.months, s.same, ld.join(" "), s.n, s.hit_r, s.hit_t, s.only_r, s.only_t, s.errata);
+        out += &format!("{name},{},{},{},{},{},{},{},{},{},{},{},{}\n", s.years.0, s.years.1, s.months, s.same, ld.join(" "), s.n, s.hit_r, s.hit_t, s.only_r, s.only_t, s.errata, s.benji_fix);
         println!("{name:<20} {}—{} 月 {} 同 {} 闰异 {:?} | 本纪 {} 推步 {} 张表 {} （只推步 {} 只张表 {}）", s.years.0, s.years.1, s.months, s.same, s.leap_diff, s.n, s.hit_r, s.hit_t, s.only_r, s.only_t);
     }
     std::fs::write(root.join("data/calendar/zhongyuan_reckoning_eval.csv"), out).unwrap();

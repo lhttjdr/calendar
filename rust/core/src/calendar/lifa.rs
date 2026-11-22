@@ -152,7 +152,10 @@ pub enum ZhongyuanPreference {
 /// 本纪误加「朔」，张表从之）后，授时与张表持平，移出；授时期推步与张表另有 6 月不同，皆近子夜，实际合朔都与推步同日。
 /// 2026-11-22 颛顼历推步接入：秦汉初《汉书》本纪书朔、晦 18 条推步合 7、复原历合 16（张表前 106 年起即同一复原），列入；
 /// 太初元年正月至四月即颛顼推步，随之列入。
-pub const RECKONING_BELOW_TABLE: &[&str] = &["颛顼历（秦汉初）", "太初历（太初元年，五月改历）", "宣明历", "应天历", "时宪历"];
+/// 2026-11-22 宣明 826 年五月、834 年六月，应天 974 年五月，时宪 1652 年九月、1662 年正月（推步临限、本纪明书与推步不同）
+/// 列入史载例外表（类别「本纪」，1662 年有朝鲜实录旁证记「他书」），取用历日直接从本纪——史书明书日期高于按术推算，
+/// 不再借道说不出依据的今人历表；三历移出。
+pub const RECKONING_BELOW_TABLE: &[&str] = &["颛顼历（秦汉初）", "太初历（太初元年，五月改历）"];
 
 /// 现行农历的历名前缀（`zhongyuan_calendar_periods.csv`）：其规则即定气定朔，现算就是按术推步。
 const MODERN_RULE_PREFIX: &str = "农历（GB/T 33661";
@@ -624,7 +627,16 @@ shoushi,授时历,1281,,元,郭守敬,儒略历+格里高利历,lifa_tongzhi
         assert_eq!(src(300, ZhongyuanPreference::ModernTable), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)));
         assert_eq!(src(700, r), Some(RiliSource::Reckoned("麟德历")), "麟德补正月进朔、史载移闰后本纪与张表持平，取推步");
         assert_eq!(src(800, r), Some(RiliSource::Reckoned("正元历")), "正元补 791 年墓志例外后本纪与张表持平，取推步");
-        assert_eq!(src(850, r), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)), "宣明推步不及张表，取张表");
+        assert_eq!(src(850, r), Some(RiliSource::Reckoned("宣明历")), "宣明临限二月从本纪（史载例外表）后与张表持平，取推步");
+        assert_eq!(src(974, r), Some(RiliSource::Reckoned("应天历")));
+        assert_eq!(src(1662, r), Some(RiliSource::Reckoned("时宪历")));
+        // 史载例外「本纪」类：取用历日从本纪（宣明 826 年五月戊辰、应天 974 年五月戊申、时宪 1652 年九月庚午、1662 年正月乙亥）
+        let gz = |y: i32, m: u8| {
+            let (ms, _) = zhongyuan_year_months(Some(&z), y, r).unwrap();
+            let j = ms.iter().find(|e| e.1 == m && !e.2).unwrap().0;
+            crate::calendar::gan_zhi::GAN_ZHI_60[(j + 49).rem_euclid(60) as usize]
+        };
+        assert_eq!([gz(826, 5), gz(834, 6), gz(974, 5), gz(1652, 9), gz(1662, 1)], ["戊辰", "庚辰", "戊申", "庚午", "乙亥"]);
         assert_eq!(src(-104, r), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)), "元封六年，颛顼历推步不及张表");
         assert_eq!(src(-104, all), Some(RiliSource::Reckoned("颛顼历（秦汉初）")));
         assert_eq!(src(-103, r), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)), "太初元年：前四月颛顼推步不及张表");
