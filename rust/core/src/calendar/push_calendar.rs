@@ -356,11 +356,16 @@ pub fn regime_calendars() -> Vec<(&'static str, i32, i32, RegimeYearFn)> {
             .collect();
         ("颛顼历（包山楚简检验，冬柰当夏正十月）", ms)
     }
+    // 西夏（1120—1207）：俄藏 Инв.No.8085 等历书，彭向前 2018 整理的西夏历朔闰；西夏朔日原缺之月以宋历代（super::xixia）
+    fn xixia(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        ("西夏历（Инв.No.8085 等，彭向前整理）", super::xixia::year_months(y))
+    }
     vec![
         ("鲁", super::guliuli::CHUNQIU_FIRST_YEAR, -479, lu_chunqiu),
         ("秦", -305, -221, qin_zhuanxu),
         ("魏", -275, -242, wei_xia),
         ("楚", -321, -315, chu),
+        ("西夏", 1120, 1207, xixia),
         ("南明/南明·绍武/鲁监国/明郑", 1645, 1683, nanming),
         ("辽", 947, 1087, liao),
         ("民间通书", 1914, 1938, minjian),
