@@ -8,6 +8,10 @@
 月份取颛顼历平朔（亥正时为荆𡰥；丑正时同一楚月在亥正月序上后移两月），求该时刻太阳视赤经（DE406，赤道 of date），
 与营室（室宿距星 α Peg，HIP 113963 → 东壁距星 γ Peg，HIP 1067，Hipparcos I/311 位置自行）比。宿度为赤道度。
 九店 M56 为战国晚期早段墓，逐年列前 350—前 250。
+另验「朔日所在之宿」这种读法：睡虎地《日书》甲种「除」（楚除，《睡虎地秦墓竹简》文物 1990 释文书页 180，简 1—13 正壹）以秦月列宿：
+十一月斗、十二月須（女）、正月營（室）、二月奎、三月胃、四月畢、五月東（井）、六月柳、七月張、八月角、九月氐、十月心。
+秦月即夏正月序（无月建之争），逐年求各月颛顼平朔时太阳所在之宿（陈卓距星，data/sky_culture/chinese_lunar_mansion_determinatives.csv，
+Hipparcos 位置自行，赤道 of date），统计落在所列之宿及其前一宿的年数——若此表确是朔日太阳所在，各月都应集中在所列之宿附近。
 输出 doc/calendar/jiudian-yingshi-checks.md（覆盖写）。
 用法（仓库根）：uv run --no-project --with skyfield python -I scripts/calendar_data/jiudian_yingshi_check.py
 """
@@ -59,5 +63,46 @@ for yr in range(350, 249, -1):
 n = 101
 md += ["", f"亥正：{cnt['亥'][0]}/{n} 年荆𡰥朔在营室内，距室 {min(cnt['亥'][1]):+.1f}—{max(cnt['亥'][1]):+.1f} 度（室宿宽约 16.5 度）；"
            f"丑正：{cnt['丑'][0]}/{n} 年，距室 {min(cnt['丑'][1]):+.1f}—{max(cnt['丑'][1]):+.1f} 度。", ""]
+# —— 楚除十二月列宿 ——
+import csv as _csv
+HIP = {}
+for line in open(ROOT / "data/stars/hipparcos_bright.csv", encoding="utf-8"):
+    if line.startswith("#") or line.startswith("hip"):
+        continue
+    f = line.split(",")
+    HIP[int(f[0])] = tuple(float(x) for x in f[1:3]) + tuple(float(x) for x in f[4:6])
+MAN = [(r["mansion"], int(r["hip"])) for r in _csv.DictReader(l for l in open(ROOT / "data/sky_culture/chinese_lunar_mansion_determinatives.csv", encoding="utf-8") if not l.startswith("#")) if r["system"] == "chenzhuo"]
+STARS = [(m, Star(ra_hours=HIP[h][0] / 15, dec_degrees=HIP[h][1], ra_mas_per_year=HIP[h][2], dec_mas_per_year=HIP[h][3], epoch=EP)) for m, h in MAN]
+LIST = {11: "斗", 12: "女", 1: "室", 2: "奎", 3: "胃", 4: "毕", 5: "井", 6: "柳", 7: "张", 8: "角", 9: "氐", 10: "心"}
+NAMES = [m for m, _ in MAN]
+
+
+def lodge(t):
+    s_ = ra(sun, t)
+    edges = [(m, ra(st, t)) for m, st in STARS]
+    best = None
+    for i, (m, a) in enumerate(edges):
+        rel = (s_ - a) % 360
+        if best is None or rel < best[1]:
+            best = (m, rel)
+    return best[0]
+
+
+md += ["## 楚除十二月列宿与朔日太阳所在之宿", "",
+       "秦月（夏正）各月颛顼平朔时太阳所在之宿（陈卓距星），前 350—前 250 共 101 年的分布。「所列」= 楚除该月所书之宿。", "",
+       "| 秦月 | 所列 | 在所列之宿 | 在其前一宿 | 其他 |", "|---|---|---|---|---|"]
+for k in (11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10):
+    n = k + 3 if k <= 9 else k - 9
+    hits = {}
+    for yr in range(350, 249, -1):
+        Y = 1 - yr
+        t = ts.tt_jd(float(_E + (ten(Y) + n - 1) * _L))
+        hits[lodge(t)] = hits.get(lodge(t), 0) + 1
+    tgt = LIST[k]
+    prev = NAMES[(NAMES.index(tgt) - 1) % 28]
+    other = {m: c for m, c in hits.items() if m not in (tgt, prev)}
+    md.append(f"| {k} 月 | {tgt} | {hits.get(tgt, 0)} | {prev} {hits.get(prev, 0)} | {'、'.join(f'{m} {c}' for m, c in other.items()) or '—'} |")
+    print(k, tgt, hits)
+md.append("")
 (ROOT / "doc/calendar/jiudian-yingshi-checks.md").write_text("\n".join(md) + "\n", encoding="utf-8")
 print(md[-2])
