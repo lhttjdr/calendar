@@ -125,10 +125,15 @@ def _reforms() -> tuple[dict, set]:
     return by_label, relabeled
 
 
+REGIME_ALIAS = {"西汉": "汉", "东汉": "汉"}
+
+
 def table_month(regime: str, label_year: int, month_name: str, leap: bool) -> tuple[int, int, bool] | None:
     """当时政权的月名（「正月」「腊月」「一月」「后十二月」「建子月」……）→ 实历朔日表的建寅月 (岁, 月, 闰)。
     不在改制期按建寅月名；当时并无此月名（如景初元年三月、武周十一月）返回 None。"""
     by_label, relabeled = _reforms()
+    # 改制表政权名同年号表（汉）；本纪纪日表分西汉、东汉
+    regime = REGIME_ALIAS.get(regime, regime)
     t = by_label.get((regime, label_year, month_name, leap))
     if t is not None:
         return t

@@ -14,6 +14,12 @@ vendor/calendar/chinese_calendar/实历朔日表.csv 的 lunar_year/lunar_month 
   （《新唐书·肃宗纪》）；「改元年為寶應元年，復以正月為歲首，建巳月為四月」（《新唐书·代宗纪》）。
   表十一月 → 次年（元年 = 宝应元年）「建子月」，依次建丑、建寅、建卯、建辰、建巳月。
 
+- 秦至汉初（表前 222 年十月—前 105 年十二月，天文纪年 −221—−104）十月为岁首、闰在年终：「改年始，朝賀皆自十月朔」
+  （《史记·秦始皇本纪》），汉「襲秦正朔」（《汉书·律历志上》）。表十月、十一月、十二月属次年（名义岁 + 1，月名不变）；
+  表闰九月即「后九月」（《汉书》本纪作「後九月」）。张表起于前 106 年，此前之月取李忠林复原历
+  （`scripts/calendar_data/qinhan_eval/hzx.py`；闰年与颛顼历推步逐年全同，见 doc/calendar/qin-han-calendar-evaluation.md）。
+  名义岁 −205（汉高祖元年）起为汉，此前为秦。
+
 只列与建寅标准月名不同的月份（年份或月名或闰否有别）；其余月份按表的建寅月名。每行注明政权，因同一年可有并存政权
 用不同月序（如地皇四年新莽建丑、更始政权建寅；景初年间吴、蜀仍建寅）。
 
@@ -31,6 +37,8 @@ DOU = {11: "建子月", 12: "建丑月", 1: "建寅月", 2: "建卯月", 3: "建
 
 # (政权, 时期名, 首月, 末月（含）, 规则)；月以 (表年, 表月) 表示，闰月随其前月一并处理
 PERIODS = [
+    ("秦", "秦十月岁首", (-221, 10), (-207, 12), "shiyue"),
+    ("汉", "汉初十月岁首", (-206, 10), (-104, 12), "shiyue"),
     ("新", "新莽建丑", (8, 12), (23, 11), "jianchou"),
     ("魏", "魏景初建丑", (237, 3), (239, 12), "jingchu"),
     ("武周", "武周建子", (689, 11), (700, 10), "wuzhou"),
@@ -41,11 +49,26 @@ PERIODS = [
 def months():
     rows = list(csv.DictReader(open(TABLE, encoding="utf-8")))
     out = [(int(r["lunar_year"]), int(r["lunar_month"]), r["is_leap"] == "1") for r in rows]
-    return sorted(out, key=lambda t: (t[0], t[1], t[2]))
+    # 张表以前的秦汉初：月序取李忠林复原历（建亥年 N：十月起，后九月为闰九月）
+    import sys
+    sys.path.insert(0, str(ROOT / "scripts/calendar_data/qinhan_eval"))
+    import hzx
+    first = min(y for y, _, _ in out)
+    for n in range(-220, first + 1):
+        for lab, _ in hzx.year(n):
+            m, leap = (9, True) if lab == "后9" else (int(lab), False)
+            y = n - 1 if m >= 10 and not leap else n
+            if y < first:
+                out.append((y, m, leap))
+    return sorted(set(out), key=lambda t: (t[0], t[1], t[2]))
 
 
 def label(rule, y, m, leap):
     """(名义岁, 月名, 闰否)。"""
+    if rule == "shiyue":
+        if leap and m == 9:
+            return (y, "后九月", False)
+        return (y + 1, CN[m], leap) if m >= 10 else (y, CN[m], leap)
     if rule == "jianchou":
         return (y + 1, "正月", leap) if m == 12 else (y, CN[m + 1], leap)
     if rule == "jingchu":

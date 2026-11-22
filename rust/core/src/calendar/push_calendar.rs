@@ -227,6 +227,13 @@ pub fn reckon_lifa_year(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, boo
         return Some(e.year_months(lunar_year));
     }
     let p = match name {
+        // 秦至汉初颛顼历（十月岁首、闰在年终，后九月记闰九月）
+        "颛顼历（秦汉初）" => return Some(super::zhuanxu::year_months(lunar_year)),
+        // 太初元年：正月至四月仍用颛顼历，五月起用太初历（三统推步）
+        "太初历（太初元年，五月改历）" => {
+            let old = super::zhuanxu::year_months(lunar_year).into_iter().filter(|m| m.1 <= 4);
+            return Some(old.chain(santong_exact().year_months(lunar_year).into_iter().filter(|m| m.1 >= 5)).collect());
+        }
         "四分历" => sifen_params(),
         "景初历" => jingchu_params(),
         "开皇历" => kaihuang_params(),
