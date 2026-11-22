@@ -350,6 +350,7 @@ in_month（日干支在该历所记之月）、jdn、julian、position（原文�
 | `baoshan_records.csv` | 转录（2026-11-22） | 包山楚简纪日：明书「月名 + 干支之日」者自维基文库录文抽出并依原书校改（脚本 FIX 表注页码），所䛠名单取 baoshan_suofu.csv；同岁同月同干支只留一条；岁名与《包山楚墓》系年（致胙之岁 sui_year 记 zhi，逐年扫描），系年不明之岁记 ?；`scripts/calendar_data/baoshan_check.py` 生成 |
 | `baoshan_suofu.csv` | 转录（2026-11-22） | 包山楚简所䛠名单（简 162—196）纪日 170 条，据《包山楚简》（文物出版社 1991）释文书页 29—32 逐条转录：名单、月、干支、简；首简作「归胙」，属归胙之岁（维基文库录文误作「致」） |
 | `baoshan_check.csv` | 检验（2026-11-22） | 包山纪日对汉传六历、颛顼历，按楚正月当夏正某月、系年平移各假设的合数；同上脚本 |
+| `xincai_records.csv` | 转录（2026-11-22） | 新蔡葛陵楚简明书「岁名 + 月名 + 干支之日」纪日 31 条，据《新蔡葛陵楚墓》（大象出版社 2003）附录一释文书页 186—231 逐条转录：岁、月序、月、干支、简号、书页、注（岁名残补等）；`scripts/calendar_data/xincai_check.py` 检验 |
 | `guliuli_months_350_300.csv` | 推步（2026-11-22） | 前 341—前 300 年汉传六历（年终闰、无中气闰）与颛顼历逐月朔，月序换为夏正编号；`rust/core/examples/guliuli_months_export.rs` 导出 |
 | `qinhan_benji_check.csv` | 检验（2026-11-22） | 上表逐条对颛顼历推步（`calendar::zhuanxu`）与李忠林复原历（`calendar::qinhan_restore`）：该月朔、合否（书朔须恰为朔日，书晦须为末日，余者在月内）；`rust/core/examples/zhongyuan_reckoning_eval.rs` 生成 |
 | `lost_proxy_eval.csv`、`lost_proxy_detail.csv` | `rust/core/examples/lost_proxy_eval.rs` | 术不传之段（观象 807—821、奉元 1075—1093、占天 1103—1105、淳祐 1252、会天 1253—1270、本天 1277—1279）诸代推候选与张表：本纪明书朔、本纪閏月、本纪纪日在月、实物逐项汇总与不同之条 |
