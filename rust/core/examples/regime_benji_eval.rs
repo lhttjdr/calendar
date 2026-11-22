@@ -60,7 +60,11 @@ struct Stat {
 }
 
 fn main() {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    // 仓库根：当前目录是仓库根（有 data/calendar/本纪纪日）时取之（worktree 共用 target 时编译期路径指向别处），否则按编译期路径
+    let root = std::env::current_dir()
+        .ok()
+        .filter(|d| d.join("data/calendar/本纪纪日").is_dir())
+        .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."));
     let read = |p: &str| std::fs::read_to_string(root.join(p)).unwrap();
     let zhang = ShuoriTable::from_csv(&read("vendor/calendar/chinese_calendar/实历朔日表.csv")).unwrap();
     let mut files: Vec<_> = std::fs::read_dir(root.join("data/calendar/本纪纪日"))
