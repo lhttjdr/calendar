@@ -258,3 +258,42 @@ for k in H:
 with open(ROOT / "doc/calendar/baoshan-checks.md", "a", encoding="utf-8") as f:
     f.write("\n".join(zmd) + "\n")
 print("致胙之岁", len(zhi), "剔除", [(r["month"], r["gz"], r["jian"]) for r in drop])
+
+# ---- 相位窗口：四分术平朔、颛顼月序（冬至在十一月、年终闰），合朔相对颛顼历平朔偏移 δ，各岁所有纪日皆合的 δ 范围
+import math
+from fractions import Fraction as Fr
+_L, _S, _E, _Y0 = Fr(27759, 940), Fr(1461, 4), Fr(1587781) - Fr(1, 2), -365
+
+
+def _ten(Y):
+    return math.floor(((Y - _Y0) * _S - 3 * _S / 24) / _L) - 1
+
+
+def _ok(Y, n, g, k):
+    i = _ten(Y) + (n - 1)
+    d0 = Fr(k, 940)
+    a = math.floor(_E + i * _L + d0 + Fr(1, 2))
+    b = math.floor(_E + (i + 1) * _L + d0 + Fr(1, 2))
+    return any((d + 49) % 60 == g for d in range(a, b))
+
+
+KS = range(-940, 2 * 940, 2)
+win = {}
+for key in sorted({r["sui"] for r in known}):
+    items = [(r["sui_year"], r["month_no"], GZ.index(r["gz"])) for r in known if r["sui"] == key]
+    ok = [k for k in KS if all(_ok(Y, n, g, k) for Y, n, g in items)]
+    win[key] = (min(ok) / 940, max(ok) / 940, len(items)) if ok else None
+lo = max(w[0] for w in win.values() if w)
+hi = min(w[1] for w in win.values() if w)
+OFF = {"颛顼历": 0.0, "殷历": 0.323, "鲁历": 0.378, "夏历（雨水历元）": 0.404, "周历": -0.426, "黄帝历": -0.480, "夏历（冬至历元）": -0.535}
+pw = ["", "## 相位窗口（书岁之条）", "",
+      "四分术各历朔策相同，月序、闰法同颛顼历时只差合朔相位。设楚历平朔 = 颛顼历平朔 + δ，求各岁纪日皆合的 δ 范围（步长 2/940 日）。"
+      "各历 δ：颛顼 0、殷 +7.8 时、鲁 +9.1 时、夏（雨水历元）+9.7 时、周 −10.2 时、黄帝 −11.5 时、夏（冬至历元）−12.8 时。", "",
+      "| 岁（系年） | 条数 | δ 下限（时） | δ 上限（时） |", "|---|---|---|---|"]
+for key, w in win.items():
+    pw.append(f"| {key} | {w[2] if w else '—'} | {w[0]*24:+.1f} | {w[1]*24:+.1f} |" if w else f"| {key} | — | 无 | 无 |")
+pw += ["", f"交集 δ ∈ [{lo*24:+.1f}, {hi*24:+.1f}] 时；在内者：" + "、".join(k for k, v in OFF.items() if lo <= v <= hi) +
+       "。上限由鲁阳公之岁简 4「屈柰之月丁巳之日」一条定（系年取前 320；取前 319、前 322 则此条不限上界），下限由归胙之岁 79 条定。"]
+with open(ROOT / "doc/calendar/baoshan-checks.md", "a", encoding="utf-8") as f:
+    f.write("\n".join(pw) + "\n")
+print("相位窗口", lo * 24, hi * 24, {k: v for k, v in win.items()})
