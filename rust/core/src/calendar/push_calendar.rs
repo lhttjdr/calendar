@@ -347,7 +347,7 @@ pub fn regime_calendars() -> Vec<(&'static str, i32, i32, RegimeYearFn)> {
         ("夏历", super::guliuli::year_months(super::guliuli::Liu::Xia, y, super::guliuli::Runfa::Nianzhong))
     }
     // 楚：包山楚简纪日检验（doc/calendar/zhanguo-calendars.md「楚」、doc/calendar/baoshan-checks.md）：楚正月（冬柰）当夏正十月，
-    // 颛顼历合 141/148（含致胙之岁所䛠名单），殷、鲁 140，周、黄帝 136，夏 132；只接包山简所在之岁（前 322—前 316）。月序为楚月序（冬柰 = 1 …… 献马 = 12），
+    // 以《包山楚简》原书释文校正后，书岁 87 条颛顼历全合，殷、鲁 86，周 85；只接包山简所在之岁（前 322—前 316）。月序为楚月序（冬柰 = 1 …… 献马 = 12），
     // 年为楚岁（冬柰岁首，同秦十月岁首）；年终之闰记闰十二月（献马后）
     fn chu(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
         let ms = super::zhuanxu::jianhai_year_months(y)

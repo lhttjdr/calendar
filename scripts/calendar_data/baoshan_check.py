@@ -79,25 +79,34 @@ for m in mon_re.finditer(s):
     ctx = s[max(0, m.start() - 20):d.end() + 10].replace("\n", "").replace(",", "，")
     recs.append(dict(sui=sui[0] if sui else "", sui_year=(sui[1] if sui[1] is not None else "?") if sui else "", month_no=MONTHS[k][1], month=MONTHS[k][2],
                      gz=d.group(1), jian=jian.group(1) if jian else "", ctx=ctx))
-# 所䛠名单（简 161—196，「東周之客……至(致)作(胙)於𦳦(栽)郢之歲」下各官所䛠之人，按月、日先后列）：月名 + 一串干支
-SUOFU_MONTHS = [("峣昺", 4, "荆𡰥"), ("夏昺", 5, "夏𡰥"), ("亯月", 6, "享月"), ("夏⟨E12E⟩", 7, "夏柰"), ("八月", 8, "八月"),
-                ("九月", 9, "九月"), ("十月", 10, "十月"), ("⟨E268⟩月", 11, "爨月")]
-seg = s[s.index("#161#") - 300:s.index("==二 卜筮祭禱記録==")]
-seg = seg.replace("㫳", "辰").replace("晨(辰)", "辰").replace("晨", "辰").replace("梄(酉)", "酉").replace("乙梄", "乙酉")
-tok_re = re.compile("|".join("(" + re.escape(p) + ")" for p, _, _ in SUOFU_MONTHS) + "|(" + "|".join(GZ) + ")[，；：]|#(\\d+)#")
-cur, jian, suofu = None, "161", []
-for m in tok_re.finditer(seg):
-    if m.lastindex <= len(SUOFU_MONTHS) and m.group(m.lastindex):
-        cur = SUOFU_MONTHS[m.lastindex - 1]
-        continue
-    if m.group(len(SUOFU_MONTHS) + 2):
-        jian = str(int(m.group(len(SUOFU_MONTHS) + 2)) + 1)
-        continue
-    g = m.group(len(SUOFU_MONTHS) + 1)
-    if g and cur:
-        suofu.append(dict(sui="东周之客许缊致胙于栽郢之岁", sui_year="zhi", month_no=cur[1], month=cur[2], gz=g, jian=jian,
-                          ctx="所䛠：" + cur[2] + g))
-recs += suofu
+# 所䛠名单（简 162—196）：据原书释文转录（data/calendar/baoshan_suofu.csv），属归胙之岁；不用维基文库录文（首简误作「致」、
+# 简 170「爨月己亥」误作九月、简 177「爨月己亥」误作乙亥，后几单有错漏）
+recs = [r for r in recs if not (r["jian"].isdigit() and 161 <= int(r["jian"]) <= 197)]
+MNO = {"荆𡰥": 4, "夏𡰥": 5, "享月": 6, "夏柰": 7, "八月": 8, "九月": 9, "十月": 10, "爨月": 11}
+for r in csv.DictReader(l for l in open(ROOT / "data/calendar/baoshan_suofu.csv", encoding="utf-8") if not l.startswith("#")):
+    recs.append(dict(sui="东周之客许缊归胙于栽郢之岁", sui_year=-316, month_no=MNO[r["月"]], month=r["月"], gz=r["干支"], jian=r["简"],
+                     ctx="所䛠（" + r["名单"] + "）：" + r["月"] + r["干支"]))
+
+# 依原书释文（文物出版社 1991）校改维基文库录文：(简, 原月, 原干支) → 改（月, 干支, 岁, 岁年），注页码
+FIX = {
+    ("132", "夏𡰥", "癸巳"): ("荆𡰥", "癸巳", None, None, "书页 26「宋客盛公鷃之歲，型（荆）尸之月癸巳之日」；图版字形同简 197「荆」"),
+    ("141", "爨月", "己巳"): ("爨月", "乙巳", None, None, "书页 27「爨月乙巳之日」（图版字形近「己」，从原书释文，存疑）"),
+    ("128", "夏𡰥", "己酉"): ("夏𡰥", "己酉", "东周之客许缊致胙于栽郢之岁", "zhi", "简 126—128 同一案，致胙之岁"),
+    ("128反", "夏𡰥", "癸卯"): ("夏𡰥", "癸卯", "东周之客许缊致胙于栽郢之岁", "zhi", "同上"),
+    ("121", "享月", "丁巳"): ("享月", "丁巳", "囗客监𠤳逅楚之岁", "?", "简 120—121 同一案，系年不明之岁"),
+}
+for r in recs:
+    k = (r["jian"], r["month"], r["gz"])
+    if k in FIX:
+        m, g, sui, sy, note = FIX[k]
+        r.update(month=m, month_no=MNO.get(m, r["month_no"]), gz=g, ctx=r["ctx"] + "；校：" + note)
+        if sui:
+            r.update(sui=sui, sui_year=sy)
+# 录文漏抽而原书明书月名之条（岁不明）
+for m, g, j, note in [("十月", "壬午", "59", "书页 20：九月戊午之日……受期，十月壬午之日不以廷（录文误抄简 60）"),
+                      ("荆𡰥", "辛巳", "85", "书页 22：荆𡰥之月辛巳之日，跨宙公……（所讼）"),
+                      ("八月", "乙亥", "19", "书页 18：夏柰之月乙丑之日……受期，八月乙亥之日不……（录文脱「之日」）")]:
+    recs.append(dict(sui="", sui_year="", month_no=MNO.get(m, 8), month=m, gz=g, jian=j, ctx="原书补：" + note))
 
 # 同岁同月同干支重出者（卜筮祭祷简多次贞问同一日）只计一次
 seen, uniq = set(), []
@@ -190,6 +199,7 @@ for r in known + unknown:
     lines.append("| " + " | ".join([r["sui"] or "（岁不明，按前 317 年）", r["month"], r["gz"], r["jian"]] + [str(x) if x else "—" for x in p]) + " |")
 md = ["# 包山楚简纪日检验（生成文件）", "",
       "> 由 `scripts/calendar_data/baoshan_check.py` 生成，勿手改。方法与结论见 [zhanguo-calendars.md](./zhanguo-calendars.md)「楚：包山楚简检验」。", "",
+      "底本：维基文库录文抽出，所䛠名单（简 162—196）改用《包山楚简》（1991）释文转录，录文讹误依原书校改（见 zhanguo-calendars.md「录文校勘」）。"
       "主假设：楚正月（冬柰）当夏正十月，楚岁以冬柰为首；各岁系年依《包山楚墓》（转引），岁不明之条（多为受期简）按前 317 年。"
       "表中数字为该干支是该历所记之月的第几日，「—」为不在此月。", "",
       "| 岁 | 楚月 | 干支 | 简 | " + " | ".join(k[0] for k in H) + " |", "|" + "---|" * (4 + len(H))]
@@ -210,8 +220,8 @@ zm = collections.defaultdict(list)
 for r in zhi:
     zm[r["month_no"]].append(r)
 zmd = ["", "## 致胙之岁（分开系年）", "",
-       "简 12、126、209 及所䛠名单（简 161—196）作「東周之客……至(致)作(胙)於栽郢之歲」，与他简「䢜(歸)胙」分开，年份不预设、逐年扫描。"
-       "所䛠名单各官所䛠之人按月、日先后列，月名后接一串干支。", "",
+       "据原书释文，作「東周之客鄦緝至（致）胙於栽郢之歲」者只简 12、126—128（同一案）、209；所䛠名单（简 162—196）首简作「歸（归）胙」，"
+       "属归胙之岁（维基文库录文误作「至(致)」，2026-11-22 据原书改）。致胙之岁年份不预设、逐年扫描。", "",
        "### 组内检验：同月各干支的最小跨度（须 ≤ 29 日方能同在一月）", "", "| 楚月 | 条数 | 跨度（日） | 干支（简） |", "|---|---|---|---|"]
 for n in sorted(zm):
     ix = [GZ.index(r["gz"]) for r in zm[n]]
