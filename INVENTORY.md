@@ -66,7 +66,7 @@
 | `lifa` | 第 4 层（仲裁/路由层）：中原一线行用之历与历日来源次序（`resolve_year`、`ZhongyuanPreference`），敦煌逐月取舍，历法总表解析 |
 | `month_labels` | 第 3 层：历史月序改制（秦汉初十月岁首、后九月，新莽/景初建丑、武周/肃宗末建子）当时月名 ↔ 张表建寅月，`data/calendar/month_label_reforms.csv` |
 | `push_calendar` | 平朔+无中气置闰（首个无中气月为闰），各历术 `LiParams` 预设；`regime_year_months` 导出 `data/calendar/推步政权朔日表.csv` |
-| `guliuli` | 战国汉传六历整数推步（子正四历、夏历寅正正月含雨水；年终闰／年中无中气两法，以《中国古代历法》表 3-17、3-18 核对）与春秋鲁历（张培瑜表 3-7）；按国别接入 `push_calendar::regime_calendars` |
+| `guliuli` | 战国汉传六历整数推步（子正四历、夏历寅正正月含雨水；年终闰／年中无中气两法，以《中国古代历法》表 3-17、3-18 核对）与春秋鲁历（张培瑜表 3-7）；按国别接入 `push_calendar::regime_calendars`（鲁、秦、魏、楚）；`examples/guliuli_months_export.rs` 导出月表供包山楚简检验 |
 | `zhuanxu` | 秦汉初颛顼历按术推步（前 366 年甲寅蔀首，冬至在十一月→文帝后元起雨水在正月置闰，后九月；以张培瑜等《中国古代历法》表 3-19—3-22 核对） |
 | `qinhan_restore` | 第 2 层今人历表：李忠林秦汉初复原历（−220—−104，张表以前中原一线取之；与 `scripts/calendar_data/qinhan_eval/hzx.py` 同） |
 | `options` / `system` | 选项与历法系统 |

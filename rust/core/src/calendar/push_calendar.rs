@@ -346,38 +346,21 @@ pub fn regime_calendars() -> Vec<(&'static str, i32, i32, RegimeYearFn)> {
     fn wei_xia(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
         ("夏历", super::guliuli::year_months(super::guliuli::Liu::Xia, y, super::guliuli::Runfa::Nianzhong))
     }
-    // 汉传古六历（战国，各国用何历多无明证）：各历照术推出，供对照；子正四历与夏历年终闰，颛顼历十月岁首
-    fn gl(li: super::guliuli::Liu, y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
-        (li.name(), super::guliuli::year_months(li, y, super::guliuli::Runfa::Nianzhong))
-    }
-    fn gl_huangdi(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
-        gl(super::guliuli::Liu::Huangdi, y)
-    }
-    fn gl_zhou(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
-        gl(super::guliuli::Liu::Zhou, y)
-    }
-    fn gl_yin(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
-        gl(super::guliuli::Liu::Yin, y)
-    }
-    fn gl_lu(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
-        gl(super::guliuli::Liu::Lu, y)
-    }
-    fn gl_xia(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
-        gl(super::guliuli::Liu::Xia, y)
-    }
-    fn gl_zhuanxu(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
-        ("颛顼历", super::zhuanxu::jianhai_year_months(y))
+    // 楚：包山楚简纪日检验（doc/calendar/zhanguo-calendars.md「楚」、doc/calendar/baoshan-checks.md）：楚正月（冬柰）当夏正十月，
+    // 颛顼历合 68/77，殷、鲁 67，周、黄帝 65，夏 60；只接包山简所在之岁（前 322—前 316）。月序为楚月序（冬柰 = 1 …… 献马 = 12），
+    // 年为楚岁（冬柰岁首，同秦十月岁首）；年终之闰记闰十二月（献马后）
+    fn chu(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        let ms = super::zhuanxu::jianhai_year_months(y)
+            .into_iter()
+            .map(|(j, m, l)| (j, if l { 12 } else if m >= 10 { m - 9 } else { m + 3 }, l))
+            .collect();
+        ("颛顼历（包山楚简检验，冬柰当夏正十月）", ms)
     }
     vec![
         ("鲁", super::guliuli::CHUNQIU_FIRST_YEAR, -479, lu_chunqiu),
         ("秦", -305, -221, qin_zhuanxu),
         ("魏", -275, -242, wei_xia),
-        ("战国·黄帝历（对照）", -480, -221, gl_huangdi),
-        ("战国·颛顼历（对照）", -480, -221, gl_zhuanxu),
-        ("战国·夏历（对照）", -480, -221, gl_xia),
-        ("战国·殷历（对照）", -480, -221, gl_yin),
-        ("战国·周历（对照）", -480, -221, gl_zhou),
-        ("战国·鲁历（对照）", -480, -221, gl_lu),
+        ("楚", -321, -315, chu),
         ("南明/南明·绍武/鲁监国/明郑", 1645, 1683, nanming),
         ("辽", 947, 1087, liao),
         ("民间通书", 1914, 1938, minjian),
@@ -706,6 +689,16 @@ mod tests {
     }
 
     /// 精确平朔诸历的上元：只由术文积年与甲子日定出（不借历表），钉住其儒略日数；上元皆甲子日
+    /// 楚（包山楚简检验）：鲁阳公以楚师后城郑之岁（前 320）「屈柰之月，丁巳之日」（简 4）为该月朔日；冬柰当夏正十月
+    #[test]
+    fn chu_baoshan() {
+        let (_, m) = regime_year_months("楚", -319).unwrap();
+        let qu = m.iter().find(|e| e.1 == 2 && !e.2).unwrap();
+        assert_eq!(crate::calendar::gan_zhi::GAN_ZHI_60[(qu.0 + 49).rem_euclid(60) as usize], "丁巳");
+        assert_eq!(m[0].1, 1, "冬柰为岁首");
+        assert!(regime_year_months("战国·周历（对照）", -300).is_none(), "对照政权已撤");
+    }
+
     #[test]
     fn exact_pingli_epochs() {
         for (li, e) in [(santong_exact(), -50593729), (yuanjia_exact(), -200089), (daming_zu_exact(), -17080189), (daye_exact(), -519493909)] {
