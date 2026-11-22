@@ -1447,7 +1447,7 @@ function App() {
                     style={{ width: '100%', marginTop: 4 }}
                   />
                   <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
-                    逐历：以本纪明书朔日检验，推步不低于张表之历取推步，余取张培瑜《三千五百年历日天象》；实物历日总是优先，都无则现算
+                    逐历：以本纪明书朔日检验，推步不低于张表之历取推步，余取张培瑜《三千五百年历日天象》（前 106 年以前的秦汉初取李忠林复原历）；实物历日总是优先，都无则现算
                   </Text>
                 </div>
                 <div>

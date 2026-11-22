@@ -44,5 +44,7 @@ pub mod month_labels;
 pub mod options;
 pub mod pingqi;
 pub mod push_calendar;
+pub mod qinhan_restore;
 pub mod system;
 pub mod timekeeping;
+pub mod zhuanxu;

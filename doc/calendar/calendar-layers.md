@@ -7,8 +7,8 @@
 
 | 层 | 内容 | 文件 |
 |----|------|------|
-| 1 独立基础层（不依赖天文） | JD↔儒略历/格里高利历；各朝代古历分数推步（平朔平气，仅作验证）；干支纯循环命名；历法换算选项 | `gregorian.rs`、`ancient_restore.rs`、`push_calendar.rs`、`daming_li.rs`、`gan_zhi.rs`、`options.rs` |
-| 2 聚合/实算层（依赖天文的朔、气） | 某一部历某农历年的具体历日（朔+中气），按来源分实物历日、按术推步、今人历表、现算 | `artifacts.rs`（实物历日）、`push_calendar.rs`（按术推步，兼第 1 层历谱生成）、`historical.rs`（今人历表：张培瑜）、`chinese_lunar.rs`（现算真朔真气）、`dunhuang.rs`（敦煌出土历日有据之月）；干支历"节气派"（`gan_zhi_options.rs` 一支） |
+| 1 独立基础层（不依赖天文） | JD↔儒略历/格里高利历；各朝代古历分数推步（平朔平气，仅作验证）；干支纯循环命名；历法换算选项 | `gregorian.rs`、`ancient_restore.rs`、`push_calendar.rs`、`zhuanxu.rs`（秦汉初颛顼历）、`daming_li.rs`、`gan_zhi.rs`、`options.rs` |
+| 2 聚合/实算层（依赖天文的朔、气） | 某一部历某农历年的具体历日（朔+中气），按来源分实物历日、按术推步、今人历表、现算 | `artifacts.rs`（实物历日）、`push_calendar.rs`（按术推步，兼第 1 层历谱生成）、`historical.rs`（今人历表：张培瑜）、`qinhan_restore.rs`（今人历表：李忠林秦汉初复原，张表以前）、`chinese_lunar.rs`（现算真朔真气）、`dunhuang.rs`（敦煌出土历日有据之月）；干支历"节气派"（`gan_zhi_options.rs` 一支） |
 | 3 派生层（依赖第 2 层产出） | 政权·帝王·年号纪年；干支历"农历派" | `era_names.rs`、`era_gaiyuan.rs`、`month_labels.rs`；干支历"农历派"（`gan_zhi_options.rs` 另一支） |
 | 4 仲裁/路由层 | 某农历年行用哪部历、历日取哪一级来源；敦煌有据之月与中原历逐月取舍 | `lifa.rs`（`ZhongyuanCalendarPeriods`、`resolve_year`/`RiliSource`、`resolve_dunhuang_day`、`LifaRegistry`）；`convert.rs` 调用之 |
 | 契约层（不计入四层） | `CalendarSystem` trait，JD↔各历法日期互转的通用接口，被第 1/2 层各历法系统实现 | `system.rs` |
@@ -59,7 +59,7 @@
 **概念**：依赖第 2 层的产出（农历年数、朔日、正月初一），不直接依赖天文。
 
 **包含**：
-- **历史月序改制**（`month_labels.rs`）：第 2 层中原一线历日一律按建寅编月；新莽、魏景初建丑，武周、唐肃宗末建子，当时月名不同（武周有「腊月」「一月」，肃宗以「建子月」等斗建为名）。本模块按政权把建寅月换成当时月名、或反向，只做命名，不改朔日。数据 `data/calendar/month_label_reforms.csv`，史料与规则见 [historical-calendar.md](./historical-calendar.md)「月序改制」。
+- **历史月序改制**（`month_labels.rs`）：第 2 层中原一线历日一律按建寅编月；秦与汉初十月岁首、闰称后九月，新莽、魏景初建丑，武周、唐肃宗末建子，当时月名不同（武周有「腊月」「一月」，肃宗以「建子月」等斗建为名）。本模块按政权把建寅月换成当时月名、或反向，只做命名，不改朔日。数据 `data/calendar/month_label_reforms.csv`，史料与规则见 [historical-calendar.md](./historical-calendar.md)「月序改制」。
 - **政权·帝王·年号纪年**（`era_names.rs`+`era_gaiyuan.rs`）：依附在历法之上的纪年体系，按政权划分。同一时刻在不同政权下可有不同「朝代·帝王·年号·年数」，同一年可能有多个并存政权（如三国期间魏/蜀/吴），[`EraNames::get_all`] 返回全部，[`EraNames::get_primary`] 返回"正统主线"一条。
 - **干支历"农历派"**（`gan_zhi_options.rs` 另一支）：年界=正月初一零点、月界=每月初一零点，依赖第 2 层算出的朔/正月边界。
 

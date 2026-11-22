@@ -368,6 +368,12 @@ ziOffset 将「子月起」的月序映射到各历正月：-1=正月亥（闰�
 
 **朔策**：$\mathrm{lunar} = 29 + 499/940$（同四分）。**历元分三段**（出土历简复原）：y≥-162 用 Calendar C（jdEpoch=1646163.5001，accMonEpoch=321）；-201<y<-162 用 B（1633701.5001，174）；y≤-201 用 A（1589523.5001，1670）。**19 年章**：闰周 leapCycle、accMonCycle；$\mathrm{accMons} = 235\,\lfloor (y-\mathrm{yEpochLeap})/19 \rfloor + \mathrm{accMonCycle}[\mathrm{yInCycle}] + \mathrm{accMonEpoch}$，闰 = leapCycle[yInCycle]。正月朔 $\mathrm{m0} = \mathrm{accMons}\,\mathrm{lunar} + \mathrm{jdEpoch}$。月序：十月、十一月、十二月、正月…九月、后九月（闰）。y=-201 时前三月用 B 的 m0，第 4 月起改用 $1633701.5001 + 470\,\mathrm{lunar}$。
 
+本项目 Rust 实现：`calendar::qinhan_restore`（整数运算，作中原一线张表以前的今人历表，2026-11-22）。
+
+### 5.4 颛顼历推步（本项目，`calendar::zhuanxu`）
+
+四分术，时刻以 1/22560 日为单位（朔策 27759/940、岁实 1461/4、气策 1461/96 皆为整数）。蔀首：前 366 年（天文 −365）正月甲寅日（JDN 1587781）夜半朔旦立春，第 $i$ 朔在 $\lfloor i\cdot 27759/940floor$ 日。建亥年 $Y$ 的十月朔序号：$Y < -162$ 时为含冬至（立春前 3 气策）之朔减 1，$Y \ge -162$ 时为含雨水（立春后 1 气策）之朔减 3，「含」按平朔、平气时刻比较；$Y$ 年十月至 $Y+1$ 年十月间 13 月者第 13 月为后九月。夏正年 $y$ = 建亥年 $y$ 的正月至九月（后九月记闰九月）＋建亥年 $y+1$ 的十至十二月。依据与核验见 [qin-han-calendar-evaluation.md](./qin-han-calendar-evaluation.md) 第六节。
+
 ---
 
 ## 六、张表与按政权/时期的推步对应
@@ -380,7 +386,7 @@ ziOffset 将「子月起」的月序映射到各历正月：-1=正月亥（闰�
 |-----------|----------|-----------|
 | 春秋 722–481 BCE | 推步 | 春秋历 chunqiu_cmonth；或古六历 周历 guliuli_calendar_cmonth(Zhou) |
 | 战国 480–222 BCE | 推步 | 古六历 周/鲁/黄帝/殷/夏/颛顼 guliuli_calendar_cmonth(li) |
-| 秦与汉初 -221～-104 | 推步 | HanZhuanXu（出土历简复原，建亥、后九月） |
+| 秦与汉初 -221～-104 | 推步 | HanZhuanXu（出土历简复原，建亥、后九月）；本项目另有颛顼历按术推步（5.4），缺省取复原 |
 | -105～2200（张表） | 预存表 | ChineseToGregorian（实历） |
 | 魏 220–265 | 张表 | 同上 |
 | 蜀 221–263 | 推步 | Sifen 四分 |
