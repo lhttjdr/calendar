@@ -53,6 +53,9 @@ SUI = [
     ("於栽郢之⟨E1FF⟩(歲)", "东周之客许缊归胙于栽郢之岁", -316),
     ("於𦳦(栽)郢之⟨E1FF⟩(歲)", "东周之客许缊归胙于栽郢之岁", -316),
     ("郙之⟨E1FF⟩(歲)", "大司马悼滑救郙之岁", -315),
+    # 系年不明之岁：单列，不计入任何一组
+    ("監𠤳逅楚之⟨E1FF⟩(歲)", "囗客监𠤳逅楚之岁", None),
+    ("甘𠤳之⟨E1FF⟩(歲)", "甘𠤳之岁", None),
 ]
 mon_re = re.compile("|".join("(" + p + ")" for p, _, _ in MONTHS))
 day_re = re.compile(r"\s*[，、]?\s*(?:#[^#]+#)?\s*(" + "|".join(GZ) + r")\s*(?:#[^#]+#)?\s*之日")
@@ -70,7 +73,7 @@ for m in mon_re.finditer(s):
             sui = (name, y)
     jian = re.search(r"#([^#]+)#", s[m.start():m.start() + 200])
     ctx = s[max(0, m.start() - 20):d.end() + 10].replace("\n", "").replace(",", "，")
-    recs.append(dict(sui=sui[0] if sui else "", sui_year=sui[1] if sui else "", month_no=MONTHS[k][1], month=MONTHS[k][2],
+    recs.append(dict(sui=sui[0] if sui else "", sui_year=(sui[1] if sui[1] is not None else "?") if sui else "", month_no=MONTHS[k][1], month=MONTHS[k][2],
                      gz=d.group(1), jian=jian.group(1) if jian else "", ctx=ctx))
 # 同岁同月同干支重出者（卜筮祭祷简多次贞问同一日）只计一次
 seen, uniq = set(), []
@@ -102,8 +105,9 @@ def hit(months, y_xia, h, gzi):
 
 
 rows = []
-known = [r for r in uniq if r["sui_year"] != ""]
+known = [r for r in uniq if r["sui_year"] not in ("", "?")]
 unknown = [r for r in uniq if r["sui_year"] == ""]
+other = [r for r in uniq if r["sui_year"] == "?"]
 for (name, rf), months in cal.items():
     for m0 in (9, 10, 11, 12, 1):
         for off in (-2, -1, 0, 1, 2):
@@ -132,7 +136,7 @@ with open(ROOT / "data/calendar/baoshan_check.csv", "w", encoding="utf-8", newli
     w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
     w.writeheader()
     w.writerows(rows)
-print("纪日", len(recs), "去重", len(uniq), "有岁", len(known), "岁不明", len(unknown))
+print("纪日", len(recs), "去重", len(uniq), "有岁", len(known), "岁不明", len(unknown), "系年不明之岁（不计）", len(other))
 for r in rows[:25]:
     print(r)
 
@@ -151,7 +155,7 @@ def day_in(months, y, h, g):
 
 tot = [0] * len(H)
 lines = []
-for r in uniq:
+for r in known + unknown:
     Y = r["sui_year"] if r["sui_year"] != "" else -316
     h = (9 + r["month_no"] - 1) % 12 + 1
     y_xia = Y - 1 if h >= 10 else Y
@@ -165,7 +169,7 @@ md = ["# 包山楚简纪日检验（生成文件）", "",
       "表中数字为该干支是该历所记之月的第几日，「—」为不在此月。", "",
       "| 岁 | 楚月 | 干支 | 简 | " + " | ".join(k[0] for k in H) + " |", "|" + "---|" * (4 + len(H))]
 md += lines
-md += ["| 合计 |  |  | " + str(len(uniq)) + " | " + " | ".join(str(x) for x in tot) + " |", "", "## 各假设合数", "",
+md += ["| 合计 |  |  | " + str(len(known) + len(unknown)) + " | " + " | ".join(str(x) for x in tot) + " |", "", "## 各假设合数", "",
        "| 历 | 闰法 | 冬柰当夏正 | 系年平移 | 有岁（合/条） | 岁不明最佳年（合/条） | 最佳年 |", "|---|---|---|---|---|---|---|"]
 for r in rows[:40]:
     md.append(f"| {r['历']} | {r['闰法']} | {r['冬柰当夏正']} 月 | {r['系年平移']:+d} | {r['有岁合']}/{r['有岁条数']} | {r['岁不明最佳年合']}/{r['岁不明条数']} | {r['岁不明最佳年']} |")
