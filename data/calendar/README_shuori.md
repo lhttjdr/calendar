@@ -159,7 +159,7 @@
 
 （「推步」「实历」等术语与证据层级见 `doc/calendar/calendar-compendium.md`。）
 
-张表以外、按推步得出的各政权逐月朔日：蜀（四分历 221–263）、吴（乾象历 222–280）、后秦（三纪历 384–416）、北凉（玄始历 398–439）、
+张表以外、按推步得出的各政权逐月朔日：鲁（春秋历，张培瑜表 3-7，前 722–前 480）、秦（颛顼历，前 306–前 222，十月岁首，lunar_year 为纪年年，闰九月即后九月）、魏（夏历，前 276–前 243）、楚（颛顼历，前 322–前 316，包山楚简检验，月序为楚月序冬柰 = 1）、西夏（1120–1207，彭向前整理之 Инв.No.8085 等历书，见 `doc/calendar/xixia-calendar.md`），这几项月序为当时月名，见 `doc/calendar/zhanguo-calendars.md`；蜀（四分历 221–263）、吴（乾象历 222–280）、后秦（三纪历 384–416）、北凉（玄始历 398–439）、
 北魏—西魏—北周—隋（景初、玄始、正光、天和、大象、开皇历 398–590；559–565 年明克让等周历术不传，以正光历代推，calendar 列作「明克让等周历（术不传，以正光历代推）」）、东魏—北齐（正光、兴和、天保历 534–577）、金（重修大明历定朔、进朔 1137–1234，1182 年前杨级历以之代推）、辽（947–1087，调元历与贾俊大明历术不传，以宣明历定朔、进朔代推，calendar 列作「调元历（宣明气朔）」「大明历（贾俊，以宣明代推）」；1088 年后闰位从宋，不推）、南明（大统历 1645–1683）、民间通书（1914–1938）。
 由 `rust/core/examples/export_regime_calendars.rs` 从 `calendar::push_calendar`（平朔、平气、无中气置闰，见
 `doc/calendar/push-algorithms.md`；金为定朔、恒气置闰，`calendar::daming_li`，见 `doc/calendar/historical-calendar.md`「金大明历」；辽见 `doc/calendar/calendar-compendium.md`「辽」）
@@ -346,6 +346,10 @@ in_month（日干支在该历所记之月）、jdn、julian、position（原文�
 | `tongjian_mulu_807_821.csv` | 转录（2026-11-21） | 司马光《资治通鉴目录》（朔闰据刘羲叟《长历》）807—821 年朔闰栏，维基共享资源 SSID-12318604 卷22-24 PDF 看图转录，按「未列之月 = 上月 + 30 日」展开，逐月对照张表、正元推步（代推观象）与新旧唐书本纪明书朔；`scripts/calendar_data/tongjian_mulu_guanxiang.py` 生成 |
 | `lirui_buxiu_constants.csv` | 转录（2026-11-21） | 清李锐《补修宋奉元术》《补修宋占天术》步气朔常数（积年、日法、岁周、朔实等）与原文，附自洽检验说明；《元史》卷五十三所列积年有讹 |
 | `hanshu_qinhan_benji.csv` | 转录（2026-11-22） | 《汉书》本纪卷一至卷六（高帝至太初元年四月）「某月某干支」纪日 81 条（书朔、晦 18），维基文库底本；纪年年（建亥）换为夏正年月（十至十二月属上一夏正年，后九月记闰九月）；`scripts/calendar_data/qinhan_eval/hanshu_benji_records.py` 生成 |
+| `xixia_song_shuorun.csv` | 转录（2026-11-22） | 彭向前《俄藏西夏历日文献整理研究》（2018）「西夏历与宋历朔闰对照表（1120—1207）」书页 469—514，1088 月：宋历与西夏历月序、大小、朔日、二历异同、文献；宋朔JDN 取张表，夏朔JDN 由干支差推得；「核」列注看图补录与书误。`scripts/calendar_data/xixia_songli_table.py`（OCR 后按坐标还原） |
+| `baoshan_records.csv` | 转录（2026-11-22） | 包山楚简明书「月名 + 干支之日」纪日 77 条（维基文库录文抽出，同岁同月同干支只留一条），岁名与《包山楚墓》系年；`scripts/calendar_data/baoshan_check.py` 生成 |
+| `baoshan_check.csv` | 检验（2026-11-22） | 包山纪日对汉传六历、颛顼历，按楚正月当夏正某月、系年平移各假设的合数；同上脚本 |
+| `guliuli_months_350_300.csv` | 推步（2026-11-22） | 前 341—前 300 年汉传六历（年终闰、无中气闰）与颛顼历逐月朔，月序换为夏正编号；`rust/core/examples/guliuli_months_export.rs` 导出 |
 | `qinhan_benji_check.csv` | 检验（2026-11-22） | 上表逐条对颛顼历推步（`calendar::zhuanxu`）与李忠林复原历（`calendar::qinhan_restore`）：该月朔、合否（书朔须恰为朔日，书晦须为末日，余者在月内）；`rust/core/examples/zhongyuan_reckoning_eval.rs` 生成 |
 | `lost_proxy_eval.csv`、`lost_proxy_detail.csv` | `rust/core/examples/lost_proxy_eval.rs` | 术不传之段（观象 807—821、奉元 1075—1093、占天 1103—1105、淳祐 1252、会天 1253—1270、本天 1277—1279）诸代推候选与张表：本纪明书朔、本纪閏月、本纪纪日在月、实物逐项汇总与不同之条 |
 | `zhongyuan_reckoning_eval.csv` | `rust/core/examples/zhongyuan_reckoning_eval.rs` | 中原一线逐历：月数、与张表同日之月、闰位不同之岁、本纪明书朔日条数、合推步、合张表、只合其一 |

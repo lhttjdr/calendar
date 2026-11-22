@@ -332,7 +332,40 @@ pub fn regime_calendars() -> Vec<(&'static str, i32, i32, RegimeYearFn)> {
         let months = super::dingshuo::reckon_year_any("宣明历（辽）", y).unwrap_or_default();
         (if y < 994 { "调元历（宣明气朔）" } else { "大明历（贾俊，以宣明代推）" }, months)
     }
+    // 春秋鲁历：张培瑜表 3-7 据《春秋》历日排定（今人拟合，非术文推步），月序为鲁国当时月名，闰在岁末（闰十二月）。
+    // 见 super::guliuli 与 doc/calendar/zhanguo-calendars.md
+    fn lu_chunqiu(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        ("春秋历（张培瑜表 3-7）", super::guliuli::chunqiu_year_months(y))
+    }
+    // 秦：昭王时已行颛顼历（云梦秦简后九月、《编年记》历日，张培瑜等《中国古代历法》书页 211），十月岁首，
+    // 年为纪年年（建亥），月序为当时月名，闰称后九月（记作闰九月）
+    fn qin_zhuanxu(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        ("颛顼历", super::zhuanxu::jianhai_year_months(y))
+    }
+    // 魏：安釐王时行夏历（云梦秦简《为吏之道》附魏户律「廿五年閏再十二月丙午朔」，同书书页 211、232—234），寅正，年终闰
+    fn wei_xia(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        ("夏历", super::guliuli::year_months(super::guliuli::Liu::Xia, y, super::guliuli::Runfa::Nianzhong))
+    }
+    // 楚：包山楚简纪日检验（doc/calendar/zhanguo-calendars.md「楚」、doc/calendar/baoshan-checks.md）：楚正月（冬柰）当夏正十月，
+    // 颛顼历合 68/77，殷、鲁 67，周、黄帝 65，夏 60；只接包山简所在之岁（前 322—前 316）。月序为楚月序（冬柰 = 1 …… 献马 = 12），
+    // 年为楚岁（冬柰岁首，同秦十月岁首）；年终之闰记闰十二月（献马后）
+    fn chu(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        let ms = super::zhuanxu::jianhai_year_months(y)
+            .into_iter()
+            .map(|(j, m, l)| (j, if l { 12 } else if m >= 10 { m - 9 } else { m + 3 }, l))
+            .collect();
+        ("颛顼历（包山楚简检验，冬柰当夏正十月）", ms)
+    }
+    // 西夏（1120—1207）：俄藏 Инв.No.8085 等历书，彭向前 2018 整理的西夏历朔闰；西夏朔日原缺之月以宋历代（super::xixia）
+    fn xixia(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        ("西夏历（Инв.No.8085 等，彭向前整理）", super::xixia::year_months(y))
+    }
     vec![
+        ("鲁", super::guliuli::CHUNQIU_FIRST_YEAR, -479, lu_chunqiu),
+        ("秦", -305, -221, qin_zhuanxu),
+        ("魏", -275, -242, wei_xia),
+        ("楚", -321, -315, chu),
+        ("西夏", 1120, 1207, xixia),
         ("南明/南明·绍武/鲁监国/明郑", 1645, 1683, nanming),
         ("辽", 947, 1087, liao),
         ("民间通书", 1914, 1938, minjian),
@@ -661,6 +694,16 @@ mod tests {
     }
 
     /// 精确平朔诸历的上元：只由术文积年与甲子日定出（不借历表），钉住其儒略日数；上元皆甲子日
+    /// 楚（包山楚简检验）：鲁阳公以楚师后城郑之岁（前 320）「屈柰之月，丁巳之日」（简 4）为该月朔日；冬柰当夏正十月
+    #[test]
+    fn chu_baoshan() {
+        let (_, m) = regime_year_months("楚", -319).unwrap();
+        let qu = m.iter().find(|e| e.1 == 2 && !e.2).unwrap();
+        assert_eq!(crate::calendar::gan_zhi::GAN_ZHI_60[(qu.0 + 49).rem_euclid(60) as usize], "丁巳");
+        assert_eq!(m[0].1, 1, "冬柰为岁首");
+        assert!(regime_year_months("战国·周历（对照）", -300).is_none(), "对照政权已撤");
+    }
+
     #[test]
     fn exact_pingli_epochs() {
         for (li, e) in [(santong_exact(), -50593729), (yuanjia_exact(), -200089), (daming_zu_exact(), -17080189), (daye_exact(), -519493909)] {
