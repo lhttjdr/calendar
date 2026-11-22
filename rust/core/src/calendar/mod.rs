@@ -42,6 +42,7 @@ pub mod guliuli;
 pub mod historical;
 pub mod jindai;
 pub mod lifa;
+pub mod liu_changli;
 pub mod month_labels;
 pub mod options;
 pub mod pingqi;

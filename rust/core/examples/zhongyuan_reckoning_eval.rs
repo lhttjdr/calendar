@@ -96,6 +96,9 @@ fn main() {
     let head = rows.iter().find(|r| r.first().is_some_and(|c| c == "书")).unwrap().clone();
     let col = |n: &str| head.iter().position(|h| h == n).unwrap();
     let (cb, cy, cm, cr, ct, ck, cx, cs) = (col("书"), col("年"), col("月"), col("本纪朔 JDN"), col("张表朔 JDN"), col("类"), col("原文"), col("政权"));
+    // 史载例外表中「本纪」类所改之朔日
+    let benji_fix_jdn: std::collections::BTreeSet<i64> =
+        lunar_core::calendar::dingshuo::shizai_liwai().iter().filter(|r| r.4 == "本纪" && !r.3).map(|r| r.2).collect();
     // 已考讹误的本纪朔日：不作证据，另计
     let errata: std::collections::BTreeSet<(String, String, String)> = parse_csv(&read("data/calendar/benji_shuo_errata.csv"))
         .into_iter()
@@ -152,6 +155,8 @@ fn main() {
             s.hit_t += ht as usize;
             s.only_r += (hr && !ht) as usize;
             s.only_t += (ht && !hr) as usize;
+            // 合推步而该月朔是史载例外表「本纪」类所改（推步临限、只有本纪可从）：另计，「本纪合推步」减去即纯推步之合数
+            s.benji_fix += (hr && benji_fix_jdn.contains(&rec)) as usize;
         }
         if hr != ht || rj != tj {
             let g = |j: Option<i64>| j.map_or("—", gz);
@@ -205,16 +210,6 @@ fn main() {
             }
         }
         std::fs::write(root.join("data/calendar/qinhan_benji_check.csv"), per).unwrap();
-    }
-    // 史载例外表中「本纪」类之条（推步临限、只有本纪可从）：取用历日已按本纪修正，另计，「本纪合推步」减去即纯推步之合数
-    for (_, y, _, _, cat) in lunar_core::calendar::dingshuo::shizai_liwai() {
-        if cat != "本纪" {
-            continue;
-        }
-        let name = periods.name_for_lunar_year(*y);
-        if let Some(s) = first_year.get(name).and_then(|fy| stats.get_mut(&(*fy, name))) {
-            s.benji_fix += 1;
-        }
     }
     let mut out = String::from("历,起,止,月数,与张表同,闰位不同之岁,本纪条数,本纪合推步,本纪合张表,只合推步,只合张表,已考讹不计,从本纪修正\n");
     for ((_, name), s) in &stats {

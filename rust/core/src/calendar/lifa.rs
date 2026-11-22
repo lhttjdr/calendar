@@ -112,6 +112,9 @@ pub enum RiliSource {
     Artifact(&'static str),
     /// 按术推步：本项目按该历术文推算（第 4 级），值为历名。
     Reckoned(&'static str),
+    /// 古人长历：前人推排而出处、作者、年代明确的历表（如北宋刘羲叟《长历》，[super::liu_changli]），只用于术不传、推不出之段，
+    /// 先于今人历表。仍是推排结果，不是当时历日；可靠性低于按术推步，高于说不出依据的今人历表。
+    AncientTable(&'static str),
     /// 今人历表（第 5 级），值为表名（[super::historical::ZHANG_TABLE_NAME]）。
     ModernTable(&'static str),
     /// 现代定气定朔现算：历表与推步都不覆盖的年份（秦统一以前、2200 年以后），或 2017 年起行用的现行农历（GB/T 33661）本身。
@@ -124,6 +127,7 @@ impl RiliSource {
         match self {
             RiliSource::Artifact(n) => format!("实物历日（{n}）"),
             RiliSource::Reckoned(n) => format!("按术推步（{n}）"),
+            RiliSource::AncientTable(n) => format!("古人长历（{n}）"),
             RiliSource::ModernTable(n) => format!("今人历表（{n}）"),
             RiliSource::Computed => "现代定气定朔".to_string(),
         }
@@ -182,7 +186,12 @@ pub fn zhongyuan_year_months(
     if pref != ZhongyuanPreference::ModernTable && name.starts_with(MODERN_RULE_PREFIX) {
         return None;
     }
-    let reckon = || Some((super::push_calendar::reckon_lifa_year(name, lunar_year)?, RiliSource::Reckoned(name)));
+    // 术不传而推不出之段先取古人长历（观象 807—821：刘羲叟《长历》），在推步之后、今人历表之前
+    let reckon = || {
+        super::push_calendar::reckon_lifa_year(name, lunar_year)
+            .map(|m| (m, RiliSource::Reckoned(name)))
+            .or_else(|| super::liu_changli::year_months(lunar_year).map(|m| (m, RiliSource::AncientTable(super::liu_changli::LIU_CHANGLI_NAME))))
+    };
     // 今人历表：张表；张表不覆盖之年（前 106 年以前的秦汉初）取李忠林复原历（[super::qinhan_restore]，前 106—前 105 年与张表全同）
     let from_table = || {
         table
@@ -599,7 +608,7 @@ shoushi,授时历,1281,,元,郭守敬,儒略历+格里高利历,lifa_tongzhi
         for w in p.rows.windows(2) {
             assert_eq!(w[0].1.map(|t| t + 1), Some(w[1].0), "年段须首尾相接：{:?}", w[0]);
         }
-        for (y, n) in [(700, "麟德历"), (1066, "明天历"), (1130, "历术失载"), (1700, "时宪历"), (1667, "大统历（康熙复用）"), (1730, "时宪历（历象考成）"), (1800, "时宪历（历象考成后编）"), (1912, "中华民国历书（沿用历象考成后编）"), (1930, "国民历"), (2026, "农历（GB/T 33661—2017）")] {
+        for (y, n) in [(700, "麟德历"), (1066, "明天历"), (1130, "历术失载（以纪元历代推）"), (1700, "时宪历"), (1667, "大统历（康熙复用）"), (1730, "时宪历（历象考成）"), (1800, "时宪历（历象考成后编）"), (1912, "中华民国历书（沿用历象考成后编）"), (1930, "国民历"), (2026, "农历（GB/T 33661—2017）")] {
             assert_eq!(p.name_for_lunar_year(y), n);
         }
         assert_eq!(p.name_for_lunar_year(-500), CALENDAR_NAME_COMPUTED);
@@ -637,6 +646,17 @@ shoushi,授时历,1281,,元,郭守敬,儒略历+格里高利历,lifa_tongzhi
             crate::calendar::gan_zhi::GAN_ZHI_60[(j + 49).rem_euclid(60) as usize]
         };
         assert_eq!([gz(826, 5), gz(834, 6), gz(974, 5), gz(1652, 9), gz(1662, 1)], ["戊辰", "庚辰", "戊申", "庚午", "乙亥"]);
+        // 术不传三段（2026-11-22）：观象取古人长历（刘羲叟《长历》），奉元取李锐补修复原，南渡初取纪元代推；张表优先时仍取张表
+        assert_eq!(src(815, r), Some(RiliSource::AncientTable(crate::calendar::liu_changli::LIU_CHANGLI_NAME)));
+        assert_eq!(src(815, all), Some(RiliSource::AncientTable(crate::calendar::liu_changli::LIU_CHANGLI_NAME)));
+        assert_eq!(src(815, ZhongyuanPreference::ModernTable), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)));
+        assert_eq!(src(1080, r), Some(RiliSource::Reckoned("奉元历（术不传，李锐补修气朔、借观天日月改正）")));
+        assert_eq!(src(1130, r), Some(RiliSource::Reckoned("历术失载（以纪元历代推）")));
+        assert_eq!(
+            [gz(1093, 9), gz(1129, 4), gz(813, 6), gz(821, 12)],
+            ["丙子", "戊申", "壬午", "甲子"],
+            "史载修正：奉元 1093 年九月、南渡初 1129 年四月、观象 813 年六月（大农陂记）、821 年十二月"
+        );
         assert_eq!(src(-104, r), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)), "元封六年，颛顼历推步不及张表");
         assert_eq!(src(-104, all), Some(RiliSource::Reckoned("颛顼历（秦汉初）")));
         assert_eq!(src(-103, r), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)), "太初元年：前四月颛顼推步不及张表");

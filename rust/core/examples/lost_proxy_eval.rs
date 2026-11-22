@@ -8,8 +8,12 @@ use lunar_core::calendar::artifacts::zhongyuan_artifact_year;
 use lunar_core::calendar::dingshuo::reckon_year_any;
 use lunar_core::calendar::song_early;
 
-/// 候选推步：宋初诸历（应天等）之代推走 song_early，余走 dingshuo
+/// 候选推步：宋初诸历（应天等）之代推走 song_early，观象段古人长历走 liu_changli，余走 dingshuo
 fn reckon(name: &str, y: i32) -> Option<Vec<(i64, u8, bool)>> {
+    if name == lunar_core::calendar::liu_changli::LIU_CHANGLI_NAME {
+        // 观象段古人长历：刘羲叟《长历》（《通鉴目录》）加史载修正，与代推同列检验
+        return lunar_core::calendar::liu_changli::year_months(y);
+    }
     if name.starts_with("应天历") { song_early::reckon_year(name, y) } else { reckon_year_any(name, y) }
 }
 use lunar_core::calendar::gan_zhi::GAN_ZHI_60;
@@ -61,7 +65,7 @@ const SEGS: &[Seg] = &[
         years: (807, 821),
         regime: "唐",
         books: &["jiutangshu_benji", "xintangshu_benji"],
-        candidates: &["正元历（代推观象）", "宣明历（代推观象）", "正元历（宣明进朔，代推观象）", "正元历（四分之三进朔，代推观象）"],
+        candidates: &["正元历（代推观象）", "宣明历（代推观象）", "正元历（宣明进朔，代推观象）", "正元历（四分之三进朔，代推观象）", "刘羲叟《长历》（《资治通鉴目录》）"],
     },
     Seg {
         name: "会天历",
@@ -71,7 +75,7 @@ const SEGS: &[Seg] = &[
         candidates: &["开禧历（代推会天）", "成天历（代推会天）"],
     },
     Seg { name: "钦天历", years: (957, 963), regime: "", books: &["jiuwudaishi_benji", "xinwudaishi_benji", "songshi_benji"], candidates: &["宣明历（代推钦天）", "应天历（代推钦天）"] },
-    Seg { name: "奉元历", years: (1075, 1093), regime: "宋", books: &["songshi_benji"], candidates: &["崇天历（代推奉元）", "明天历（代推奉元）", "观天历（代推奉元）"] },
+    Seg { name: "奉元历", years: (1075, 1093), regime: "宋", books: &["songshi_benji"], candidates: &["崇天历（代推奉元）", "明天历（代推奉元）", "观天历（代推奉元）", "奉元历（李锐补修气朔，借观天日月改正）"] },
     Seg { name: "占天历", years: (1103, 1105), regime: "宋", books: &["songshi_benji"], candidates: &["观天历（代推占天）", "纪元历（代推占天）"] },
     Seg { name: "淳祐历", years: (1252, 1252), regime: "宋", books: &["songshi_benji"], candidates: &["开禧历（代推淳祐）"] },
     Seg { name: "戊寅元历（武德）", years: (619, 626), regime: "唐", books: &["jiutangshu_benji", "xintangshu_benji"], candidates: &["戊寅元历（代推武德）"] },

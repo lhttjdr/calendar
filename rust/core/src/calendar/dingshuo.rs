@@ -1810,6 +1810,82 @@ impl Song {
     }
 }
 
+/// 奉元历（1075—1093）补表复原：经朔、恒气用清李锐《补修宋奉元术》所补步气朔常数（`data/calendar/lirui_buxiu_constants.csv`：
+/// 元法 23700、岁周 8656273、朔实 699875、演纪上元甲子距熙宁七年甲寅 83185070 算外）；奉元日躔、月离与进朔术不传，
+/// 定朔改正（定朔 − 经朔）、进朔限、日出与交会借观天历（同一时刻折算到观天日法）。奉元「視《明天曆》數減二刻」
+/// （《古今图书集成·历法典》第七十六卷），借明天、崇天改正亦试过，本纪合数不及观天（doc/calendar/calendar-compendium.md「奉元」）。
+struct FengyuanBuxiu {
+    base: Song,
+    off: i64,
+}
+
+const FY_F: i64 = 23700;
+const FY_SUI: i64 = 8656273;
+const FY_SHUO: i64 = 699875;
+const FY_JI: i64 = 83185070;
+const FY_Y_JI: i32 = 1074;
+
+impl FengyuanBuxiu {
+    fn new() -> Self {
+        let base = song("观天", 12030, 4393880, q(355253), qr(3314820389, 10000), 5944808, 1092, 0, false, None, (1091, 12, 16));
+        let dz = fl(&(Self::tong(FY_Y_JI) / q(FY_F)));
+        let off = align_offset(dz, gregorian::civil_to_jdn(1073, 12, 15));
+        FengyuanBuxiu { base, off }
+    }
+    fn tong(y: i32) -> Q {
+        q(FY_SUI * (FY_JI + (y - FY_Y_JI) as i64))
+    }
+    /// 本历之分 → 观天之分（同一时刻）
+    fn to_base(&self, t: &Q) -> Q {
+        (t / q(FY_F) + q(self.off - self.base.off)) * q(self.base.f)
+    }
+    /// 冬至岁 y 第 m 月对应的观天月序（经朔最近者）
+    fn base_m(&self, y: i32, m: i64) -> i64 {
+        let jing = self.to_base(&self.month_jing(y, m));
+        (m - 1..=m + 1)
+            .filter(|&k| k >= 0)
+            .min_by_key(|&k| (DingshuoLi::month(&self.base, y, k).0 - &jing).abs())
+            .unwrap()
+    }
+    fn month_jing(&self, y: i32, m: i64) -> Q {
+        let tong = Self::tong(y);
+        &tong - md(&tong, &q(FY_SHUO)) + q(m * FY_SHUO)
+    }
+}
+
+impl DingshuoLi for FengyuanBuxiu {
+    fn f(&self) -> i64 {
+        FY_F
+    }
+    fn off(&self) -> i64 {
+        self.off
+    }
+    fn sui(&self) -> Q {
+        q(FY_SUI)
+    }
+    fn dongzhi(&self, y: i32) -> Q {
+        Self::tong(y)
+    }
+    fn month(&self, y: i32, m: i64) -> (Q, Q) {
+        let jing = self.month_jing(y, m);
+        let (bj, bd) = DingshuoLi::month(&self.base, y, self.base_m(y, m));
+        let ding = &jing + (bd - bj) * q(FY_F) / q(self.base.f);
+        (jing, ding)
+    }
+    fn jinshuo_limit(&self, y: i32, t: &Q) -> Option<Q> {
+        DingshuoLi::jinshuo_limit(&self.base, y, &self.to_base(t)).map(|l| l * q(FY_F) / q(self.base.f))
+    }
+    fn sunrise(&self, y: i32, t: &Q) -> Option<Q> {
+        DingshuoLi::sunrise(&self.base, y, &self.to_base(t))
+    }
+    fn jiao(&self, y: i32, m: i64) -> Option<Jiaohui> {
+        DingshuoLi::jiao(&self.base, y, self.base_m(y, m))
+    }
+    fn rishi(&self, y: i32, m: i64) -> Option<Rishi> {
+        DingshuoLi::rishi(&self.base, y, self.base_m(y, m))
+    }
+}
+
 /// 明天历（周琮）：日月皆用公式，不用立成表（《宋史》卷七十四、七十五）
 struct Mingtian {
     off: i64,
@@ -2266,6 +2342,8 @@ const REGIME_REGISTRY: &[(&str, &[(i32, i32)])] = &[
     ("观天历（代推奉元）", &[(1075, 1093)]),
     // 《古今图书集成·历法典》第七十六卷：奉元「視《明天曆》數減二刻」而成，明天亦作候选。
     ("明天历（代推奉元）", &[(1075, 1093)]),
+    // 李锐《补修宋奉元术》补出步气朔常数（经朔、恒气），定朔改正与进朔借观天（[FengyuanBuxiu]）：七闰全合宋历，中原一线取此
+    ("奉元历（李锐补修气朔，借观天日月改正）", &[(1075, 1093)]),
     // 占天历（1103—1105）：术不传；前观天、后纪元并作候选。
     ("观天历（代推占天）", &[(1103, 1105)]),
     ("纪元历（代推占天）", &[(1103, 1105)]),
@@ -2398,6 +2476,7 @@ fn build_paiyue(name: &str, o: &PaiyueOptions) -> Option<Paiyue> {
         ),
         "崇天历（代推奉元）" => Paiyue::new(song("崇天", 10590, 3867940, q(312729), qr(2918030594, 10000), 97556340, 1024, 0, true, None, (1023, 12, 18)), &["崇天历（代推奉元）"], song_r),
         "观天历（代推奉元）" => Paiyue::new(song("观天", 12030, 4393880, q(355253), qr(3314820389, 10000), 5944808, 1092, 0, false, None, (1091, 12, 16)), &["观天历（代推奉元）"], song_r),
+        "奉元历（李锐补修气朔，借观天日月改正）" => Paiyue::new(FengyuanBuxiu::new(), &["奉元历（李锐补修气朔，借观天日月改正）"], song_r),
         "观天历（代推占天）" => Paiyue::new(song("观天", 12030, 4393880, q(355253), qr(3314820389, 10000), 5944808, 1092, 0, false, None, (1091, 12, 16)), &["观天历（代推占天）"], song_r),
         "纪元历（代推占天）" => Paiyue::new(song("纪元", 7290, 2662626, q(215278), qr(2008730990, 10000), 28613466, 1106, 15, false, None, (1105, 12, 16)), &["纪元历（代推占天）"], song_r),
         "开禧历（代推淳祐）" => Paiyue::new(song("开禧", 16900, 6172608, q(499067), qr(4656725396, 10000), 7848183, 1207, 0, false, None, (1206, 12, 15)), &["开禧历（代推淳祐）"], song_r),
@@ -2681,6 +2760,8 @@ mod tests {
             let months = reckon_year(c[0], y)
                 .or_else(|| reckon_year_any(c[0], y))
                 .or_else(|| crate::calendar::push_calendar::reckon_lifa_year(c[0], y))
+                // 观象段古人长历（刘羲叟《长历》）的修正
+                .or_else(|| (c[0] == crate::calendar::liu_changli::LIU_CHANGLI_NAME).then(|| crate::calendar::liu_changli::year_months(y)).flatten())
                 .unwrap();
             assert!(months.contains(&(jdn, m, leap)), "{} {y} 年 {m} 月：{months:?}", c[0]);
             n += 1;
