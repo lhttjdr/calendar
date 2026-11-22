@@ -127,3 +127,34 @@ for key, rs in keep.items():
     print(key, n_all, n_bs, "颛顼", zx, "殷", yin)
 
 (ROOT / "doc/calendar/xincai-checks.md").write_text("\n".join(md) + "\n", encoding="utf-8")
+
+# 3. 独立系年：宋华强《新蔡葛陵楚简初探》（武汉大学出版社 2010）第三章（书页 120—135），不用历日的两条前提：
+#    (a) 「大莫敖阳为晋师战于长城之岁」= 前 403 年（李学勤以羌钟、古本《竹书纪年》晋烈公十二年系之于前 404，
+#        宋华强据楚简以前一年之事纪年改为前 403），且王徙于鄩郢之岁是九岁中最晚者（整理者据病情记录）→ 不早于前 403；
+#    (b) 祭祷先王止于声王、不见悼王，悼王时尚在世（宋华强书页 124—125）→ 不晚于前 381（悼王卒年）。
+#    宋氏另据世系与骨骼年龄推前 401—前 395，范围更窄、前提更多，只作参照。
+#    宋氏又把无岁名的零 200、323「夏柰之月丙辰之日」归入此岁（书页 122—123），作为附加之条另算。
+md2 = ["", "## 独立系年下的王徙于鄩郢之岁", "",
+       "前提（不用历日）：宋华强《新蔡葛陵楚简初探》（2010）第三章——(a) 长城之岁 = 前 403 年且王徙之岁为诸岁最晚 → 不早于前 403；"
+       "(b) 祭祷先王止于声王、悼王尚在 → 不晚于前 381。宋氏据世系与骨骼年龄更推前 401—前 395，只作参照。"
+       "刘信芳、李学勤定前 377、刘彬徽定前 398，都是拿历日查历表所得，此处不用（会循环）。", "",
+       "| 年 | 条件 | δ 窗口（时） | 窗口内之历 |", "|---|---|---|---|"]
+wx = [(int(r["月序"]), GZ.index(r["干支"])) for r in keep["王徙于鄩郢之岁"]]
+extra = (7, GZ.index("丙辰"))
+adm = []
+for Y in range(1 - 403, 1 - 381 + 1):
+    for label, items in (("19 条", wx), ("19 条 + 零 200、323 夏柰丙辰", wx + [extra])):
+        good = [k for k in KS if all(ok(Y, n, g, k) for n, g in items)]
+        if good:
+            cals = [c for c, v in OFF.items() if good[0] / 940 <= v <= good[-1] / 940]
+            md2.append(f"| {yname(Y)} | {label} | [{hours(good[0]):+.1f}, {hours(good[-1]):+.1f}] | {'、'.join(cals) or '—'} |")
+            if label == "19 条":
+                adm.append((Y, good, cals))
+# 与包山强层（归胙之岁 δ ∈ [−8.4, +28.3] 时）合
+both = [(Y, max(good[0] / 940, BAOSHAN[0]), min(good[-1] / 940, BAOSHAN[1])) for Y, good, _ in adm
+        if good[-1] / 940 >= BAOSHAN[0] and good[0] / 940 <= BAOSHAN[1]]
+md2 += ["", "前 403—前 381 年间可合者只上表诸年；与包山归胙之岁 79 条定的 δ ∈ [−8.4, +28.3] 时相交者只：" +
+        "；".join(f"{yname(Y)} δ ∈ [{a*24:+.1f}, {b*24:+.1f}] 时，在内者 {'、'.join(c for c, v in OFF.items() if a <= v <= b) or '无'}" for Y, a, b in both) + "。", ""]
+with open(ROOT / "doc/calendar/xincai-checks.md", "a", encoding="utf-8") as f:
+    f.write("\n".join(md2) + "\n")
+print("独立系年", [(yname(Y), c) for Y, _, c in adm], both)
