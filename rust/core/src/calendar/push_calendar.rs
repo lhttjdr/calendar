@@ -332,7 +332,52 @@ pub fn regime_calendars() -> Vec<(&'static str, i32, i32, RegimeYearFn)> {
         let months = super::dingshuo::reckon_year_any("宣明历（辽）", y).unwrap_or_default();
         (if y < 994 { "调元历（宣明气朔）" } else { "大明历（贾俊，以宣明代推）" }, months)
     }
+    // 春秋鲁历：张培瑜表 3-7 据《春秋》历日排定（今人拟合，非术文推步），月序为鲁国当时月名，闰在岁末（闰十二月）。
+    // 见 super::guliuli 与 doc/calendar/zhanguo-calendars.md
+    fn lu_chunqiu(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        ("春秋历（张培瑜表 3-7）", super::guliuli::chunqiu_year_months(y))
+    }
+    // 秦：昭王时已行颛顼历（云梦秦简后九月、《编年记》历日，张培瑜等《中国古代历法》书页 211），十月岁首，
+    // 年为纪年年（建亥），月序为当时月名，闰称后九月（记作闰九月）
+    fn qin_zhuanxu(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        ("颛顼历", super::zhuanxu::jianhai_year_months(y))
+    }
+    // 魏：安釐王时行夏历（云梦秦简《为吏之道》附魏户律「廿五年閏再十二月丙午朔」，同书书页 211、232—234），寅正，年终闰
+    fn wei_xia(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        ("夏历", super::guliuli::year_months(super::guliuli::Liu::Xia, y, super::guliuli::Runfa::Nianzhong))
+    }
+    // 汉传古六历（战国，各国用何历多无明证）：各历照术推出，供对照；子正四历与夏历年终闰，颛顼历十月岁首
+    fn gl(li: super::guliuli::Liu, y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        (li.name(), super::guliuli::year_months(li, y, super::guliuli::Runfa::Nianzhong))
+    }
+    fn gl_huangdi(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        gl(super::guliuli::Liu::Huangdi, y)
+    }
+    fn gl_zhou(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        gl(super::guliuli::Liu::Zhou, y)
+    }
+    fn gl_yin(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        gl(super::guliuli::Liu::Yin, y)
+    }
+    fn gl_lu(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        gl(super::guliuli::Liu::Lu, y)
+    }
+    fn gl_xia(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        gl(super::guliuli::Liu::Xia, y)
+    }
+    fn gl_zhuanxu(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        ("颛顼历", super::zhuanxu::jianhai_year_months(y))
+    }
     vec![
+        ("鲁", super::guliuli::CHUNQIU_FIRST_YEAR, -479, lu_chunqiu),
+        ("秦", -305, -221, qin_zhuanxu),
+        ("魏", -275, -242, wei_xia),
+        ("战国·黄帝历（对照）", -480, -221, gl_huangdi),
+        ("战国·颛顼历（对照）", -480, -221, gl_zhuanxu),
+        ("战国·夏历（对照）", -480, -221, gl_xia),
+        ("战国·殷历（对照）", -480, -221, gl_yin),
+        ("战国·周历（对照）", -480, -221, gl_zhou),
+        ("战国·鲁历（对照）", -480, -221, gl_lu),
         ("南明/南明·绍武/鲁监国/明郑", 1645, 1683, nanming),
         ("辽", 947, 1087, liao),
         ("民间通书", 1914, 1938, minjian),

@@ -50,6 +50,7 @@
 | [calendar-compendium.md](calendar/calendar-compendium.md) | 历代历法总录：总表与已复原定朔历（戊寅、麟德、大衍、五纪、正元、宣明、崇玄、金大明）的常数、表、算法、检验；辽（调元、贾俊大明以宣明代推，947—1087） |
 | [calendar-source-texts.md](calendar/calendar-source-texts.md) | 历法原文摘录（脚本生成）：唐诸历、重修大明历、庚午元历表、《辽史》大明历 |
 | [push-algorithms.md](calendar/push-algorithms.md) | 各朝代/政权历法推步算法与历术参数总结 |
+| [zhanguo-calendars.md](calendar/zhanguo-calendars.md) | 春秋鲁历与战国古六历按国别接入：各国用历证据（秦颛顼、魏夏历、楚有争议）、汉传六历整数推步与《中国古代历法》表 3-17/3-18 逐格核对、年终闰与年中无中气两种闰法 |
 | [qin-han-calendar-evaluation.md](calendar/qin-han-calendar-evaluation.md) | 秦与汉初（前221—太初元年四月）历法复原接入评估：与张表衔接、《汉书》检验、待补的日月食与出土材料验证 |
 
 ## 三、工程实现（`engineering/`）

@@ -38,6 +38,7 @@ pub mod era_names;
 pub mod gan_zhi;
 pub mod gan_zhi_options;
 pub mod gregorian;
+pub mod guliuli;
 pub mod historical;
 pub mod lifa;
 pub mod month_labels;
