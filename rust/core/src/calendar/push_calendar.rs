@@ -276,6 +276,8 @@ fn reckon_lifa_year_raw(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, boo
         "时宪历（历象考成）" => return Some(super::shixian_kaocheng::year_months(lunar_year)),
         // 清《历象考成后编》（民国元年、二年历书沿用）
         "时宪历（历象考成后编）" | "中华民国历书（沿用历象考成后编）" => return Some(super::shixian::year_months(lunar_year)),
+        // 民国三年（1914）至 2016：按当时编算规则（定气定朔、各年段定日基准）现算之月表
+        n if super::jindai::JINDAI_LIFA.contains(&n) => return super::jindai::year_months(lunar_year),
         // 会天历术不传，1253—1270 以开禧历代推（1270 年史载改闰入例外表）
         "会天历（术不传，以开禧历代推）" => return super::dingshuo::reckon_year_any("开禧历（代推会天）", lunar_year),
         // 占天（1103—1105）、淳祐（1252）、本天（1277—1279）术不传，各以纪元、开禧、成天代推（本纪检验与张表持平）

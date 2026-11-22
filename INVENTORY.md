@@ -70,6 +70,7 @@
 | `xixia` | 西夏历日 1120—1207（彭向前 2018 整理之 Инв.No.8085 等，`data/calendar/xixia_song_shuorun.csv` 内嵌；待考之月以宋历代） |
 | `zhuanxu` | 秦汉初颛顼历按术推步（前 366 年甲寅蔀首，冬至在十一月→文帝后元起雨水在正月置闰，后九月；以张培瑜等《中国古代历法》表 3-19—3-22 核对） |
 | `qinhan_restore` | 第 2 层今人历表：李忠林秦汉初复原历（−220—−104，张表以前中原一线取之；与 `scripts/calendar_data/qinhan_eval/hzx.py` 同） |
+| `jindai` | 第 2 层：近现代中原一线 1914—2016 按当时编算规则现算之月表（定气定朔；1914—1927 北京地方平时、1928 起东经 120°），月表 `data/calendar/jindai_months.csv` 由 `examples/jindai_months.rs` 生成，经 `push_calendar::reckon_lifa_year` 供仲裁；依据见 `doc/calendar/jindai-calendar.md` |
 | `options` / `system` | 选项与历法系统 |
 
 ---

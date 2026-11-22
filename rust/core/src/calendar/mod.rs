@@ -40,6 +40,7 @@ pub mod gan_zhi_options;
 pub mod gregorian;
 pub mod guliuli;
 pub mod historical;
+pub mod jindai;
 pub mod lifa;
 pub mod month_labels;
 pub mod options;

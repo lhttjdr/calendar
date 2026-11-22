@@ -650,7 +650,8 @@ shoushi,授时历,1281,,元,郭守敬,儒略历+格里高利历,lifa_tongzhi
         assert_eq!(src(600, r), Some(RiliSource::Reckoned("张胄玄历（开皇十七年术不传，以大业历代推）")));
         assert_eq!(src(610, r), Some(RiliSource::Reckoned("大业历")));
         assert_eq!(src(-300, r), None);
-        assert_eq!(src(1915, r), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)), "民初历书编算法与今不同，取张表");
+        assert_eq!(src(1915, r), Some(RiliSource::Reckoned("中华民国历书（新法）")), "民初历书按当时规则（北京地方平时）现算");
+        assert_eq!(src(1915, ZhongyuanPreference::ModernTable), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)));
         assert_eq!(src(2026, r), None, "现行农历：推步优先即现算");
         assert_eq!(src(2026, ZhongyuanPreference::ModernTable), Some(RiliSource::ModernTable(ZHANG_TABLE_NAME)));
         assert_eq!(src(300, r), zhongyuan_year_months(None, 300, r).map(|r| r.1), "推步不依赖历表");

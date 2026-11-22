@@ -42,6 +42,8 @@
 | [calendar-layers.md](calendar/calendar-layers.md) | 历法域内部四层结构（独立基础层/聚合实算层/派生层/仲裁路由层），`rust/core/src/calendar/` 模块划分依据 |
 | [rili-genealogy.md](calendar/rili-genealogy.md) | 历表与历日资料的源流：实物历日汇编、古人复原（杜预、刘羲叟、汪曰桢等）、今人历表（陈垣、方诗铭、张培瑜、洪金富等）与其底本关系，今人历术复原，实物出处核查，待办 |
 | [rili-sources.md](calendar/rili-sources.md) | 历日的来源与取舍（中原一线）：实物历日、按术推步、今人历表（张培瑜，撤「张表」概念）、现算的次序与选项，张表来历，推步与张表逐月差异，同类著作 |
+| [jindai-calendar.md](calendar/jindai-calendar.md) | 近现代中原一线历日（1914—2016）：按当时编算规则现算（定气定朔，北京地方平时 / 东经 120°），依据（三年历书凡例、陈展云、天文研究所《天文年历》1930 南京平时、1931 起东经 120°、商务本 1940 东经 105°）、1924 年起官历不载旧历、1923 年官历 12 朔逐月核对、存疑之月 |
+| [jindai-checks.md](calendar/jindai-checks.md) | 近现代历日逐月检验（生成文件）：1274 月与张表、与另一定日基准之比较，合朔/中气近子夜者 |
 | [historical-calendar.md](calendar/historical-calendar.md) | 实历模块：历史朔日表、优先实历的公历↔农历换算 |
 | [benji-checks.md](calendar/benji-checks.md) | 以本纪核验历日逐条结果（脚本生成）：明书朔日、实际合朔、閏月位置 |
 | [dunhuang-calendar.md](calendar/dunhuang-calendar.md) | 敦煌历日换算（吐蕃、归义军）：出土历日有据之月作「敦煌」政权历表，无据之月退回中原历的规则、纪年，比较表逐格重现检验 |
