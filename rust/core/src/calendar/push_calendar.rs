@@ -224,7 +224,7 @@ pub fn reckon_lifa_year(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, boo
 /// 史载例外（`data/calendar/dingshuo_exceptions.csv`）中历名即 `name` 的改朔之条，应用于推步结果：朔日与例外所记相差一日之月改作所记之日。
 /// 唐至明定朔诸历已在 [super::dingshuo] 排月时应用（此处相同即不动）；宋初应天等与清初新法无排月内的例外机制，在此应用。
 /// 改后相邻月长须仍为 29、30 日（「消息前後一兩月」之调整只在定朔诸历排月内做，此处出界即报错，须改由排月处理）。
-fn apply_shizai_liwai(name: &str, months: &mut [(i64, u8, bool)]) {
+pub(crate) fn apply_shizai_liwai(name: &str, months: &mut [(i64, u8, bool)]) {
     for (li, _, jdn, leap, _) in super::dingshuo::shizai_liwai() {
         if li != name || *leap {
             continue;
@@ -282,6 +282,11 @@ fn reckon_lifa_year_raw(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, boo
         "占天历（术不传，以纪元历代推）" => return super::dingshuo::reckon_year_any("纪元历（代推占天）", lunar_year),
         "淳祐历（术不传，以开禧历代推）" => return super::dingshuo::reckon_year_any("开禧历（代推淳祐）", lunar_year),
         "本天历（术不传，以成天历代推）" => return super::dingshuo::reckon_year_any("成天历（代推本天）", lunar_year),
+        // 奉元（1075—1093）：李锐补修气朔、借观天日月改正（dingshuo::FengyuanBuxiu）；南渡初（1128—1132）历术失载，前后皆纪元，以纪元代推
+        "奉元历（术不传，李锐补修气朔、借观天日月改正）" => {
+            return super::dingshuo::reckon_year_any("奉元历（李锐补修气朔，借观天日月改正）", lunar_year)
+        }
+        "历术失载（以纪元历代推）" => return super::dingshuo::reckon_year_any("纪元历（代推南渡初）", lunar_year),
         // 元初（1280）仍行金重修大明历
         "重修大明历" if lunar_year == 1280 => return Some(super::daming_li::year_months(lunar_year)),
         // 唐至明定朔诸历（限各历推步适用的年段）

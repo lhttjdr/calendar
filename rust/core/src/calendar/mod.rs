@@ -41,6 +41,7 @@ pub mod gregorian;
 pub mod guliuli;
 pub mod historical;
 pub mod lifa;
+pub mod liu_changli;
 pub mod month_labels;
 pub mod options;
 pub mod pingqi;
