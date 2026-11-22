@@ -52,6 +52,9 @@
 | [push-algorithms.md](calendar/push-algorithms.md) | 各朝代/政权历法推步算法与历术参数总结 |
 | [xixia-calendar.md](calendar/xixia-calendar.md) | 西夏历日 1120—1207：彭向前整理俄藏 Инв.No.8085 等历书之朔闰对照表转录、核对（宋历一栏与张表全合）、接入推步政权表 |
 | [baoshan-checks.md](calendar/baoshan-checks.md) | 包山楚简纪日逐条检验（生成文件）：77 条纪日在颛顼、殷、鲁、周、黄帝、夏诸历中为月中第几日，各假设合数 |
+| [xincai-checks.md](calendar/xincai-checks.md) | 新蔡葛陵楚简纪日检验（生成文件）：31 条岁名·月·干支，组内自洽、前 450—前 350 年逐年相位窗口 |
+| [chu-sky-checks.md](calendar/chu-sky-checks.md) | 楚简纪日与实际月相对照（生成文件）：包山 87 条、新蔡前 398 年 19 条在颛顼平朔与看天（合朔日 + 0/1/2 日）下逐条合否 |
+| [jiudian-yingshi-checks.md](calendar/jiudian-yingshi-checks.md) | 九店简 96「荆𡰥朔於营室」检验（生成文件）：前 350—前 250 逐年荆𡰥朔太阳赤经，亥正、丑正两假设下是否在营室 |
 | [zhanguo-calendars.md](calendar/zhanguo-calendars.md) | 春秋鲁历与战国古六历按国别接入：各国用历证据（秦颛顼、魏夏历、楚有争议）、汉传六历整数推步与《中国古代历法》表 3-17/3-18 逐格核对、年终闰与年中无中气两种闰法 |
 | [qin-han-calendar-evaluation.md](calendar/qin-han-calendar-evaluation.md) | 秦与汉初（前221—太初元年四月）历法复原接入评估：与张表衔接、《汉书》检验、待补的日月食与出土材料验证 |
 
