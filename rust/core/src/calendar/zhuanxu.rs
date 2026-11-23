@@ -19,9 +19,9 @@
 //! 本模块按术推步（第 4 级），由第 4 层 [super::lifa] 按本纪检验与今人复原比较取舍。
 
 /// 时刻单位：1/22560 日（940 与 96 的最小公倍数，朔策、岁实、气策都是整数）。
-const U: i64 = 22560;
+pub(crate) const U: i64 = 22560;
 /// 朔策 27759/940 日
-const LUNAR: i64 = 27759 * (U / 940);
+pub(crate) const LUNAR: i64 = 27759 * (U / 940);
 /// 岁实 1461/4 日
 const SOLAR: i64 = 1461 * (U / 4);
 /// 气策 = 岁实/24
@@ -39,7 +39,7 @@ fn shuo_jdn(i: i64) -> i64 {
 }
 
 /// 建亥年 Y（以其正月所在的夏正年记，即纪年年）十月朔的平朔序号。
-fn shiyue_index(y: i32) -> i64 {
+pub(crate) fn shiyue_index(y: i32) -> i64 {
     let since = (y - EPOCH_YEAR) as i64 * SOLAR;
     // (锚点气距立春的气策数, 锚点所在之月距十月的月数)：冬至在十一月 / 雨水在正月
     let (qi, months_after_shiyue) = if y >= YUSHUI_RULE_FROM { (1, 3) } else { (-3, 1) };

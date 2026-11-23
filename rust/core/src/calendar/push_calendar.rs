@@ -216,6 +216,66 @@ pub fn daye_exact() -> ExactPingLi {
 /// 平朔诸历在此；定朔诸历见 [super::dingshuo]。只收已实现、参数经术文核验之历（见 doc/calendar/calendar-compendium.md「平朔诸历：以术文核验」与
 /// doc/calendar/rili-sources.md）；其余返回 None，由第 4 层退到下一级来源。
 pub fn reckon_lifa_year(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, bool)>> {
+    let mut months = reckon_lifa_year_raw(name, lunar_year)?;
+    apply_shizai_liwai(name, &mut months);
+    Some(months)
+}
+
+/// 史载例外（`data/calendar/dingshuo_exceptions.csv`）中历名即 `name` 的改朔之条，应用于推步结果：朔日与例外所记相差一日之月改作所记之日。
+/// 唐至明定朔诸历已在 [super::dingshuo] 排月时应用（此处相同即不动）；宋初应天等与清初新法无排月内的例外机制，在此应用。
+/// 改后相邻月长须仍为 29、30 日（「消息前後一兩月」之调整只在定朔诸历排月内做，此处出界即报错，须改由排月处理）。
+/// 「置闰」之条（2026-11-22 起，分政权推步用，如金 1162 年閏二月、北周 562 年闰正）：见 [apply_shizai_leap]。
+pub(crate) fn apply_shizai_liwai(name: &str, months: &mut [(i64, u8, bool)]) {
+    let mut touched = Vec::new();
+    for (li, _, jdn, leap, _) in super::dingshuo::shizai_liwai() {
+        if li != name {
+            continue;
+        }
+        if *leap {
+            apply_shizai_leap(name, *jdn, months);
+            continue;
+        }
+        let Some(i) = months.iter().position(|m| (m.0 - jdn).abs() == 1) else { continue };
+        if months.iter().any(|m| m.0 == *jdn) {
+            continue;
+        }
+        months[i].0 = *jdn;
+        touched.push(i);
+    }
+    // 月长在全部修正应用之后检查：相邻数月须一并移日者（「消息前後」），逐条应用时中间状态会出界
+    for &i in &touched {
+        for k in i.max(1)..(i + 2).min(months.len()) {
+            let len = months[k].0 - months[k - 1].0;
+            assert!((29..=30).contains(&len), "{name} 例外 {}：改后月长 {len}", months[i].0);
+        }
+    }
+}
+
+/// 史载置闰（例外表「置闰」）应用于推步结果：朔日为 `jdn` 之月改为闰月（月序同前一月），推步原闰月改为平月，
+/// 两者之间诸月顺次重排月序；朔日不变。定朔诸历已在排月内置闰者（该月已是闰月）不动。
+/// 用于分政权（如北周保定二年闰正、四年闰九，天和二年闰六：本国史书所书闰位与推步不同）。
+fn apply_shizai_leap(name: &str, jdn: i64, months: &mut [(i64, u8, bool)]) {
+    let Some(i) = months.iter().position(|m| m.0 == jdn) else { return };
+    if months[i].2 {
+        return;
+    }
+    assert!(i >= 1, "{name} 置闰 {jdn}：闰月须在本岁首月之后");
+    let old = months.iter().position(|m| m.2).unwrap_or_else(|| panic!("{name} 置闰 {jdn}：推步本岁无闰，不能移闰"));
+    let (s, e) = (i.min(old), i.max(old));
+    let mut prev = months[s - 1].1;
+    for k in s..=e {
+        if k == i {
+            months[k].1 = prev;
+            months[k].2 = true;
+        } else {
+            prev = prev % 12 + 1;
+            months[k].1 = prev;
+            months[k].2 = false;
+        }
+    }
+}
+
+fn reckon_lifa_year_raw(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, bool)>> {
     let exact = match name {
         "太初历（三统历）" => Some(santong_exact()),
         "元嘉历" => Some(yuanjia_exact()),
@@ -227,11 +287,12 @@ pub fn reckon_lifa_year(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, boo
         return Some(e.year_months(lunar_year));
     }
     let p = match name {
-        // 秦至汉初颛顼历（十月岁首、闰在年终，后九月记闰九月）
-        "颛顼历（秦汉初）" => return Some(super::zhuanxu::year_months(lunar_year)),
-        // 太初元年：正月至四月仍用颛顼历，五月起用太初历（三统推步）
+        // 秦至汉初史称颛顼历（十月岁首、闰在年终，后九月记闰九月）：置闰同颛顼历推步，合朔加出土历谱逐段定出的改正
+        // （[super::qinhan_shiyong]）；纯颛顼历推步见 [super::zhuanxu]
+        "颛顼历（秦汉初）" => return super::qinhan_shiyong::year_months(lunar_year),
+        // 太初元年：正月至四月仍用旧历，五月起用太初历（三统推步）
         "太初历（太初元年，五月改历）" => {
-            let old = super::zhuanxu::year_months(lunar_year).into_iter().filter(|m| m.1 <= 4);
+            let old = super::qinhan_shiyong::year_months(lunar_year)?.into_iter().filter(|m| m.1 <= 4);
             return Some(old.chain(santong_exact().year_months(lunar_year).into_iter().filter(|m| m.1 >= 5)).collect());
         }
         "四分历" => sifen_params(),
@@ -250,12 +311,19 @@ pub fn reckon_lifa_year(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, boo
         "时宪历（历象考成）" => return Some(super::shixian_kaocheng::year_months(lunar_year)),
         // 清《历象考成后编》（民国元年、二年历书沿用）
         "时宪历（历象考成后编）" | "中华民国历书（沿用历象考成后编）" => return Some(super::shixian::year_months(lunar_year)),
+        // 民国三年（1914）至 2016：按当时编算规则（定气定朔、各年段定日基准）现算之月表
+        n if super::jindai::JINDAI_LIFA.contains(&n) => return super::jindai::year_months(lunar_year),
         // 会天历术不传，1253—1270 以开禧历代推（1270 年史载改闰入例外表）
         "会天历（术不传，以开禧历代推）" => return super::dingshuo::reckon_year_any("开禧历（代推会天）", lunar_year),
         // 占天（1103—1105）、淳祐（1252）、本天（1277—1279）术不传，各以纪元、开禧、成天代推（本纪检验与张表持平）
         "占天历（术不传，以纪元历代推）" => return super::dingshuo::reckon_year_any("纪元历（代推占天）", lunar_year),
         "淳祐历（术不传，以开禧历代推）" => return super::dingshuo::reckon_year_any("开禧历（代推淳祐）", lunar_year),
         "本天历（术不传，以成天历代推）" => return super::dingshuo::reckon_year_any("成天历（代推本天）", lunar_year),
+        // 奉元（1075—1093）：李锐补修气朔、借观天日月改正（dingshuo::FengyuanBuxiu）；南渡初（1128—1132）历术失载，前后皆纪元，以纪元代推
+        "奉元历（术不传，李锐补修气朔、借观天日月改正）" => {
+            return super::dingshuo::reckon_year_any("奉元历（李锐补修气朔，借观天日月改正）", lunar_year)
+        }
+        "历术失载（以纪元历代推）" => return super::dingshuo::reckon_year_any("纪元历（代推南渡初）", lunar_year),
         // 元初（1280）仍行金重修大明历
         "重修大明历" if lunar_year == 1280 => return Some(super::daming_li::year_months(lunar_year)),
         // 唐至明定朔诸历（限各历推步适用的年段）
@@ -265,8 +333,18 @@ pub fn reckon_lifa_year(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, boo
 }
 
 /// 推步政权某岁各月 (朔日 JDN, 月序, 闰否)；返回所用历术名。政权或年份不在表内返回 None。
-/// 纯按历术推步，不改个别月份：张培瑜历表与推步不合处（如 430 年二月）是另一份复原的结果，依据未核，不据以改动。
+/// 按历术推步，不据今人历表改个别月份：张培瑜历表与推步不合处（如 430 年二月）是另一份复原的结果，依据未核，不据以改动。
+/// 本国史书明书而推步临限之月，可列入史载例外表（历名记作「政权：历名」，2026-11-22 起），由此应用。
 pub fn regime_year_months(regime: &str, lunar_year: i32) -> Option<(&'static str, Vec<(i64, u8, bool)>)> {
+    let (name, mut months) = regime_year_months_raw(regime, lunar_year)?;
+    // 分政权的史载修正：例外表历名记作「政权：历名」（如「东魏/北齐：兴和历」），与中原一线同名之历分开
+    apply_shizai_liwai(&format!("{regime}：{name}"), &mut months);
+    Some((name, months))
+}
+
+/// 同 [regime_year_months]，但不应用史载修正：纯按历术推步（`data/calendar/推步政权朔日表.csv` 由此导出，供与史书、
+/// 张表逐条判别时作「推步」一家）。
+pub fn regime_year_months_raw(regime: &str, lunar_year: i32) -> Option<(&'static str, Vec<(i64, u8, bool)>)> {
     let (_, _, _, pick) = regime_calendars().into_iter().find(|(r, y0, y1, _)| *r == regime && (*y0..=*y1).contains(&lunar_year))?;
     Some(pick(lunar_year)).filter(|(_, m)| !m.is_empty())
 }
@@ -329,13 +407,26 @@ pub fn regime_calendars() -> Vec<(&'static str, i32, i32, RegimeYearFn)> {
     // 故 994 年后仍以宣明代推。1088 年起本纪闰位六年合宋不合宣明，辽历另有所改而术不传，不推（日面板仍取张表）。
     // 见 doc/calendar/calendar-compendium.md「辽」与 data/calendar/liao_shuo_kaozheng.csv。
     fn liao(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        // 1088 年起辽历与宋历同（本纪闰位、刻石朔日皆合宋历；《辽史》闰考可判者亦同，见 doc/calendar/calendar-compendium.md「辽」），
+        // 按宋中原一线同期之历推步（同 lifa 行用表 1075—1127 段）
+        let song: Option<&'static str> = match y {
+            1088..=1093 => Some("奉元历（术不传，李锐补修气朔、借观天日月改正）"),
+            1094..=1102 => Some("观天历"),
+            1103..=1105 => Some("占天历（术不传，以纪元历代推）"),
+            1106..=1125 => Some("纪元历"),
+            _ => None,
+        };
+        if let Some(name) = song {
+            return (name, reckon_lifa_year(name, y).unwrap_or_default());
+        }
         let months = super::dingshuo::reckon_year_any("宣明历（辽）", y).unwrap_or_default();
         (if y < 994 { "调元历（宣明气朔）" } else { "大明历（贾俊，以宣明代推）" }, months)
     }
-    // 春秋鲁历：张培瑜表 3-7 据《春秋》历日排定（今人拟合，非术文推步），月序为鲁国当时月名，闰在岁末（闰十二月）。
+    // 春秋鲁历：无术文传世，据《春秋》经文历日排定（平朔，正月与岁末闰按经文求最大后验，见 guliuli::chunqiu_jingwen_year_months），月序为鲁国当时月名，闰在岁末（闰十二月）。
     // 见 super::guliuli 与 doc/calendar/zhanguo-calendars.md
     fn lu_chunqiu(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
-        ("春秋历（张培瑜表 3-7）", super::guliuli::chunqiu_year_months(y))
+        // 缺省取据经文排定之表（各年注依据与后验）；张培瑜表 3-7 不注各年依据，只作对照（guliuli::chunqiu_year_months）
+        (super::guliuli::CHUNQIU_JINGWEN_NAME, super::guliuli::chunqiu_jingwen_year_months(y))
     }
     // 秦：昭王时已行颛顼历（云梦秦简后九月、《编年记》历日，张培瑜等《中国古代历法》书页 211），十月岁首，
     // 年为纪年年（建亥），月序为当时月名，闰称后九月（记作闰九月）
@@ -347,7 +438,7 @@ pub fn regime_calendars() -> Vec<(&'static str, i32, i32, RegimeYearFn)> {
         ("夏历", super::guliuli::year_months(super::guliuli::Liu::Xia, y, super::guliuli::Runfa::Nianzhong))
     }
     // 楚：包山楚简纪日检验（doc/calendar/zhanguo-calendars.md「楚」、doc/calendar/baoshan-checks.md）：楚正月（冬柰）当夏正十月，
-    // 颛顼历合 68/77，殷、鲁 67，周、黄帝 65，夏 60；只接包山简所在之岁（前 322—前 316）。月序为楚月序（冬柰 = 1 …… 献马 = 12），
+    // 以《包山楚简》原书释文校正后，书岁 87 条颛顼历全合，殷、鲁 86，周 85；只接包山简所在之岁（前 322—前 316）。月序为楚月序（冬柰 = 1 …… 献马 = 12），
     // 年为楚岁（冬柰岁首，同秦十月岁首）；年终之闰记闰十二月（献马后）
     fn chu(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
         let ms = super::zhuanxu::jianhai_year_months(y)
@@ -367,7 +458,7 @@ pub fn regime_calendars() -> Vec<(&'static str, i32, i32, RegimeYearFn)> {
         ("楚", -321, -315, chu),
         ("西夏", 1120, 1207, xixia),
         ("南明/南明·绍武/鲁监国/明郑", 1645, 1683, nanming),
-        ("辽", 947, 1087, liao),
+        ("辽", 947, 1125, liao),
         ("民间通书", 1914, 1938, minjian),
         ("蜀", 221, 263, shu),
         ("吴", 222, 280, wu),
@@ -662,7 +753,7 @@ mod tests {
         assert_eq!(first(1677, 7), Some(jdn(1677, 7, 30)), "1677 七月丙子");
     }
 
-    /// 辽（947—1087，宣明代推）：本纪明书朔日中宣明合而宋历（张表）不合者，及宣明闰位为本纪所证之年；1088 年起不推
+    /// 辽（947—1087，宣明代推）：本纪明书朔日中宣明合而宋历（张表）不合者，及宣明闰位为本纪所证之年；1088—1125 年从宋
     #[test]
     fn liao_follows_xuanming() {
         use crate::calendar::gan_zhi::GAN_ZHI_60;
@@ -681,7 +772,13 @@ mod tests {
         assert_eq!(leap(1080), Some(8), "大康六年九月壬寅（宋历閏九月）");
         assert_eq!(regime_year_months("辽", 993).unwrap().0, "调元历（宣明气朔）");
         assert_eq!(regime_year_months("辽", 994).unwrap().0, "大明历（贾俊，以宣明代推）");
-        assert!(regime_year_months("辽", 946).is_none() && regime_year_months("辽", 1088).is_none());
+        assert!(regime_year_months("辽", 946).is_none() && regime_year_months("辽", 1126).is_none());
+        // 统和三年（985）闰八月、九月壬申朔：本纪「閏九月癸酉……庚辰，重九」，庚辰为壬申朔之初九，辽历此月为九月（宋历閏九月）
+        assert_eq!(leap(985), Some(8));
+        assert_eq!(shuo(985, 9, false), "壬申");
+        // 1088 年起从宋：同期宋历推步
+        assert_eq!(regime_year_months("辽", 1088).unwrap().0, "奉元历（术不传，李锐补修气朔、借观天日月改正）");
+        assert_eq!(regime_year_months("辽", 1110).unwrap().0, "纪元历");
     }
 
     #[test]
@@ -782,7 +879,7 @@ mod tests {
         }
         let (mut leap_diff, mut day_diff, mut n) = (vec![], vec![], 0);
         for ((reg, y), mut theirs) in up {
-            let Some((_, ours)) = regime_year_months(reg, y) else { continue };
+            let Some((_, ours)) = regime_year_months_raw(reg, y) else { continue }; // 纯推步（不含史载修正）与上游纯推步比
             theirs.sort();
             let key = |v: &[(i64, u8, bool)]| v.iter().map(|e| (e.1, e.2)).collect::<Vec<_>>();
             if key(&ours) != key(&theirs) {

@@ -352,7 +352,7 @@ pub fn resolve_zhongyuan_year(lunar_year: i32, mode: u8) -> String {
     let kind = match source {
         RiliSource::Artifact(_) => "artifact",
         RiliSource::Reckoned(_) => "reckoned",
-        RiliSource::ModernTable(_) => "table",
+        RiliSource::AncientTable(_) | RiliSource::ModernTable(_) => "table",
         RiliSource::Computed => "computed",
     };
     let nums = |v: &[lunar_core::math::real::Real]| v.iter().map(|r| format!("{}", r.as_f64())).collect::<Vec<_>>().join(",");

@@ -42,6 +42,8 @@
 | [calendar-layers.md](calendar/calendar-layers.md) | 历法域内部四层结构（独立基础层/聚合实算层/派生层/仲裁路由层），`rust/core/src/calendar/` 模块划分依据 |
 | [rili-genealogy.md](calendar/rili-genealogy.md) | 历表与历日资料的源流：实物历日汇编、古人复原（杜预、刘羲叟、汪曰桢等）、今人历表（陈垣、方诗铭、张培瑜、洪金富等）与其底本关系，今人历术复原，实物出处核查，待办 |
 | [rili-sources.md](calendar/rili-sources.md) | 历日的来源与取舍（中原一线）：实物历日、按术推步、今人历表（张培瑜，撤「张表」概念）、现算的次序与选项，张表来历，推步与张表逐月差异，同类著作 |
+| [jindai-calendar.md](calendar/jindai-calendar.md) | 近现代中原一线历日（1914—2016）：按当时编算规则现算（定气定朔，北京地方平时 / 东经 120°），依据（三年历书凡例、陈展云、天文研究所《天文年历》1930 南京平时、1931 起东经 120°、商务本 1940 东经 105°）、1924 年起官历不载旧历、1923 年官历 12 朔逐月核对、存疑之月 |
+| [jindai-checks.md](calendar/jindai-checks.md) | 近现代历日逐月检验（生成文件）：1274 月与张表、与另一定日基准之比较，合朔/中气近子夜者 |
 | [historical-calendar.md](calendar/historical-calendar.md) | 实历模块：历史朔日表、优先实历的公历↔农历换算 |
 | [benji-checks.md](calendar/benji-checks.md) | 以本纪核验历日逐条结果（脚本生成）：明书朔日、实际合朔、閏月位置 |
 | [dunhuang-calendar.md](calendar/dunhuang-calendar.md) | 敦煌历日换算（吐蕃、归义军）：出土历日有据之月作「敦煌」政权历表，无据之月退回中原历的规则、纪年，比较表逐格重现检验 |
@@ -52,8 +54,15 @@
 | [push-algorithms.md](calendar/push-algorithms.md) | 各朝代/政权历法推步算法与历术参数总结 |
 | [xixia-calendar.md](calendar/xixia-calendar.md) | 西夏历日 1120—1207：彭向前整理俄藏 Инв.No.8085 等历书之朔闰对照表转录、核对（宋历一栏与张表全合）、接入推步政权表 |
 | [baoshan-checks.md](calendar/baoshan-checks.md) | 包山楚简纪日逐条检验（生成文件）：77 条纪日在颛顼、殷、鲁、周、黄帝、夏诸历中为月中第几日，各假设合数 |
+| [xincai-checks.md](calendar/xincai-checks.md) | 新蔡葛陵楚简纪日检验（生成文件）：31 条岁名·月·干支，组内自洽、前 450—前 350 年逐年相位窗口 |
+| [chu-sky-checks.md](calendar/chu-sky-checks.md) | 楚简纪日与实际月相对照（生成文件）：包山 87 条、新蔡前 398 年 19 条在颛顼平朔与看天（合朔日 + 0/1/2 日）下逐条合否 |
+| [zoumalou-checks.md](calendar/zoumalou-checks.md) | 走马楼吴简纪日（生成文件）：竹简壹至叁、《简牍集成》中带日序干支或书朔之简逐条（已对原书图版核对），与吴乾象推步、魏历比较，及吴、魏朔不同之月按月归并 |
+| [chunqiu-luli-checks.md](calendar/chunqiu-luli-checks.md) | 春秋鲁历据经文排定（生成文件）：月首模型与先验参数的边际似然比较、逐年正月与闰、标注（经文定/按建推定/未定）与后验、张表 3-7 对照 |
+| [regime-benji-checks.md](calendar/regime-benji-checks.md) | 分政权推步之史书逐条检验（生成文件）：吴、蜀、北朝诸国、辽、金等本纪纪日，以本国推步与中原张表两家判在月 |
+| [jiudian-yingshi-checks.md](calendar/jiudian-yingshi-checks.md) | 九店简 96「荆𡰥朔於营室」检验（生成文件）：前 350—前 250 逐年荆𡰥朔太阳赤经，亥正、丑正两假设下是否在营室 |
 | [zhanguo-calendars.md](calendar/zhanguo-calendars.md) | 春秋鲁历与战国古六历按国别接入：各国用历证据（秦颛顼、魏夏历、楚有争议）、汉传六历整数推步与《中国古代历法》表 3-17/3-18 逐格核对、年终闰与年中无中气两种闰法 |
 | [qin-han-calendar-evaluation.md](calendar/qin-han-calendar-evaluation.md) | 秦与汉初（前221—太初元年四月）历法复原接入评估：与张表衔接、《汉书》检验、待补的日月食与出土材料验证 |
+| [qinhan-shiwu-checks.md](calendar/qinhan-shiwu-checks.md) | 秦汉初出土历日（岳麓、周家台、张家山、里耶、转引元光元年历谱）逐月检验：各段合朔改正 δ 的可行区间与定界之条、实物对实用历推步/颛顼推步/李忠林复原历、前 221—太初元年四月各月依据分类（实物年/唯一/区间未定/段界未定）、与复原历不同之月（自动生成） |
 
 ## 三、工程实现（`engineering/`）
 
