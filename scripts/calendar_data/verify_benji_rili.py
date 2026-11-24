@@ -46,13 +46,18 @@ def kind(main, t, gz, diff):
     return "其他"
 
 
+def benji_files():
+    """本纪纪日表（不含閏月表）；南明史料等非本纪之表首行为「#」注释（nanming_jiri.py 抽取，另有分政权检验），不在此列。"""
+    for path in sorted(glob.glob(str(ROOT / "data/calendar/本纪纪日/*.csv"))):
+        if not path.endswith("_閏月.csv") and not open(path, encoding="utf-8").readline().startswith("#"):
+            yield path
+
+
 def main():
     tabs = d.tables()
     out, stat = [], defaultdict(lambda: defaultdict(lambda: [0, 0, 0, 0, 0]))
     buzi_skipped = defaultdict(int)
-    for path in sorted(glob.glob(str(ROOT / "data/calendar/本纪纪日/*.csv"))):
-        if path.endswith("_閏月.csv"):
-            continue
+    for path in benji_files():
         book = Path(path).stem
         seen = set()
         for r in csv.DictReader(open(path, encoding="utf-8")):
@@ -96,9 +101,7 @@ def main():
             out.append(row)
     # 旁证：他书同月记日干支，在张表该月内者几条、在「以本纪所书朔起算的 30 日」内者几条（只对不合者）
     others = defaultdict(list)
-    for path in glob.glob(str(ROOT / "data/calendar/本纪纪日/*.csv")):
-        if path.endswith("_閏月.csv"):
-            continue
+    for path in benji_files():
         for r in csv.DictReader(open(path, encoding="utf-8")):
             lab = r["month"]
             if not lab.lstrip("闰").isdigit():

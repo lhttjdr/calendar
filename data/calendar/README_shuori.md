@@ -271,6 +271,9 @@ in_month（日干支在该历所记之月）、jdn、julian、position（原文�
   （唐代朔在合朔次日者为进朔）。
 - 由 `verify_benji_rili.py`、`scripts/phenomena/benji_shuo_sky.py` 生成，`benji_checks_to_md.py` 汇为
   `doc/calendar/benji-checks.md`；方法与结论见 `doc/calendar/historical-calendar.md`「以本纪核验历日」。
+- `benji_qita_kaozheng_notes.csv`（人工）：「其他」类逐条判语（书、年、月、本纪朔、判、按语）；`benji_qita_kaozheng.csv`（生成）：
+  合并机械所列可能之解（一字误、年月误、月内日、同书同月他条、合邻年）与判语，`scripts/calendar_data/benji_qita_kaozheng.py` 生成，
+  并写 `doc/calendar/benji-qita-kaozheng.md`。
 
 
 ## 敦煌历日（`敦煌历日.csv`）
