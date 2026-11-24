@@ -250,28 +250,23 @@ fn has_leap_month(config: &AncientConfig, lunar_year: i32, m1: &DayFraction) -> 
     m1_13_noon <= z1b_noon
 }
 
-/// 单月是否「无中气」：若该月内没有中气日，则为无中气月（可置闰）。
-/// 月朔 JD 为 start_jd，月长 lunar；去年冬至 w0 = jdw + (n-1)*solar；第 k 个中气 (k=1..12) 为 w0 + k*(solar/12)。
+/// 单月是否「无中气」：该月朔日至下月朔日前一日（[朔日, 下月朔日)）都不是中气所在之日。
+/// 中气自本岁雨水 Z1 = jdw + (n + 1/6)·solar 起每 solar/12 一个（k = 0..=12，k = 0 为雨水），与
+/// [crate::calendar::push_calendar] 的平朔平气推步同一规则（见 doc/calendar/push-algorithms.md）。
 fn month_has_no_zhong_qi(
     config: &AncientConfig,
     lunar_year: i32,
     start_jd: &DayFraction,
 ) -> bool {
-    let w0 = &config.jdw
-        + BigRational::from_integer(BigInt::from(lunar_year - 1)) * &config.solar;
+    let n = BigRational::from_integer(BigInt::from(lunar_year));
+    let z1 = &config.jdw + (&n + BigRational::new(BigInt::from(1), BigInt::from(6))) * &config.solar;
     let dmqi = &config.solar / BigRational::from_integer(BigInt::from(12));
-    let half = BigRational::new(BigInt::from(1), BigInt::from(2));
-    let end_jd = start_jd + &config.lunar - BigRational::new(BigInt::from(1), BigInt::from(100));
-    let start_day = floor_ratio_to_i64(&(start_jd + &half));
-    let end_day = floor_ratio_to_i64(&(end_jd + &half));
-    for k in 1..=12 {
-        let qi_jd = &w0 + BigRational::from_integer(BigInt::from(k)) * &dmqi + &half;
-        let qi_day = floor_ratio_to_i64(&qi_jd);
-        if qi_day >= start_day && qi_day <= end_day {
-            return false;
-        }
-    }
-    true
+    let start_day = jd_to_day_index(start_jd);
+    let next_day = jd_to_day_index(&(start_jd + &config.lunar));
+    !(0..=12).any(|k| {
+        let qi_day = jd_to_day_index(&(&z1 + BigRational::from_integer(BigInt::from(k)) * &dmqi));
+        qi_day >= start_day && qi_day < next_day
+    })
 }
 
 /// 历谱：农历年 n 的 12 或 13 个月，每月的朔日 JD（分数）、是否闰月、大小月（日数 29 或 30）。
@@ -287,68 +282,34 @@ pub struct MonthEntry {
     pub days: u8,
 }
 
-/// 生成农历年 n 的历谱（平朔 + 无中气置闰）。
+/// 生成农历年 n 的历谱（平朔 + 无中气置闰）：闰岁以本岁第一个无中气之月为闰，名从前月（正月不闰）。
 pub fn calendar_year(config: &AncientConfig, lunar_year: i32) -> Vec<MonthEntry> {
     let m1 = first_month_new_moon(config, lunar_year);
-    let has_leap = has_leap_month(config, lunar_year, &m1);
-    let mut out = Vec::with_capacity(13);
-    let mut i: i32 = 0;
-    let mut inserted_leap = false;
-
-    if !has_leap {
-        for j in 0..12 {
-            let start = &m1 + BigRational::from_integer(BigInt::from(j)) * &config.lunar;
-            let next = &m1 + BigRational::from_integer(BigInt::from(j + 1)) * &config.lunar;
-            let days = (jd_to_day_index(&next) - jd_to_day_index(&start)) as u8;
-            out.push(MonthEntry {
-                new_moon_jd: start,
-                is_leap: false,
-                month_1based: (j + 1) as u8,
-                days,
-            });
-        }
-        return out;
-    }
-
-    for month_1 in 1..=12 {
-        let start = &m1 + BigRational::from_integer(BigInt::from(i)) * &config.lunar;
-        let no_zhong = month_has_no_zhong_qi(config, lunar_year, &start);
-        let next_start = &m1 + BigRational::from_integer(BigInt::from(i + 1)) * &config.lunar;
-        let days = (jd_to_day_index(&next_start) - jd_to_day_index(&start)) as u8;
-
-        out.push(MonthEntry {
-            new_moon_jd: start.clone(),
-            is_leap: false,
-            month_1based: month_1 as u8,
-            days,
-        });
-        i += 1;
-
-        if !inserted_leap && no_zhong {
-            inserted_leap = true;
-            let leap_start = &m1 + BigRational::from_integer(BigInt::from(i)) * &config.lunar;
-            let leap_next = &m1 + BigRational::from_integer(BigInt::from(i + 1)) * &config.lunar;
-            let leap_days = (jd_to_day_index(&leap_next) - jd_to_day_index(&leap_start)) as u8;
-            out.push(MonthEntry {
-                new_moon_jd: leap_start.clone(),
-                is_leap: true,
-                month_1based: month_1 as u8,
-                days: leap_days,
-            });
-            i += 1;
-        }
-    }
-    if !inserted_leap {
-        let leap_start = &m1 + BigRational::from_integer(BigInt::from(12)) * &config.lunar;
-        let leap_next = &m1 + BigRational::from_integer(BigInt::from(13)) * &config.lunar;
-        out.push(MonthEntry {
-            new_moon_jd: leap_start.clone(),
-            is_leap: true,
-            month_1based: 12,
-            days: (jd_to_day_index(&leap_next) - jd_to_day_index(&leap_start)) as u8,
-        });
-    }
-    out
+    let n_months: i64 = if has_leap_month(config, lunar_year, &m1) { 13 } else { 12 };
+    let start = |j: i64| &m1 + BigRational::from_integer(BigInt::from(j)) * &config.lunar;
+    // 闰在第 leap 月之后（前有 leap 个正常月）；无闰为 0
+    let leap = if n_months == 13 {
+        (1..13).find(|&j| month_has_no_zhong_qi(config, lunar_year, &start(j))).unwrap_or(12)
+    } else {
+        0
+    };
+    (0..n_months)
+        .map(|j| {
+            let (s, e) = (start(j), start(j + 1));
+            let (month_1based, is_leap) = match leap {
+                0 => (j + 1, false),
+                l if j == l => (l, true),
+                l if j > l => (j, false),
+                _ => (j + 1, false),
+            };
+            MonthEntry {
+                days: (jd_to_day_index(&e) - jd_to_day_index(&s)) as u8,
+                new_moon_jd: s,
+                is_leap,
+                month_1based: month_1based as u8,
+            }
+        })
+        .collect()
 }
 
 /// 干支日序（0..60）从 JD（分数）计算：日序 = (floor(JD+0.5) - epoch_day) mod 60。
@@ -447,6 +408,57 @@ mod tests {
             let (k, _) = nearest_mean_new_moon(yin, jd_to_day_index(&m));
             let diff = &m - mean_new_moon(yin, k);
             assert!((&diff - &off).abs() < BigRational::from_integer(BigInt::from(1)), "相差应一致");
+        }
+    }
+}
+
+
+/// 分数版（本模块）与换算路径所用整数/浮点推步（[crate::calendar::push_calendar]、[crate::calendar::guliuli]）逐月对照：
+/// 同一部历、同一历元，两套独立实现的朔日与闰位须全同。分歧即有一方写错（2026-11-24 本测试首跑查出本模块
+/// 无中气判定取上一岁中气、闰月插在无中气之月之后，闰岁一律闰正月或晚一月，已改正）。
+#[cfg(test)]
+mod vs_push_calendar {
+    use super::*;
+    use crate::calendar::{guliuli, push_calendar};
+
+    fn months(c: &AncientConfig, y: i32) -> Vec<(i64, u8, bool)> {
+        calendar_year(c, y).iter().map(|m| (month_new_moon_to_jd_day(m), m.month_1based, m.is_leap)).collect()
+    }
+
+    /// 东汉四分：前 300—700 年逐岁朔日、月序、闰月全同（四分行用 85—236，蜀 221—263）。
+    #[test]
+    fn sifen_matches_push_calendar() {
+        let (a, p) = (AncientConfig::sifen(), push_calendar::sifen_params());
+        let mut leap_years = 0;
+        for y in -300..=700 {
+            let (ar, pr) = (months(&a, y), push_calendar::year_months(&p, y));
+            assert_eq!(ar, pr, "{y} 年两套四分推步不合");
+            leap_years += (ar.len() == 13) as i32;
+        }
+        // 十九年七闰：1001 岁约 369 闰
+        assert!((365..=373).contains(&leap_years), "闰岁 {leap_years}");
+    }
+
+    /// 汉传古六历（黄帝、周、殷、鲁、夏两说）：guliuli 整数推步各月朔日都是本模块分数平朔之日（前 800—前 100 年）。
+    /// 两模块闰法不同（guliuli 缺省年终闰、建正各从其历），只对朔日。
+    #[test]
+    fn guliuli_new_moons_match() {
+        use guliuli::Liu;
+        let pairs = [
+            (Liu::Huangdi, AncientConfig::guliuli_huangdi()),
+            (Liu::Zhou, AncientConfig::guliuli_zhou()),
+            (Liu::Yin, AncientConfig::guliuli_yin()),
+            (Liu::Lu, AncientConfig::guliuli_lu()),
+            (Liu::Xia, AncientConfig::guliuli_xia1()),
+            (Liu::XiaYushui, AncientConfig::guliuli_xia2()),
+        ];
+        for (li, c) in &pairs {
+            // 各岁月份首尾相接，整段只定一次起点平朔序号，其后逐朔递推
+            let all: Vec<_> = (-800..=-100).flat_map(|y| guliuli::year_months(*li, y, guliuli::Runfa::Nianzhong).into_iter().map(move |m| (y, m))).collect();
+            let k0 = nearest_mean_new_moon(c, all[0].1 .0).0;
+            for (i, (y, (jdn, m, leap))) in all.iter().enumerate() {
+                assert_eq!(mean_new_moon_day(c, k0 + i as i64), *jdn, "{} {y} 年{}{m}月朔 {jdn} 不是分数平朔之日", li.name(), if *leap { "闰" } else { "" });
+            }
         }
     }
 }
