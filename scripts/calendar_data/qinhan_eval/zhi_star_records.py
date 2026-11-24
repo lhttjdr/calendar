@@ -213,10 +213,10 @@ CAPITALS = ROOT / "data/phenomena/capitals.csv"
 
 
 def capital_site(regime, year):
-    """都城表 data/phenomena/capitals.csv（与 tests_records.rs 共用）→ (东经°, 北纬°, 都城)。"""
+    """都城表 data/phenomena/capitals.csv（与 tests_records.rs 共用）→ (东经°, 北纬°, 都城)。经纬度照表中写法原样输出（「34.30」不作「34.3」）。"""
     for r in csv.DictReader(ln for ln in open(CAPITALS, encoding="utf-8") if not ln.startswith("#")):
         if r["regime"] == regime and (not r["from_year"] or year >= int(r["from_year"])) and (not r["to_year"] or year <= int(r["to_year"])):
-            return float(r["lon"]), float(r["lat"]), r["name"]
+            return r["lon"], r["lat"], r["name"]
     raise KeyError(f"都城表缺政权「{regime}」{year} 年")
 
 
