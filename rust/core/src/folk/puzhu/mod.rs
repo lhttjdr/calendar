@@ -36,7 +36,7 @@
 use super::yiji::YueBiaoDay;
 
 pub mod context;
-pub use context::{puzhu_days, PuzhuDay, QiWangWangCount, TermTable};
+pub use context::{puzhu_days, PuzhuDay, QiWangWangCount, TermSource, TermTable, HOUBIAN_YEARS};
 
 /// 月表所用通书六十事（卷十一「通書選擇六十事」，立券交易、開倉庫出貨財合并显示，共 58 项），按原书次第
 pub const SHI: [&str; 58] = [
@@ -251,9 +251,9 @@ pub fn zhou_tang(days_in_month: u8, lunar_day: u8) -> Option<&'static str> {
     Some(if days_in_month >= 30 { DA[k] } else { XIAO[k] })
 }
 
-/// 交节在此钟点（东八区）以前者，全日从新月，不取两月之交。乾隆三十年时宪书十月二十五日大雪交节在丑时
-///（推算 2 时 45 分），书照注新月之宜「祭祀平治道塗」；小暑（8 时 37 分）、寒露（9 时 34 分）以后各节皆取两月之交。
-/// 界限在 2 时 45 分与 8 时 37 分之间，暂取卯初（5 时），待更多交节日验证。
+/// 交节在此钟点以前者，全日从新月，不取两月之交（钟点随 [TermSource]：后编行用期为京师用时，即时宪书书印所据，其余为东八区）。
+/// 时宪书按书印时刻：寅正初刻、二刻、三刻交节只从新月，卯初初刻、一刻、卯正三刻取两月之交，界限即卯初初刻（5 时）。
+/// 见 doc/folk/shensha.md「交节时刻界限」「按《后编》推交节时刻」。
 pub const JIAO_JIE_EARLY_HOUR: f64 = 5.0;
 
 /// 交节之日的月表：时宪书于交节当日只注新旧两月皆宜之事（乾隆三十年閏二月十五日清明，旧月宜沐浴掃舍宇捕捉、
