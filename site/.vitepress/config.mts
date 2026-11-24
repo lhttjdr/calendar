@@ -166,6 +166,7 @@ export default defineConfig({
         items: [
           { text: '天象逐条校验', link: '/appendix/phenomena-checks', collapsed: true, items: checksSidebar },
           { text: '本纪核验历日', link: '/appendix/benji-checks' },
+          { text: '本纪朔日误书', link: '/appendix/benji-qita' },
           { text: '历法原文摘录', link: '/appendix/source-texts' },
         ],
       },

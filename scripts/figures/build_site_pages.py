@@ -3,7 +3,7 @@
 由开发知识库（doc/）生成读者文档站中内容较长的各章：
 - 天象（site/astronomy/）：日月食、行星、恒星与二十八宿、史书天象检验、当地星空；
 - 历法（site/calendar/）：行用历日、历代历法总录、各朝推步算法、秦汉初历法复原；
-- 附录（site/appendix/）：天象逐条校验、以本纪核验历日、历法原文摘录。
+- 附录（site/appendix/）：天象逐条校验、以本纪核验历日、本纪朔日误书、历法原文摘录。
 
 kb_to_site.py 做机械清理（去代码标识、知识库内链接、开发日期戳）；本脚本按章节切分、拼装，并对清理后读不通之处逐条修补。
 知识库更新后重跑本脚本即可同步；若某条修补不再匹配，会打印出来，须人工核对。
@@ -74,6 +74,7 @@ KB_CHAPTERS = {
     "celestial-phenomena": "天象各章",
     "sky-view-3d": "《当地星空》",
     "benji-checks": "附录《本纪核验历日》",
+    "benji-qita-kaozheng": "附录《本纪朔日误书》",
 }
 GENERIC_ALL = [(rf"(?<![\w/-]){re.escape(k)}(?:\.md)?(?![\w-])", v) for k, v in KB_CHAPTERS.items()] + [
     (r"张表上游", "张表所据"),
@@ -101,12 +102,13 @@ def generic(t: str) -> str:
 
 
 def build() -> None:
-    """正文各章已全部改为手写（见 README）；这里只生成三个附录。"""
+    """正文各章已全部改为手写（见 README）；这里只生成四个附录。"""
     # 附录：逐条校验结果（知识库中由脚本生成，原样转入）
     import os
     os.makedirs("site/appendix", exist_ok=True)
     for src, dst, title in [("doc/astronomy/phenomena-checks.md", "site/appendix/phenomena-checks.md", "# 天象逐条校验"),
                             ("doc/calendar/benji-checks.md", "site/appendix/benji-checks.md", "# 本纪核验历日"),
+                            ("doc/calendar/benji-qita-kaozheng.md", "site/appendix/benji-qita.md", "# 本纪朔日误书"),
                             ("doc/calendar/calendar-source-texts.md", "site/appendix/source-texts.md", "# 历法原文摘录")]:
         t = conv(1, 10**6, src, verbatim="source-texts" in dst)
         t = re.sub(r"^# .*", title, t, count=1)
@@ -123,6 +125,11 @@ def build() -> None:
             t = t.replace("（北朝推步表闰位见 与 §3.4）", "（北朝推步表闰位见《各朝推步》「检验」一节）")
             t = t.replace("。说明。", "。说明见《历代历法总录》「先秦」一节。")
             t = t.replace("余缺省取张表。由 计算。", "余缺省取张表（见《行用历日》）。")
+            t = t.replace("致误之由（一字误、「朔」字衍、年月误等）逐条。", "致误之由（一字误、「朔」字衍、年月误等）的推求见《行用历日》「以本纪检验张表」一节。")
+        if "benji-qita" in dst:  # 说明行指向脚本；「纪日表定年之误」一节是本项目抽取修正的经过，读者站不收
+            t = re.sub(r"\A(# [^\n]*\n\n)>.*?\n\n", r"\1本附录逐条列出本纪所书朔日与张表（张培瑜《三千五百年历日天象》）该月朔相差 3 日以上、又非邻月或闰月之朔的各条，推求其致误之由；方法与结论见《行用历日》「以本纪检验张表」一节，各条在附录《本纪核验历日》中归入「其他」。\n\n", t, count=1, flags=re.S)
+            t = re.sub(r"^## 纪日表定年之误.*?(?=^## )", "", t, flags=re.S | re.M)
+            t = re.sub(r"（\s*第一节）", "", t)
         open(dst, "w").write(t + "\n")
 
 

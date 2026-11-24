@@ -46,6 +46,7 @@
 | [jindai-checks.md](calendar/jindai-checks.md) | 近现代历日逐月检验（生成文件）：1274 月与张表、与另一定日基准之比较，合朔/中气近子夜者 |
 | [historical-calendar.md](calendar/historical-calendar.md) | 实历模块：历史朔日表、优先实历的公历↔农历换算 |
 | [benji-checks.md](calendar/benji-checks.md) | 以本纪核验历日逐条结果（脚本生成）：明书朔日、实际合朔、閏月位置 |
+| [benji-qita-kaozheng.md](calendar/benji-qita-kaozheng.md) | 本纪明书朔日「其他」类（差 3 日以上）逐条排查（生成文件）：一字误、「朔」字衍、年月误、食日书朔、未明，附已改正的纪日定年之误 |
 | [dunhuang-tuban-checks.md](calendar/dunhuang-tuban-checks.md) | 敦煌历日图版核对（生成文件）：比较表伯希和诸件逐格对《法藏敦煌西域文献》图版，原件格 78/86、推算格 27/65 得证，不合 0 |
 | [dunhuang-calendar.md](calendar/dunhuang-calendar.md) | 敦煌历日换算（吐蕃、归义军）：出土历日有据之月作「敦煌」政权历表，无据之月退回中原历的规则、纪年，比较表逐格重现检验 |
 | [ancient-calendar-restore.md](calendar/ancient-calendar-restore.md) | 古历复原：分数推步、平朔平气、历谱生成；三千五百年仅作验证 |
