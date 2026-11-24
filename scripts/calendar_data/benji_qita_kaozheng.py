@@ -23,7 +23,7 @@ import gaiyuan_date as g  # noqa: E402
 ROOT = Path(__file__).resolve().parents[2]
 BOOK = {"hanshu_benji": "汉书", "houhanshu_benji": "后汉书", "jinshu_benji": "晋书", "jiutangshu_benji": "旧唐书", "xintangshu_benji": "新唐书",
         "jiuwudaishi_benji": "旧五代史", "xinwudaishi_benji": "新五代史", "songshi_benji": "宋史", "liaoshi_benji": "辽史", "jinshi_benji": "金史",
-        "yuanshi_benji": "元史", "mingshi_benji": "明史", "qingshigao_benji": "清史稿"}
+        "yuanshi_benji": "元史", "mingshi_benji": "明史", "qingshigao_benji": "清史稿", "beishi_benji": "北史", "weishu_benji": "魏书"}
 ORDER = ("汉", "三国", "晋", "南朝", "北朝", "隋", "唐", "五代", "宋", "辽", "金", "元", "明", "清")
 # 排查中查出的纪日表定年、判朔之误，已在抽取器 scripts/calendar_data/qinhan_eval/zhi_star_records.py 改正（BOOKS 的 corrections 与判朔逻辑），
 # 改正后这些条不再落入「其他」（多数与张表相合）
