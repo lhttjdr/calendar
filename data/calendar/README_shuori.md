@@ -374,7 +374,7 @@ in_month（日干支在该历所记之月）、jdn、julian、position（原文�
 | `gaochang_630.csv` | 人工录自邓文宽《吐鲁番新出〈高昌延寿七年（630）历日〉考》表一与正文 | 高昌延寿七年残历各月朔（2026-11-24）：年、月、闰、朔干支、依据（残历 / 墓表 / 推拟）、书页；`scripts/calendar_data/gaochang_630_check.py` 与张表、玄始外推比较 |
 | `chutu_rili_shuo.csv` | 人工录自邓文宽《敦煌吐鲁番天文历法研究》诸篇 | 吐鲁番、黑城出土唐宋历日残件所示月朔（2026-11-24）：件、年、月、闰、朔干支、依据（原印 / 推得）、所据原文、定年所据、书页；`rust/core/examples/chutu_rili_check.rs` 比较 |
 | `yinwan_lipu.csv` | 人工录自《尹湾汉墓简牍》释文（书页 133—134） | 尹湾六号汉墓元延元年全年历谱、元延三年五月历谱（2026-11-24）：件、年、月、闰、大小、朔干支、书页；`scripts/calendar_data/hanjian_shuo_check.py lipu` 比较 |
-| `hanjian_jiri.csv` | `scripts/calendar_data/hanjian_shuo_check.py candidates` 从 OCR 抽出，不合者对图人工核对 | 居延汉简、居延新简公文书「某年某月某干支朔」（2026-11-25，280 条）：书、册、PDF页、集成编号（未填）、年号、年、闰、月、朔干支、原文（OCR 文本）、核对（OCR合 / 图）、图读、备注；`check` 子命令比较 |
+| `hanjian_jiri.csv` | `scripts/calendar_data/hanjian_shuo_check.py candidates` 从 OCR 抽出，不合者对图人工核对 | 居延汉简、居延新简、敦煌汉简等（甘肃省卷）公文书「某年某月某干支朔」（2026-11-25，304 条）：书、册、PDF页、集成编号（未填）、年号、年、闰、月、朔干支、原文（OCR 文本）、核对（OCR合 / 图）、图读、备注；`check` 子命令比较 |
 | `liaojin_regime_kaozheng.csv` | `scripts/calendar_data/liaojin_regime_kaozheng.py`（人工考证写在脚本中；输入 `regime_benji_check.csv`、`推步政权朔日表.csv`、`liao_shuo_kaozheng.csv`） | 辽金分政权推步之史书检验逐条考证：书、政权、年、月（本纪纪日月列）、干支、位置、推步之历、推步月首、合推步、张表月首、合张表、类、处置（改月 / 不计 由 `rust/core/examples/regime_benji_eval.rs` 读入；已入例外表；存）、改作、判、原文；另记《金史》抽取改字 |
 | `zhongyuan_reckoning_eval.csv` | `rust/core/examples/zhongyuan_reckoning_eval.rs` | 中原一线逐历：月数、与张表同日之月、闰位不同之岁、本纪明书朔日条数、合推步、合张表、只合其一 |
 | `zhongyuan_reckoning_benji.csv` | 同上 | 推步与张表不同、或本纪只合其一之条 |
