@@ -196,7 +196,8 @@
 **民俗待做（摘自各 doc/folk/*.md「待做」，按优先级）**
 - [ ] P1 择日通书：鳌头卷二至卷五续录（2026-11-25）：婚姻吉神、嫁娶、種蒔、動土、立券、出兵凶神表与卷五日家凶神、吉神定局（`data/folk/aotou_xiongshen.csv` 181 神次），出財、出兵、種植、收割、十二月上吉日等吉日表（`aotou_jiri.csv` 13 表），与协纪、项目逐条比对 196 条见 `doc/folk/aotou-qili-checks.md`（合协纪 88、不全合 30、协纪不立名 78）；天願、四擊未见，地囊即歷例旧文，枯焦（焦坎）同九焦，天獄有名无起例；Commons 亦只六册至卷五，卷六无从读。余：卷二納表上章、臨政、襲爵，卷三裁衣、安床、作倉、經絡、剃頭，卷四作灶、倉庫、祭祀、求醫诸门，啟攢；鳌头日家神入 core（数据驱动）、地囊歷例选项、紅沙鳌头说、天恩鳌头十四日无壬子注（[tongshu_yiji.md](doc/folk/tongshu_yiji.md) 第十一节）；类编天贼作选项、鳌头中查天愿地囊四击枯焦天狱（[tongshu.md](doc/folk/tongshu.md) 第九节）；董公录文以书影校
 - [ ] P1 时宪书：「不宜」取舍规则；~~交节界限按《历象考成后编》推当年交节时刻~~（2026-11-24 做：书印为后编用时截至刻，铺注 1742—1913 缺省取后编，`puzhu::TermSource`）；协纪四库录文以影印本校（[shensha.md](doc/folk/shensha.md) 第三节）
-- [ ] P2 式占：奇门飞盘阴遁与九神飞布原典、年家年界、日家月家顺飞、白奸（[qimen.md](doc/folk/qimen.md) 第七节）；六壬未做课格十二种、平气换将与恒星过宫、土旺四季（[liuren.md](doc/folk/liuren.md) 第七节）；太乙交至加时起门、十精立成图、飞符、章岁法闰月（[taiyi.md](doc/folk/taiyi.md) 第十六节）
+- [x] P2 式占（2026-11-25）：六壬课格、恒星过宫、土旺已于 c3d2417 完成；本轮补行用历中气换将（平气，`JiangRule::XingYong`，清代宫界即定气中气，据协纪卷十二）、月宿实度（`yue_su_shi_du`）。太乙集成卷六八八「十精定局」立成据影印本第四七七册逐格转录（`data/folk/taiyi_shijing_dingju.csv`，2160 格合 2157），据以改定太尊（八六二四）、五行（一八三九七）之序，缺省改用立成；「衰旺立成」64 格合 62。奇门白奸三说（演义缺省、寶鑑、附表月法）、統宗又法日家（三甲子超接置闰）、元靈經飞布（直使逐时数宫，二例全合）（[taiyi.md](doc/folk/taiyi.md) 第十三节，[qimen.md](doc/folk/qimen.md) 第五、六节，[liuren.md](doc/folk/liuren.md) 第一、六节）
+- [ ] P2 式占余项：太乙飞符（诸书无推法）、间神之门；奇门年家年界、統宗又法月家局数、九神飞布（原典未见）、陶氏原书；衰旺立成宫数读法、日家又法置闰读法未核
 - [ ] P2 命理：七政授时过宫度表余八宫 240 格、鄭氏星案命例、紫炁历元、罗计改年（[qizheng.md](doc/folk/qizheng.md) 第五节）；紫微明刻全书书影核庙旺与 27 处异、整盘命例（[ziwei.md](doc/folk/ziwei.md)）；十八飞星庙乐旺表（[ziwei18.md](doc/folk/ziwei18.md)）
 - [ ] P2 风水筮法：沈氏玄空原刊、章仲山原书、无常派并列（[xuankong.md](doc/folk/xuankong.md) 第八节）；《黄金策》原书与 298 例断语结构化比对（[liuyao.md](doc/folk/liuyao.md)）；《啟蒙》三十二图影印本（[zhouyi.md](doc/folk/zhouyi.md)）
 - [ ] P3 婚嫁：人隔、天狗無嗣、董公五鬼黑煞到州星起例待查（[jiaqu_shensha_inventory.md](doc/folk/jiaqu_shensha_inventory.md) 第十一节）、男女禁婚年、鳌头卷六制煞法（[jiaqu.md](doc/folk/jiaqu.md) 第七节）

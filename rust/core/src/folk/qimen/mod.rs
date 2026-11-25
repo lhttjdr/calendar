@@ -269,6 +269,11 @@ impl QiTable {
         ShiJu { yang: is_yang(term), ju: ju(term, yuan), term, yuan, run, chao: term_day - block }
     }
 
+    /// 表中冬至、夏至之交节民用日：(日, 是否冬至)，升序
+    pub fn zhi_days(&self) -> Vec<(i64, bool)> {
+        self.terms.iter().filter(|t| t.2 == 18 || t.2 == 6).map(|t| (t.1, t.2 == 18)).collect()
+    }
+
     pub fn shi_ju(&self, shichen: i64, method: DingJu) -> ShiJu {
         match method {
             DingJu::ZhiRun(rule) => self.zhi_run(shichen, rule),

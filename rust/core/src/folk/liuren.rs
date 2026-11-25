@@ -44,6 +44,10 @@ pub enum JiangRule {
     ZhongQi,
     /// 按节换将（以月建定将：寅月亥将、卯月戌将……）：今人异说，原典未见，未核
     Jie,
+    /// 按当时行用历之中气换将：清以前诸历用平气（[`crate::calendar::pingqi`]），时宪历起用定气（与 `ZhongQi` 同）。
+    /// 卷十一太阳过宫所注日数与平气合（见 doc/folk/liuren.md 第一节），协纪卷十二「日躔每月中氣過宮」则为时宪定气；
+    /// 卷二只言「某中氣後」，未言平定，故缺省仍用定气，此为选项
+    XingYong,
 }
 
 /// 某时刻（JD，TT）的月将支序。按所取节气的定气时刻换将，精确到时刻。
@@ -54,8 +58,14 @@ pub fn yue_jiang(vsop: &Vsop87, jd_tt: Real, rule: JiangRule) -> u8 {
     for yy in (y - 1)..=(y + 1) {
         for (k, t) in solar_term_jds_for_year_cached(vsop, yy).into_iter().enumerate() {
             let want = match rule {
-                JiangRule::ZhongQi => k % 2 == 0,
+                JiangRule::ZhongQi | JiangRule::XingYong => k % 2 == 0,
                 JiangRule::Jie => k % 2 == 1,
+            };
+            let t = if rule == JiangRule::XingYong {
+                // 节气序 k（0 春分）→ 距冬至之气数
+                crate::calendar::pingqi::pingqi_tt(t, (k as i32 + 24 - 18) % 24).map(|(_, p)| p).unwrap_or(t)
+            } else {
+                t
             };
             if want && t <= jd_tt && last.map_or(true, |(lt, _)| t > lt) {
                 last = Some((t, k));
@@ -65,7 +75,7 @@ pub fn yue_jiang(vsop: &Vsop87, jd_tt: Real, rule: JiangRule) -> u8 {
     let (_, k) = last.expect("节气");
     match rule {
         // 春分后戌将：将 = 10 − k/2
-        JiangRule::ZhongQi => m12(10 - (k as i32) / 2),
+        JiangRule::ZhongQi | JiangRule::XingYong => m12(10 - (k as i32) / 2),
         // 清明（k=1）属辰月→酉将……：节 k 所起之月建 = (k+3)/2 + 2，将与月建六合：将 = 13 − 月建
         JiangRule::Jie => {
             let jian = ((k as i32 + 3) / 2 + 2).rem_euclid(12);
@@ -623,6 +633,25 @@ pub fn tian_jiang_with(pan: &TianPan, day_gan: u8, zhou: bool, rule: GuiRule, ch
 mod tests {
     use super::*;
     use crate::math::real::real;
+
+    /// 行用历中气换将：大统历（平气）年间与定气换将之日有异，时宪历（定气）年间全同
+    #[test]
+    fn xing_yong_huan_jiang() {
+        let vsop = crate::astronomy::ephemeris::load_earth_vsop87_from_repo().unwrap();
+        let diff = |y: i32| {
+            let j0 = Gregorian::to_julian_day(y, 1, 1);
+            (0..365 * 4)
+                .filter(|i| {
+                    let t = j0 + real(*i as f64 * 0.25);
+                    yue_jiang(&vsop, t, JiangRule::ZhongQi) != yue_jiang(&vsop, t, JiangRule::XingYong)
+                })
+                .count()
+        };
+        let d1550 = diff(1550);
+        // 平气与定气之差至多二日余，十二中气共十余日（以四分日计数）
+        assert!(d1550 > 4 * 4 && d1550 < 4 * 30, "{d1550}");
+        assert_eq!(diff(1800), 0);
+    }
 
     fn gz(s: &str) -> u8 {
         let c: Vec<char> = s.chars().collect();

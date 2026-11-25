@@ -34,6 +34,10 @@ pub enum PanMethod {
     ZhuanPan,
     /// 飞盘（飞宫）：陶氏法，据《奇門寶鑑》转述；阴遁、八门细节、八神出处未核
     FeiPan,
+    /// 飞布（《奇門遁甲元靈經》卷一「奇門起例」）：天盘干与九星同飞盘按数平移（「以符头加用时干上，如前法分布仪奇」；
+    /// 阴遁九星亦平移，依同书「日奇门」「阴遁奇直皆逆，星门皆顺」），而直使「从符头宫起数至用时止」逐时数宫（含中五，阳顺阴逆），
+    /// 门按数平移至该宫。六甲时以符头加符头（伏吟），书无例，**未核**；八神不布
+    FeiPanYuanLing,
 }
 
 /// 中五寄宫
@@ -167,6 +171,7 @@ pub fn pai_pan(ju: &ShiJu, hour_gz: u8, opts: PanOptions) -> QimenPan {
     let xun_yi = YI_QI[xun];
     let xun_gong = pos(xun_yi);
     let g = (hour_gz % 10) as usize;
+    // 陶氏飞盘（寶鑑转述）；元靈經飞布另见 `PanMethod::FeiPanYuanLing`（六甲时伏吟、直使逐时数宫，同转盘之数）
     let fei = opts.method == PanMethod::FeiPan;
     // 时干为甲：转盘遁于本旬之仪；飞盘（陶氏）作戊——《奇門寶鑑》「遁甲总论」列甲戌时与乙丑时同为第二图，甲子时天地盘相同
     let zhi_fu_gong = if g == 0 {
@@ -176,6 +181,7 @@ pub fn pai_pan(ju: &ShiJu, hour_gz: u8, opts: PanOptions) -> QimenPan {
     };
     let k = (hour_gz % 10) as i32;
     // 直使：转盘自旬首宫逐时数宫（阳顺阴逆）；飞盘与直符同加时干之宫（寶鑑转述陶氏「以蓬休符使加于離九宮」）
+    // 元靈經：「又从符头宫起数至用时止，即以何门加于此宫为值使」，与转盘同数（不寄）
     let zhi_shi_gong = if fei { zhi_fu_gong } else { wrap9(xun_gong as i32 + if yang { k } else { -k }) };
     let ji = opts.ji_gong.gong(yang);
     let eff = |p: u8| if p == 5 { ji } else { p };
@@ -214,7 +220,7 @@ pub fn pai_pan(ju: &ShiJu, hour_gz: u8, opts: PanOptions) -> QimenPan {
                 gong[t as usize - 1].shen = Some(n);
             }
         }
-        PanMethod::FeiPan => {
+        PanMethod::FeiPan | PanMethod::FeiPanYuanLing => {
             // 九星（含天禽）与天盘干按洛书数整体平移：直符自旬首宫至时干宫（出处未核）
             let d = zhi_fu_gong as i32 - xun_gong as i32;
             for q in 1..=9u8 {
@@ -535,6 +541,21 @@ mod tests {
         // 「自艮宫甲子逆数至辛未，在坎，即以艮宫生门加于坎为值使」：元灵经直使逐时数宫到坎；本库飞盘依寶鑑转述陶氏与直符同加时干之宫（五）
         assert_eq!(p.zhi_shi_gong, 5);
         assert_eq!(wrap9(8 - 7), 1);
+        // 元靈經飞布（`FeiPanYuanLing`）：二例直使、天盘干、九星全合
+        let y = PanOptions { method: PanMethod::FeiPanYuanLing, ..DEFAULT_PAN };
+        let p = pai_pan(&sj(true, 9), gz("丙辰"), y);
+        assert_eq!((p.zhi_shi, p.zhi_shi_gong, p.at(7).men), ("死門", 7, Some("死門")));
+        assert!(p.at(7).tian_pan.contains(&"癸") && p.at(7).xing[0] == "天禽" && p.at(8).xing[0] == "天心");
+        let p = pai_pan(&sj(false, 8), gz("辛未"), y);
+        assert_eq!((p.zhi_fu_gong, p.at(5).xing[0]), (5, "天任"));
+        assert!(p.at(5).tian_pan.contains(&"戊") && p.at(4).tian_pan.contains(&"己") && p.at(3).tian_pan.contains(&"庚"));
+        // 「自艮宫甲子逆数至辛未，在坎，即以艮宫生门加于坎为值使」
+        assert_eq!((p.zhi_shi, p.zhi_shi_gong, p.at(1).men), ("生門", 1, Some("生門")));
+        // 门按数平移（「星门皆顺」）：生门自八到一，差 −7 ≡ +2，休门（本宫一）到三
+        assert_eq!(p.at(3).men, Some("休門"));
+        // 六甲时伏吟
+        let p = pai_pan(&sj(false, 8), gz("甲戌"), y);
+        assert!((1..=9).all(|q| p.at(q).tian_pan == p.at(q).di_pan));
     }
 
     /// 飞盘：九星按数平移、中五不寄；伏吟时与地盘同
