@@ -1,6 +1,6 @@
 //! 按农历年列出逐日宜忌：月表（民用三十七事）与加铺注后的结果，供与时宪书逐日对照。
 //! 用法（仓库根）：cargo run -p lunar-core --no-default-features --features real-f64 --example puzhu_year -- 1765 [exclusive] [csv]
-//! csv：输出 月,日,干支,建除,月表宜,宜,忌,铺注,朱字（时宪书底栏朱字应值之神）,忌全（通书六十事）,不宜（时宪书「不宜」应值之全集）,交节时（交节日的交节时刻，东八区小时）（民用三十七事，空格分隔；諸事不宜作「諸事不宜」，無宜作「—」），供 scripts/folk/shixianshu_check.py 比对。
+//! csv：输出 月,日,干支,建除,月表宜,宜,忌,铺注,朱字（时宪书底栏朱字应值之神）,忌全（通书六十事）,不宜（时宪书「不宜」应值之全集）,交节时（交节日的交节时刻，小时：1742—1913 年为后编京师用时，余为东八区）（民用三十七事，空格分隔；諸事不宜作「諸事不宜」，無宜作「—」），供 scripts/folk/shixianshu_check.py 比对。
 //! 参数为公历年：列出该年正月初一至次年正月初一前一日（农历以实历朔日表为先）。
 use lunar_core::astronomy::ephemeris::{load_all, load_earth_vsop87_from_repo, Elpmpp02Correction};
 use lunar_core::calendar::gregorian::Gregorian;

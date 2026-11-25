@@ -13,7 +13,10 @@
 只取所属政权行用本国历之年内者（吴 222—280、蜀 221—263、后秦 384—416、北凉 398—439）。
 抽取结果经逐条人工核对（年月归属不可靠者在 MANUAL_DROP 中剔除并注明理由，或在 MANUAL_FIX 中改正），写入
 data/calendar/本纪纪日/{sanguozhi_wushu,sanguozhi_shushu}.csv（后秦、北凉诸书无可用之日干支，不生成文件），列与其余本纪纪日表一致
-（calendar、in_month、jdn、julian 列留空：在月与否由检验程序按各家历日判定）。
+（calendar、in_month、jdn、julian 列留空：在月与否由检验程序按各家历日判定）；「閏月」接在所记某月之后者（不论有无干支）
+另写 {同名}_閏月.csv（列同其余本纪閏月表：regime, era, year_in_era, year, leap_after, text），供 verify_benji_rili.py 闰位比对。
+閏月表收至该政权终年为止、不限本国行历之起年（吴主传建安年间之閏月属汉历，照样比张表；《宋書·氐胡傳》元嘉十九年
+記宋與仇池之役，在北凉亡後，不收），同书同年只留一条。
 原 data/calendar/本纪纪日/sanguozhi.csv 中吴、蜀之行（吴 39、蜀 1）年月多误（如东兴之战建兴元年 252 年十二月记作太元元年
 251 年十月），已删去，由本脚本输出取代；魏之行不动。
 用法（仓库根）：python3 scripts/calendar_data/sanguo_shiliuguo_jiri.py <维基文库原文目录>
@@ -135,7 +138,7 @@ def extract(fname, book, regime, eras, span, src_dir):
         rf"|(?P<run>閏月)|{MON}"
         rf"|(?P<gz>[{GAN}][{ZHI}])(?P<pos>朔|晦)?"
     )
-    rows, year, month, leap, cur_n = [], None, None, False, 1
+    rows, leaps, year, month, leap, cur_n, cur_era = [], [], None, None, False, 1, ""
     for para in text.split("\n"):
         if para.startswith("=="):  # 传主更替：年月状态清空，待下一个年号或年出现
             year, month, leap = None, None, False
@@ -155,7 +158,7 @@ def extract(fname, book, regime, eras, span, src_dir):
                         continue
                 n = cn2int(m.group("yr"))
                 if m.group("era"):
-                    cur_era_base = base
+                    cur_era = m.group("era")
                 year = base + n - 1
                 cur_n = n
                 month, leap = None, False
@@ -168,8 +171,14 @@ def extract(fname, book, regime, eras, span, src_dir):
                 base = allera[ne] if ne else next((b for e, b in own.items() if b == year), None)
                 if base is not None:
                     cur_n = year - base + 1
+                    cur_era = ne or next((e for e, b in own.items() if b == year), cur_era)
             elif m.group("run"):
                 leap = True
+                if year is not None and month is not None and year <= span[1] and not any(x["year"] == year for x in leaps):
+                    a = max(para.rfind("。", 0, st), -1) + 1
+                    b = para.find("。", m.end())
+                    leaps.append({"regime": regime, "era": cur_era, "year_in_era": cur_n, "year": year, "leap_after": month,
+                                  "text": para[a:b if b >= 0 else len(para)].replace(",", "，"), "file": fname})
             elif m.group("mon"):
                 month, leap = cn2int(m.group("mon")), False
             elif m.group("gz"):
@@ -189,17 +198,22 @@ def extract(fname, book, regime, eras, span, src_dir):
                              "month_name": ("閏" if leap else "") + f"{month}月", "leap": int(leap), "ganzhi": m.group("gz"),
                              "calendar": "", "in_month": "", "jdn": "", "julian": "", "position": m.group("pos") or ("朔" if prev.endswith("月朔") else ""),
                              "buzi": 0, "text": sent.replace(",", "，"), "book": book, "file": fname})
-    return rows
+    return rows, leaps
 
 
 def main():
     src_dir = Path(sys.argv[1])
-    out = {}
+    out, leap_out = {}, {}
     for fname, book, regime, eras, span, dst in SOURCES:
         if not (src_dir / fname).exists():
             print("缺", fname)
             continue
-        for r in extract(fname, book, regime, eras, span, src_dir):
+        rows, leaps = extract(fname, book, regime, eras, span, src_dir)
+        for r in leaps:
+            if (fname, "閏", r["text"][:8]) in MANUAL_DROP or any(x["year"] == r["year"] for x in leap_out.get(dst, [])):
+                continue
+            leap_out.setdefault(dst, []).append(r)
+        for r in rows:
             key = (fname, r["ganzhi"], r["text"][:8])
             if key in MANUAL_DROP:
                 continue
@@ -221,6 +235,14 @@ def main():
         print(dst, len(rows))
         for r in rows:
             print(" ", r["file"][:9], r["year"], r["month_name"], r["ganzhi"], r["position"], r["text"][:50])
+    for dst, rows in leap_out.items():
+        with open(ROOT / "data/calendar/本纪纪日" / f"{dst}_閏月.csv", "w", encoding="utf-8", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=["regime", "era", "year_in_era", "year", "leap_after", "text"], extrasaction="ignore")
+            w.writeheader()
+            w.writerows(rows)
+        print(f"{dst}_閏月", len(rows))
+        for r in rows:
+            print(" ", r["file"][:9], r["year"], f"{r['era']}{r['year_in_era']}年", "閏在", r["leap_after"], "月后", r["text"][:40])
 
 
 if __name__ == "__main__":

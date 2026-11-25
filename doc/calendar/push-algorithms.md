@@ -130,8 +130,10 @@
   材料时再作定论（补入 `出土纪日.csv` 即自动核对）。
 
 - **修正前后对《魏书》**：两表闰位不同之处，记载日干支在月者北朝推步 6 条、张表 4 条（修正前 3 对 21）。
-- **导出**：`examples/export_regime_calendars.rs` 写 `data/calendar/推步政权朔日表.csv`（各推步政权逐月朔日，民用历日期），
-  供史书检验脚本（`scripts/calendar_data/gaiyuan_date.py` 的 `regime_month_span`）用。
+- **导出**：`examples/export_regime_calendars.rs` 写 `data/calendar/推步政权朔日表.csv`（各推步政权逐月朔日，民用历日期；纯推步，
+  `regime_year_months_raw`），供判别脚本作「推步」一家；另写 `推步政权史载修正表.csv`（应用「政权：历名」史载例外后与纯推步不同之岁，
+  2026-11-24 共 9 岁），`scripts/calendar_data/gaiyuan_date.py` 的 `regime_month_span` 以之整岁覆盖主表，给史书记录定日期用当时行用之历
+  （此前只读主表，金 1162 年閏二月等例外不及于定日，《金史·天文志》该年四条凌犯重抽落空，见 `data/phenomena/README.md`「重抽可复现」）。
 - 前端 `gregorian_to_all_regimes_lunar` 与导出同走 `regime_year_months`；修正置闰后，前端显示的北朝、蜀、吴等闰月随之改变。
 - 本节参数（第四节）出自上游源码整理，尚未逐一与《宋书》《魏书》《隋书》律历志原文核对；景初历与实历表的复原一致（见上），
   玄始、正光、兴和、天保、天和、大象、开皇诸历的参数待以律历志与史书日干支逐一检验。

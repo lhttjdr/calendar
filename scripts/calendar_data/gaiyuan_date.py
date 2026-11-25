@@ -77,20 +77,31 @@ def month_span(lunar_year: int, month: int, leap: bool) -> tuple[int, int]:
 
 
 REGIME_TABLE = ROOT / "data/calendar/推步政权朔日表.csv"
+# 史载修正（dingshuo_exceptions.csv「政权：历名」各条）后与纯推步不同之岁，整岁覆盖主表
+REGIME_FIXED = ROOT / "data/calendar/推步政权史载修正表.csv"
 
 
-@lru_cache(maxsize=None)
-def _regime_months(regime: str) -> list[tuple[int, int, bool, int]]:
-    """推步政权（蜀、吴、后秦、北凉、北魏/西魏/北周/隋、东魏/北齐、金、辽等）按时间排序的 (岁, 月, 闰, 朔日 JDN)。
-    数据由 rust/core examples/export_regime_calendars.rs 从 calendar::push_calendar 导出。"""
+def _read_regime_rows(path: Path, regime: str) -> list[tuple[int, int, bool, int]]:
     out = []
-    with open(REGIME_TABLE, encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         for r in csv.DictReader(f):
             if r["regime"] == regime:
                 n = jdn(int(r["gregorian_year"]), int(r["gregorian_month"]), int(r["gregorian_day"]))
                 out.append((int(r["lunar_year"]), int(r["lunar_month"]), r["is_leap"] == "1", n))
+    return out
+
+
+@lru_cache(maxsize=None)
+def _regime_months(regime: str) -> list[tuple[int, int, bool, int]]:
+    """推步政权（蜀、吴、后秦、北凉、北魏/西魏/北周/隋、东魏/北齐、金、辽等）当时行用之历按时间排序的 (岁, 月, 闰, 朔日 JDN)：
+    纯推步主表，史载修正表所收之岁整岁替换（如金 1162 年代推閏三月、本纪与天文志作閏二月）。给史书记录定日期用；
+    与史书逐条判别「推步」一家者应读主表本身。数据由 rust/core examples/export_regime_calendars.rs 从 calendar::push_calendar 导出。"""
+    out = _read_regime_rows(REGIME_TABLE, regime)
     if not out:
         raise KeyError(f"推步政权朔日表无政权 {regime}")
+    fixed = _read_regime_rows(REGIME_FIXED, regime) if REGIME_FIXED.exists() else []
+    years = {t[0] for t in fixed}
+    out = [t for t in out if t[0] not in years] + fixed
     out.sort(key=lambda t: t[3])
     return out
 

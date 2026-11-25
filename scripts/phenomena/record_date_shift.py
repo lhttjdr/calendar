@@ -9,7 +9,8 @@ data/phenomena/checks/<book>_date_shift.csv，由 scripts/phenomena/checks_to_md
 2. 日干支不在所记之月的记录（只用历法）：同一干支在前一月、后一月、前一年同月、后一年同月是否在月内。
 
 历表 DE441（缺则 DE406）；恒星 data/stars/hipparcos_bright.csv（I/311，历元 J1991.25，计自行）；星官 data/sky_culture/chinese_asterisms.csv。
-用法（仓库根）：uv run --no-project --with skyfield python -I scripts/phenomena/record_date_shift.py
+用法（仓库根）：uv run --no-project --with skyfield python -I scripts/phenomena/record_date_shift.py [书 ...]
+（书为 BOOKS 的键，如 weishu suishu：只重算这几部；缺省全部。记录表重抽后行序变动的书须重算，序号才对得上。）
 """
 import csv
 import os
@@ -136,7 +137,10 @@ def ganzhi_fit(r):
 
 
 def main():
+    only = set(sys.argv[1:])
     for book, path in BOOKS:
+        if only and book not in only:
+            continue
         out = []
         for i, r in enumerate(rows(path), 1):
             ps, gf = planet_shift(r), ganzhi_fit(r)

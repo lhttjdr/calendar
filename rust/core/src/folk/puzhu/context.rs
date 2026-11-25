@@ -63,12 +63,28 @@ fn jie_order(k: usize) -> Option<usize> {
     if k % 2 == 1 { Some(((k + 3) / 2) % 12) } else { None }
 }
 
+/// 铺注所用节气（交节之日与时刻）的来源。
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TermSource {
+    /// 缺省：后编行用期（1742—1913，`zhongyuan_calendar_periods.csv`「时宪历（历象考成后编）」与民国初沿用）取《历象考成后编》
+    /// 日躔推得之京师用时（[crate::calendar::shixian::jieqi]），即时宪书定日、印交节时刻所据；其余年份取现代历表（东八区）。
+    /// 依据：时宪书书印交节时刻 9 例中 7 例为后编用时截至刻（doc/folk/shensha.md「交节时刻界限」），现代历表与书印之差
+    /// 随节气在 −0.5 至 +0.4 时之间，不能以常数补正。
+    #[default]
+    Auto,
+    /// 全程现代历表（VSOP87 视黄经，东八区钟点）
+    Modern,
+}
+
+/// 后编所据之年（公历年）
+pub const HOUBIAN_YEARS: std::ops::RangeInclusive<i32> = 1742..=1913;
+
 /// 一段时间的节气表（东八区日）：铺注逐日推算所需的节气、交节时刻、伏社
 #[derive(Clone, Debug)]
 pub struct TermTable {
     /// (日, 节气索引 0 春分 … 23 驚蟄)，按日升序
     pub terms: Vec<(i64, usize)>,
-    /// 交节之日与交节时刻（东八区钟点）
+    /// 交节之日与交节时刻（钟点：现代历表为东八区，后编为京师用时）
     pub jie_times: Vec<(i64, f64)>,
     /// 伏日（true）、社日（false）
     pub fu_she: Vec<(i64, bool)>,
@@ -77,23 +93,40 @@ pub struct TermTable {
 }
 
 impl TermTable {
-    /// 覆盖公历 y0—y1 年（各向外多取一年）
+    /// 覆盖公历 y0—y1 年（各向外多取一年），节气来源取缺省 [TermSource::Auto]
     pub fn new(vsop: &Vsop87, y0: i32, y1: i32) -> Self {
+        Self::with_source(vsop, y0, y1, TermSource::Auto)
+    }
+
+    /// 同 [Self::new]，指定节气来源
+    pub fn with_source(vsop: &Vsop87, y0: i32, y1: i32, source: TermSource) -> Self {
         let mut terms = Vec::new();
         let mut jie_times = Vec::new();
         let mut fu_she = Vec::new();
         let mut li_chun = Vec::new();
         for y in (y0 - 1)..=(y1 + 1) {
-            let t = solar_term_jds_for_year_cached(vsop, y);
-            for (k, jd) in t.iter().enumerate() {
-                let d = tt_to_day_number_utc8(*jd);
+            // (日, 钟点)，索引 k 同现代表（0 春分 … 23 驚蟄，皆在公历 y 年内）
+            let dh: Vec<(i64, f64)> = if source == TermSource::Auto && HOUBIAN_YEARS.contains(&y) {
+                // 后编冬至岁 y：k_h = 0 冬至（y−1 年十二月）…23 大雪、24 次冬至（y 年十二月）；黄经 15k = 270 + 15k_h
+                let h = crate::calendar::shixian::jieqi(y);
+                (0..24).map(|k| {
+                    let kh = (k + 6) % 24;
+                    let (d, hour, _) = h[if kh == 0 { 24 } else { kh }];
+                    (d, hour)
+                }).collect()
+            } else {
+                solar_term_jds_for_year_cached(vsop, y).iter().map(|jd| {
+                    let x = jd.as_f64() + 8.0 / 24.0 + 0.5;
+                    (tt_to_day_number_utc8(*jd), (x - x.floor()) * 24.0)
+                }).collect()
+            };
+            for (k, &(d, hour)) in dh.iter().enumerate() {
                 terms.push((d, k));
                 if k % 2 == 1 {
-                    let x = jd.as_f64() + 8.0 / 24.0 + 0.5;
-                    jie_times.push((d, (x - x.floor()) * 24.0));
+                    jie_times.push((d, hour));
                 }
             }
-            let day = |k: usize| tt_to_day_number_utc8(t[k]);
+            let day = |k: usize| dh[k].0;
             let (a, b, c) = zajie::san_fu(day(6), day(9));
             fu_she.extend([(a, true), (b, true), (c, true)]);
             fu_she.push((zajie::she_jin_wu(day(0)), false));

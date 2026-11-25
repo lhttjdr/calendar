@@ -262,6 +262,21 @@ fn jieqi_times(y: i32) -> Vec<Real> {
     out
 }
 
+/// 冬至岁 y（天正冬至在 y−1 年十一月）二十四气，k = 0 冬至、1 小寒……23 大雪、24 次岁冬至：
+/// (京师用时所在日 JDN, 京师用时时刻（时，0…24）, 京师平时时刻（时）)。用时 = 平时 + 时差（[shi_cha]：均数与升度差），
+/// 时宪书定日、印交节时刻皆用用时（「中气化为用时定日」，见 doc/folk/shensha.md「交节时刻界限」检验）。
+pub fn jieqi(y: i32) -> Vec<(i64, f64, f64)> {
+    jieqi_times(y)
+        .into_iter()
+        .map(|t| {
+            let u = t + shi_cha(t);
+            let d = u.to_i64_floor();
+            let hour = |x: Real| ((x - r(x.to_i64_floor() as f64)) * r(24.0)).as_f64();
+            (jdn_of(d), hour(u), hour(t))
+        })
+        .collect()
+}
+
 /// [d0, d1) 日内各合朔平时时刻：本日、次日子正日月黄道实行内插
 fn shuo_times(d0: i64, d1: i64) -> Vec<Real> {
     let mut out = Vec::new();
@@ -368,6 +383,35 @@ mod tests {
                 })
                 .collect();
             assert_eq!(got, days, "冬至岁 {y}");
+        }
+    }
+
+    /// 时宪书书印交节时刻（京师，各月首页「某日某時某刻某節」）与后编用时：书印 = 用时截至刻（「用时 − 书印」在 [0, 1 刻)，
+    /// 容差 0.005 时 ≈ 18 秒，内插之差）。九例中七例如此；乾隆三十、三十一年两个清明书印早 0.48—0.66 时，未解（三十一年
+    /// 「正」字为馆藏印所掩），钉住其差。转录见 data/folk/shixianshu_*.csv「讀記」，检验见 doc/folk/shensha.md「交节时刻界限」。
+    #[test]
+    fn printed_jiaojie_times_are_yongshi_truncated_to_ke() {
+        use crate::calendar::gan_zhi::GAN_ZHI_60;
+        // (冬至岁, k（0 冬至…23 大雪）, 日干支, 书印时刻（时）)
+        let fit = [
+            (1756, 13, "丁未", 4.0),  // 乾隆二十一年小暑 寅正初刻
+            (1756, 19, "庚辰", 5.25), // 寒露 卯初一刻
+            (1756, 21, "庚戌", 6.75), // 立冬 卯正三刻
+            (1765, 23, "丁卯", 2.75), // 乾隆三十年大雪 丑正三刻
+            (1800, 15, "己巳", 5.0),  // 嘉庆五年立秋 卯初初刻（用时 4.9971，差 10 秒）
+            (1820, 7, "己酉", 4.5),   // 嘉庆二十五年清明 寅正二刻
+            (1820, 11, "辛亥", 4.75), // 芒種 寅正三刻
+        ];
+        for (y, k, gz, printed) in fit {
+            let (jdn, yong, _) = jieqi(y)[k];
+            assert_eq!(GAN_ZHI_60[((jdn + 49) % 60) as usize], gz, "{y} 第 {k} 气日干支");
+            let d = yong - printed;
+            assert!((-0.005..0.25).contains(&d), "{y} 第 {k} 气用时 {yong:.4} 书印 {printed}（差 {d:+.3}）");
+        }
+        for (y, gz, printed, lo, hi) in [(1765, "庚申", 20.25, 0.6, 0.7), (1766, "丙寅", 2.25, 0.4, 0.55)] {
+            let (jdn, yong, _) = jieqi(y)[7];
+            assert_eq!(GAN_ZHI_60[((jdn + 49) % 60) as usize], gz);
+            assert!((lo..hi).contains(&(yong - printed)), "{y} 清明用时 {yong:.3} 书印 {printed}");
         }
     }
 }
