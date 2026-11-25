@@ -4,7 +4,7 @@
 > [qin-han-calendar-evaluation.md](./qin-han-calendar-evaluation.md) 第六节）；按国别接在推步政权表
 > `push_calendar::regime_calendars`，导出 `data/calendar/推步政权朔日表.csv`
 > （`cargo run --release -p lunar-core --example export_regime_calendars`）。中原一线仍起于秦统一（−220），春秋战国不设中原一线。
-> 主要依据：张培瑜等《中国古代历法》（2013 年印本，本地扫描 PDF，书页 + 19 为 PDF 页序）第三章第五至八节（书页 186—238）。
+> 主要依据：张培瑜等《中国古代历法》（2013 年印本，本地扫描 PDF，书页 + 20 为 PDF 页序（从 1 数；从 0 数的页索引为 + 19））第三章第五至八节（书页 186—238）。
 
 ## 一、各国用历的证据
 
