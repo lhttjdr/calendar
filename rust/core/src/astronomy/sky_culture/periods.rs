@@ -70,7 +70,7 @@ mod tests {
         for x in &p {
             assert!(ids.contains(&x.system), "距星表无体系 {}", x.system);
         }
-        for (year, want) in [(-180, "chenzhuo"), (1051, "chenzhuo"), (1052, "song_huangyou"), (1363, "yuan"), (1700, "qing_lingtai"), (2026, "qing")] {
+        for (year, want) in [(-180, "chenzhuo"), (1051, "chenzhuo"), (1052, "song_huangyou"), (1363, "yuan"), (1644, "ming_xianglin"), (1645, "chongzhen"), (1673, "chongzhen"), (1674, "qing_lingtai"), (1700, "qing_lingtai"), (2026, "qing")] {
             assert_eq!(system_for_year(&p, year).unwrap().system, want, "{year}");
         }
     }

@@ -61,6 +61,8 @@ pub mod paths {
     pub const CHINESE_ASTERISMS: &str = "data/sky_culture/chinese_asterisms.csv";
     /// 中国星名（各体系），见 astronomy::sky_culture::chinese
     pub const CHINESE_STAR_NAMES: &str = "data/sky_culture/chinese_star_names.csv";
+    /// 《崇祯历书·恒星历指》二十八宿距星赤经、黄经积度（1628 历元），见 astronomy::sky_culture::chinese::EclipticLodgeTable
+    pub const CHONGZHEN_LODGE_TABLE: &str = "data/sky_culture/chongzhen_juxing.csv";
     /// 中国星官体系的适用年代，见 astronomy::sky_culture::periods
     pub const CHINESE_SYSTEM_PERIODS: &str = "data/sky_culture/system_periods.csv";
     /// 陈卓体系星官的三家分属，见 astronomy::sky_culture::chinese::SchoolAttribution

@@ -3,7 +3,8 @@
 //! 距星数据：`data/sky_culture/chinese_lunar_mansion_determinatives.csv`，由 Stellarium 五套中国星空文化（CC BY-SA 4.0，
 //! `vendor/stellarium_skycultures/`）提取并逐宿核对，分「体系」并存（陈卓、宋皇祐、元、明象林、清仪象考成）。
 //! 汉至明四套相同（与潘鼐《中国恒星观测史》2009 第 14 页表 1.2.1 一致）。康熙《灵台仪象志》（1674）改奎 η And、觜 λ Ori、昴 η Tau，
-//! 致「参前觜后」；《仪象考成》（1744 测，第 641 页表 9.1.4）昴复用 17 Tau，乾隆十九年（1754）起参改 ζ Ori 以复「觜前参后」（第 639–640 页）。
+//! 致「参前觜后」——此三宿之改实始于《崇祯历书》（1628 历元，`chongzhen` 体系，经逐宿核对与灵台仪象志同星，见
+//! doc/astronomy/chongzhen-juxing-checks.md）；《仪象考成》（1744 测，第 641 页表 9.1.4）昴复用 17 Tau，乾隆十九年（1754）起参改 ζ Ori 以复「觜前参后」（第 639–640 页）。
 //!
 //! 宿度：相邻两宿距星赤经差（当日真赤道），按周天度（如四分历 365.25、授时历 365.2575）换算为古度；觜参颠倒时宿度为负，
 //! 如实输出。入宿度：天体在其西侧最近距星以东的赤经差（古度）；去极度：90° − 赤纬（古度）。
@@ -23,7 +24,8 @@ pub const MANSIONS: [&str; 28] = [
 /// 一套二十八宿距星认定。
 #[derive(Clone, Debug)]
 pub struct LunarMansionSystem {
-    /// 体系 id：`chenzhuo`、`song_huangyou`、`yuan`、`ming_xianglin`、`qing`（仪象考成）、`qing_lingtai`（灵台仪象志 1674）
+    /// 体系 id：`chenzhuo`、`song_huangyou`、`yuan`、`ming_xianglin`、`qing`（仪象考成）、`chongzhen`（崇祯历书 1628，清 1645—1673 行用）、
+    /// `qing_lingtai`（灵台仪象志 1674）
     pub id: String,
     /// 各宿距星 Hipparcos 编号（自角至轸）
     pub determinatives: [u32; 28],
@@ -307,6 +309,81 @@ impl MansionFrame {
     }
 }
 
+impl MansionFrame {
+    /// 各距星坐标加改正（rad）后的新框架，用于把原书距星的测量误差（[`EclipticLodgeTable::offsets`]）加到推算位置上。
+    /// 须先 [`Self::to_ecliptic`]（改正为黄经差）。
+    pub fn with_offsets(&self, offsets: &[Real; 28]) -> Self {
+        Self { ra: core::array::from_fn(|i| (self.ra[i] + offsets[i]).wrap_to_2pi()), dec: self.dec }
+    }
+}
+
+/// 原书距星黄经表（某历元）：如《崇祯历书·恒星历指》卷二「黄道宿今积度」（`data/sky_culture/chongzhen_juxing.csv`）。
+/// 用于按原书划宿：原表数字含当时测量误差，与 Hipparcos 推算差中位约 2′、个别宿达 1°余（见 doc/astronomy/chongzhen-juxing-checks.md）。
+#[derive(Clone, Debug)]
+pub struct EclipticLodgeTable {
+    /// 历元（儒略年，TT）
+    pub epoch_year: Real,
+    /// 各宿距星黄经（rad，当时平春分点，自角至轸）
+    pub lon: [Real; 28],
+}
+
+/// 《崇祯历书》距星表历元：《恒星历指》卷二「恒星本行表」「崇祯元年戊辰为历元」。
+pub const CHONGZHEN_TABLE_EPOCH_YEAR: f64 = 1628.0;
+
+/// 解析 `chongzhen_juxing.csv`（`#` 注释，首个非注释行为表头；取 `index`、`mansion`、`lon_deg`、`lon_min` 列）。
+pub fn parse_chongzhen_lodge_table(lines: &[String]) -> Result<EclipticLodgeTable, String> {
+    let mut body = lines.iter().filter(|l| !l.starts_with('#') && !l.trim().is_empty());
+    let header: Vec<&str> = body.next().ok_or("缺表头")?.split(',').collect();
+    let col = |name: &str| header.iter().position(|h| *h == name).ok_or_else(|| format!("缺列 {name}"));
+    let (ci, cm, cd, cmin) = (col("index")?, col("mansion")?, col("lon_deg")?, col("lon_min")?);
+    let mut lon = [real(-1.0); 28];
+    for line in body {
+        let f: Vec<&str> = line.split(',').collect();
+        let idx: usize = f[ci].parse().map_err(|e| format!("{e}：{line}"))?;
+        if !(1..=28).contains(&idx) || MANSIONS[idx - 1] != f[cm] {
+            return Err(format!("宿序与宿名不符：{line}"));
+        }
+        let d: i32 = f[cd].parse().map_err(|e| format!("{e}：{line}"))?;
+        let m: i32 = f[cmin].parse().map_err(|e| format!("{e}：{line}"))?;
+        lon[idx - 1] = crate::quantity::angle::PlaneAngle::from_deg(real(d) + real(m) / real(60.0)).rad();
+    }
+    if lon.iter().any(|x| *x < real(0.0)) {
+        return Err("距星黄经不全".into());
+    }
+    Ok(EclipticLodgeTable { epoch_year: real(CHONGZHEN_TABLE_EPOCH_YEAR), lon })
+}
+
+/// 读取仓库内《崇祯历书》距星表（[`crate::repo::paths::CHONGZHEN_LODGE_TABLE`]）。
+pub fn load_chongzhen_lodge_table_from_repo() -> Result<EclipticLodgeTable, String> {
+    let lines = crate::repo::read_lines(crate::repo::paths::CHONGZHEN_LODGE_TABLE).map_err(|e| format!("{e:?}"))?;
+    parse_chongzhen_lodge_table(&lines)
+}
+
+impl EclipticLodgeTable {
+    /// 原表 − 推算：各距星在表历元的「原表黄经 − Hipparcos 平黄经（当日平黄道、平春分点）」（rad，(−π, π]）。
+    /// 加到任一时刻由同一套距星推算的黄道框架上（[`MansionFrame::with_offsets`]），即得按原表划宿：
+    /// 原表与推算同随岁差移动，几十年内距星自行之变可略。
+    pub fn offsets(
+        &self,
+        catalog: &StarCatalog,
+        system: &LunarMansionSystem,
+        options: &ApparentPipelineOptions,
+    ) -> Result<[Real; 28], String> {
+        use crate::astronomy::apparent::star_mean_equatorial;
+        use crate::astronomy::time::TimeScale;
+        let jd = real(2451545.0) + (self.epoch_year - real(2000.0)) * real(365.25);
+        let t = TimePoint::new(TimeScale::TT, jd);
+        let eps = crate::astronomy::frame::precession::mean_obliquity((jd - real(2451545.0)) / real(36525.0)).rad();
+        let mut out = [real(0.0); 28];
+        for (i, hip) in system.determinatives.iter().enumerate() {
+            let star = catalog.by_hip(*hip).ok_or_else(|| format!("星表缺 HIP {hip}（{}宿）", MANSIONS[i]))?;
+            let (a, d) = right_ascension_declination(&star_mean_equatorial(star, t, options));
+            out[i] = (self.lon[i] - ecliptic_longitude(a.rad(), d.rad(), eps)).wrap_to_signed_pi();
+        }
+        Ok(out)
+    }
+}
+
 /// 去极度（古度）：90° − 赤纬，按周天 `zhou_tian` 度换算。
 pub fn qu_ji_du(dec: Real, zhou_tian: Real) -> Real {
     (real(core::f64::consts::FRAC_PI_2) - dec) * zhou_tian / real(2.0 * core::f64::consts::PI)
@@ -381,11 +458,15 @@ mod tests {
     fn systems_load() {
         let s = load_lunar_mansion_systems_from_repo().unwrap();
         let ids: Vec<_> = s.iter().map(|x| x.id.as_str()).collect();
-        assert_eq!(ids, ["chenzhuo", "song_huangyou", "yuan", "ming_xianglin", "qing", "qing_lingtai"]);
+        assert_eq!(ids, ["chenzhuo", "song_huangyou", "yuan", "ming_xianglin", "qing", "chongzhen", "qing_lingtai"]);
         // 清代改奎、觜、参三宿距星，余同
         let (old, qing) = (&s[0], &s[4]);
         let changed: Vec<_> = (0..28).filter(|&i| old.determinatives[i] != qing.determinatives[i]).map(|i| MANSIONS[i]).collect();
         assert_eq!(changed, ["奎", "觜", "参"]);
+        // 《崇祯历书》改奎、昴、觜三宿，《灵台仪象志》同星
+        let changed: Vec<_> = (0..28).filter(|&i| old.determinatives[i] != s[5].determinatives[i]).map(|i| MANSIONS[i]).collect();
+        assert_eq!(changed, ["奎", "昴", "觜"]);
+        assert_eq!(s[5].determinatives, s[6].determinatives);
     }
 
     /// 《元史·历志一》「周天列宿度」六次实测与本模块推算（同体系距星、同历元）逐宿对照。
@@ -522,5 +603,21 @@ mod tests {
         println!("最大差 {worst:.1}″");
         // 潘鼐今测值据老星表推算，至角秒级；双星 λ Ori 差约 15″
         assert!(worst < 20.0, "{worst}");
+    }
+
+    /// 《崇祯历书·恒星历指》原表距星黄经（1628）− Hipparcos 平黄经：中位约 +1.7′，与
+    /// scripts/sky_culture/chongzhen_juxing_check.py（erfa，IAU 2006）相差在 0.2′ 内；女宿原表偏大约 88′，尾宿偏小约 51′。
+    #[test]
+    fn chongzhen_table_offsets() {
+        let cat = load_hipparcos_bright_from_repo().unwrap();
+        let sys = load_lunar_mansion_systems_from_repo().unwrap().into_iter().find(|s| s.id == "chongzhen").unwrap();
+        let tab = load_chongzhen_lodge_table_from_repo().unwrap();
+        let d: Vec<f64> = tab.offsets(&cat, &sys, &ApparentPipelineOptions::default()).unwrap().iter().map(|x| x.as_f64().to_degrees() * 60.0).collect();
+        let mut sorted = d.clone();
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let med = (sorted[13] + sorted[14]) / 2.0;
+        println!("原表 − 推算（角分）：{d:?}，中位 {med:+.2}");
+        assert!((med - 1.69).abs() < 0.3, "{med}");
+        assert!((d[9] - 88.0).abs() < 0.5 && (d[5] + 51.0).abs() < 0.5, "{} {}", d[9], d[5]);
     }
 }

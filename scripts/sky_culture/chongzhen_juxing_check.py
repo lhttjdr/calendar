@@ -11,6 +11,10 @@ erfa.pmat06（框架偏差 + IAU 2006 岁差）转当日平赤道平春分点，
 另列与《灵台仪象志》所取星的差，以见两者是否同星。
 
 运行（仓库根）：uv run --no-project --with pyerfa --with numpy python -I scripts/sky_culture/chongzhen_juxing_check.py
+「按原表划宿」一节需两种取法下的《清史稿》检验表，先在 rust/ 下各跑一次
+  PHENOMENA_CHECKS=1 PHENOMENA_CHECKS_DIR=<目录>/<table|hipparcos> PHENOMENA_CHONGZHEN_LODGES=<table|hipparcos> \
+    cargo test --release -p lunar-core --no-default-features --features real-f64 qingshigao_star_records_check -- --include-ignored
+再以 CHONGZHEN_MODE_DIR=<目录> 运行本脚本；不设则略去该节。
 """
 
 from __future__ import annotations
@@ -18,6 +22,7 @@ from __future__ import annotations
 import csv
 import math
 import os
+import re
 import statistics
 
 import erfa
@@ -91,6 +96,98 @@ def fit_epoch(cat, hips, lons, guess):
         c = Catalog(cat, y)
         y += statistics.median([wrap180(lon - c.pos(h)[2]) for h, lon in zip(hips, lons)]) * 3600 / PREC
     return y
+
+
+MODE_DIR = os.environ.get("CHONGZHEN_MODE_DIR", "")  # 含 table/、hipparcos/ 两个子目录的 qingshigao_star_records.csv
+CELL = re.compile(r"^(?P<m>[^\d\-]+)(?P<d>-?[\d.]+)（史载 (?P<rm>[^\d]+)(?P<rd>[\d.]+)）$")
+MANSION_ORDER = "角亢氐房心尾箕斗牛女虚危室壁奎娄胃昴毕觜参井鬼柳星张翼轸"
+
+
+def mode_rows(path):
+    out = {}
+    for r in rows(path):
+        y = int(r["公历(儒略)"][:4])
+        m = CELL.match(r["推算入宿"])
+        if not (1645 <= y <= 1673) or not m or r["干支在月"] != "是":
+            continue
+        out[r["序"]] = (r, m)
+    return out
+
+
+def mode_section(P):
+    """两种取法（原表 / Hipparcos）下《清史稿》1645—1673 年记有宿度者的推算入宿对所记之差。"""
+    if not MODE_DIR:
+        return
+    a = mode_rows(os.path.join(MODE_DIR, "table", "qingshigao_star_records.csv"))
+    b = mode_rows(os.path.join(MODE_DIR, "hipparcos", "qingshigao_star_records.csv"))
+    keys = [k for k in a if k in b]
+
+    def diff(m):
+        # 同宿：度差；邻宿：跨宿界换成连续黄道度差（宿度用原表本度近似不可得，此处只计同宿）
+        return float(m["d"]) - float(m["rd"]) if m["m"] == m["rm"] else None
+
+    da = [diff(a[k][1]) for k in keys]
+    db = [diff(b[k][1]) for k in keys]
+    same_a = sum(x is not None for x in da)
+    same_b = sum(x is not None for x in db)
+    both = [(x, y) for x, y in zip(da, db) if x is not None and y is not None]
+    abs_a = statistics.median([abs(x) for x, _ in both])
+    abs_b = statistics.median([abs(y) for _, y in both])
+    win_a = sum(abs(x) < abs(y) - 1e-9 for x, y in both)
+    win_b = sum(abs(y) < abs(x) - 1e-9 for x, y in both)
+    P("## 按原表划宿：《清史稿》1645—1673 年所记入宿度")
+    P("")
+    P("《清史稿·天文志》五星合聚、凌犯所记「同躔某宿某度」多为钦天监按时宪历推步之数。1645—1673 年距星为《崇祯历书》体系，"
+      "比较两种距星位置取法下的推算入宿（行星位置同为 VSOP87 推算，黄道 360°）：")
+    P("")
+    P("- **原表**：距星黄经 = Hipparcos 推算 + 《恒星历指》原表在 1628 年对推算之差（原表误差随岁差带入当时）；")
+    P("- **Hipparcos**：距星黄经按 Hipparcos 推算。")
+    P("")
+    P(f"记有宿度且干支在月者 {len(keys)} 条。推算与所记同宿：原表 {same_a}、Hipparcos {same_b}。"
+      f"两法皆同宿者 {len(both)} 条，|推算 − 所记| 中位：原表 {abs_a:.2f}°、Hipparcos {abs_b:.2f}°；"
+      f"逐条比，原表更近 {win_a} 条、Hipparcos 更近 {win_b} 条、相等 {len(both) - win_a - win_b} 条。")
+    P("")
+    # 两法共有系统差（推算普遍比所记大约 0.6°，与距星取法无关）去掉后再比；原表误差大的四宿单列
+    ma = statistics.median([x for x, _ in both])
+    mb = statistics.median([y for _, y in both])
+    big = "尾箕女柳"
+    rows_both = [(k, x, y) for k, x, y in zip(keys, da, db) if x is not None and y is not None]
+    def cmp(sel):
+        ra = [abs(x - ma) for _, x, _ in sel]
+        rb = [abs(y - mb) for _, _, y in sel]
+        return len(sel), statistics.median(ra), statistics.median(rb), sum(p < q - 1e-9 for p, q in zip(ra, rb)), sum(q < p - 1e-9 for p, q in zip(ra, rb))
+    c_all = cmp(rows_both)
+    c_big = cmp([t for t in rows_both if a[t[0]][1]["m"] in big])
+    P(f"但两法推算普遍比所记大（差的中位：原表 {ma:+.2f}°、Hipparcos {mb:+.2f}°），此系统差与距星取法无关（行星位置、日界、时宪历推步本身），"
+      "原表各宿平均偏大 1.7′ 恰把推算拉近所记，上面的「更近」多由此来。去掉各法自身的中位差后再比：")
+    P("")
+    P("| 范围 | 条数 | 残差绝对值中位：原表 | Hipparcos | 原表更近 | Hipparcos 更近 |")
+    P("|---|---|---|---|---|---|")
+    P(f"| 全部两法同宿者 | {c_all[0]} | {c_all[1]:.2f}° | {c_all[2]:.2f}° | {c_all[3]} | {c_all[4]} |")
+    P(f"| 原表误差大的尾、箕、女、柳四宿 | {c_big[0]} | {c_big[1]:.2f}° | {c_big[2]:.2f}° | {c_big[3]} | {c_big[4]} |")
+    P("")
+    P("女宿原表比 ε Aqr 偏大 88′，若时宪历用此数，所记女宿度当比按 Hipparcos 推算小约 1.5°；实际所记与 Hipparcos 推算之差"
+      "和其他各宿同为 +0.4°—+1.0°，按原表反成 −0.5°—−1.1°。柳宿（原表偏 55′）亦然。故时宪历推步所用距星黄经不是《恒星历指》"
+      "这张积度表上的数（当另据恒星经纬表或经校正），缺省取 Hipparcos；原表模式留作对照。")
+    P("")
+    global MODE_SUMMARY
+    MODE_SUMMARY = (len(keys), same_a, same_b, len(both), abs_a, abs_b, win_a, win_b, c_all, c_big)
+    P("| 序 | 公历 | 记载 | 所记 | 原表推算 | 差° | Hipparcos 推算 | 差° |")
+    P("|---|---|---|---|---|---|---|---|")
+    for k, x, y in zip(keys, da, db):
+        r, ma = a[k]
+        mb = b[k][1]
+        fx = "异宿" if x is None else f"{x:+.2f}"
+        fy = "异宿" if y is None else f"{y:+.2f}"
+        if ma["m"] == mb["m"] and abs(float(ma["d"]) - float(mb["d"])) < 0.005:
+            continue  # 两法相同者不列
+        P(f"| {k} | {r['公历(儒略)']} | {r['记载']} | {ma['rm']}{float(ma['rd']):g} | {ma['m']}{float(ma['d']):.2f} | {fx} | {mb['m']}{float(mb['d']):.2f} | {fy} |")
+    P("")
+    P("（只列两法推算不同的记录；未列者所在宿距星的原表误差不足 0.3′。）")
+    P("")
+
+
+MODE_SUMMARY = None
 
 
 def main():
@@ -263,15 +360,30 @@ def main():
           "反推历元 1744 与《仪象考成》测星之年（乾隆九年甲子）相合，残差中位绝对偏差仅半角分，当即据《仪象考成》星表，不是清初之物。")
         P("")
 
+    # ---------------- 按原表划宿：《清史稿》1645—1673 所记入宿度 ----------------
+    mode_section(P)
+
     # ---------------- 结论 ----------------
-    P("## 三、清初 1645—1673 距星取法")
+    P("## 三、清初 1645—1673 距星取法与接入")
     P("")
-    P("- 顺治二年（1645）行时宪历，宿度依《崇祯历书》（西洋新法历书）黄道宿度。本检验所得《崇祯历书》28 宿认星与本项目 "
+    P("- 顺治二年（1645）行时宪历，宿度依《崇祯历书》（西洋新法历书）黄道宿度。本检验所得《崇祯历书》28 宿认星与 "
       f"`qing_lingtai`（《灵台仪象志》）{'全同' if len(same_lt) == 28 else '同 ' + str(len(same_lt)) + ' 宿'}：奎 η And、觜 λ Ori、昴 η Tau 之改"
-      "始于《崇祯历书》，《灵台仪象志》（1674）承之。故 1645—1673 用 `qing_lingtai` 认星，以 Hipparcos 推算星位时结果与改用崇祯距星"
-      "相同，原近似在认星上并无误差。")
-    P("- 若要复现时宪历当时所用的宿度（含其测量误差），应直接用《崇祯历书》原表黄道积度（本数据），而非 Hipparcos 推算："
-      f"两者宿度差中位 {sw[0]:+.1f}′、最大 {sw[3]:.0f}′（牛、女、心、尾、箕诸宿）。")
+      "始于《崇祯历书》，《灵台仪象志》（1674）承之。")
+    P("- 据此在距星表新增 `chongzhen` 体系（HIP 同 `qing_lingtai`，由 `scripts/sky_culture/lunar_mansions.py` 生成）。"
+      "天象检验 `tests_records.rs::lodge_model`：《清史稿》1644—1673 取 `chongzhen`（黄道 360°）、1674—1753 取 `qing_lingtai`、1754 起取 `qing`。"
+      "起点取 1644 而非时宪历颁行的 1645：顺治元年有宿度者两条——正月丙辰「土金同躔壁三度」、三月乙巳「土水同躔壁八度」，"
+      "皆在汤若望七月受命掌钦天监、八月朔日食以新法验之前——按陈卓赤道体系推算皆入奎宿（异宿），按崇祯距星黄道 360° 为壁 3.3、壁 9.4（同宿）；"
+      "《清史稿》此卷所记当是入关后钦天监按新法整理之数，故整年按新法计，不按月切换。星图年段仍以 1645 颁行为界。"
+      "星图仲裁 `system_periods.csv`：《象林》1634—1644、`chongzhen` 1645—1673（崇祯年间朝廷仍行大统历，《崇祯历书》未颁行，"
+      "至顺治二年方由时宪历起用；星官与星名用同时代的《象林》）。")
+    P("- 距星位置有两种取法，环境变量 `PHENOMENA_CHONGZHEN_LODGES=table|hipparcos`：`table` 按原表黄道积度"
+      f"（`EclipticLodgeTable::offsets` 把原表在 1628 年对推算之差加到当时推算黄经上），`hipparcos` 按 Hipparcos。两者宿度差中位 {sw[0]:+.1f}′、"
+      f"最大 {sw[3]:.0f}′（牛、女、心、尾、箕诸宿）。")
+    if MODE_SUMMARY:
+        n, sa, sb_, nb, aa, ab, wa, wb, c_all, c_big = MODE_SUMMARY
+        P(f"- 缺省 `hipparcos`，据上节：{n} 条中同宿两法皆 {sa if sa == sb_ else (sa, sb_)}；去掉共有系统差后 Hipparcos 更合"
+          f"（{c_all[0]} 条中 {c_all[4]} 对 {c_all[3]}；尾、箕、女、柳四宿 {c_big[0]} 条中 {c_big[4]} 对 {c_big[3]}），"
+          "时宪历推步所用距星黄经不随《恒星历指》积度表之误。")
     if tw:
         P(f"- 《钦定天文正义》距星历元约 {ep_tw:.0f} 年、参用 ζ Ori，属《仪象考成》体系，不宜用于 1645—1673。")
     P("")

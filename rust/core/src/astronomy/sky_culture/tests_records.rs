@@ -134,16 +134,35 @@ fn site(book: &str, year: i64, regime: &str) -> (f64, f64, &'static str) {
     capital(regime, year).unwrap_or_else(|| panic!("都城表 data/phenomena/capitals.csv 缺政权「{regime}」{year} 年"))
 }
 
-/// 宿度体系：（距星体系 id，是否黄道，周天度数）。清时宪历（顺治二年 1645 起）以黄经计宿度、周天 360°，距星 1754 年前
-/// 取《灵台仪象志》（1645—1673 年《崇祯历书》距星未单列，以之近似），乾隆十九年（1754）参改 ζ Ori 后取《仪象考成》；
-/// 其余各书陈卓距星、赤经、周天 365.25 度。
+/// 宿度体系：（距星体系 id，是否黄道，周天度数）。《清史稿》自顺治元年（1644）起以黄经计宿度、周天 360°：1644—1673 取《崇祯历书》
+/// 距星（`chongzhen`），1674—1753 取《灵台仪象志》——两者经逐宿核对同星（doc/astronomy/chongzhen-juxing-checks.md）；
+/// 乾隆十九年（1754）参改 ζ Ori 后取《仪象考成》。其余各书陈卓距星、赤经、周天 365.25 度。
+/// 起点取 1644 而非时宪历颁行的 1645：顺治元年有宿度的两条（正月丙辰土金同躔壁三度、三月乙巳土水同躔壁八度，皆在汤若望七月掌监之前）
+/// 按陈卓赤道体系推算皆入奎（异宿），按崇祯黄道 360° 为壁 3.3、壁 9.4（同宿），故整年按新法计，不按月切换。
 fn lodge_model(book: &str, year: i64) -> (&'static str, bool, f64) {
     match book {
         "qingshigao" if year >= 1754 => ("qing", true, 360.0),
-        "qingshigao" if year >= 1645 => ("qing_lingtai", true, 360.0),
+        "qingshigao" if year >= 1674 => ("qing_lingtai", true, 360.0),
+        "qingshigao" if year >= 1644 => ("chongzhen", true, 360.0),
         _ => ("chenzhuo", false, 365.25),
     }
 }
+
+/// 《崇祯历书》体系（1644—1673）距星位置取法（环境变量 `PHENOMENA_CHONGZHEN_LODGES`）：
+/// `table` 按《恒星历指》原表黄道积度划宿（原表误差随岁差带入当时，见 [`EclipticLodgeTable::offsets`]），
+/// `hipparcos` 按 Hipparcos 推算距星黄经。缺省 `hipparcos`：《清史稿》1645—1673 年所记入宿度去掉两法共有的系统差（约 +0.6°）后，
+/// Hipparcos 更合（94 条中 54 对 39），原表误差大的女、柳、尾、箕四宿尤甚（15 条中 10 对 5，女宿原表偏 88′ 而所记不随之偏），
+/// 可见时宪历推步所用距星黄经并非《恒星历指》此表之数。见 doc/astronomy/chongzhen-juxing-checks.md「按原表划宿」节。
+fn chongzhen_use_table() -> bool {
+    match std::env::var("PHENOMENA_CHONGZHEN_LODGES").as_deref() {
+        Ok("table") => true,
+        Ok("hipparcos") => false,
+        _ => CHONGZHEN_TABLE_DEFAULT,
+    }
+}
+
+/// [`chongzhen_use_table`] 的缺省（依据见其文档）。
+const CHONGZHEN_TABLE_DEFAULT: bool = false;
 
 struct Rec {
     f: HashMap<String, String>,
@@ -211,6 +230,10 @@ fn check_book(book: &'static str, title: &str) {
     let asterisms: HashMap<String, Asterism> =
         load_asterisms_from_repo().unwrap().into_iter().filter(|a| a.system == "chenzhuo").map(|a| (a.id.clone(), a)).collect();
     let systems = load_lunar_mansion_systems_from_repo().unwrap();
+    let chongzhen_offsets = load_chongzhen_lodge_table_from_repo()
+        .unwrap()
+        .offsets(&cat, systems.iter().find(|s| s.id == "chongzhen").unwrap(), &ApparentPipelineOptions::default())
+        .unwrap();
     let recs = read_records(&format!("data/phenomena/{book}_star_records.csv"));
     let opts = ApparentPipelineOptions::default();
     let tp = |t: f64| TimePoint::new(TimeScale::TT, real(t));
@@ -229,6 +252,12 @@ fn check_book(book: &'static str, title: &str) {
         if std::env::var("PHENOMENA_NIGHT").as_deref() == Ok("midnight") { "子夜（民用日）" } else { "正午（一夜记为入夜之日）" }
     ));
     tab.meta(format!("解析见 data/phenomena/{book}_star_records.csv；「—」表示该日期范围内无可见时段或无可比对象"));
+    if book == "qingshigao" {
+        tab.meta(format!(
+            "推算入宿：黄道 360°；距星 1644—1673《崇祯历书》（{}）、1674—1753《灵台仪象志》、1754 起《仪象考成》（后两者按 Hipparcos 推算）",
+            if chongzhen_use_table() { "按《恒星历指》原表黄道积度，原表误差随岁差带入" } else { "按 Hipparcos 推算" }
+        ));
+    }
 
     /// 一条记录的推算结果：表格行与统计量（各记录独立，可并行求，再按原序汇总）。
     #[derive(Default)]
@@ -355,6 +384,7 @@ fn check_book(book: &'static str, title: &str) {
         }
         // 推算所在宿（陈卓体系，赤经区间）：多天体取天体间最接近之夜，其余取首夜，均取夜半；记载目标为二十八宿时比对
         let (lodge_sys, ecliptic, zhou_tian) = lodge_model(book, year);
+        let table_offsets = (lodge_sys == "chongzhen" && chongzhen_use_table()).then_some(&chongzhen_offsets);
         let lodge_sys = systems.iter().find(|s| s.id == lodge_sys).unwrap();
         let lodge_of = |night: f64| {
             let t = real(night + 0.5);
@@ -369,7 +399,12 @@ fn check_book(book: &'static str, title: &str) {
             if ecliptic {
                 // 平黄赤交角（P03）；章动项 <10″，于度级比较可略
                 let eps = crate::astronomy::frame::precession::mean_obliquity((t - real(2451545.0)) / real(36525.0)).rad();
-                frame.to_ecliptic(eps).locate(ecliptic_longitude(a.rad(), dcl.rad(), eps), dcl.rad(), real(zhou_tian))
+                let ecl = frame.to_ecliptic(eps);
+                let ecl = match table_offsets {
+                    Some(d) => ecl.with_offsets(d),
+                    None => ecl,
+                };
+                ecl.locate(ecliptic_longitude(a.rad(), dcl.rad(), eps), dcl.rad(), real(zhou_tian))
             } else {
                 frame.locate(a.rad(), dcl.rad(), real(zhou_tian))
             }
