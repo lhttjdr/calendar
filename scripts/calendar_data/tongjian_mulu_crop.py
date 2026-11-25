@@ -9,7 +9,7 @@
 RapidOCR 对双行小字识读率低（如「正己丑四戊午」识作「正已开四座」），本项目转录以看裁图为准，OCR 不入流程。
 
 用法（仓库根）：
-  uv run --no-project --with pymupdf --with numpy --with pillow python -I scripts/calendar_data/tongjian_mulu_crop.py 22-24 OUTDIR
+  uv run --no-project --with pymupdf --with numpy --with pillow python -I scripts/calendar_data/tongjian_mulu_crop.py 22-24 OUTDIR [顶栏比例]
 """
 from __future__ import annotations
 
@@ -30,6 +30,7 @@ SSID = {"1-3": 12318597, "4-6": 12318598, "7-9": 12318599, "10-12": 12318600, "1
         "16-18": 12318602, "19-21": 12318603, "22-24": 12318604, "25-27": 12318605, "28-30": 12318606}
 BH = 165  # 归一化顶栏高（px）
 CROP_W = 470
+BAND_FRAC = 0.17  # 顶栏占框高比例；卷13—15 等朔闰列较长者可用第 3 参数调大（如 0.24）
 
 
 def commons_file(vols: str) -> str:
@@ -88,7 +89,7 @@ def band_of(a):
     top, H = t0 + 2, b0 - t0
     if H < 0.4 * h:
         return None
-    bot = top + int(0.17 * H)
+    bot = top + int(BAND_FRAC * H)
     ink = (a[top:bot] < 120).sum(0)
     frame = [x for x in range(w) if ink[x] > 0.85 * (bot - top)]
     L = max([x for x in frame if x < w * 0.3], default=-1) + 3
@@ -146,6 +147,8 @@ def commons_file_note(pdf: str) -> str:
 
 if __name__ == "__main__":
     vols, out = sys.argv[1], sys.argv[2]
+    if len(sys.argv) > 3:
+        BAND_FRAC = float(sys.argv[3])
     os.makedirs(out, exist_ok=True)
     pdf = os.path.join(out, f"v{vols}.pdf")
     download(vols, pdf)
