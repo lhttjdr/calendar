@@ -92,11 +92,22 @@ def candidates(book, vol, path):
     # 月数可缺：「建武六年閏月甲子朔」只书閏月，取该年有闰之月
     pat = re.compile(rf"({era_pat})({N})年(閏|闰)?({N})?月({G})朔")
     data = json.load(open(path))
-    rows = []
+    rows, seen = [], set()
     for pg, boxes in sorted(data.items(), key=lambda kv: int(kv[0])):
-        for x, y, text, conf in boxes:
+        # 竖排一列常被 OCR 断成数框：x（框左上角）相差 30 像素以内者视为同列，按 y 接成整列再匹配；单框与整列皆匹配，按（页, 匹配文）去重
+        cols = []
+        for b in sorted(boxes, key=lambda b: -b[0]):
+            if cols and abs(cols[-1][0][0] - b[0]) <= 30:
+                cols[-1].append(b)
+            else:
+                cols.append([b])
+        joined = [[c[0][0], min(b[1] for b in c), "".join(b[2] for b in sorted(c, key=lambda b: b[1])), min(b[3] for b in c)] for c in cols if len(c) > 1]
+        for x, y, text, conf in boxes + joined:
             s = T2S.convert(text)
             for m in pat.finditer(s):
+                if (pg, m.group(0)) in seen:
+                    continue
+                seen.add((pg, m.group(0)))
                 era, yr, leap, gz = m.group(1), cn(m.group(2)), bool(m.group(3)), m.group(5)
                 mo = cn(m.group(4)) if m.group(4) else None
                 if yr is None or (mo is None and not leap) or (mo is not None and not 1 <= mo <= 12):
@@ -147,8 +158,40 @@ def lipu():
     print("\n".join(md))
 
 
+def check():
+    """逐条表（data/calendar/hanjian_jiri.csv）与张表、推步比较，生成 doc/calendar/hanjian-checks.md。"""
+    ev = eras()
+    main = d.tables()["张表"]
+    reck = reckon_tables(main)
+    rows = list(csv.DictReader(l for l in open(CSV, encoding="utf-8") if not l.startswith("#")))
+    md = ["# 汉简公文书朔日与张表、两汉推步（自动生成）", "",
+          "> 由 `scripts/calendar_data/hanjian_shuo_check.py check` 生成，勿手改。逐条表 `data/calendar/hanjian_jiri.csv`，方法见脚本说明与 "
+          "[calendar-compendium.md](calendar-compendium.md)「两汉」。", "",
+          "| 书 | PDF页 | 简文日期 | 公元 | 简文朔 | 张表朔 | 合张表 | 推步朔 | 合推步 | 核对 | 原文 |", "|---|---|---|---|---|---|---|---|---|---|---|"]
+    n = defaultdict(int)
+    for r in rows:
+        regime, y0 = next(((rg, y0) for rg, y0 in ev.get(r["年号"], []) if y0 <= int(r["年"]) < y0 + 30), ("汉", int(r["年"])))
+        j = judge(regime, int(r["年"]), int(r["月"]), r["闰"] == "1", r["朔干支"], main, reck)
+        zg, zok, rg_, rok = (j[1], j[2], j[3], j[4]) if j else ("（无此月）", False, "", None)
+        n["n"] += 1
+        n["z"] += bool(zok)
+        n["r"] += bool(rok)
+        n["rn"] += rok is not None
+        y = int(r["年"])
+        yr = f"前 {1 - y}" if y <= 0 else str(y)
+        ny = int(r["年"]) - y0 + 1
+        lab = f"{r['年号']}{'元' if ny == 1 else ny}年{('閏' if r['闰'] == '1' else '')}{MON[int(r['月']) - 1]}"
+        md.append(f"| {r['书']} | {r['PDF页']} | {lab} | {yr} | {r['朔干支']} | {zg} | {'✓' if zok else '✗'} | {rg_} | "
+                  f"{'' if rok is None else ('✓' if rok else '✗')} | {r['核对']} | {r['原文'][:40]} |")
+    md += ["", f"共 {n['n']} 条：合张表 {n['z']}；推步可比 {n['rn']} 条，合 {n['r']}。", ""]
+    (ROOT / "doc/calendar/hanjian-checks.md").write_text("\n".join(md), encoding="utf-8")
+    print(md[-2])
+
+
 if __name__ == "__main__":
     if sys.argv[1] == "candidates":
         candidates(*sys.argv[2:5])
     elif sys.argv[1] == "lipu":
         lipu()
+    elif sys.argv[1] == "check":
+        check()
