@@ -20,3 +20,25 @@
   font-size: 0.9em;
   color: var(--vp-c-text-2);
 }
+
+/* 宽表横向滚动：表格不再缩到正文宽度把短列挤成一字一行。短单元格不折行，长文本单元格保底宽度照常折行，
+   合宽超出时由表格自身（VitePress 已设 display:block; overflow-x:auto）横向滚动。类名由 config.mts 的 table_cell_width 规则加上。 */
+.vp-doc table th.nw,
+.vp-doc table td.nw {
+  white-space: nowrap;
+}
+
+.vp-doc table .cell-wide {
+  min-width: 24em;
+}
+
+/* 宽屏放宽正文区（VitePress 默认 688px），逐条表少滚动 */
+@media (min-width: 1440px) {
+  .VPDoc.has-aside .content .content-container {
+    max-width: 960px;
+  }
+
+  .VPDoc .container {
+    max-width: 1232px;
+  }
+}
