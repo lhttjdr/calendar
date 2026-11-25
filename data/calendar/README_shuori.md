@@ -181,7 +181,7 @@
 
 ### 当时历本转录：`data/calendar/会天历_1256.csv`
 
-《宝祐四年会天历》（宛委别藏影印清钞本）各月一日、大小与气节日期加时；核验见 `scripts/calendar_data/check_huitian_1256.py`。
+《宝祐四年会天历》（宛委别藏影印清钞本，书影 `doc/references/calendar/[阮元辑]大宋宝祐四年会天历（宛委别藏）.pdf`）各月一日、大小与气节日期加时；核验见 `scripts/calendar_data/check_huitian_1256.py`。
 
 ### 月序改制：`data/calendar/month_label_reforms.csv`
 
