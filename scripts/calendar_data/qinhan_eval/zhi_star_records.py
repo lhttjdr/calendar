@@ -465,11 +465,17 @@ BOOKS = {
         sections=[], carry_context=True, para_reset=False,
         date_sections=[(f"元史/卷{j:03d}", None, None, "元") for j in range(4, 48)],
         years=(1250, 1370), start_year=1260, regimes=[(1260, "元")], era_regimes=["蒙古", "元"], regime_era_extra={"元": ["蒙古"]},
+        # 仁宗纪至大四年九月「壬子，改元皇慶，詔曰……其以至大五年為皇慶元年」言来年改元，不在当年换年号；
+        # 不改则至大四年九月乙卯至十二月三十余条误系皇庆元年（1312），见 doc/calendar/benji-qita-kaozheng.md
+        corrections=[("元史/卷024", "壬子，改元皇慶，詔曰", "壬子，詔明年改元皇慶，詔曰", "诏言「其以至大五年為皇慶元年」，改元在来年")],
     ),
     "mingshi_benji": dict(
         sections=[], carry_context=True, para_reset=False, simplified=True,
         date_sections=[(f"明史/卷{j}", None, None, "明") for j in range(1, 25)],
         years=(1340, 1645), start_year=1352, regimes=[(1368, "明")], era_regimes=["元", "明"], regime_era_extra={"明": ["元"]},
+        # 庄烈帝纪首「六年十一月，出居信邸」后接「明年八月，熹宗疾大漸……丁巳，即皇帝位」，「明年」即天启七年（维基文库节标题亦作天啟七年）；
+        # 不补则天启七年八月至十二月诸条承「六年」误系 1626，见 doc/calendar/benji-qita-kaozheng.md
+        corrections=[("明史/卷23", "明年八月，熹宗疾大漸", "天啟七年八月，熹宗疾大漸", "「明年」承上文天启六年，即天启七年（1627）")],
     ),
     "songshu_benji": dict(
         sections=[], carry_context=True, para_reset=False,
