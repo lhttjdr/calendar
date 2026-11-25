@@ -123,3 +123,16 @@
 《尚书·胤征》「季秋月朔，辰弗集于房」1 条。列：`source`、`month`、`kind`（sun/dusk/dawn）、`target`（宿名或星）、`hip`（星或星官所用之星，宿则空）、
 `qi`（对应节气的太阳黄经）、`text`（原文）。星的释读见文件头注。检验见 `sky_culture::tests_preqin`。
 
+
+## chongzhen_juxing.csv
+
+《崇祯历书·恒星历指》卷二二十八宿距星「今」赤经、黄经积度（崇祯元年 1628 历元，周天 360°，度分）及所附今宿度，逐宿转录（2026-11-25）。
+赤经出「考赤道宿度差」表「今赤道积宿度」，黄经出「考黄道宿度差」表「黄道宿今积度（平度）」；原表不给赤纬、黄纬。觜宿积度大于参（参前觜后）。
+`hip` 为认星，28 宿皆同 `qing_lingtai`（《灵台仪象志》）。列义见文件头注释；对 Hipparcos 的检验由 `scripts/sky_culture/chongzhen_juxing_check.py`
+生成 `doc/astronomy/chongzhen-juxing-checks.md`。
+
+## tianwen_zhengyi_juxing.csv
+
+《钦定天文正义》卷四「经星去极入宿度」二十八宿距星，逐宿转录（2026-11-25）：书中距星位置描述、去极（距黄极）度分、宫度与换算黄经、「其间」宿度。
+书中不著历元，检验反推为 1743.9 年，即《仪象考成》（乾隆九年 1744）体系，距星与 `qing` 全同（参用 ζ Ori，觜前参后），不用于清初。
+`epoch_guess` 只是反推的初值。检验同上。
