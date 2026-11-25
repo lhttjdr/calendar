@@ -10,6 +10,7 @@
 同 han_pingshuo_check.py；太初以前不推）。
 核对：OCR 所读朔干支与张表或推步相合者，错读恰合的概率约 1/60，按 OCR 采信（核对 = 「OCR合」）；不合者逐条对原书页图
 人工核对（核对 = 「图」），读法与 OCR 不同者记于「图读」。只有简文残缺、年号或数字不能辨者不收。
+同一简见于两本释文而读法不同者，以所从之本为准，另一本之行核对记「重出」，列出而不计数（悬泉汉简以发掘整理者《敦煌悬泉汉简释粹》为准）。
 逐条写入 data/calendar/hanjian_jiri.csv（列：书,册,PDF页,集成编号,年号,年,闰,月,朔干支,原文,核对,图读,备注），
 check 生成 doc/calendar/hanjian-checks.md。
 
@@ -225,17 +226,21 @@ def check():
         regime, y0 = next(((rg, y0) for rg, y0 in ev.get(r["年号"], []) if y0 <= int(r["年"]) < y0 + 30), ("汉", int(r["年"])))
         j = judge(regime, int(r["年"]), int(r["月"]), r["闰"] == "1", r["朔干支"], main, reck)
         zg, zok, rg_, rok = (j[1], j[2], j[3], j[4]) if j else ("（无此月）", False, "", None)
-        n["n"] += 1
-        n["z"] += bool(zok)
-        n["r"] += bool(rok)
-        n["rn"] += rok is not None
+        if r["核对"] == "重出":  # 同一简两本释文异读，以所从之本为准，此行列出而不计数（见备注）
+            n["dup"] += 1
+        else:
+            n["n"] += 1
+            n["z"] += bool(zok)
+            n["r"] += bool(rok)
+            n["rn"] += rok is not None
         y = int(r["年"])
         yr = f"前 {1 - y}" if y <= 0 else str(y)
         ny = int(r["年"]) - y0 + 1
         lab = f"{r['年号']}{'元' if ny == 1 else ny}年{('閏' if r['闰'] == '1' else '')}{MON[int(r['月']) - 1]}"
         md.append(f"| {r['书']} | {r['PDF页']} | {lab} | {yr} | {r['朔干支']} | {zg} | {'✓' if zok else '✗'} | {rg_} | "
                   f"{'' if rok is None else ('✓' if rok else '✗')} | {r['核对']} | {r['原文'][:40]} |")
-    md += ["", f"共 {n['n']} 条：合张表 {n['z']}；推步可比 {n['rn']} 条，合 {n['r']}。", ""]
+    md += ["", f"共 {n['n']} 条：合张表 {n['z']}；推步可比 {n['rn']} 条，合 {n['r']}。"
+           + (f"另 {n['dup']} 条为同简异本重出（核对 = 重出），列出不计。" if n["dup"] else ""), ""]
     (ROOT / "doc/calendar/hanjian-checks.md").write_text("\n".join(md), encoding="utf-8")
     print(md[-2])
 

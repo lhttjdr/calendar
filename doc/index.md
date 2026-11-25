@@ -55,7 +55,7 @@
 | [dunhuang-calendar.md](calendar/dunhuang-calendar.md) | 敦煌历日换算（吐蕃、归义军）：出土历日有据之月作「敦煌」政权历表，无据之月退回中原历的规则、纪年，比较表逐格重现检验 |
 | [ancient-calendar-restore.md](calendar/ancient-calendar-restore.md) | 古历复原：分数推步、平朔平气、历谱生成；三千五百年仅作验证 |
 | [guliuli-shuo.md](calendar/guliuli-shuo.md) | 古六历书朔逐历分析：七套参数的平朔相差、各时段平朔与天文真朔之差，逐条对春秋经传书朔、《汉书》日食朔晦、实历朔日表与秦汉初复原历 |
-| [tongjian-mulu-checks.md](calendar/tongjian-mulu-checks.md) | 《资治通鉴目录》（刘羲叟《长历》）朔闰逐条检验（生成文件）：420—959 年连续 540 岁，中原一线合张表 6545/6658、合推步 6271/6468，北朝诸国行合分政权推步 1921/1935（魏历不合处皆闰位差一月）；麟德 670、692、697、722 从张表，738 大衍从推步，716 两家各半；目录独异处本纪多不从目录（宋人复原，只作对照） |
+| [tongjian-mulu-checks.md](calendar/tongjian-mulu-checks.md) | 《资治通鉴目录》（刘羲叟《长历》）朔闰逐条检验（生成文件）：328—959 年连续 632 岁，中原一线合张表 7673/7792、合推步 7399/7602，北朝诸国行合分政权推步 1921/1935（魏历不合处皆闰位差一月）；麟德 670、692、697、722 从张表，738 大衍从推步，716 两家各半；目录独异处本纪多不从目录（宋人复原，只作对照） |
 | [dingshuo-zhangbiao-diffs.md](calendar/dingshuo-zhangbiao-diffs.md) | 定朔诸历推步与张表朔日不同之月逐条考证（214 月、闰异 7 岁；797 年二月依史入例外表）：定小余、进朔限与距限，张表统一四分之三进朔 111 月，本纪/纪日/节日证据，703 年九月庚寅、891 年旧纪三条之精算 |
 | [calendar-compendium.md](calendar/calendar-compendium.md) | 历代历法总录：总表与已复原定朔历（戊寅、麟德、大衍、五纪、正元、宣明、崇玄、金大明）的常数、表、算法、检验；辽（调元、贾俊大明以宣明代推，947—1087） |
 | [calendar-source-texts.md](calendar/calendar-source-texts.md) | 历法原文摘录（脚本生成）：唐诸历、重修大明历、庚午元历表、《辽史》大明历 |
@@ -70,7 +70,7 @@
 | [gaochang-630-checks.md](calendar/gaochang-630-checks.md) | 高昌延寿七年（630）残历各月朔与张表、玄始历外推（生成文件）：有据 11 月，合玄始 10、张表 9 |
 | [chutu-rili-checks.md](calendar/chutu-rili-checks.md) | 吐鲁番、黑城出土唐宋历日残件（720、1182、1211）月朔与张表、中原一线（生成文件）；多为定年所用，独立者一月 |
 | [yinwan-lipu-checks.md](calendar/yinwan-lipu-checks.md) | 尹湾汉墓元延元年、三年历谱与元延二年日记六单月，与张表、三统推步（生成文件）：20 月全合 |
-| [hanjian-checks.md](calendar/hanjian-checks.md) | 居延汉简、居延新简、敦煌汉简等公文书朔日 360 条与张表、两汉推步（生成文件）：合 337，不合 23 条（简牍集成 20 条已对图，肩水金关释文 3 条） |
+| [hanjian-checks.md](calendar/hanjian-checks.md) | 居延汉简、居延新简、敦煌汉简、肩水金关、悬泉汉简公文书朔日 451 条与张表、两汉推步（生成文件）：合 424，不合 27 条（简牍集成 19 条已对图，肩水金关释文 3 条，悬泉 5 条对书影）；同简异本重出 1 条不计 |
 | [zhongguo-gudai-lifa-checks.md](calendar/zhongguo-gudai-lifa-checks.md) | 《中国古代历法》逐条核对推步读法 23 条：戊寅差法、观天公式、统天距算相合；崇玄定朔（志言同大衍）、明天「二至/二百」等相异；宣明清明限疑书误；乾符四年历日著录 |
 | [chunqiu-luli-checks.md](calendar/chunqiu-luli-checks.md) | 春秋鲁历据经文排定（生成文件）：月首模型与先验参数的边际似然比较、逐年正月与闰、标注（经文定/按建推定/未定）与后验、张表 3-7 对照 |
 | [regime-benji-checks.md](calendar/regime-benji-checks.md) | 分政权推步之史书逐条检验（生成文件）：吴、蜀、北朝诸国、辽、金等本纪纪日，以本国推步与中原张表两家判在月 |
