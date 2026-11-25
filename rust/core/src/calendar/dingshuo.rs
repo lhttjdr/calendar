@@ -2650,6 +2650,76 @@ pub fn jiao_months(name: &str) -> Option<Vec<JiaoMonth>> {
     )
 }
 
+/// 一月之经朔、定朔与进朔限（供逐月考证，见 `examples/dingshuo_zhangbiao_diffs.rs`）
+#[derive(Clone, Debug)]
+pub struct DingshuoMonth {
+    /// 所属冬至岁
+    pub dongzhi_year: i32,
+    /// 冬至岁内自天正经朔起之月序
+    pub index: i64,
+    /// 经朔所在日（JDN）与小余（占一日之比）
+    pub jing_jdn: i64,
+    pub jing_frac: f64,
+    /// 注历所用定朔所在日（JDN）与定小余（占一日之比）
+    pub ding_jdn: i64,
+    pub frac: f64,
+    /// 本历进朔限（占一日之比）；None 为术文不进朔（麟德常月等）
+    pub limit: Option<f64>,
+    /// 定小余过进朔限
+    pub jin: bool,
+    /// 排月所得朔日（JDN；细则全用，同 [JiaoMonth::day]）
+    pub day: i64,
+}
+
+/// 按历名列其推步年段（前后各二岁）各月之经朔、定朔、进朔限与排月所得朔日。
+pub fn dingshuo_months(name: &str) -> Option<Vec<DingshuoMonth>> {
+    let li = li_by_name(name)?;
+    let jm = jiao_months(name)?;
+    let names: Vec<&str> = match paiyue_by_name(name) {
+        Some(p) => p.names.to_vec(),
+        None => vec![name],
+    };
+    let spans = REGISTRY.iter().chain(REGIME_REGISTRY).filter(|(n, _)| names.contains(n)).flat_map(|(_, s)| s.iter());
+    let (a, b) = spans.fold((i32::MAX, i32::MIN), |(a, b), &(x, y)| (a.min(x), b.max(y)));
+    let (y0, y1) = (a - 2, b + 2);
+    let off = li.off();
+    let f = q(li.f());
+    // 与 [raw_months] 同序：每个经朔只由其所在冬至岁算一次，按定朔所在日排序去重
+    let mut out = Vec::new();
+    for yy in y0..=y1 {
+        let next0 = li.month(yy + 1, 0).0;
+        for m in 0..15 {
+            let (jing, _) = li.month(yy, m);
+            if jing >= next0 {
+                break;
+            }
+            let ding = li.ding_for_calendar(yy, m);
+            let (day, jin) = day_jin(li, yy, &ding);
+            let jf = md(&jing, &f);
+            let lim = li.jinshuo_limit(yy, &ding).map(|l| (l / &f).to_f64().unwrap());
+            out.push(DingshuoMonth {
+                dongzhi_year: yy,
+                index: m,
+                jing_jdn: fl(&(&jing / &f)) + off,
+                jing_frac: (jf / &f).to_f64().unwrap(),
+                ding_jdn: day + off,
+                frac: (md(&ding, &f) / &f).to_f64().unwrap(),
+                limit: lim,
+                jin,
+                day: 0,
+            });
+        }
+    }
+    out.sort_by_key(|x| x.ding_jdn);
+    out.dedup_by_key(|x| x.ding_jdn);
+    assert_eq!(out.len(), jm.len(), "{name}：与 jiao_months 月数不同");
+    for (o, j) in out.iter_mut().zip(&jm) {
+        assert_eq!(o.ding_jdn, j.ding_jdn);
+        o.day = j.day;
+    }
+    Some(out)
+}
+
 /// 已移植的定朔历名与适用年段（供检验与文档）。
 pub fn registry() -> &'static [(&'static str, &'static [(i32, i32)])] {
     REGISTRY
@@ -2842,6 +2912,48 @@ mod tests {
         assert_eq!(crate::calendar::gan_zhi::GAN_ZHI_60[(j + 49).rem_euclid(60) as usize], "乙未");
     }
 
+    /// 703 年（长安三年）九月：三书「九月庚寅朔，日有蝕之」，张表己丑。麟德速要定朔己丑 16.50 时、本术（二次内插）16.40 时，
+    /// 经朔己丑 12.05 时，皆不及任何进朔之限（正月戌初、张表四分之三），按术不能得庚寅。680 年二月定朔丁未 0.44 时（定小余 24.8 分，
+    /// 刚过覆本术之界 24 分），本术 0.30 时仍在丁未，张表丙午不由本术得之。见 doc/calendar/dingshuo-zhangbiao-diffs.md。
+    #[test]
+    fn linde_703_september_and_680_february() {
+        let l = linde();
+        let f = q(LD_F);
+        let gz = |t: &Q| crate::calendar::gan_zhi::GAN_ZHI_60[(fl(&(t / &f)) + l.off + 49).rem_euclid(60) as usize];
+        let hours = |t: &Q| (md(t, &f) / &f).to_f64().unwrap() * 24.0;
+        // 冬至岁 703 第 11 月即九月
+        let (jing, suyao) = l.month(703, 11);
+        let ben = l.ding_benshu(703, 11);
+        assert_eq!((gz(&jing), gz(&suyao), gz(&ben)), ("己丑", "己丑", "己丑"));
+        assert!((hours(&jing) - 12.05).abs() < 0.01 && (hours(&suyao) - 16.50).abs() < 0.01 && (hours(&ben) - 16.40).abs() < 0.01);
+        let y703 = reckon_year("麟德历", 703).unwrap();
+        assert_eq!(y703.iter().find(|e| e.1 == 9 && !e.2).map(|e| crate::calendar::gan_zhi::GAN_ZHI_60[(e.0 + 49).rem_euclid(60) as usize]), Some("己丑"));
+        // 680 年二月（冬至岁 680 第 3 月）
+        let (_, suyao) = l.month(680, 3);
+        let ben = l.ding_benshu(680, 3);
+        assert_eq!((gz(&suyao), gz(&ben)), ("丁未", "丁未"));
+        assert!(md(&suyao, &f) > q(24) && hours(&ben) > 0.29 && hours(&ben) < 0.31);
+    }
+
+    /// 逐月细目（[dingshuo_months]）与排月一致：朔日即 [jiao_months] 所排，且按术进朔者朔日不早于定朔所在日
+    #[test]
+    fn dingshuo_months_consistent() {
+        for name in ["麟德历", "大衍历", "宣明历", "崇天历", "授时历"] {
+            let v = dingshuo_months(name).unwrap();
+            assert!(v.windows(2).all(|w| (29..=30).contains(&(w[1].day - w[0].day))), "{name}");
+            for m in &v {
+                assert!((0.0..1.0).contains(&m.frac));
+                if let Some(l) = m.limit {
+                    assert_eq!(m.jin, m.frac >= l - 1e-12, "{name} {}", m.ding_jdn);
+                }
+            }
+        }
+        // 宣明 891 年十月：定朔丁丑 20.21 时，过限进戊寅（本纪丁丑，已考讹）
+        let v = dingshuo_months("宣明历").unwrap();
+        let m = v.iter().find(|m| crate::calendar::gan_zhi::GAN_ZHI_60[(m.ding_jdn + 49).rem_euclid(60) as usize] == "丁丑" && m.dongzhi_year == 891 && m.frac > 0.8).unwrap();
+        assert!(m.jin && (m.frac * 24.0 - 20.21).abs() < 0.01 && m.day == m.ding_jdn + 1);
+    }
+
     /// 各历在其年段内逐年排月：每年 12 或 13 月，月长 29、30 日，前后年首尾相接
     #[test]
     fn year_months_well_formed() {
@@ -2862,4 +2974,5 @@ mod tests {
         }
     }
 }
+
 

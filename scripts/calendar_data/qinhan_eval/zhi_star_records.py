@@ -359,7 +359,10 @@ BOOKS = {
         years=(1640, 1912), start_year=1644, regimes=[(1644, "清")], era_regimes=["清", "明"], para_reset=False,
         regime_era_extra={"清": ["明"]},  # 只为下条借崇祯纪年；明以后无明年号纪年之文（南明诸王书「明桂王」等，不带年号+年）
         # 世祖纪首「八年秋八月庚午，太宗崩」为崇德八年（1643）；年号表缺后金诸元，不补则「八年」配作宣统八年（1916）
-        corrections=[("清史稿/卷4", "八年秋八月庚午，太宗崩", "崇禎十六年秋八月庚午，太宗崩", "崇德八年即崇祯十六年（1643），借明纪年定年")],
+        corrections=[("清史稿/卷4", "八年秋八月庚午，太宗崩", "崇禎十六年秋八月庚午，太宗崩", "崇德八年即崇祯十六年（1643），借明纪年定年"),
+                     # 圣祖纪首「帝即位，年八歲，改元康熙」言来年改元（下文「康熙元年壬寅春正月乙亥朔」），不在当年换年号；
+                     # 不改则顺治十八年二月至十二月三十余条误系康熙元年（1662），见 doc/calendar/benji-qita-kaozheng.md
+                     ("清史稿/卷6", "帝即位，年八歲，改元康熙", "帝即位，年八歲。明年改元康熙", "改元在来年，见下文康熙元年正月；点校本第 2 册书页 167")],
     ),
     # ——本纪纪日（只取带日干支的记事日期，供 discriminating_records.py 以一手日期检验各历表）——
     # 《三国志》魏纪（卷一至四），用张表；蜀、吴见下注
@@ -462,11 +465,17 @@ BOOKS = {
         sections=[], carry_context=True, para_reset=False,
         date_sections=[(f"元史/卷{j:03d}", None, None, "元") for j in range(4, 48)],
         years=(1250, 1370), start_year=1260, regimes=[(1260, "元")], era_regimes=["蒙古", "元"], regime_era_extra={"元": ["蒙古"]},
+        # 仁宗纪至大四年九月「壬子，改元皇慶，詔曰……其以至大五年為皇慶元年」言来年改元，不在当年换年号；
+        # 不改则至大四年九月乙卯至十二月三十余条误系皇庆元年（1312），见 doc/calendar/benji-qita-kaozheng.md
+        corrections=[("元史/卷024", "壬子，改元皇慶，詔曰", "壬子，詔明年改元皇慶，詔曰", "诏言「其以至大五年為皇慶元年」，改元在来年")],
     ),
     "mingshi_benji": dict(
         sections=[], carry_context=True, para_reset=False, simplified=True,
         date_sections=[(f"明史/卷{j}", None, None, "明") for j in range(1, 25)],
         years=(1340, 1645), start_year=1352, regimes=[(1368, "明")], era_regimes=["元", "明"], regime_era_extra={"明": ["元"]},
+        # 庄烈帝纪首「六年十一月，出居信邸」后接「明年八月，熹宗疾大漸……丁巳，即皇帝位」，「明年」即天启七年（维基文库节标题亦作天啟七年）；
+        # 不补则天启七年八月至十二月诸条承「六年」误系 1626，见 doc/calendar/benji-qita-kaozheng.md
+        corrections=[("明史/卷23", "明年八月，熹宗疾大漸", "天啟七年八月，熹宗疾大漸", "「明年」承上文天启六年，即天启七年（1627）")],
     ),
     "songshu_benji": dict(
         sections=[], carry_context=True, para_reset=False,

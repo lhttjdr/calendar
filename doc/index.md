@@ -32,6 +32,8 @@
 | [celestial-phenomena.md](astronomy/celestial-phenomena.md) | 天象模块：日月食、行星会合与视星等（含火星 IAU WGCCRE 2015 自转模型与直下点）、近距与月掩星、伏见可见性（含月亮、行星眩光源）、恒星与二十八宿（含入宿度、去极度、古代黄道度与现代坐标的关系）；设计、实施进展与校验结论 |
 | [sky-view-3d.md](astronomy/sky-view-3d.md) | 3D 星空：站心、折射、气象、海平线俯角、视半径、天色、月亮眩光、月相、日食、残余光、日冕、银河、地形、历史地理调研、播放与限制 |
 | [phenomena-checks.md](astronomy/phenomena-checks.md) | 天象模块逐条校验结果（脚本生成）：NASA 日月食典、史书日月食与凌犯、Skyfield 对照、原文表格复现等 |
+| [chongzhen-wuwei-checks.md](astronomy/chongzhen-wuwei-checks.md) | 崇祯历局五星实测检验（生成文件）：《崇禎曆書·五緯曆指》卷九崇祯七至九年 18 条五星会合、凌犯、入宿与见伏记录，DE406 对新法与大统：位置误差中位数新法 0.12°、大统约 3 古度；15 项实测 12 相符、3 两可 |
+| [chongzhen-juxing-checks.md](astronomy/chongzhen-juxing-checks.md) | 二十八宿距星：《崇祯历书·恒星历指》（1628 历元赤经、黄经积度）与《钦定天文正义》卷四（1744 历元黄道去极入宿度）逐宿对 Hipparcos；崇祯距星与《灵台仪象志》同星，清初 1645—1673 认星无误差；天文正义属《仪象考成》体系 |
 | [geomag.md](astronomy/geomag.md) | 地磁：世界磁场模型 WMM2025（NOAA/BGS）磁偏角、磁倾角、总强度；官方 100 点与 12 点测试值逐条检验；网页罗盘磁北→真北改正与校准提示 |
 
 ## 二、农历编算（`calendar/`）
@@ -53,6 +55,8 @@
 | [dunhuang-calendar.md](calendar/dunhuang-calendar.md) | 敦煌历日换算（吐蕃、归义军）：出土历日有据之月作「敦煌」政权历表，无据之月退回中原历的规则、纪年，比较表逐格重现检验 |
 | [ancient-calendar-restore.md](calendar/ancient-calendar-restore.md) | 古历复原：分数推步、平朔平气、历谱生成；三千五百年仅作验证 |
 | [guliuli-shuo.md](calendar/guliuli-shuo.md) | 古六历书朔逐历分析：七套参数的平朔相差、各时段平朔与天文真朔之差，逐条对春秋经传书朔、《汉书》日食朔晦、实历朔日表与秦汉初复原历 |
+| [tongjian-mulu-checks.md](calendar/tongjian-mulu-checks.md) | 《资治通鉴目录》（刘羲叟《长历》）朔闰逐条检验（生成文件）：761—959 年 198 岁 2449 月，合张表 2397/2447、合推步 2199/2261；目录独异处本纪多不从目录（宋人复原，只作对照） |
+| [dingshuo-zhangbiao-diffs.md](calendar/dingshuo-zhangbiao-diffs.md) | 定朔诸历推步与张表朔日不同之月逐条考证（214 月、闰异 7 岁；797 年二月依史入例外表）：定小余、进朔限与距限，张表统一四分之三进朔 111 月，本纪/纪日/节日证据，703 年九月庚寅、891 年旧纪三条之精算 |
 | [calendar-compendium.md](calendar/calendar-compendium.md) | 历代历法总录：总表与已复原定朔历（戊寅、麟德、大衍、五纪、正元、宣明、崇玄、金大明）的常数、表、算法、检验；辽（调元、贾俊大明以宣明代推，947—1087） |
 | [calendar-source-texts.md](calendar/calendar-source-texts.md) | 历法原文摘录（脚本生成）：唐诸历、重修大明历、庚午元历表、《辽史》大明历 |
 | [push-algorithms.md](calendar/push-algorithms.md) | 各朝代/政权历法推步算法与历术参数总结 |
@@ -65,7 +69,8 @@
 | [gaochang-630-checks.md](calendar/gaochang-630-checks.md) | 高昌延寿七年（630）残历各月朔与张表、玄始历外推（生成文件）：有据 11 月，合玄始 10、张表 9 |
 | [chutu-rili-checks.md](calendar/chutu-rili-checks.md) | 吐鲁番、黑城出土唐宋历日残件（720、1182、1211）月朔与张表、中原一线（生成文件）；多为定年所用，独立者一月 |
 | [yinwan-lipu-checks.md](calendar/yinwan-lipu-checks.md) | 尹湾汉墓元延元年、三年历谱与元延二年日记六单月，与张表、三统推步（生成文件）：20 月全合 |
-| [hanjian-checks.md](calendar/hanjian-checks.md) | 居延汉简、居延新简、敦煌汉简等公文书朔日 311 条与张表、两汉推步（生成文件）：合 291，不合 20 条已对图 |
+| [hanjian-checks.md](calendar/hanjian-checks.md) | 居延汉简、居延新简、敦煌汉简等公文书朔日 360 条与张表、两汉推步（生成文件）：合 337，不合 23 条（简牍集成 20 条已对图，肩水金关释文 3 条） |
+| [zhongguo-gudai-lifa-checks.md](calendar/zhongguo-gudai-lifa-checks.md) | 《中国古代历法》逐条核对推步读法 23 条：戊寅差法、观天公式、统天距算相合；崇玄定朔（志言同大衍）、明天「二至/二百」等相异；宣明清明限疑书误；乾符四年历日著录 |
 | [chunqiu-luli-checks.md](calendar/chunqiu-luli-checks.md) | 春秋鲁历据经文排定（生成文件）：月首模型与先验参数的边际似然比较、逐年正月与闰、标注（经文定/按建推定/未定）与后验、张表 3-7 对照 |
 | [regime-benji-checks.md](calendar/regime-benji-checks.md) | 分政权推步之史书逐条检验（生成文件）：吴、蜀、北朝诸国、辽、金等本纪纪日，以本国推步与中原张表两家判在月 |
 | [jiudian-yingshi-checks.md](calendar/jiudian-yingshi-checks.md) | 九店简 96「荆𡰥朔於营室」检验（生成文件）：前 350—前 250 逐年荆𡰥朔太阳赤经，亥正、丑正两假设下是否在营室 |
@@ -111,6 +116,7 @@
 | [shensha.md](folk/shensha.md) | 神煞宜忌（进行中）：月家日神煞数据表与协纪改定；协纪月表宜忌推算与 720 日逐页核对（合 701、疑 19）；年份节气朔望诸日的铺注与乾隆三十年时宪书逐日核对；各家通书对照计划 |
 | [tongshu.md](folk/tongshu.md) | 各家通书对照（一）：元末《類編曆法通書大全》与协纪月家 63 神、年神逐神对照（同 64、異 12、类编无 27、协纪无 28），协纪「通書誤以」诸条（鸣吠、复日、天火、蚕命等）对上原文；类编独有之神；类编起例选项（天德四仲、天火顺行、鸣吠鸣吠对、复日四说、荒芜、天贼、蚕命；`ShenshaOptions`、`NianShenOptions`，协纪缺省）及与类编原表逐日检验；类编卷十一逐月日表 720 日转录（`leibian_juan11_days.csv`）与卷十五、本项目起例（`shensha::tests::leibian_juan11`）、协纪月表逐日互校（天贼全异，类编各卷天贼起例同一，已做选项）；日游神鹤神未见、卷十三独有年神在协纪各卷的去留、木马杀四月定申；《選擇宗鏡》抄本 57 页目次、题记、与协纪所引对勘（协纪删荒芜等句） |
 | [tongshu_yiji.md](folk/tongshu_yiji.md) | 各家通书对照（宜忌）：《董公選擇日要覽》按月×建除逐日宜忌与协纪月表 664 日、5991 条对照（合 55%、半合 14%、異 24%；分事、分建除、正月逐日），分歧类型（煞集中宫、黄罗紫檀诸星、德神相抵、粒度）；鳌头录文与对照（卷一十二星斷逐字、卷三求婚下定嫁娶備急四表与协纪月表、董公、类编逐日对照、鸣吠鸣吠对从类编不从协纪；卷二至卷四出行、上官、開張、立契、入學、行船、動土、起工、豎柱上梁、蓋屋、入宅、斬草、安葬十三门逐月吉日表 1187 日与协纪、董公逐日对照及按本书起例自检；天德四仲、天火、复日、荒芜、天賊亦从类编，各表按旧起例筛日，只安葬表依「曆法」删十月开日；`aotou_*.csv`、`folk::aotou`、`ShenshaOptions::aotou()`）；宗镜属造命；董公作择日页第二套宜忌（`folk::dong_gong`、`dong_gong_day_json`；原文表、逐日判定表 681 日逐条校订、事目映射） |
+| [aotou-qili-checks.md](folk/aotou-qili-checks.md) | 生成文件：鳌头卷二、三、五凶神吉神起例与协纪月表、项目实现逐条比对（196 条），附天愿、地囊、四击、枯焦、天狱考 |
 | [aotou_men_checks.md](folk/aotou_men_checks.md) | 生成文件：鳌头卷二至卷四十三门逐月吉日表逐日对照（协纪月表、董公、本书起例所值、表尾所避之神自检、天賊天火重喪两家起例对比），由 `scripts/folk/aotou_men_vs_xieji.py` 生成 |
 | [nianshen.md](folk/nianshen.md) | 年神方位：协纪卷三诸年神起例、六十年同位关系检验、乾隆三十年时宪书年神方位之圖逐位核对 |
 | [jiaqu.md](folk/jiaqu.md) | 婚嫁择吉：协纪为纲（月表铺注宜忌、周堂、不将，大利月诸说奏准删除）与类编卷七并列（女命行嫁月、阴阳不将起例、嫁娶凶神表、白虎入中宫、三种周堂、逐月求婚下定嫁娶吉日表录文与逐条比对；卷十五赤口小六壬；协纪卷三十六所述兀日起法即类编卷二六輪兀，与起例图、上下兀日表逐格比对；闰月从本月）、鳌头橫天朱雀；制化（周堂回避、白虎禳法，缺省不用）三态判定；逐条检验；诸说补全（第三之三节）：納采問名入重推、铺注九项与歲薄逐陣陰陽錯可逐项不看、协纪改删旧说与类编鳌头董公诸神 19 位逐神可否决（书例与 2026 年逐日检验）、董公婚姻宜忌与鳌头婚姻四表接入、可取舍诸项各书之说目录（`jiaqu_catalog`） |
