@@ -1,0 +1,11 @@
+/* 知识库（doc/）Markdown 预览样式：宽表横向滚动，不压扁成逐字折行。
+   VS Code：工作区设置 "markdown.styles": ["doc/markdown-preview.css"]（.vscode/ 不入库，见 doc/index.md「预览」）。 */
+table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+th,
+td {
+  white-space: nowrap;
+}
