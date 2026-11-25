@@ -1676,7 +1676,11 @@ pub fn liuren_json(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8, rule:
     const GAN: [&str; 10] = ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"];
     let vsop = vsop87_cached(vsop87_ear)?;
     let jd_tt = jd_ut + lunar_core::astronomy::time::delta_t(real(jd_ut)).seconds().as_f64() / 86400.0;
-    let r = if rule == 1 { liuren::JiangRule::Jie } else { liuren::JiangRule::ZhongQi };
+    let r = match rule {
+        1 => liuren::JiangRule::Jie,
+        2 => liuren::JiangRule::XingYong,
+        _ => liuren::JiangRule::ZhongQi,
+    };
     let opts = liuren::QiKeOpts {
         yao: if yao_rule == 1 { liuren::YaoTie::XianJu } else { liuren::YaoTie::SheHai },
         she_hai: match she_hai {

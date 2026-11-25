@@ -335,7 +335,7 @@ pub fn si_men(yue_jiang: u8, hour_zhi: u8, day_gan: u8, dan: bool) -> (u8, u8, u
     (at("六合"), at("太陰"), at("太常"))
 }
 
-/// 月将加时诸方位格：天三门、地四户、地私门、天马、亭亭、贵人登天门。白奸原文自相出入，未取（见 doc/folk/qimen.md）。
+/// 月将加时诸方位格：天三门、地四户、地私门、天马、亭亭、贵人登天门。白奸三说另见 [`bai_jian`]，不入此表（见 doc/folk/qimen.md）。
 pub fn fang_ge(pan: &QimenPan, ctx: &GeJuContext, x: &GeJuExtra) -> Vec<FangGe> {
     use crate::folk::liuren::{gui_ren, GuiRule, TianPan};
     let mut out = Vec::new();
@@ -371,6 +371,43 @@ pub fn fang_ge(pan: &QimenPan, ctx: &GeJuContext, x: &GeJuExtra) -> Vec<FangGe> 
         add("貴人登天門", 11, true, "卷二「天三門」：「如得本日貴人到乾亥就是貴人登天門」", Some("贵人旦暮依地私门条取"));
     }
     out
+}
+
+/// 白奸之法
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum BaiJianFa {
+    /// 演义卷二「亭亭白奸」（《寶鑑》称「三氏諸書」之法）：「以天月將加所用時寅午戍三宫見寅申已亥即孟神白奸居孟神之位」——
+    /// 地盘寅、午、戌三宫之上必有一宫见天盘孟神（寅申巳亥），即白奸。例一「正月午時……以亥加午亥即白奸在午」（言其方），
+    /// 例二「正月夘時……數至午上得寅白奸在寅」（言其神），二例同一法，所言一方一神。缺省
+    #[default]
+    YanYi,
+    /// 《御定奇門寶鑑》「釋亭亭白奸」：「功曹、胜光、天魁臨孟辰為白奸方」——天盘寅、午、戌三神必有一神临地盘孟辰，其辰即白奸方。
+    /// 寶鑑以三氏之法「非白奸之義」而改之
+    BaoJian,
+    /// 演义卷二附表「白奸方」：正月亥、二月寅、三月巳、四月申……四孟逐月顺行，不随时（与正文加时之法不同，寶鑑谓三氏另有日月亭亭之法，此即月法之类）
+    YueBiao,
+}
+
+/// 白奸：返回（地盘方位之支，所在之天盘神）。`yue_jiang`、`shi` 为月将、时支；`month` 为月建序（寅月正月 = 1 … 丑月 12），只 `YueBiao` 用。
+/// 寅午戌三支相隔四位、孟辰相隔三位，加时之法每时恰得一处。附表之法无天盘神，神同其方
+pub fn bai_jian(yue_jiang: u8, shi: u8, month: u8, fa: BaiJianFa) -> (u8, u8) {
+    use crate::folk::liuren::TianPan;
+    let tp = TianPan { jiang: yue_jiang % 12, shi: shi % 12 };
+    let meng = |z: u8| z % 3 == 2;
+    match fa {
+        BaiJianFa::YanYi => {
+            let d = [2u8, 6, 10].into_iter().find(|&d| meng(tp.above(d))).unwrap();
+            (d, tp.above(d))
+        }
+        BaiJianFa::BaoJian => {
+            let t = [2u8, 6, 10].into_iter().find(|&t| meng(tp.below(t))).unwrap();
+            (tp.below(t), t)
+        }
+        BaiJianFa::YueBiao => {
+            let z = [11u8, 2, 5, 8][((month.max(1) - 1) % 4) as usize];
+            (z, z)
+        }
+    }
 }
 
 /// 三胜五不击（卷二「亭亭白奸」条后引湯謂）：三胜为天乙（天上直符）宫、九天宫、生门宫；五不击为天乙、九天、生门、九地、直使之宫。
@@ -591,6 +628,24 @@ mod tests {
         // 亭亭：「正月……午時……子到未宫即是亭亭在未上」；「正月夘時……數至辰上得子亭亭在辰」
         assert_eq!(zs(&fg(11, "甲子", "庚午"), "亭亭"), "未");
         assert_eq!(zs(&fg(11, "甲子", "丁卯"), "亭亭"), "辰");
+        // 白奸（演义）：例一正月午時「以亥加午亥即白奸在午」；例二正月夘時「數至午上得寅白奸在寅」
+        assert_eq!(bai_jian(11, 6, 1, BaiJianFa::YanYi), (6, 11));
+        assert_eq!(bai_jian(11, 3, 1, BaiJianFa::YanYi), (6, 2));
+        // 寶鑑：寅午戌临孟辰。正月午时亥加午：戌临巳；正月卯时亥加卯：戌临寅
+        assert_eq!(bai_jian(11, 6, 1, BaiJianFa::BaoJian), (5, 10));
+        assert_eq!(bai_jian(11, 3, 1, BaiJianFa::BaoJian), (2, 10));
+        // 附表：正亥二寅三巳四申……十二月申
+        let yb: Vec<u8> = (1..=12).map(|m| bai_jian(0, 0, m, BaiJianFa::YueBiao).0).collect();
+        assert_eq!(yb, vec![11, 2, 5, 8, 11, 2, 5, 8, 11, 2, 5, 8]);
+        // 加时二法每时皆恰得一处，所临皆孟（寶鑑）或寅午戌（演义）
+        for j in 0..12u8 {
+            for h in 0..12u8 {
+                let (d, t) = bai_jian(j, h, 1, BaiJianFa::YanYi);
+                assert!([2, 6, 10].contains(&d) && t % 3 == 2);
+                let (d, t) = bai_jian(j, h, 1, BaiJianFa::BaoJian);
+                assert!(d % 3 == 2 && [2, 6, 10].contains(&t));
+            }
+        }
         // 贵人登天门：甲日卯时暮贵未加亥
         assert!(fg(11, "甲子", "丁卯").iter().any(|g| g.name == "貴人登天門"));
         assert!(!fg(11, "甲子", "庚午").iter().any(|g| g.name == "貴人登天門"));

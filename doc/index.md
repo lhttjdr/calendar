@@ -55,13 +55,14 @@
 | [dunhuang-calendar.md](calendar/dunhuang-calendar.md) | 敦煌历日换算（吐蕃、归义军）：出土历日有据之月作「敦煌」政权历表，无据之月退回中原历的规则、纪年，比较表逐格重现检验 |
 | [ancient-calendar-restore.md](calendar/ancient-calendar-restore.md) | 古历复原：分数推步、平朔平气、历谱生成；三千五百年仅作验证 |
 | [guliuli-shuo.md](calendar/guliuli-shuo.md) | 古六历书朔逐历分析：七套参数的平朔相差、各时段平朔与天文真朔之差，逐条对春秋经传书朔、《汉书》日食朔晦、实历朔日表与秦汉初复原历 |
-| [tongjian-mulu-checks.md](calendar/tongjian-mulu-checks.md) | 《资治通鉴目录》（刘羲叟《长历》）朔闰逐条检验（生成文件）：619—959 年 341 岁 4218 月，合张表 4114/4215、合推步 3839/4025；麟德 670、692、697、722 从张表，738 大衍从推步，716 两家各半；目录独异处本纪多不从目录（宋人复原，只作对照） |
+| [tongjian-mulu-checks.md](calendar/tongjian-mulu-checks.md) | 《资治通鉴目录》（刘羲叟《长历》）朔闰逐条检验（生成文件）：557—959 年 453 岁，中原一线合张表 4857/4966、合推步 4582/4776，周齐隋行合分政权推步 621/627；麟德 670、692、697、722 从张表，738 大衍从推步，716 两家各半；目录独异处本纪多不从目录（宋人复原，只作对照） |
 | [dingshuo-zhangbiao-diffs.md](calendar/dingshuo-zhangbiao-diffs.md) | 定朔诸历推步与张表朔日不同之月逐条考证（214 月、闰异 7 岁；797 年二月依史入例外表）：定小余、进朔限与距限，张表统一四分之三进朔 111 月，本纪/纪日/节日证据，703 年九月庚寅、891 年旧纪三条之精算 |
 | [calendar-compendium.md](calendar/calendar-compendium.md) | 历代历法总录：总表与已复原定朔历（戊寅、麟德、大衍、五纪、正元、宣明、崇玄、金大明）的常数、表、算法、检验；辽（调元、贾俊大明以宣明代推，947—1087） |
 | [calendar-source-texts.md](calendar/calendar-source-texts.md) | 历法原文摘录（脚本生成）：唐诸历、重修大明历、庚午元历表、《辽史》大明历 |
 | [push-algorithms.md](calendar/push-algorithms.md) | 各朝代/政权历法推步算法与历术参数总结 |
 | [xixia-calendar.md](calendar/xixia-calendar.md) | 西夏历日 1120—1207：彭向前整理俄藏 Инв.No.8085 等历书之朔闰对照表转录、核对（宋历一栏与张表全合）、接入推步政权表 |
 | [baoshan-checks.md](calendar/baoshan-checks.md) | 包山楚简纪日逐条检验（生成文件）：77 条纪日在颛顼、殷、鲁、周、黄帝、夏诸历中为月中第几日，各假设合数 |
+| [shuihudi-checks.md](calendar/shuihudi-checks.md) | 睡虎地秦简《编年记》《语书》与魏律纪日 10 条逐条检验（生成文件）：颛顼历合 8/8，汉传六历无一全合；秦王政二十年相位窗口与统一后秦历不连续；魏律闰再十二月惟夏历合 |
 | [xincai-checks.md](calendar/xincai-checks.md) | 新蔡葛陵楚简纪日检验（生成文件）：31 条岁名·月·干支，组内自洽、前 450—前 350 年逐年相位窗口 |
 | [chu-sky-checks.md](calendar/chu-sky-checks.md) | 楚简纪日与实际月相对照（生成文件）：包山 87 条、新蔡前 398 年 19 条在颛顼平朔与看天（合朔日 + 0/1/2 日）下逐条合否 |
 | [s0612-runyue-checks.md](calendar/s0612-runyue-checks.md) | 斯0612 历序閏月（生成文件）：978 年应天历官本历序「六十相屬宫宿法」所列 919—978 年逐年閏月，与张表、中原一线比较（59/60 合，936 年漏书） |

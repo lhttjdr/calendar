@@ -174,6 +174,13 @@ pub fn yue_su_qi_li(month: u8, day: u8) -> usize {
     x
 }
 
+/// 月宿以实度（卷七二煩課正文「更詳七政厯細度為凖」）：月亮视黄经 `moon_lon`（°）所在之宿（角 0）。`mansion_lons` 为二十八宿宿界黄经，
+/// 与恒星过宫同取古法黄道宿度（[`crate::folk::liuren::mansion_gu_huang_dao`]）或距星黄经。书中所举「九月初三……月宿躔氐五度」
+/// 未举年份，无从核实度；起月宿法（[`yue_su_qi_li`]）为其粗法：初一起之宿即合朔时日月所在之宿（见 doc/folk/liuren.md 第六节）
+pub fn yue_su_shi_du(moon_lon: crate::math::real::Real, mansion_lons: &[crate::math::real::Real; 28]) -> usize {
+    crate::folk::qizheng::xiu_of(mansion_lons, moon_lon).0
+}
+
 /// 月宿所屬十二辰（卷七「辰角亢　夘氐房心　寅尾箕　丑斗牛　子女虚危亥室壁　戌奎婁　酉胃昴畢　申觜參　未井鬼午栁星張　已翼軫」）
 pub fn yue_su_zhi(xiu: usize) -> u8 {
     const Z: [u8; 28] = [4, 4, 3, 3, 3, 2, 2, 1, 1, 0, 0, 0, 11, 11, 10, 10, 9, 9, 9, 8, 8, 7, 7, 6, 6, 6, 5, 5];
@@ -894,6 +901,21 @@ mod tests {
         assert_eq!(x(2, 5), "昴"); // 天冦觀月經注「初五日……從奎數至昴」
         assert_eq!(yue_su_zhi(yue_su_qi_li(1, 14)), z("午"));
         assert_eq!(yue_su_zhi(yue_su_qi_li(8, 5)), z("卯"));
+    }
+
+    /// 月宿实度：黄经落入之宿（宿界升序，跨 360° 处亦然）
+    #[test]
+    fn yue_su_shi_du_xiu() {
+        use crate::math::real::{real, Real};
+        // 以角宿界 200° 起，每宿 360/28 度（只验算法，不代表实测宿度）
+        let ml: [Real; 28] = core::array::from_fn(|i| real((200.0 + i as f64 * 360.0 / 28.0) % 360.0));
+        assert_eq!(XIU28[yue_su_shi_du(real(200.5), &ml)], "角");
+        assert_eq!(XIU28[yue_su_shi_du(real(199.5), &ml)], "軫");
+        // 氐五度（入氐约 5°）属卯
+        assert_eq!(yue_su_zhi(yue_su_shi_du(real(200.0 + 2.0 * 360.0 / 28.0 + 5.0), &ml)), z("卯"));
+        // 跨 0°：宿界 354.3°—8.6° 之宿
+        let k = (0..28).find(|i| ml[*i] > real(350.0)).unwrap();
+        assert_eq!(yue_su_shi_du(real(2.0), &ml), k);
     }
 
     /// 繁昌、榮華、合歡、和美、天禍、天寇、二煩、死奇、魄化、灾厄：卷六、卷七所举之例（贵人用书中实用表、卯至酉为昼）。

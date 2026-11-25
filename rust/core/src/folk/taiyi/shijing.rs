@@ -6,6 +6,10 @@
 //!   并言「若月日時並置其積同法求之」。十精诸周（二十、十二、四、九、五、七十二）皆整除周纪法三百六十，
 //!   故以四计入局数 r 推之即得。景祐元年按本项目积年余 71、按书数余 70，差一；书又言「若求小遊太乙并天目所在義見嵗計」，
 //!   秘書至万历戊子积 10,155,505 亦合本项目，故从岁计积年，书数当有一筭之讹（**未核**）。
+//! - 太尊、五行之序：金鏡文「命起八宫順行四正宫」「命起一宫以三五七九二四六八」读不通，以集成卷六八八「十精定局」立成
+//!   （一百八十年逐年列太乙、天目与九精，影印本逐格核，见 doc/folk/taiyi.md 第十三节）定为太尊八六二四、五行一八三九七
+//!   （[`ShiJingFa::DingJu`]，缺省）；旧按字读之法（太尊八四二六、五行一三五七九）留作 [`ShiJingFa::JinJingWen`]。
+//! - 衰旺：集成卷六八八「衰旺立成」八节各宫旺相胎沒死囚休廢（[`shuai_wang`]）。
 //! - 阴遁：「十精以陽遁所衝即各得隂遁十精所在也」：十六神冲为对位（+8），十二辰冲为对支，九宫冲为十减宫数（中五自冲）。
 //! - 阳九、百六：金鏡卷七「推太嵗有陽九之災法」「推太乙有百六之厄法」，积年为上元甲寅至开元十二年 13,331
 //!   （[`super::zhushen::WU_FU_JI_NIAN_724`]）；集成卷六八七「陽九」「陰六」「自始有甲子，積至所用之年」（[`ELiFa::HuangDi`]）。
@@ -94,8 +98,26 @@ fn walk(start: usize, stay: &[usize], n: i64) -> usize {
     p
 }
 
-/// 十精所在。`ji` 为四计积数或入局数 r（诸周皆整除三百六十，二者同）。
+/// 太尊、五行二精之序
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum ShiJingFa {
+    /// 集成卷六八八「十精定局」立成：太尊坎八、兌六、離二、震四；五行一、八、三、九、七（一百八十年 2160 格，
+    /// 除第 135 年三格错位外全合本项目推算）。缺省
+    #[default]
+    DingJu,
+    /// 金鏡卷七按字读：太尊八、四、二、六（四正依十六神顺行）；五行一、三、五、七、九（「二四六八」视为衍文）。
+    /// 二者皆为旧时推读，立成不合
+    JinJingWen,
+}
+
+/// 十精所在（太尊、五行依立成，[`ShiJingFa::DingJu`]）。`ji` 为四计积数或入局数 r（诸周皆整除三百六十，二者同）。
 pub fn shi_jing(ji: i64, which: ShiJing, dun: Dun) -> Wei {
+    shi_jing_with(ji, which, dun, ShiJingFa::DingJu)
+}
+
+/// 十精所在，太尊、五行之序依 `fa`
+pub fn shi_jing_with(ji: i64, which: ShiJing, dun: Dun, fa: ShiJingFa) -> Wei {
+    let ding = fa == ShiJingFa::DingJu;
     let w = match which {
         // 「以天皇小周二十去之不盡者命起武徳順行十六神至隂徳大炅大武和徳重留一筭外」
         ShiJing::TianHuang => Wei::Shen(walk(11, &[14, 6, 10, 2], zhou(ji, 20))),
@@ -103,12 +125,14 @@ pub fn shi_jing(ji: i64, which: ShiJing, dun: Dun) -> Wei {
         ShiJing::DiFu => Wei::Shen(walk(13, &[0, 4, 8, 12], zhou(ji, 20))),
         // 「以天時小周十二去之不盡命起吕申順行十二辰」
         ShiJing::TianShi => Wei::Zhi(((zhou(ji, 12) - 1 + 2) % 12) as u8),
-        // 「以太尊小周四除之不盡命起八宫順行四正宫」：坎八、震四、離二、兌六（四正依十六神顺行之序，**未核**）
-        ShiJing::TaiZun => Wei::Gong([8, 4, 2, 6][zhou(ji, 4) as usize - 1]),
+        // 「以太尊小周四除之不盡命起八宫順行四正宫」
+        // 立成作八、六、二、四（坎、兌、離、震）
+        ShiJing::TaiZun => Wei::Gong(if ding { [8, 6, 2, 4] } else { [8, 4, 2, 6] }[zhou(ji, 4) as usize - 1]),
         // 「以飛鳥小周九除之不盡命起一宫順行九宫」
         ShiJing::FeiNiao => Wei::Gong(zhou(ji, 9) as u8),
-        // 「以五行小周五除之不盡命起一宫以三五七九二四六八」：五除只得五位，取一三五七九（「二四六八」或涉五风而衍，**未核**）
-        ShiJing::WuXing => Wei::Gong([1, 3, 5, 7, 9][zhou(ji, 5) as usize - 1]),
+        // 「以五行小周五除之不盡命起一宫以三五七九二四六八」：五除只得五位
+        // 立成作一、八、三、九、七
+        ShiJing::WuXing => Wei::Gong(if ding { [1, 8, 3, 9, 7] } else { [1, 3, 5, 7, 9] }[zhou(ji, 5) as usize - 1]),
         // 「上元甲子嵗起二宫次順行九宫……命起二宮順行二三五六七八九一宫」：后句脱「四」，依前句九宫顺行
         ShiJing::BaFeng => Wei::Gong([2, 3, 4, 5, 6, 7, 8, 9, 1][zhou(ji, 9) as usize - 1]),
         // 「上元甲子嵗起一宫次行三五七九二四六八」
@@ -139,6 +163,23 @@ pub fn he_chong(ji: i64, dun: Dun, gong: u8) -> Vec<String> {
             _ => None,
         })
         .collect()
+}
+
+// ---------------------------------------------------------------- 衰旺
+
+/// 衰旺八等（集成卷六八八「衰旺立成」表头之序）
+pub const SHUAI_WANG: [&str; 8] = ["旺", "相", "胎", "沒", "死", "囚", "休", "廢"];
+/// 八节（立成行序）
+pub const BA_JIE: [&str; 8] = ["立春", "春分", "立夏", "夏至", "立秋", "秋分", "立冬", "冬至"];
+/// 立春行之宫序：八、三、四、九、二、七、六、一；余节依次前移一位（立成八行皆如此，唯立冬、冬至二行坤位书作「三」）
+const SHUAI_WANG_XU: [u8; 8] = [8, 3, 4, 9, 2, 7, 6, 1];
+
+/// 某节（`jie`：0 立春 … 7 冬至）某宫之衰旺（[`SHUAI_WANG`] 序）；中五无。
+/// 宫数照立成原文；书中宫数用太乙之九宫（乾一離二……）抑洛书之九宫（坎一坤二……），表无明文：
+/// 依洛书读，立春艮旺、冬至坎旺，即八卦八节旺相之常说；依太乙宫数读，则冬至乾旺、立春坎旺（**未核**）。
+pub fn shuai_wang(jie: usize, gong: u8) -> Option<usize> {
+    let i = SHUAI_WANG_XU.iter().position(|g| *g == gong)?;
+    Some((i + 8 - jie % 8) % 8)
 }
 
 // ---------------------------------------------------------------- 阳九、百六
@@ -255,5 +296,99 @@ mod tests {
         // 景祐元年：书积 10,154,950，本项目余 71、书余 70
         assert_eq!(ji_nian(1034, JiNian::JinJing).rem_euclid(360), 71);
         assert_eq!(10_154_950i64.rem_euclid(360), 70);
+    }
+
+    /// 集成卷六八八「十精定局」立成（影印本逐格转录，`data/folk/taiyi_shijing_dingju.csv`）
+    const DING_JU_CSV: &str = include_str!("../../../../../data/folk/taiyi_shijing_dingju.csv");
+
+    fn cn(n: u8) -> &'static str {
+        ["〇", "一", "二", "三", "四", "五", "六", "七", "八", "九"][n as usize]
+    }
+
+    fn wei_str(w: Wei) -> String {
+        match w {
+            Wei::Shen(p) => super::super::POS16[p].to_string(),
+            Wei::Zhi(z) => "子丑寅卯辰巳午未申酉戌亥".chars().nth(z as usize).unwrap().to_string(),
+            Wei::Gong(g) => cn(g).to_string(),
+            Wei::Shu(n) => n.to_string(),
+        }
+    }
+
+    /// 立成一百八十年逐格：第 n 行即入局数 n（前三甲子）与 n + 180（後三甲子），阳遁
+    #[test]
+    fn ding_ju_li_cheng() {
+        let jing = [
+            ShiJing::TianHuang,
+            ShiJing::DiFu,
+            ShiJing::TianShi,
+            ShiJing::TaiZun,
+            ShiJing::FeiNiao,
+            ShiJing::WuXing,
+            ShiJing::BaFeng,
+            ShiJing::WuFeng,
+            ShiJing::SanFeng,
+        ];
+        let (mut he, mut bu) = (0, vec![]);
+        let mut jw_bu = 0;
+        let mut rows = 0;
+        for line in DING_JU_CSV.lines().filter(|l| !l.starts_with('#')).skip(1) {
+            let f: Vec<&str> = line.split(',').collect();
+            let n: u16 = f[0].parse().unwrap();
+            rows += 1;
+            let qian = super::super::ju(n, Dun::Yang);
+            let hou = super::super::ju(n + 180, Dun::Yang);
+            let mut tui = vec![cn(qian.gong).to_string(), cn(hou.gong).to_string(), super::super::POS16[qian.tian_mu].to_string()];
+            assert_eq!(qian.tian_mu, hou.tian_mu);
+            for s in jing {
+                tui.push(wei_str(shi_jing(n as i64, s, Dun::Yang)));
+                // 後三甲子同
+                assert_eq!(shi_jing(n as i64, s, Dun::Yang), shi_jing(n as i64 + 180, s, Dun::Yang));
+            }
+            for (k, t) in tui.iter().enumerate() {
+                if f[2 + k] == t {
+                    he += 1;
+                } else {
+                    bu.push((n, k));
+                }
+            }
+            // 旧读法（金鏡文按字）太尊、五行与立成不合之格
+            for (k, s) in [(8usize, ShiJing::TaiZun), (10, ShiJing::WuXing)] {
+                if wei_str(shi_jing_with(n as i64, s, Dun::Yang, ShiJingFa::JinJingWen)) != f[k] {
+                    jw_bu += 1;
+                }
+            }
+        }
+        assert_eq!(rows, 180);
+        // 2160 格合 2157；第 135 年太尊、飛鳥、五行三格书作「九七一」，推得「二九七」，错一格
+        assert_eq!(he, 2157);
+        assert_eq!(bu, vec![(135, 6), (135, 7), (135, 8)]);
+        // 旧读法：太尊 180 年中 91 不合（90 + 第 135 年之讹）、五行 144 不合
+        assert_eq!(jw_bu, 235);
+    }
+
+    /// 集成卷六八八「衰旺立成」：八节 × 八宫 64 格
+    #[test]
+    fn shuai_wang_li_cheng() {
+        // 行：立春……冬至；列：旺相胎沒死囚休廢（影印本转录）
+        let book: [[u8; 8]; 8] = [
+            [8, 3, 4, 9, 2, 7, 6, 1],
+            [3, 4, 9, 2, 7, 6, 1, 8],
+            [4, 9, 2, 7, 6, 1, 8, 3],
+            [9, 2, 7, 6, 1, 8, 3, 4],
+            [2, 7, 6, 1, 8, 3, 4, 9],
+            [7, 6, 1, 8, 3, 4, 9, 2],
+            [6, 1, 8, 3, 4, 9, 3, 7], // 休位书作「三」，当作「二」
+            [1, 8, 3, 4, 9, 3, 7, 6], // 囚位书作「三」，当作「二」
+        ];
+        let mut bu = vec![];
+        for (jie, row) in book.iter().enumerate() {
+            for (k, g) in row.iter().enumerate() {
+                if shuai_wang(jie, *g) != Some(k) {
+                    bu.push((BA_JIE[jie], SHUAI_WANG[k]));
+                }
+            }
+        }
+        assert_eq!(bu, vec![("立冬", "休"), ("冬至", "囚")]);
+        assert_eq!(shuai_wang(0, 5), None);
     }
 }

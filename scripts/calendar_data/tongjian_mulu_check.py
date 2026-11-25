@@ -132,6 +132,7 @@ def load_data():
     return rows
 
 
+REGIME = {"周": "北魏/西魏/北周/隋", "隋": "北魏/西魏/北周/隋", "魏": "北魏/西魏/北周/隋", "齊": "东魏/北齐", "東魏": "东魏/北齐"}
 BENJI_BOOKS = ("jiutangshu_benji", "xintangshu_benji", "jiuwudaishi_benji", "xinwudaishi_benji")
 
 
@@ -179,25 +180,43 @@ def main():
     rk_last = {}
     for (y, m, l), (j, _) in rk.items():
         rk_last[y] = max(rk_last.get(y, 0), j)
+    # 南北朝多国并列：目录所标之国对分政权推步（push_calendar，data/calendar/推步政权朔日表.csv 主表，纯推步）
+    regs = {}
+    with open(gd.REGIME_TABLE, encoding="utf-8") as f:
+        for d in csv.DictReader(f):
+            if d["regime"] in set(REGIME.values()):
+                j = gd.jdn(int(d["gregorian_year"]), int(d["gregorian_month"]), int(d["gregorian_day"]))
+                regs.setdefault(d["regime"], {})[(int(d["lunar_year"]), int(d["lunar_month"]), d["is_leap"] == "1")] = (j, d["calendar"])
+    reg_last = {k: {} for k in regs}
+    for k, t in regs.items():
+        for (y, m, l), (j, _) in t.items():
+            reg_last[k][y] = max(reg_last[k].get(y, 0), j)
     years = []
     chain = {}
     for r in rows:
         y = int(r["年"])
         if not r["朔闰原文"].strip():
             continue
-        prev = chain.get(y - 1) or zt_last.get(y - 1) or rk_last.get(y - 1)
+        guo = r.get("国", "")
+        reg = REGIME.get(guo) if not (guo == "隋" and y >= 590) else None
+        if reg:
+            ztab, rtab, last = {}, regs[reg], reg_last[reg]
+        else:
+            ztab, rtab, last = zt, rk, zt_last
+        key = reg or "中原"
+        prev = chain.get((key, y - 1)) or last.get(y - 1) or (rk_last.get(y - 1) if not reg else None)
         if prev is None:
-            years.append((r, None, ["无上岁末月朔可起算"]))
+            years.append((r, None, ["无上岁末月朔可起算"], ztab, rtab))
             continue
         ms, notes = expand(prev, r["校读"] or r["朔闰原文"])
-        chain[y] = ms[-1][2]
-        years.append((r, ms, notes))
+        chain[(key, y)] = ms[-1][2]
+        years.append((r, ms, notes, ztab, rtab))
     # 统计
     lines = []
-    tot = dict(n=0, z=0, zn=0, p=0, pn=0, bn=0, bm=0, bz=0, bp=0)
+    tot = dict(n=0, z=0, zn=0, p=0, pn=0, bn=0, bm=0, bz=0, bp=0, rn=0, rp=0, rmonths=0)
     diff_rows = []
     year_rows = []
-    for r, ms, notes in years:
+    for r, ms, notes, zt, rk in years:
         y = int(r["年"])
         if ms is None:
             continue
@@ -221,30 +240,40 @@ def main():
                     pc += 1
                 else:
                     dp.append((name, j, pj))
-            if (zj is not None and zj != j) or (pj is not None and pj != j) or (zj is None and y >= -104):
-                diff_rows.append((y, r, name, j, zj, pj, rk.get(k, (None, ""))[1], bj.get(k, [])))
+            if (zj is not None and zj != j) or (pj is not None and pj != j) or (zt and zj is None and y >= -104):
+                diff_rows.append((y, r, name, j, zj, pj, rk.get(k, (None, ""))[1], bj.get(k, []) if zt else []))
+            if not zt:
+                tot["rn"] += pj is not None
+                tot["rp"] += pj == j and pj is not None
+                continue
             for b in bj.get(k, []):
                 tot["bn"] += 1
                 tot["bm"] += b[2] == j
                 tot["bz"] += b[2] == zj
                 tot["bp"] += b[2] == pj
-        tot["z"] += zc; tot["zn"] += zn; tot["p"] += pc; tot["pn"] += pn
+        if zt:
+            tot["z"] += zc; tot["zn"] += zn; tot["p"] += pc; tot["pn"] += pn
+        else:
+            tot["rmonths"] += len(ms)
         year_rows.append((y, r, len(ms), zc, zn, pc, pn, notes))
     # 分历汇总（按推步历名；观象 807—821 无推步，记「观象历（术不传）」）
     by = {}
-    for r, ms, notes in years:
+    for r, ms, notes, zt, rk in years:
         if ms is None:
             continue
         y = int(r["年"])
         for m, l, j, lst in ms:
             k = (y, m, l)
             nm = rk.get(k, (None, "观象历（术不传）" if 807 <= y <= 821 else "（目录闰位与推步异，无同名月）"))[1]
+            if not zt:
+                nm = f"{r['国']}（{REGIME[r['国']]}）：{nm}"
             b = by.setdefault(nm, dict(y0=y, y1=y, n=0, z=0, p=0, pn=0, only_p=0, only_z=0, none=0))
             b["y1"] = y
             b["n"] += 1
             zj = zt.get(k)
             pj = rk.get(k, (None, ""))[0]
-            b["z"] += zj == j
+            b["z"] += zj == j and zj is not None
+            b["nz"] = b.get("nz", 0) + (zj is not None)
             if pj is not None:
                 b["pn"] += 1
                 b["p"] += pj == j
@@ -273,12 +302,14 @@ def write_doc(year_rows, diff_rows, tot, by):
     o.append(f"## 汇总\n\n已录 {len(ys)} 岁（{min(ys)}—{max(ys)}，中有缺岁见下），展开 {tot['n']} 月；"
              f"与张表可比 {tot['zn']} 月，合 {tot['z']}；与推步可比 {tot['pn']} 月，合 {tot['p']}。"
              f"缺岁：{'、'.join(str(y) for y in range(min(ys), max(ys) + 1) if y not in ys) or '无'}。\n")
+    o.append(f"以上合张表、合推步之数只计中原一线（含陳）；南北朝目录所标他国（周、齊、隋 581—589）对分政权推步"
+             f"（`data/calendar/推步政权朔日表.csv` 主表）：{tot['rmonths']} 月，可比 {tot['rn']}，合 {tot['rp']}。\n")
     o.append(f"新旧唐书、新旧五代史本纪明书朔（剔除已考讹误与「其他」类）落在已录各月者 {tot['bn']} 条：合目录 {tot['bm']}，"
              f"合张表 {tot['bz']}，合推步 {tot['bp']}（观象 807—821 无推步）。\n")
     kinds = {}
     for y, r, name, j, zj, pj, pname, bs in diff_rows:
         k = ("合张表" if zj == j else "合推步" if pj == j else "不合张表（无推步）" if pj is None
-             else "目录独异" if zj == pj else "三家各异")
+             else "不合分政权推步" if zj is None else "目录独异" if zj == pj else "三家各异")
         kinds.setdefault(k, []).append((y, name, bs, j))
     solo = kinds.get("目录独异", []) + kinds.get("三家各异", [])
     solo_bj = [(y, nm, bs, j) for y, nm, bs, j in solo if bs]
@@ -297,26 +328,26 @@ def write_doc(year_rows, diff_rows, tot, by):
     o.append("- 原文干支不可通者（传刻误字、脱月名或脱「一」）在 CSV「校读」列给出按前后月推定之读法，展开用校读；"
              "「二」「三」「十一」「十二」诸字在扫描本中笔画常不清，按干支可通者读，附注说明。\n")
     o.append("## 分历\n")
-    o.append("按本项目中原一线行用之历分段（推步不经仲裁，实物年亦照推；观象术不传无推步）。「只合推步」「只合张表」「皆不合」以月计。\n")
+    o.append("按本项目中原一线行用之历分段（推步不经仲裁，实物年亦照推；观象术不传无推步）；他国行以「国（政权）：历名」标出，只对分政权推步、不对张表。「只合推步」「只合张表」「皆不合」以月计。\n")
     o.append("| 历 | 年段 | 月数 | 合张表 | 合推步 | 只合推步 | 只合张表 | 皆不合 |")
     o.append("|---|---|---|---|---|---|---|---|")
     for nm, b in sorted(by.items(), key=lambda t: t[1]["y0"]):
         pp = f"{b['p']}/{b['pn']}" if b["pn"] else "—"
-        o.append(f"| {nm} | {b['y0']}—{b['y1']} | {b['n']} | {b['z']} | {pp} | {b['only_p'] if b['pn'] else '—'} | "
+        o.append(f"| {nm} | {b['y0']}—{b['y1']} | {b['n']} | {b['z'] if b.get('nz') else '—'} | {pp} | {b['only_p'] if b['pn'] else '—'} | "
                  f"{b['only_z'] if b['pn'] else '—'} | {b['none'] if b['pn'] else '—'} |")
     o.append("")
     o.append("## 逐岁\n")
-    o.append("| 年 | 岁次 | 卷 | PDF 页 | 目录原文 | 校读 | 月数 | 合张表 | 合推步 | 附注 |")
-    o.append("|---|---|---|---|---|---|---|---|---|---|")
+    o.append("| 年 | 岁次 | 国 | 卷 | PDF 页 | 目录原文 | 校读 | 月数 | 合张表 | 合推步 | 附注 |")
+    o.append("|---|---|---|---|---|---|---|---|---|---|---|")
     for y, r, n, zc, zn, pc, pn, notes in year_rows:
         nt = "；".join([x for x in [r.get("附注", "")] + notes if x])
-        o.append(f"| {y} | {r['岁次']} | {r['卷']} | {r['PDF页']} | {r['朔闰原文']} | {r['校读']} | {n} | "
-                 f"{zc}/{zn} | {f'{pc}/{pn}' if pn else '—'} | {nt} |")
+        o.append(f"| {y} | {r['岁次']} | {r.get('国', '')} | {r['卷']} | {r['PDF页']} | {r['朔闰原文']} | {r['校读']} | {n} | "
+                 f"{f'{zc}/{zn}' if zn else '—'} | {f'{pc}/{pn}' if pn else '—'} | {nt} |")
     o.append("\n## 不合之月\n")
     o.append("目录展开后与张表或推步不同之月。「目录独异」= 张表与推步相同而目录不同；书影出处：Commons 文件、PDF 页（1 起算，岁名所在页）。"
              "本纪明书朔取新旧唐书、新旧五代史（剔除已考讹误）。\n")
-    o.append("| 年 | 月 | 目录朔 | 张表朔 | 推步朔 | 推步历 | 合 | 本纪明书朔 | 书影 |")
-    o.append("|---|---|---|---|---|---|---|---|---|")
+    o.append("| 年 | 国 | 月 | 目录朔 | 张表朔 | 推步朔 | 推步历 | 合 | 本纪明书朔 | 书影 |")
+    o.append("|---|---|---|---|---|---|---|---|---|---|")
     for y, r, name, j, zj, pj, pname, bs in diff_rows:
         who = []
         if zj == j:
@@ -324,8 +355,8 @@ def write_doc(year_rows, diff_rows, tot, by):
         if pj == j:
             who.append("合推步")
         if not who:
-            who.append("不合张表（无推步）" if pj is None else "目录独异" if zj == pj else "三家各异")
-        o.append(f"| {y} | {name} | {gzs(j)} | {gzs(zj) or '—'} | {gzs(pj) or '—'} | {pname or '—'} | "
+            who.append("不合张表（无推步）" if pj is None else "不合分政权推步" if zj is None else "目录独异" if zj == pj else "三家各异")
+        o.append(f"| {y} | {r.get('国', '')} | {name} | {gzs(j)} | {gzs(zj) or '—'} | {gzs(pj) or '—'} | {pname or '—'} | "
                  f"{'、'.join(who)} | {' '.join(f'{b[1]}（{b[0]}）' for b in bs) or '—'} | {r['文件']} p{r['PDF页']} |")
     OUT.write_text("\n".join(o) + "\n", encoding="utf-8")
 

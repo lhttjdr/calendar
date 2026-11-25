@@ -157,6 +157,68 @@ pub fn ri_jia_pan(sj: &ShiJu, day_gz: u8, opts: PanOptions) -> QimenPan {
     pai_pan(sj, day_gz % 60, opts)
 }
 
+/// 統宗「又法日奇门」夏至第二甲子之局
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum XiaZhiZhongJu {
+    /// 原文「第二甲子六十日用阴遁二局」。缺省
+    #[default]
+    Er,
+    /// 作三局：冬至三甲子一、七、四即时家冬至上中下元之局，夏至依此当九、三、六（时家夏至三元），疑「二」为「三」之讹（**未核**）
+    San,
+}
+
+/// 統宗「又法日奇门」一日之局
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RiJiaYouFa {
+    pub yang: bool,
+    pub ju: u8,
+    /// 本至之后第几甲子（0—2）；闰为 2
+    pub di: u8,
+    /// 是否闰（叠用第三甲子）
+    pub run: bool,
+    /// 本至之首甲子（符头）日
+    pub fu_tou: i64,
+    /// 至日 − 符头日：正为超神、负为接气
+    pub chao: i64,
+}
+
+/// 統宗卷二「又法日奇门起例」：「冬至甲子第一六十日用阳遁一局，第二甲子六十日用阳遁七局，第三甲子六十日用阳遁四局。夏至第一甲子
+/// 六十日用阴遁九局，第二甲子六十日用阴遁二局，第三甲子六十日用阴遁六局，皆以其日旬首所值之星为值符，所值之门为值使，法亦同于年奇。
+/// 其超接置闰，则如时奇，凡甲子符头超过三十日有奇，即宜置闰」。
+///
+/// 读法：每至以一甲子日为符头，三甲子凡一百八十日；半岁约一百八十二日有半，符头逐至渐早（超神），超过三十日则置闰——
+/// 叠用前至第三甲子之局六十日，下至之符头遂在至后（接气，不及三十日）。如此每至之符头即至日前三十日至后三十日之内（不含前三十日之外）
+/// 之甲子日，与起算之年无涉。闰叠第三甲子为本项目之读（时奇置闰叠芒种、大雪，此处以甲子为单位），**未核**。
+/// `zhi` 为冬至、夏至交节民用日（升序，[`super::QiTable::zhi_days`]），须覆盖 `jdn` 前一至；`jdn` 早于表首则 None。
+pub fn ri_jia_you_fa(jdn: i64, zhi: &[(i64, bool)], fa: XiaZhiZhongJu) -> Option<RiJiaYouFa> {
+    // 至日 z 之符头：z − s ∈ (−30, 30] 之甲子日 s
+    let fu_tou = |z: i64| {
+        let s = z - super::day_gz(z) as i64; // 至日以前（含）最近之甲子
+        if z - s > 30 {
+            s + 60
+        } else {
+            s
+        }
+    };
+    let (z, dong) = zhi.iter().filter(|(z, _)| fu_tou(*z) <= jdn).last().copied()?;
+    let s = fu_tou(z);
+    let k = (jdn - s) / 60;
+    let (di, run) = if k >= 3 { (2u8, true) } else { (k as u8, false) };
+    let ju = if dong {
+        [1, 7, 4][di as usize]
+    } else {
+        [9, if fa == XiaZhiZhongJu::San { 3 } else { 2 }, 6][di as usize]
+    };
+    Some(RiJiaYouFa { yang: dong, ju, di, run, fu_tou: s, chao: z - s })
+}
+
+/// 統宗「又法日奇门」布盘：以日干支为「时」，阳遁或阴遁本局，旬首之星为直符、之门为直使（「法亦同于年奇」）
+pub fn ri_jia_you_fa_pan(r: &RiJiaYouFa, day_gz: u8, opts: PanOptions) -> QimenPan {
+    let yuan = [Yuan::Shang, Yuan::Zhong, Yuan::Xia][r.di as usize];
+    let sj = ShiJu { yang: r.yang, ju: r.ju, term: if r.yang { 18 } else { 6 }, yuan, run: r.run, chao: r.chao };
+    pai_pan(&sj, day_gz % 60, opts)
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::pan::DEFAULT_PAN;
@@ -250,5 +312,40 @@ mod tests {
         // 統宗附月例同年奇：上元甲子年（阴一局）正月丙寅，丙寅在甲子旬，直符天蓬加丙所临、直使休门自坎逆飞至寅
         let p = yue_jia_pan(0, 2, YueJiaRule::TongZong, DEFAULT_PAN);
         assert_eq!((p.zhi_fu, p.zhi_shi), ("天蓬", "休門"));
+    }
+
+    /// 統宗「又法日奇门」：符头皆甲子、超接不过三十日，三甲子之局与闰
+    #[test]
+    fn ri_jia_you_fa_chao_jie() {
+        use crate::astronomy::ephemeris::load_earth_vsop87_from_repo;
+        let vsop = load_earth_vsop87_from_repo().unwrap();
+        let t = super::super::QiTable::new(&vsop, 1990, 2030, super::super::JieQiSource::DingQi);
+        let zhi = t.zhi_days();
+        let jdn0 = 2_448_000; // 1990-02
+        let (mut runs, mut prev): (i32, Option<RiJiaYouFa>) = (0, None);
+        for d in jdn0..jdn0 + 365 * 36 {
+            let r = ri_jia_you_fa(d, &zhi, XiaZhiZhongJu::Er).unwrap();
+            assert_eq!(super::super::day_gz(r.fu_tou), 0);
+            assert!(r.chao > -30 && r.chao <= 30, "{d} {}", r.chao);
+            assert_eq!(r.ju, if r.yang { [1, 7, 4][r.di as usize] } else { [9, 2, 6][r.di as usize] });
+            if r.run && !prev.map(|p| p.run).unwrap_or(false) {
+                runs += 1;
+                // 闰起于超神逾三十日之前：本至符头超得多，下至转为接气
+                assert!(r.chao > 0);
+            }
+            prev = Some(r);
+        }
+        // 每至符头早约二日六（182.6 − 180），六十日之差约二十三至（十一年半）一闰，三十六年三闰上下
+        assert!((2..=4).contains(&runs), "{runs}");
+        // 夏至第二甲子作三局之说
+        let d = zhi.iter().find(|z| !z.1 && z.0 > jdn0).unwrap().0;
+        let r = ri_jia_you_fa(d + 90, &zhi, XiaZhiZhongJu::San).unwrap();
+        if r.di == 1 {
+            assert_eq!(r.ju, 3);
+        }
+        // 布盘：以日干支为时，甲子日直符为旬首甲子（戊）所在之星
+        let r = ri_jia_you_fa(t.zhi_days()[10].0, &zhi, XiaZhiZhongJu::Er).unwrap();
+        let p = ri_jia_you_fa_pan(&r, 0, DEFAULT_PAN);
+        assert_eq!(p.xun_shou, "甲子");
     }
 }
