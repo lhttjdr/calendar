@@ -20,6 +20,39 @@ export default defineConfig({
     // 中文标点紧贴 ** 时（如「**世界时（UT）**逐渐」）CommonMark 不认粗体，此插件按 CJK 放宽定界规则
     config: (md) => {
       md.use(cjkFriendly)
+      // 宽表横向滚动、不把短列挤成一字一行。列数不少于 7 的宽表：单元格（去掉 Markdown 记号后）24 字以内加 nw 类不折行，
+      // 更长者加 wide 类、内容包 div.cell-wide 保底宽度，合宽超出正文时表格横向滚动（custom.css）；小表只让 8 字以内者不折行，
+      // 其余照常折行、排在正文宽度内
+      md.core.ruler.push('table_cell_width', (state) => {
+        const toks = state.tokens
+        let wideTable = false
+        for (let i = 0; i < toks.length - 1; i++) {
+          const t = toks[i]
+          if (t.type === 'table_open') {
+            let cols = 0
+            for (let k = i + 1; k < toks.length && toks[k].type !== 'tr_close'; k++) if (toks[k].type === 'th_open') cols++
+            wideTable = cols >= 7
+          }
+          if (t.type !== 'td_open' && t.type !== 'th_open') continue
+          const inline = toks[i + 1]
+          const text = inline.type === 'inline' ? inline.content.replace(/[`*_\[\]]|\(.*?\)/g, '') : ''
+          const n = [...text].length
+          if (n <= (wideTable ? 24 : 8)) t.attrJoin('class', 'nw')
+          else if (wideTable) t.attrJoin('class', 'wide')
+        }
+      })
+      // 单元格上的 min-width 在自动表格布局里不生效：长文本单元格内容包一层 div.cell-wide，保底宽度设在 div 上
+      for (const tag of ['td', 'th']) {
+        const open = md.renderer.rules[`${tag}_open`] ?? ((t, i, o, e, self) => self.renderToken(t, i, o))
+        const close = md.renderer.rules[`${tag}_close`] ?? ((t, i, o, e, self) => self.renderToken(t, i, o))
+        md.renderer.rules[`${tag}_open`] = (t, i, o, e, self) =>
+          open(t, i, o, e, self) + ((t[i].attrGet('class') ?? '').includes('wide') ? '<div class="cell-wide">' : '')
+        md.renderer.rules[`${tag}_close`] = (t, i, o, e, self) => {
+          let j = i - 1
+          while (j >= 0 && t[j].type !== `${tag}_open`) j--
+          return ((j >= 0 && (t[j].attrGet('class') ?? '').includes('wide')) ? '</div>' : '') + close(t, i, o, e, self)
+        }
+      }
     },
   },
   themeConfig: {
