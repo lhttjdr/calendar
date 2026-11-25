@@ -2,7 +2,8 @@
 
 汉代官文书书首例作「年号 N 年 M 月 干支朔 干支」（如「始建國五年九月丙午朔乙亥」），朔干支是当时所行历日（第 1 级实物）。
 释文据《中国简牍集成》（敦煌文艺出版社 2001）各册排印释文；OCR（RapidOCR，竖排）候选由外部步骤生成
-（JSON：页序 → [[x, y, 文字, 置信]]），本脚本只做匹配与比对。
+（JSON：页序 → [[x, y, 文字, 置信]]），本脚本只做匹配与比对；有文字的今人释文（如张俊民《肩水金关汉简（壹）释文》Word 录文）
+转成纯文本后用 candidates-text 抽候选，同一正则与判定。
 
 候选（candidates）：抽「年号 N 年（閏）M 月 干支朔」，年号按两汉、新莽年号表（data/calendar/汇总/era_names_merged.csv，
 政权 汉、新）定年；新莽月名经 month_label_reforms.csv 换算为建寅表月。逐条算张表朔与推步朔（太初后三统、元和二年后四分，
@@ -13,6 +14,7 @@
 check 生成 doc/calendar/hanjian-checks.md。
 
 用法（仓库根）：uv run --project scripts python scripts/calendar_data/hanjian_shuo_check.py candidates <书> <册> <ocr.json>
+            uv run --project scripts python scripts/calendar_data/hanjian_shuo_check.py candidates-text <书> <册> <释文.txt>
             uv run --project scripts python scripts/calendar_data/hanjian_shuo_check.py check
 """
 import csv
@@ -82,15 +84,51 @@ def judge(regime, year, month, leap, gz, main, reck):
     return t, zg, (zg == gz) if zg else None, rg, (rg == gz) if rg else None
 
 
-def candidates(book, vol, path):
-    ev = eras()
-    main = d.tables()["张表"]
-    reck = reckon_tables(main)
+def _pattern(ev):
     era_pat = "|".join(sorted({k for k in ev} | {T2S.convert(k) for k in ev}, key=len, reverse=True))
     N = "[元正一二三四五六七八九十廿卅卌]+"
     G = "[甲乙丙丁戊己庚辛壬癸][子丑寅卯辰巳午未申酉戌亥]"
     # 月数可缺：「建武六年閏月甲子朔」只书閏月，取该年有闰之月
-    pat = re.compile(rf"({era_pat})({N})年(閏|闰)?({N})?月({G})朔")
+    return re.compile(rf"({era_pat})({N})年(閏|闰)?({N})?月({G})朔")
+
+
+def _judge_match(m, ev, main, reck):
+    """一处匹配 → [(年号, 年, 闰, 月, 朔干支, judge 结果)]（同名年号各出一条）；数字不能解者返回 []"""
+    era, yr, leap, gz = T2S.convert(m.group(1)), cn(m.group(2)), bool(m.group(3)), m.group(5)
+    mo = cn(m.group(4)) if m.group(4) else None
+    if yr is None or (mo is None and not leap) or (mo is not None and not 1 <= mo <= 12):
+        return []
+    out = []
+    for regime, y0 in ev.get(era, []):
+        year = y0 + yr - 1
+        mo_ = mo
+        if mo_ is None:  # 只书閏月：张表该年之闰（无闰则以推步之闰）
+            mo_ = next((k for k in range(1, 13) if (t := g.table_month(regime, year, MON[k - 1], True)) and (t in main or t in reck)), None)
+            if mo_ is None:
+                continue
+        out.append((era, year, int(leap), mo_, gz, judge(regime, year, mo_, leap, gz, main, reck)))
+    return out
+
+
+def _emit(rows):
+    w = csv.DictWriter(sys.stdout, fieldnames=list(rows[0].keys()) if rows else ["无"])
+    w.writeheader()
+    w.writerows(rows)
+    print(f"# 候选 {len(rows)}，合张表 {sum(r['合张表'] is True for r in rows)}，合推步 {sum(r['合推步'] is True for r in rows)}", file=sys.stderr)
+
+
+def _row(book, vol, page, hit, conf, text):
+    era, year, leap, mo, gz, j = hit
+    return dict(书=book, 册=vol, PDF页=page, 年号=era, 年=year, 闰=leap, 月=mo, 朔干支=gz,
+                张表=j[1] if j else "无此月", 合张表=j[2] if j else "", 推步=j[3] if j else "",
+                合推步=j[4] if j else "", 置信=conf, 原文=text)
+
+
+def candidates(book, vol, path):
+    ev = eras()
+    main = d.tables()["张表"]
+    reck = reckon_tables(main)
+    pat = _pattern(ev)
     data = json.load(open(path))
     rows, seen = [], set()
     for pg, boxes in sorted(data.items(), key=lambda kv: int(kv[0])):
@@ -108,24 +146,38 @@ def candidates(book, vol, path):
                 if (pg, m.group(0)) in seen:
                     continue
                 seen.add((pg, m.group(0)))
-                era, yr, leap, gz = m.group(1), cn(m.group(2)), bool(m.group(3)), m.group(5)
-                mo = cn(m.group(4)) if m.group(4) else None
-                if yr is None or (mo is None and not leap) or (mo is not None and not 1 <= mo <= 12):
-                    continue
-                for regime, y0 in ev.get(era, []):
-                    year = y0 + yr - 1
-                    if mo is None:  # 只书閏月：张表该年之闰（无闰则以推步之闰）
-                        mo = next((k for k in range(1, 13) if (t := g.table_month(regime, year, MON[k - 1], True)) and (t in main or t in reck)), None)
-                        if mo is None:
-                            continue
-                    j = judge(regime, year, mo, leap, gz, main, reck)
-                    rows.append(dict(书=book, 册=vol, PDF页=int(pg) + 1, 年号=era, 年=year, 闰=int(leap), 月=mo, 朔干支=gz,
-                                     张表=j[1] if j else "无此月", 合张表=j[2] if j else "", 推步=j[3] if j else "",
-                                     合推步=j[4] if j else "", 置信=conf, 原文=text))
-    w = csv.DictWriter(sys.stdout, fieldnames=list(rows[0].keys()) if rows else ["无"])
-    w.writeheader()
-    w.writerows(rows)
-    print(f"# 候选 {len(rows)}，合张表 {sum(r['合张表'] is True for r in rows)}，合推步 {sum(r['合推步'] is True for r in rows)}", file=sys.stderr)
+                rows += [_row(book, vol, int(pg) + 1, h, conf, text) for h in _judge_match(m, ev, main, reck)]
+    _emit(rows)
+
+
+def candidates_text(book, vol, path):
+    """纯文本释文（如 Word 录文转出之 txt）抽候选：去空白后整篇匹配（日期跨行亦可接上），
+    图片占位「EMBED …」作「□」；「PDF页」记匹配处之后最近的简号（如 73EJT1:125A，释文例于简末书简号），
+    其后 400 字内无简号者记「段 N」（N 为原文行号）。原文取匹配起至简号（或其后 40 字）。"""
+    ev = eras()
+    main = d.tables()["张表"]
+    reck = reckon_tables(main)
+    pat = _pattern(ev)
+    raw = open(path, encoding="utf-8").read()
+    raw = re.sub(r"EMBED\s+[A-Za-z.]+\d*", "□", raw)
+    s, line_of, ln = [], [], 1
+    for ch in raw:
+        if ch == "\n":
+            ln += 1
+        if not ch.isspace():
+            s.append(ch)
+            line_of.append(ln)
+    s = "".join(s)
+    # 繁转简后匹配（年号表为简体）；逐字转，保证位置与原文一一对应，原文栏仍取繁体
+    ss = "".join(c if len(t := T2S.convert(c)) != 1 else t for c in s)
+    jian = re.compile(r"\d+EJ[A-Z]*\d+[:：]\d+[A-Z]?(\+\d+[A-Z]?)*")
+    rows = []
+    for m in pat.finditer(ss):
+        k = jian.search(s, m.end(), m.end() + 400)
+        page = k.group(0) if k else f"段 {line_of[m.start()]}"
+        text = (s[m.start():k.start()] if k else s[m.start():m.end() + 40])[:60]
+        rows += [_row(book, vol, page, h, "", text) for h in _judge_match(m, ev, main, reck)]
+    _emit(rows)
 
 
 def lipu():
@@ -191,6 +243,8 @@ def check():
 if __name__ == "__main__":
     if sys.argv[1] == "candidates":
         candidates(*sys.argv[2:5])
+    elif sys.argv[1] == "candidates-text":
+        candidates_text(*sys.argv[2:5])
     elif sys.argv[1] == "lipu":
         lipu()
     elif sys.argv[1] == "check":
