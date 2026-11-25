@@ -56,7 +56,10 @@ def page_img(doc, i):
     pix = pymupdf.Pixmap(doc, imgs[0][0])
     if pix.n != 1 or pix.alpha:
         pix = pymupdf.Pixmap(pymupdf.csGRAY, pix)
-    return np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width).copy()
+    a = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width).astype(np.float32)
+    # 拉伸对比度：卷13—15 扫描偏淡（墨色最深约 83），统一到 1%—99% 分位为 0—255，阈值才通用
+    lo, hi = np.percentile(a, 1), np.percentile(a, 99)
+    return np.clip((a - lo) * 255.0 / max(hi - lo, 1.0), 0, 255).astype(np.uint8)
 
 
 def runs(mask):

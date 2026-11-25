@@ -9,7 +9,7 @@
 本项目中原一线按术推步（calendar::lifa::zhongyuan_year_months，ZhongyuanPreference::Reckoning，临时 crate 调用）比较。
 
 输出 doc/calendar/tongjian-mulu-checks.md（逐岁汇总、不合之月逐条）。
-用法（仓库根）：python3 scripts/calendar_data/tongjian_mulu_check.py [--no-reckon]
+用法（仓库根）：python3 scripts/calendar_data/tongjian_mulu_check.py [--no-reckon | --reckon-csv 预导出推步表]
 """
 from __future__ import annotations
 
@@ -167,7 +167,15 @@ def main():
     zt_last = {}
     for (y, m, l), j in zt.items():
         zt_last[y] = max(zt_last.get(y, 0), j)
-    rk = {} if "--no-reckon" in sys.argv else reckon_months()
+    if "--reckon-csv" in sys.argv:
+        # 预先导出的推步表（格式同 RECKON_MAIN 输出：岁,月,闰,JDN,历名），cargo 被占用时用
+        rk = {}
+        for line in open(sys.argv[sys.argv.index("--reckon-csv") + 1], encoding="utf-8"):
+            y, m, l, j, name = line.rstrip("\n").split(",", 4)
+            if not (807 <= int(y) <= 821):  # 观象术不传，不计推步
+                rk[(int(y), int(m), l == "1")] = (int(j), name)
+    else:
+        rk = {} if "--no-reckon" in sys.argv else reckon_months()
     rk_last = {}
     for (y, m, l), (j, _) in rk.items():
         rk_last[y] = max(rk_last.get(y, 0), j)
