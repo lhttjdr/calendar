@@ -68,6 +68,7 @@
 | [s0612-runyue-checks.md](calendar/s0612-runyue-checks.md) | 斯0612 历序閏月（生成文件）：978 年应天历官本历序「六十相屬宫宿法」所列 919—978 年逐年閏月，与张表、中原一线比较（59/60 合，936 年漏书） |
 | [zoumalou-checks.md](calendar/zoumalou-checks.md) | 走马楼吴简纪日（生成文件）：竹简壹至叁、《简牍集成》中带日序干支或书朔之简逐条（已对原书图版核对），与吴乾象推步、魏历比较，及吴、魏朔不同之月按月归并 |
 | [gaochang-630-checks.md](calendar/gaochang-630-checks.md) | 高昌延寿七年（630）残历各月朔与张表、玄始历外推（生成文件）：有据 11 月，合玄始 10、张表 9 |
+| [tulufan-jiri-checks.md](calendar/tulufan-jiri-checks.md) | 吐鲁番出土文书与墓表纪日检验（生成文件）：麴氏高昌朔日 7 条合玄始外推 5、张表 3，闰月 4 条合玄始 0、正光外推 3；630 年十二月差一日非进朔，620 年前后高昌历元或改；北凉无可检之条 |
 | [chutu-rili-checks.md](calendar/chutu-rili-checks.md) | 吐鲁番、黑城出土唐宋历日残件（720、1182、1211）月朔与张表、中原一线（生成文件）；多为定年所用，独立者一月 |
 | [yinwan-lipu-checks.md](calendar/yinwan-lipu-checks.md) | 尹湾汉墓元延元年、三年历谱与元延二年日记六单月，与张表、三统推步（生成文件）：20 月全合 |
 | [hanjian-checks.md](calendar/hanjian-checks.md) | 居延汉简、居延新简、敦煌汉简、肩水金关、悬泉汉简公文书朔日 451 条与张表、两汉推步（生成文件）：合 424，不合 27 条（简牍集成 19 条已对图，肩水金关释文 3 条，悬泉 5 条对书影）；同简异本重出 1 条不计 |
