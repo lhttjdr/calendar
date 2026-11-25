@@ -2268,6 +2268,7 @@ pub fn qili_shen_day_json(jd: f64, vsop87_ear: &str, tian_de: u8, tian_huo: u8, 
         fu_ri: match fu_ri { 1 => FuRiRule::JiZheng, 2 => FuRiRule::BaiJi, 3 => FuRiRule::BeiYong, 4 => FuRiRule::BaiJiGe, _ => FuRiRule::XieJi },
         huang_wu: match huang_wu { 1 => HuangWuRule::AnJi, 2 => HuangWuRule::LeiBianBiao, 3 => HuangWuRule::LeiBianQiLi, _ => HuangWuRule::BuLie },
         tian_zei: qly(tian_zei),
+        ..ShenshaOptions::default()
     };
     let base = shen_for_day_with(month_ord, dgz, &ShenshaOptions::default());
     let sel = shen_for_day_with(month_ord, dgz, &o);
