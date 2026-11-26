@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import shiwu_fenlei as fl  # noqa: E402
 import discriminating_records as d  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -61,8 +62,9 @@ def main():
     md = ["# 高昌延寿七年（630）历日与张表、玄始历外推（自动生成）", "",
           "> 由 `scripts/calendar_data/gaochang_630_check.py` 生成，勿手改。录文 `data/calendar/gaochang_630.csv`，依据见脚本说明。", "",
           "残历（86TAM387:38-4）存三月至十二月；朔日由残历各月对齐与两方墓表推得（邓文宽 2002）。「推拟」三朔不作证据，只列。", "",
-          "| 月 | 残历朔 | 依据 | 张表朔 | 合张表 | 玄始外推朔 | 合玄始 |", "|---|---|---|---|---|---|---|"]
+          "| 月 | 残历朔 | 依据 | 张表朔 | 合张表 | 玄始外推朔 | 合玄始 | 分类 | 等级 |", "|---|---|---|---|---|---|---|---|---|"]
     n = dict(ev=0, z=0, x=0)
+    cats = []
     for r in rows:
         y, m, lp = int(r["年"]), int(r["月"]), r["闰"] == "1"
         zj = main_t.get((y, m, lp))
@@ -75,8 +77,20 @@ def main():
             n["z"] += zg == r["朔干支"]
             n["x"] += xg == r["朔干支"]
         lab = ("閏" if lp else "") + MON[m - 1] + "月" + ("（631）" if y == 631 else "")
-        md.append(f"| {lab} | {r['朔干支']} | {r['依据']} | {zg} | {'✓' if zg == r['朔干支'] else '✗'} | {xg} | {'✓' if xg == r['朔干支'] else '✗'} |")
-    md += ["", f"有据之月 {n['ev']}：合张表 {n['z']}，合玄始外推 {n['x']}。", ""]
+        # 残历为实物历日（A），只有墓表者为当时文字（B），推拟不作证据
+        lv = "A" if "残历" in r["依据"] else ("B" if ev else "—")
+        c, note = fl.classify(xg, zg, [r["朔干支"]] if ev else [], lv, "残历" if lv == "A" else "墓表")
+        lv = lv if c not in ("无证", "③") or ev else "—"
+        cats.append((c, lv))
+        md.append(f"| {lab} | {r['朔干支']} | {r['依据']} | {zg} | {'✓' if zg == r['朔干支'] else '✗'} | {xg} | {'✓' if xg == r['朔干支'] else '✗'} | "
+                  f"{c}{f'（{note}）' if note else ''} | {lv} |")
+    md += ["", f"有据之月 {n['ev']}：合张表 {n['z']}，合玄始外推 {n['x']}。", "",
+           "分类对象是玄始外推（「推步」）与张表；此段张表是中原历，不代表高昌，①即「张表不能代表高昌」。两家皆无之月（閏正月）"
+           "以「（无此月）」相同计。推拟之朔无证据。" + fl.RULE, "",
+           fl.headline(cats, "玄始外推") + "。十二月残历与墓表皆壬辰，两家皆辛卯（玄始平朔小余 0.982），见 "
+           "[tulufan-jiri-checks.md](tulufan-jiri-checks.md)「延壽七年（630）十二月差一日」。", ""] + fl.grade_table(cats) + ["",
+           "补（2026-11-25）：邓文宽所取王素推拟之三朔（正月丁酉、閏正月丁卯等）与北魏正光历外推逐月相同；高昌闰位合正光、不合玄始之证见 "
+           "[tulufan-jiri-checks.md](tulufan-jiri-checks.md)。", ""]
     (ROOT / "doc/calendar/gaochang-630-checks.md").write_text("\n".join(md), encoding="utf-8")
     print("\n".join(md))
 

@@ -16,6 +16,7 @@
 """
 import csv
 import math
+import sys
 from fractions import Fraction as Fr
 from pathlib import Path
 
@@ -23,6 +24,8 @@ from skyfield import almanac
 from skyfield.api import load, load_file
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import shiwu_fenlei as fl  # noqa: E402
 GZ = ["甲乙丙丁戊己庚辛壬癸"[i % 10] + "子丑寅卯辰巳午未申酉戌亥"[i % 12] for i in range(60)]
 Y0, Y1 = -721, -479
 LEAP_YEARS = {-620, -489}  # 文公六年、哀公五年经书「閏月」（岁末）
@@ -238,6 +241,68 @@ for line in yr[1:]:
     md.append(f"| 前 {1 - int(c[0])} | {c[2]} | {c[3]} | {'闰' if c[4] == '1' else ''} | {c[5]} | {c[6]} | {c[7]} | {c[8]} | {c[9]} | {c[10]} | {'闰' if c[11] == '1' else ''} | {'✓' if c[12] == '1' else '✗'} |")
 (ROOT / "doc/calendar/chunqiu-luli-checks.md").write_text("\n".join(md) + "\n", encoding="utf-8")
 
+# —— 分类：本排法（「推步」位）与张表 3-7 逐岁相同、互异，经文为证 ——
+def rec_ok(Y, s, n):
+    """该岁经文各条在排法 (s, n) 下合否（与 solve.score 同一判法）。"""
+    out = []
+    for _, m, leap, g, shuo, eclipse, r in by_year.get(Y, []):
+        i = s + (12 if leap else m - 1)
+        if leap and n == 12 or i + 1 >= len(S):
+            out.append(False)
+            continue
+        a, b = S[i], S[i + 1]
+        d = a + (g - (a + 49)) % 60
+        ok = d < b and (not shuo or d == a)
+        if ok and eclipse and not any(abs(d - c) <= 1 for c in CONJ_DAY_NEAR(d) if c in _ECL):
+            ok = False
+        out.append(ok)
+    return out
+
+
+def fenlei_section(ZP):
+    """逐岁一个分类。经文书朔、日食之条为 C（史书明书），余为纪日 D（同岁两条以上独立才判）。"""
+    cats, odd = [], []
+    for Y in range(Y0, Y1 + 1):
+        recs = by_year.get(Y, [])
+        lv = ["C" if (r[4] or r[5]) else "D" for r in recs]
+        a = rec_ok(Y, path[Y], path[Y + 1] - path[Y])
+        z = rec_ok(Y, ZP[Y], ZP[Y + 1] - ZP[Y])
+        enough = lambda idx: idx and (any(lv[i] == "C" for i in idx) or len(idx) >= 2)
+        best = lambda idx: min(lv[i] for i in idx) if idx else "—"
+        same = S[path[Y]] == S[ZP[Y]] and path[Y + 1] - path[Y] == ZP[Y + 1] - ZP[Y]
+        both = [i for i in range(len(recs)) if a[i] and z[i]]
+        none = [i for i in range(len(recs)) if not a[i] and not z[i]]
+        pa = [i for i in range(len(recs)) if a[i] and not z[i]]
+        pz = [i for i in range(len(recs)) if z[i] and not a[i]]
+        if same:
+            if enough(both):
+                c, note, g = "有证", (f"另 {len(none)} 条两家皆不合" if none else ""), best(both)
+            elif enough(none) and not both:
+                c, note, g = "同误", "经文与两家皆不合，待核（或经文月误）", best(none)
+            else:
+                c, note, g = "无证", ("纪日一见" if recs else ""), "—"
+        elif pa and pz:
+            c, note, g = "③", f"证据冲突：只合本排法 {len(pa)}、只合张表 {len(pz)}", "—"
+        elif enough(pa):
+            c, note, g = "①", "", best(pa)
+        elif enough(pz):
+            c, note, g = "②", "", best(pz)
+        else:
+            c, g = "③", "—"
+            note = "纪日一见，倾向" + ("本排法" if pa else "张表") if (pa or pz) else ("经文两家皆合，不能判" if both else ("经文两家皆不合" if none else ""))
+        cats.append((c, g))
+        if c not in ("有证", "无证"):
+            odd.append(f"| 前 {1 - Y} | {GZ[(S[path[Y]] + 49) % 60]}{'闰' if path[Y + 1] - path[Y] == 13 else ''} | "
+                       f"{GZ[(S[ZP[Y]] + 49) % 60]}{'闰' if ZP[Y + 1] - ZP[Y] == 13 else ''} | {len(recs)} | {len(pa)} | {len(pz)} | {c}{f'（{note}）' if note else ''} | {g} |")
+    return ["## 分类（按岁）", "",
+            "此段张表即张培瑜表 3-7（今人复原），「推步」位为本排法（今人复原式的经文排定，亦非术文推步）；两家正月朔与闰皆同为相同，否则为互异。"
+            "证据为《春秋》经文：书朔、日食之条记 C（史书明书），其余纪日记 D（同岁两条以上独立才判，一见者注「纪日一见」）。"
+            "本排法本由经文排出，「有证」「①」对本排法不是独立检验。" + fl.RULE.replace("实物", "经文"), "",
+            fl.headline(cats, "本排法", "岁") + "。", ""] + fl.grade_table(cats) + ["",
+            "①②③与同误之岁（「只合本」「只合张」为只合一家之经文条数）：", "",
+            "| 年 | 本排法正月朔 | 张表正月朔 | 经文 | 只合本 | 只合张 | 分类 | 等级 |", "|---|---|---|---|---|---|---|---|"] + odd + [""]
+
+
 # —— 对照：张培瑜表 3-7 的排法在同一评分下 ——
 def zhang_path(S):
     import bisect
@@ -265,6 +330,7 @@ if len(ZP) >= Y1 - Y0 + 1:
              f"张表排法：经文合 {zh}/{len(REC)}，闰 {len(zleaps)}，其中连年置闰 {consec} 次，正月建亥、寅 {odd} 年，闰距分布 {sorted(_c.Counter(gaps).items())}。",
              f"本排法（最大后验）：经文合 {top1}/{len(REC)}，闰 {len(ml)}，闰距分布 {_mg}。",
              "张表多合之条绝大多数为普通纪日（书朔两家同，日食相近），要靠连闰、亥寅岁首与长闰距换得；按边际似然所选之先验，这种不规则不比规整之排法更有据，张表亦不注各年依据。", ""]
+    _note += fenlei_section(ZP)
     with open(ROOT / "doc/calendar/chunqiu-luli-checks.md", "a", encoding="utf-8") as _f:
         _f.write("\n".join(_note) + "\n")
 else:

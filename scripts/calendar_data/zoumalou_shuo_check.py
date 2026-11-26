@@ -18,6 +18,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import shiwu_fenlei as fl  # noqa: E402
 GZ = ["甲乙丙丁戊己庚辛壬癸"[i % 10] + "子丑寅卯辰巳午未申酉戌亥"[i % 12] for i in range(60)]
 # 年号以末字认：简文年号首字常残（「☐禾元年」），OCR 亦常误首字；末字四号互不相同
 ERA = {"安": 196, "武": 222, "龍": 229, "龙": 229, "禾": 232, "烏": 238, "乌": 238}
@@ -77,8 +79,15 @@ def check():
     rows = [r for r in csv.DictReader(l for l in open(ROOT / "data/calendar/zoumalou_jiri.csv", encoding="utf-8") if not l.startswith("#")) if r["核对"] == "1"]
     md = ["# 走马楼吴简纪日与吴、魏历（自动生成）", "", "> 由 `scripts/calendar_data/zoumalou_shuo_check.py check` 生成，勿手改。底本与方法见 [historical-calendar.md](historical-calendar.md)「三国十六国」。", "",
           "简文所书朔日（书「某干支朔」，或由日序与干支推得）与吴乾象历推步、魏历（张表）之朔比较。", "",
-          "| 册 | 书页 | 简号 | 简文日期 | 所示朔 | 吴推步朔 | 合吴 | 魏历朔 | 合魏 | 原文 | 备注 |", "|---|---|---|---|---|---|---|---|---|---|---|"]
+          "| 册 | 书页 | 简号 | 简文日期 | 所示朔 | 吴推步朔 | 合吴 | 魏历朔 | 合魏 | 分类 | 原文 | 备注 |", "|---|---|---|---|---|---|---|---|---|---|---|---|"]
     tot = {"n": 0, "wu": 0, "wei": 0, "only_wu": 0, "only_wei": 0}
+    # 每月一个分类：推步 = 吴乾象推步，张表 = 魏历；吴简是当时官文书（B 级），一简即可判，同月简文冲突归③
+    obs = {}
+    for r in rows:
+        obs.setdefault((int(r["年"]), int(r["月"]), r["闰"] == "1"), []).append(r["朔干支"])
+    g_ = lambda M, k: GZ[(M[0][k] + 49) % 60] if k in M[0] else ""
+    cls = {k: fl.classify(g_(wu, k), g_(wei, k), v, "B", "简文") for k, v in obs.items()}
+    cl = lambda k: (cls[k][0] + (f"（{cls[k][1]}）" if cls[k][1] else "")) if cls[k][0] else ""
     for r in rows:
         y, m, leap = int(r["年"]), int(r["月"]), r["闰"] == "1"
         res = []
@@ -92,7 +101,7 @@ def check():
         tot["only_wei"] += res[1][1] and not res[0][1]
         ey = y - {v: k for k, v in ERA_NAME.items()}[r["年号"]] + 1
         date = f"{r['年号']}{'元' if ey == 1 else ey}年{'閏' if leap else ''}{m}月" + (f"{r['日']}日" if r["日"] else "") + r["干支"]
-        md.append(f"| {r['册']} | {r['书页']} | {r['简号']} | {date} | {r['朔干支']} | {res[0][0]} | {'✓' if res[0][1] else '✗'} | {res[1][0]} | {'✓' if res[1][1] else '✗'} | {r['原文']} | {r.get('备注') or ''} |")
+        md.append(f"| {r['册']} | {r['书页']} | {r['简号']} | {date} | {r['朔干支']} | {res[0][0]} | {'✓' if res[0][1] else '✗'} | {res[1][0]} | {'✓' if res[1][1] else '✗'} | {cl((y, m, leap))} | {r['原文']} | {r.get('备注') or ''} |")
     md += ["", f"共 {tot['n']} 条：合吴 {tot['wu']}，合魏 {tot['wei']}；只合吴 {tot['only_wu']}，只合魏 {tot['only_wei']}。", ""]
     # 按月归并：只列吴、魏朔不同之月（能判别之月）
     gz = lambda j: GZ[(j + 49) % 60]
@@ -107,6 +116,12 @@ def check():
     for (y, m, leap), c in sorted(by.items()):
         md.append(f"| {y} | {'閏' if leap else ''}{m} | {gz(wu[0][(y, m, leap)])} | {gz(wei[0][(y, m, leap)])} | {c[0]} | {c[1]} | {c[2]} |")
     md += ["", f"能判别之月 {len(by)} 个：合吴 {sum(c[0] for c in by.values())} 简，合魏 {sum(c[1] for c in by.values())} 简。", ""]
+    cats = [(c, "B" if c != "无证" else "—") for c, _ in cls.values() if c]
+    md += ["## 分类（按月）", "",
+           "分类对象是吴乾象历推步（「推步」）与张表（此段张表即魏历，不代表吴历）：①= 简文合吴推步、不合张表（证张表不能代表吴历），"
+           "②= 简文合张表（魏历）、不合吴推步（证吴推步误）。吴简是当时官文书（B 级），一简即可判，同月简文冲突归③；"
+           "同月诸简各算一条。" + fl.RULE, "",
+           f"有简之月 {len(cats)}：" + fl.headline(cats, "吴推步") + "。", ""] + fl.grade_table(cats) + [""]
     (ROOT / "doc/calendar/zoumalou-checks.md").write_text("\n".join(md) + "\n", encoding="utf-8")
     print(tot)
 

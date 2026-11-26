@@ -5,6 +5,8 @@
 //! 4. 实用历推步与李忠林复原历不同之月。
 //! 输出 doc/calendar/qinhan-shiwu-checks.md（覆盖写）。
 //! 用法（仓库根）：cargo run --release --manifest-path rust/Cargo.toml -p lunar-core --no-default-features --features real-f64 --example qinhan_shiwu_check
+#[path = "support/shiwu_fenlei.rs"]
+mod fenlei;
 use lunar_core::calendar::artifacts::zhongyuan_artifact_year;
 use lunar_core::calendar::gan_zhi::GAN_ZHI_60;
 use lunar_core::calendar::qinhan_shiyong::{self as sy, SEGMENTS};
@@ -315,6 +317,57 @@ fn main() {
     md.push(String::new());
     md.push(format!("共 {nd} 月（置闰逐年相同）。"));
     println!("与李忠林不同 {nd} 月");
+
+    // 5. 分类：此段无张表，两家为实用历推步与李忠林复原（「张表」位）；实物为证据
+    md.push(String::new());
+    md.push("## 五、分类（按月）".into());
+    md.push(String::new());
+    md.push(format!(
+        "此段张表不覆盖，分类对象是实用历推步与李忠林复原历（本节「张表」位即李忠林复原）：①= 实物合实用推步、不合李，②= 实物合李、不合实用推步。\
+历谱、质日（周家台、岳麓、张家山，及转引之银雀山历谱）为 A 级实物历日，里耶官文书与转引之木牍为 B 级当时文字；「补」字、史载改朔、\
+周家台三十四年本、岳麓二十七年《质日》同第一节不计。同月数件各算一条。注意：实用推步的 δ 本由这些实物定出，「有证」「①」对实用推步并非独立检验，\
+对李忠林复原才是。{}",
+        fenlei::RULE.replace("张表误", "李忠林复原误")
+    ));
+    md.push(String::new());
+    let mut obs: std::collections::BTreeMap<(i32, u8, bool), (Vec<&str>, char, i64, i64)> = Default::default();
+    let mut n_skip = 0;
+    for f in recs.iter() {
+        let n: i32 = f[cy].parse().unwrap();
+        let (m, leap) = (f[cm].parse::<u8>().unwrap(), f[cl] == "1");
+        if f[cb] == "补" || is_exception(n, m, leap) || (f[cs] == "周家台" && n == -212) || (f[cs] == "岳麓" && n == -219) {
+            n_skip += 1;
+            continue;
+        }
+        let find = |v: Vec<(i64, u8, bool)>| v.into_iter().find(|x| (x.1, x.2) == (m, leap)).map(|x| x.0);
+        let (Some(a), Some(c)) = (find(sy::jianhai_year_months(n)), find(qinhan_restore::jianhai_year_months(n))) else { continue };
+        let g = if f[cs] == "里耶" || (f[cs] == "转引" && !f.iter().any(|x| x.contains("历谱"))) { 'B' } else { 'A' };
+        let e = obs.entry((n, m, leap)).or_insert((vec![], g, a, c));
+        e.0.push(f[cg]);
+        e.1 = e.1.min(g);
+    }
+    let mut cats: Vec<(&str, char)> = vec![];
+    let mut odd = vec![];
+    for ((n, m, leap), (v, g, a, c)) in &obs {
+        let cl = fenlei::classify(gz(*a), gz(*c), v, *g, "实物").unwrap();
+        cats.push((cl.0, *g));
+        if cl.0 != "有证" {
+            odd.push(format!("| 建亥 {n} | {} | {} | {} | {} | {} | {g} |", mname(*m, *leap), v.join("、"), gz(*a), gz(*c), fenlei::label(&cl)));
+        }
+    }
+    md.push(format!("有实物之月 {}（不计之条 {n_skip} 不入）：{}。", cats.len(), fenlei::headline(&cats, "实用推步").replace("与张表", "与李忠林复原").replace("证张表误", "证李忠林复原误")));
+    md.push(String::new());
+    md.extend(fenlei::grade_table(&cats).into_iter().map(|l| l.replace("①证张表误", "①证李误")));
+    md.push(String::new());
+    md.push("非「有证」之月：".into());
+    md.push(String::new());
+    if odd.is_empty() {
+        md.push("无。实物与两家相异之条皆在「不计」之列（见第一节），李忠林复原与实用推步相异的 17 月（第四节）都没有计入之实物。".into());
+    } else {
+        md.push("| 年 | 月 | 实物朔 | 实用 | 李 | 分类 | 等级 |".into());
+        md.push("|---|---|---|---|---|---|---|".into());
+        md.extend(odd);
+    }
     std::fs::write(
         root.join("doc/calendar/qinhan-shiwu-checks.md"),
         md.join("\n") + "\n",

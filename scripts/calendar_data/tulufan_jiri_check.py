@@ -29,6 +29,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import discriminating_records as d  # noqa: E402
 from gaochang_630_check import GZ, XUANSHI, pingshuo_year  # noqa: E402
+import shiwu_fenlei as fl  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 CSV = ROOT / "data/calendar/tulufan_jiri.csv"
@@ -407,6 +408,51 @@ def shift_section(delta, P, pname, rows=()):
     return out
 
 
+def fenlei_section(rows, zhang, xs, zg):
+    """麴氏高昌有朔之月按月分类：外推（玄始、正光各一套）与张表互异、相同，墓表、衣物疏为当时文字（B 级）。"""
+    obs = defaultdict(list)
+    tang = Counter()
+    for r in rows:
+        s = implied_shuo(r)
+        if r.get("计入", "1") == "0" or s is None:
+            continue
+        key = (int(r["公元"]), int(r["月"]), r["闰"] == "1")
+        if r["政权"] == "麴氏高昌":
+            obs[key].append(GZ[s])
+        elif r["政权"] == "唐":
+            tang[judge(r, zhang)[1][0]] += 1
+
+    def g(t, k):
+        if k in t:
+            return GZ[(t[k] + 49) % 60]
+        return "（无此月）" if k[0] in {x[0] for x in t} else ""
+
+    out = ["", "## 分类（按月）", "",
+           "分类对象是外推历（「推步」：玄始、正光常数一路外推，各分一套，皆不作历元平移）与张表，限麴氏高昌有朔（明书或由日序逆推）之月；"
+           "墓表、衣物疏、券契是当时文字（B 级），一条即可判，同月诸条冲突归③；同月诸方各算一条。"
+           "一家无此月（闰位异）者亦算互异。张表在此段是中原历，不代表高昌历日，①即「张表不能代表高昌」。"
+           "同误中「差 −1 日」「差 +1 日」者多可由下文「历元平移 δ」（前段 δ<0、后段 δ>0）解释，分类按未平移之外推，不据 δ 改判。" + fl.RULE, ""]
+    tabs = {}
+    for name, t in (("玄始", xs), ("正光", zg)):
+        cls = {k: fl.classify(g(t, k), g(zhang, k), v, "B", "墓表") for k, v in obs.items()}
+        tabs[name] = cls
+        cats = [(c, "B" if c != "无证" else "—") for c, _ in cls.values() if c]
+        out += [f"- **{name}外推**：有朔之月 {len(cats)}，" + fl.headline(cats, f"{name}外推") + "。"]
+    cats = [(c, "B" if c != "无证" else "—") for c, _ in tabs["正光"].values() if c]
+    out += ["", "正光外推按等级：", ""] + fl.grade_table(cats)
+    out += ["", f"唐西州（640 以后）行唐历，张表即唐历，无另一家可比：有朔之条合张表 {tang['✓']}、不合 {tang['✗']}，不入分类。", "",
+            "逐月（只列两家互异或同误之月；余为有证）：", "",
+            "| 公元 | 月 | 所记朔 | 张表 | 玄始外推 | 分类（玄始） | 正光外推 | 分类（正光） |", "|---|---|---|---|---|---|---|---|"]
+    for k in sorted(obs):
+        a, b = tabs["玄始"][k], tabs["正光"][k]
+        if a[0] == "有证" and b[0] == "有证":
+            continue
+        f = lambda c: (c[0] or "—") + (f"（{c[1]}）" if c[1] else "")
+        lab = ("閏" if k[2] else "") + MON[k[1] - 1] + "月"
+        out.append(f"| {k[0]} | {lab} | {'、'.join(obs[k])} | {g(zhang, k) or '—'} | {g(xs, k) or '—'} | {f(a)} | {g(zg, k) or '—'} | {f(b)} |")
+    return out
+
+
 def main():
     rows = load()
     tabs = d.tables()
@@ -504,6 +550,7 @@ def main():
                 md.append(f"| {g} | " + " | ".join(cells) + " |")
         md.append("")
 
+    md += fenlei_section(rows, zhang, xs, others["正光"])
     # δ 区间
     md += ["", "## 玄始外推的常数偏移 δ", "",
            "设高昌实用之历的平朔比本项目玄始常数一律晚 δ 日（δ>0 即合朔时刻推后），各条有据之朔容许的 δ 区间如下"

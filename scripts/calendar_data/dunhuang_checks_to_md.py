@@ -6,10 +6,13 @@ data/calendar/dunhuang_fallback_check.csv（scripts/phenomena/dunhuang_fallback_
 用法（仓库根）：uv run --project scripts python scripts/calendar_data/dunhuang_checks_to_md.py
 """
 import csv
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import shiwu_fenlei as fl  # noqa: E402
 DOC = ROOT / "doc/calendar/dunhuang-calendar.md"
 MARK = "<!-- 以下由 scripts/calendar_data/dunhuang_checks_to_md.py 生成，勿手改 -->"
 
@@ -65,6 +68,29 @@ def main():
               table(["时期", "比较对象", "月数", "同日", "差一日以内", "分布"], body), "",
               table(["公元", "敦煌月", "敦煌朔", "敦煌−张表", "合朔日", "敦煌−合朔日", "合朔地方时", "文书"],
                     [[r["公元"], r["敦煌月"], r["敦煌朔"], r["敦煌−张表"], r["合朔日"], r["敦煌−合朔日"], r["合朔地方时"], r["文书"]] for r in fb]), ""]
+    # 分类：敦煌历术不传、无推步，文书实际比对的两家是张表（中原历）与实际合朔日（现算）；原件具注历是实物（A 级）
+    sh = lambda g, d: fl.GZ[(fl.GZ.index(g) - d) % 60]
+    by = defaultdict(list)
+    for r in fb:
+        by[(r["公元"], r["敦煌月"])].append(r)
+    cats, per = defaultdict(list), []
+    for (y, m), rs in by.items():
+        r = rs[0]
+        c, note = fl.classify(sh(r["敦煌朔"], int(r["敦煌−合朔日"])), sh(r["敦煌朔"], int(r["敦煌−张表"])), [x["敦煌朔"] for x in rs], "A", "原件")
+        p = "吐蕃" if int(y) < 848 else "归义军"
+        cats[p].append((c, "A"))
+        if c != "有证":
+            per.append([y, m, r["敦煌朔"], sh(r["敦煌朔"], int(r["敦煌−张表"])), r["合朔日"], c + (f"（{note}）" if note else ""), r["文书"]])
+    allc = cats["吐蕃"] + cats["归义军"]
+    parts += ["## 分类（按月）", "",
+              "敦煌历术不传，无从推步；此处两家是张表（中原历，缺省退回之表）与实际合朔日（现算，「推步」位），分类对象是二者的相同、互异，"
+              "原件之月（具注历，A 级实物）为证据。①= 原件合实际合朔日、不合张表（张表不能代表敦煌），②= 原件合张表、不合实际合朔日。"
+              "此处「同误」不是原件抄误：敦煌自编之历本与两家皆异（同一件前后诸月自洽），记「待核」只表示两家都不能代表该月。"
+              + fl.RULE, ""]
+    for p in ("吐蕃", "归义军"):
+        parts += [f"- **{p}**：原件 {len(cats[p])} 月，" + fl.headline(cats[p], "实际合朔日") + "。"]
+    parts += ["", fl.headline(allc, "实际合朔日") + "（合计）。", "", "\n".join(fl.grade_table(allc)), "",
+              "非「有证」之月：", "", table(["公元", "敦煌月", "敦煌朔", "张表朔", "合朔日", "分类", "文书"], per), ""]
     text = DOC.read_text(encoding="utf-8")
     head = text.split(MARK)[0].rstrip() + "\n\n"
     DOC.write_text(head + "\n".join(parts), encoding="utf-8")

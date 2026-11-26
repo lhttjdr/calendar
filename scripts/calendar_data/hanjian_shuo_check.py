@@ -31,6 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import discriminating_records as d  # noqa: E402
 import gaiyuan_date as g  # noqa: E402
 import han_pingshuo_check as hp  # noqa: E402
+import shiwu_fenlei as fl  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 T2S = opencc.OpenCC("t2s")
@@ -193,8 +194,9 @@ def lipu():
         return "" if s is None or nxt is None else ("大" if nxt - s == 30 else "小")
     md = ["# 尹湾汉墓历谱与张表、三统推步（自动生成）", "",
           "> 由 `scripts/calendar_data/hanjian_shuo_check.py lipu` 生成，勿手改。录文 `data/calendar/yinwan_lipu.csv`（《尹湾汉墓简牍》释文）。", "",
-          "| 件 | 年 | 月 | 历谱朔 | 大小 | 张表朔 | 大小 | 三统推步朔 | 大小 |", "|---|---|---|---|---|---|---|---|---|"]
+          "| 件 | 年 | 月 | 历谱朔 | 大小 | 张表朔 | 大小 | 三统推步朔 | 大小 | 分类 |", "|---|---|---|---|---|---|---|---|---|---|"]
     n = dict(n=0, z=0, r=0)
+    cats = []
     for r in rows:
         k = (int(r["年"]), int(r["月"]), r["闰"] == "1")
         zg = GZ[(main[k] + 49) % 60] if k in main else "（无）"
@@ -204,9 +206,14 @@ def lipu():
         n["z"] += zg == r["朔干支"] and zs == r["大小"]
         n["r"] += rg == r["朔干支"] and rs == r["大小"]
         lab = ("閏" if k[2] else "") + MON[k[1] - 1]
+        c, note = fl.classify(rg if k in reck else "", zg if k in main else "", [r["朔干支"]], "A", "历谱")
+        if c:
+            cats.append((c, "A" if c != "无证" else "—"))
         md.append(f"| {r['件']} | {k[0]} | {lab} | {r['朔干支']} | {r['大小']} | {zg}{' ✓' if zg == r['朔干支'] else ' ✗'} | {zs}{' ✓' if zs == r['大小'] else ' ✗'} | "
-                  f"{rg}{' ✓' if rg == r['朔干支'] else ' ✗'} | {rs}{' ✓' if rs == r['大小'] else ' ✗'} |")
-    md += ["", f"共 {n['n']} 月：朔与大小皆合张表 {n['z']}，皆合三统推步 {n['r']}。", ""]
+                  f"{rg}{' ✓' if rg == r['朔干支'] else ' ✗'} | {rs}{' ✓' if rs == r['大小'] else ' ✗'} | {(c or '') + (f'（{note}）' if note else '')} |")
+    md += ["", f"共 {n['n']} 月：朔与大小皆合张表 {n['z']}，皆合三统推步 {n['r']}。", "",
+           "分类对象是三统推步与张表（按朔日；月大小由次月朔定，已含在相邻月中）；历谱是实物历日（A 级）。" + fl.RULE, "",
+           fl.headline(cats, "三统推步") + "。", ""] + fl.grade_table(cats) + [""]
     (ROOT / "doc/calendar/yinwan-lipu-checks.md").write_text("\n".join(md), encoding="utf-8")
     print("\n".join(md))
 
@@ -220,11 +227,22 @@ def check():
     md = ["# 汉简公文书朔日与张表、两汉推步（自动生成）", "",
           "> 由 `scripts/calendar_data/hanjian_shuo_check.py check` 生成，勿手改。逐条表 `data/calendar/hanjian_jiri.csv`，方法见脚本说明与 "
           "[calendar-compendium.md](calendar-compendium.md)「两汉」。", "",
-          "| 书 | PDF页 | 简文日期 | 公元 | 简文朔 | 张表朔 | 合张表 | 推步朔 | 合推步 | 核对 | 原文 |", "|---|---|---|---|---|---|---|---|---|---|---|"]
+          "| 书 | PDF页 | 简文日期 | 公元 | 简文朔 | 张表朔 | 合张表 | 推步朔 | 合推步 | 核对 | 分类 | 原文 |", "|---|---|---|---|---|---|---|---|---|---|---|---|"]
     n = defaultdict(int)
+    # 先按表月聚合（同简异本「重出」不计），每月一个分类；简牍公文书为当时文字（B 级），一条即可判，与他条冲突归③
+    keyed = []
     for r in rows:
         regime, y0 = next(((rg, y0) for rg, y0 in ev.get(r["年号"], []) if y0 <= int(r["年"]) < y0 + 30), ("汉", int(r["年"])))
-        j = judge(regime, int(r["年"]), int(r["月"]), r["闰"] == "1", r["朔干支"], main, reck)
+        keyed.append((r, regime, y0, judge(regime, int(r["年"]), int(r["月"]), r["闰"] == "1", r["朔干支"], main, reck)))
+    by_month = defaultdict(list)
+    for r, _, _, j in keyed:
+        if j and r["核对"] != "重出":
+            by_month[j[0]].append((r["朔干支"], j))
+    cls = {}
+    for t, obs in by_month.items():
+        j = obs[0][1]
+        cls[t] = fl.classify(j[3], j[1], [o for o, _ in obs], "B", "简文")
+    for r, regime, y0, j in keyed:
         zg, zok, rg_, rok = (j[1], j[2], j[3], j[4]) if j else ("（无此月）", False, "", None)
         if r["核对"] == "重出":  # 同一简两本释文异读，以所从之本为准，此行列出而不计数（见备注）
             n["dup"] += 1
@@ -237,12 +255,23 @@ def check():
         yr = f"前 {1 - y}" if y <= 0 else str(y)
         ny = int(r["年"]) - y0 + 1
         lab = f"{r['年号']}{'元' if ny == 1 else ny}年{('閏' if r['闰'] == '1' else '')}{MON[int(r['月']) - 1]}"
+        c, note = cls.get(j[0], (None, "")) if j and r["核对"] != "重出" else (None, "")
+        cl = (c + (f"（{note}）" if note else "")) if c else ""
         md.append(f"| {r['书']} | {r['PDF页']} | {lab} | {yr} | {r['朔干支']} | {zg} | {'✓' if zok else '✗'} | {rg_} | "
-                  f"{'' if rok is None else ('✓' if rok else '✗')} | {r['核对']} | {r['原文'][:40]} |")
+                  f"{'' if rok is None else ('✓' if rok else '✗')} | {r['核对']} | {cl} | {r['原文'][:40]} |")
     md += ["", f"共 {n['n']} 条：合张表 {n['z']}；推步可比 {n['rn']} 条，合 {n['r']}。"
            + (f"另 {n['dup']} 条为同简异本重出（核对 = 重出），列出不计。" if n["dup"] else ""), ""]
+    cats = [(c, "B" if c not in ("无证",) else "—") for c, _ in cls.values() if c]
+    solo = [t for t, (c, _) in cls.items() if c is None]
+    solo_ok = sum(1 for t in solo if any(o == by_month[t][0][1][1] for o, _ in by_month[t]))
+    md += ["## 分类（按月）", "",
+           "分类对象是两汉推步（太初后三统、元和二年后四分）与张表：简文是当时官文书（B 级当时文字），一条即可判，同月诸条冲突归③。"
+           "同月多简各算一条（同简异本只算一条）。逐条表「分类」列为该条所在之月的分类。" + fl.RULE, "",
+           f"推步可比 {len(cats)} 月：" + fl.headline(cats) + "。"
+           + (f"无推步之月 {len(solo)}，只与张表比：合 {solo_ok}、不合 {len(solo) - solo_ok}，不入分类。" if solo else ""), ""]
+    md += fl.grade_table(cats) + [""]
     (ROOT / "doc/calendar/hanjian-checks.md").write_text("\n".join(md), encoding="utf-8")
-    print(md[-2])
+    print(next(l for l in md if l.startswith("推步可比")))
 
 
 if __name__ == "__main__":
