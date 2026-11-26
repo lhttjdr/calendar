@@ -1101,7 +1101,7 @@ pub fn ziwei_json(
         },
         xin_kui_yue: if opt_xin == 1 { XinKuiYue::KuiYinYueWu } else { XinKuiYue::KuiWuYueYin },
         bing_ding_yue: if opt_bing_ding == 1 { BingDingYue::Xu } else { BingDingYue::You },
-        si_hua: if opt_si_hua == 1 { SiHuaTable::Modern } else { SiHuaTable::QuanShu },
+        si_hua: match opt_si_hua { 1 => SiHuaTable::Modern, 2 => SiHuaTable::QuanShu, 3 => SiHuaTable::KoreanMs, _ => SiHuaTable::NanYangTang },
         chang_sheng: if opt_chang_sheng == 1 { ChangShengDir::YangMaleYinFemaleForward } else { ChangShengDir::MaleForward },
     };
     let inp = ZiweiInput { year_gz: year_gz % 60, lunar_month, is_leap_month: is_leap, lunar_day, hour_zhi: hour_zhi % 12, male };

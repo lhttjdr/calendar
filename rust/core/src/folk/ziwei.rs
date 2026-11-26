@@ -53,8 +53,11 @@ pub enum BingDingYue {
 /// 四化表之家
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SiHuaTable {
-    /// 全书卷二「安祿權科忌四星變化訣」：庚日武陰同、壬梁紫府武、戊貪月弼機（缺省）
+    /// 全书录文（维基文库）卷二「安祿權科忌四星變化訣」：庚日武陰同、壬梁紫府武、戊貪月弼機
     QuanShu,
+    /// 明南陽堂刊本卷三「安祿權科忌四星變化訣」：庚作「日武同相」（太陽祿、武曲權、天同科、天相忌），余九干同录文；
+    /// 卷六命图孔仲尼、孟軻（庚年）四化正如此（缺省，见 doc/folk/ziwei.md）
+    NanYangTang,
     /// 近人通行之一：庚太陽武曲天府天同，壬天梁紫微左輔武曲（出处未核）
     Modern,
     /// 韩国国立中央图书馆藏写本《紫微斗數方書》第 10 页「定祿權科忌四化星法」：庚日武月同（同全书），壬梁紫左武（科作左輔，异于全书之天府）
@@ -85,7 +88,7 @@ impl Default for ZiweiOptions {
             leap: LeapRule::NextMonth,
             xin_kui_yue: XinKuiYue::KuiWuYueYin,
             bing_ding_yue: BingDingYue::You,
-            si_hua: SiHuaTable::QuanShu,
+            si_hua: SiHuaTable::NanYangTang,
             chang_sheng: ChangShengDir::MaleForward,
         }
     }
@@ -98,6 +101,16 @@ pub enum SiYouChouHuoLing {
     QuanShu,
     /// 火戌铃卯：韩国藏写本第 9 页「天火天令」：「巳酉丑生戌火卯令」
     KoreanMs,
+}
+
+/// 火星、铃星之起法
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HuoLingQi {
+    /// 只按生年支安于起宫（寅午戌火丑铃卯等），不数时：全书诀（刻本、录文）只言起宫；明南陽堂刊本卷六命图
+    /// 劉都衛（午年未时）、端木賜（卯年丑时）、子羔（子年戌时）、子產（丑年戌时）火铃皆在起宫（缺省）
+    NianZhi,
+    /// 自起宫子时起顺数至生时（近人通行，出处未见）
+    ShiShun,
 }
 
 /// 身主之表
@@ -115,6 +128,7 @@ pub enum ShenZhuTable {
 #[derive(Clone, Copy, Debug)]
 pub struct ZiweiExtraOptions {
     pub huo_ling: SiYouChouHuoLing,
+    pub huo_ling_qi: HuoLingQi,
     pub shen_zhu: ShenZhuTable,
     /// 加排韩国藏写本第 9、11 页诸星（全书无，见 [`xie_ben_stars`]）；缺省不排
     pub xie_ben_xing: bool,
@@ -122,7 +136,7 @@ pub struct ZiweiExtraOptions {
 
 impl Default for ZiweiExtraOptions {
     fn default() -> Self {
-        Self { huo_ling: SiYouChouHuoLing::QuanShu, shen_zhu: ShenZhuTable::QuanShu, xie_ben_xing: false }
+        Self { huo_ling: SiYouChouHuoLing::QuanShu, huo_ling_qi: HuoLingQi::NianZhi, shen_zhu: ShenZhuTable::QuanShu, xie_ben_xing: false }
     }
 }
 
@@ -268,6 +282,7 @@ pub fn si_hua(year_gan: u8, table: SiHuaTable) -> [&'static str; 4] {
     let g = (year_gan % 10) as usize;
     match (table, g) {
         (SiHuaTable::Modern, 6) => ["太陽", "武曲", "天府", "天同"],
+        (SiHuaTable::NanYangTang, 6) => ["太陽", "武曲", "天同", "天相"],
         (SiHuaTable::Modern, 8) | (SiHuaTable::KoreanMs, 8) => ["天梁", "紫微", "左輔", "武曲"],
         _ => q[g],
     }
@@ -349,7 +364,7 @@ pub fn chart_with(inp: &ZiweiInput, o: &ZiweiOptions, x: &ZiweiExtraOptions) -> 
     let grp = san_he_group(yz);
     // 天马：寅午戌申、申子辰寅、巳酉丑亥、亥卯未巳
     let ma = [8u8, 2, 11, 5][grp];
-    // 火星、铃星：寅午戌丑卯、申子辰寅戌、巳酉丑卯戌、亥卯未酉戌，子时起顺数至生时
+    // 火星、铃星：寅午戌丑卯、申子辰寅戌、巳酉丑卯戌、亥卯未酉戌；缺省安于起宫，选项子时起顺数至生时
     let (huo0, ling0) = match (grp, x.huo_ling) {
         (2, SiYouChouHuoLing::KoreanMs) => (10, 3),
         _ => [(1, 3), (2, 10), (3, 10), (9, 10)][grp],
@@ -369,8 +384,8 @@ pub fn chart_with(inp: &ZiweiInput, o: &ZiweiOptions, x: &ZiweiExtraOptions) -> 
         ("擎羊", m12(lc as i32 + 1)),
         ("陀羅", m12(lc as i32 - 1)),
         ("天馬", ma),
-        ("火星", m12(huo0 + hi)),
-        ("鈴星", m12(ling0 + hi)),
+        ("火星", m12(huo0 + if x.huo_ling_qi == HuoLingQi::ShiShun { hi } else { 0 })),
+        ("鈴星", m12(ling0 + if x.huo_ling_qi == HuoLingQi::ShiShun { hi } else { 0 })),
         ("地劫", m12(11 + hi)),
         ("天空", m12(11 - hi)),
         ("天刑", m12(9 + mi)),
@@ -596,6 +611,60 @@ pub fn miao_wang(star: &str, zhi: u8) -> Option<MiaoWang> {
         [MiaoWang::Miao, MiaoWang::Wang, MiaoWang::DeDi, MiaoWang::LiYi, MiaoWang::PingHe, MiaoWang::BuDeDi, MiaoWang::LuoXian];
     let c = star_abbr(star)?;
     MIAO_WANG_TABLE[(zhi % 12) as usize].iter().position(|cell| cell.contains(c)).map(|k| ALL[k])
+}
+
+/// 庙旺表之本
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MiaoWangBiao {
+    /// 全书录文卷二表（缺省：与「論命宮訣」各主星逐宫等第 161 处合 148，刻本表合 138）
+    LuWen,
+    /// 明南陽堂刊本卷三「十二宮廟旺落陷圖」（`data/folk/ziwei_miao_wang_nanyangtang.csv`；火铃多缺，未宫破军廟旺两见取廟）
+    NanYangTang,
+}
+
+const NANYANGTANG_CSV: &str = include_str!("../../../../data/folk/ziwei_miao_wang_nanyangtang.csv");
+
+/// 刻本表字 → 星名（「祿」所指未明，不取）
+fn ke_ben_star(c: char) -> Option<&'static str> {
+    Some(match c {
+        '紫' => "紫微",
+        '机' | '機' => "天機",
+        '日' => "太陽",
+        '武' => "武曲",
+        '同' => "天同",
+        '貞' => "廉貞",
+        '府' => "天府",
+        '月' | '陰' => "太陰",
+        '貪' => "貪狼",
+        '巨' => "巨門",
+        '相' => "天相",
+        '梁' => "天梁",
+        '殺' => "七殺",
+        '破' => "破軍",
+        '昌' => "文昌",
+        '曲' => "文曲",
+        '存' => "祿存",
+        '羊' => "擎羊",
+        '陀' => "陀羅",
+        '火' => "火星",
+        '鈴' => "鈴星",
+        '馬' => "天馬",
+        _ => return None,
+    })
+}
+
+/// 某星在某宫之庙旺，按所择之表
+pub fn miao_wang_in(star: &str, zhi: u8, biao: MiaoWangBiao) -> Option<MiaoWang> {
+    const ALL: [MiaoWang; 7] =
+        [MiaoWang::Miao, MiaoWang::Wang, MiaoWang::DeDi, MiaoWang::LiYi, MiaoWang::PingHe, MiaoWang::BuDeDi, MiaoWang::LuoXian];
+    match biao {
+        MiaoWangBiao::LuWen => miao_wang(star, zhi),
+        MiaoWangBiao::NanYangTang => {
+            let z = ZHI[(zhi % 12) as usize];
+            let row = NANYANGTANG_CSV.lines().filter(|l| !l.starts_with('#')).skip(1).find(|l| l.split(',').next() == Some(z))?;
+            row.split(',').skip(1).position(|cell| cell.chars().any(|c| ke_ben_star(c) == Some(star))).map(|k| ALL[k])
+        }
+    }
 }
 
 impl Chart {
@@ -1033,4 +1102,94 @@ mod tests {
             }
         }
     }
+
+    /// 明南陽堂刊本卷六命图八例（`data/folk/ziwei_nanyangtang_mingli.csv`）：缺省选项逐项比对。
+    /// 命、身、紫微、四化、火铃全合；书所标之局二例与星位不合（孔仲尼标土五局、星依火六局，顏亞聖标木三局、紫微依水二局），记于文档。
+    #[test]
+    fn nanyangtang_ming_li() {
+        const CSV: &str = include_str!("../../../../data/folk/ziwei_nanyangtang_mingli.csv");
+        const GAN: &str = "甲乙丙丁戊己庚辛壬癸";
+        let gz = |s: &str| {
+            let c: Vec<char> = s.chars().collect();
+            let g = GAN.chars().position(|x| x == c[0]).unwrap();
+            let zz = ZHI.iter().position(|x| x.starts_with(c[1])).unwrap();
+            (0..60u8).find(|k| *k as usize % 10 == g && *k as usize % 12 == zz).unwrap()
+        };
+        let o = ZiweiOptions::default();
+        let mut ju_bu_he = Vec::new();
+        let mut n = 0;
+        for l in CSV.lines().filter(|l| !l.starts_with('#')).skip(1) {
+            let f: Vec<&str> = l.split(',').collect();
+            let inp = ZiweiInput {
+                year_gz: gz(f[2]),
+                lunar_month: f[3].parse().unwrap(),
+                is_leap_month: false,
+                lunar_day: f[4].parse().unwrap(),
+                hour_zhi: z(f[5]),
+                male: f[6] == "1",
+            };
+            let c = chart(&inp, &o);
+            assert_eq!(c.ming, z(f[8]), "{} 命", f[0]);
+            if !f[9].is_empty() {
+                assert_eq!(c.shen, z(f[9]), "{} 身", f[0]);
+            }
+            if c.ju_name != f[7] {
+                ju_bu_he.push(f[0]);
+            }
+            let zw = c.star("紫微").unwrap();
+            if f[0] == "顏亞聖" {
+                // 图紫微在亥（水二局二十日之位），按木三局当在未
+                assert_eq!((zw, zi_wei_pos(2, 20)), (z("未"), z(f[10])));
+            } else {
+                assert_eq!(zw, z(f[10]), "{} 紫微", f[0]);
+            }
+            let sh: Vec<&str> = c.si_hua.iter().map(|(_, s)| *s).collect();
+            assert_eq!(sh, vec![f[11], f[12], f[13], f[14]], "{} 四化", f[0]);
+            if !f[15].is_empty() {
+                assert_eq!((c.star("火星"), c.star("鈴星")), (Some(z(f[15])), Some(z(f[16]))), "{} 火鈴", f[0]);
+            }
+            n += 1;
+        }
+        assert_eq!(n, 8);
+        assert_eq!(ju_bu_he, vec!["孔仲尼"]);
+        // 火铃数时之选项：劉都衛（未时）不合
+        let liu = ZiweiInput { year_gz: gz("甲午"), lunar_month: 9, is_leap_month: false, lunar_day: 3, hour_zhi: 7, male: true };
+        let x = ZiweiExtraOptions { huo_ling_qi: HuoLingQi::ShiShun, ..Default::default() };
+        assert_eq!(chart_with(&liu, &o, &x).star("火星"), Some(z("申")));
+        // 录文四化庚年作「日武陰同」，与命图不合
+        assert_eq!(si_hua(6, SiHuaTable::QuanShu), ["太陽", "武曲", "太陰", "天同"]);
+    }
+
+    /// 两本庙旺表与「論命宮訣」各主星逐宫等第（`data/folk/ziwei_ming_gong_dengdi.csv`，161 处）互校
+    #[test]
+    fn miao_wang_vs_ming_gong() {
+        const CSV: &str = include_str!("../../../../data/folk/ziwei_ming_gong_dengdi.csv");
+        let (mut n, mut lu, mut ke) = (0, 0, 0);
+        let mut lu_yi = Vec::new();
+        for l in CSV.lines().filter(|l| !l.starts_with('#')).skip(1) {
+            let f: Vec<&str> = l.split(',').collect();
+            let zh = z(f[1]);
+            let a = miao_wang_in(f[0], zh, MiaoWangBiao::LuWen).map(|g| g.name());
+            let b = miao_wang_in(f[0], zh, MiaoWangBiao::NanYangTang).map(|g| g.name());
+            n += 1;
+            if a == Some(f[2]) {
+                lu += 1;
+            } else {
+                lu_yi.push(format!("{}{}", f[0], f[1]));
+            }
+            // 刻本表未宫破军廟旺两见：取廟，合者亦计
+            if b == Some(f[2]) || (f[0] == "破軍" && f[1] == "未" && f[2] == "旺") {
+                ke += 1;
+            }
+        }
+        assert_eq!((n, lu, ke), (161, 148, 138), "{lu_yi:?}");
+        // 刻本表举例：子宫曲廟、羊旺（录文表得地、落陷）；巨門戌平和（录文表落陷）
+        assert_eq!(miao_wang_in("文曲", z("子"), MiaoWangBiao::NanYangTang), Some(MiaoWang::Miao));
+        assert_eq!(miao_wang_in("擎羊", z("子"), MiaoWangBiao::NanYangTang), Some(MiaoWang::Wang));
+        assert_eq!(miao_wang_in("巨門", z("戌"), MiaoWangBiao::NanYangTang), Some(MiaoWang::PingHe));
+        assert_eq!(miao_wang_in("巨門", z("戌"), MiaoWangBiao::LuWen), Some(MiaoWang::LuoXian));
+        assert_eq!(miao_wang_in("七殺", z("子"), MiaoWangBiao::NanYangTang), None);
+        assert_eq!(miao_wang_in("天馬", z("寅"), MiaoWangBiao::NanYangTang), Some(MiaoWang::Miao));
+    }
+
 }
