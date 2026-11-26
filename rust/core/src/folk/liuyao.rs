@@ -489,6 +489,37 @@ pub enum Mark {
     FuKong,
     /// 世应之间之爻发动（千金賦「事阻隔兮間發」；卜筮全書注「世應當中兩間爻發動……兩邊隔絕」）
     JianDong,
+    /// 以下为次批（[`HuangJinOptions`] 各项注其依据）：
+    /// 日辰克爻（句 28「日傷爻，眞罹其禍」）
+    RiShang,
+    /// 动爻克日辰（句 28「爻傷日，徒受其名」）
+    ShangRi,
+    /// 休囚而得日月岁动爻生扶（句 22「有助有扶，衰弱休囚亦吉」）
+    ShuaiFu,
+    /// 合起、合绊之爻又逢日月动爻冲克（句 17「合遭破以無功」）
+    HePo,
+    /// 相合两支五行相克（句 19「尅合」）
+    KeHe,
+    /// 相合两支相刑或带自刑（句 19「刑合」）
+    XingHe,
+    /// 爻值太岁、值太岁而动、太岁冲爻（句 9「歲君宜靜而不宜動」；《增刪卜易》「太歲沖爻爲歲破」）
+    SuiJun,
+    SuiJunDong,
+    SuiPo,
+    /// 伏神得日月生合比扶（句 26「伏無提挈終徒爾」之提挈）
+    FuTi,
+    /// 有伏神之飞爻受日月冲克（句 26「飛不推開亦枉然」之推开）
+    FeiKai,
+    /// 有伏神之飞爻旬空（句 27「空下伏神，易于引拔」）
+    FeiKong,
+    /// 他动爻为本爻之墓（《增刪卜易》三墓之「動墓」）
+    DongMu,
+    /// 入日墓、动墓、化墓而墓未冲破（句 29「墓中人，不衝不發」）
+    MuZhong,
+    /// 日辰为本爻绝地而得月建或动爻生（句 46「絕逢生而事成」）
+    JueFengSheng,
+    /// 世爻（或卦身）临官鬼而入日墓、动墓、化墓（《增刪卜易》隨鬼入墓章）
+    SuiGuiRuMu,
 }
 
 impl Mark {
@@ -515,6 +546,22 @@ impl Mark {
             Mark::RiBing => "日併",
             Mark::FuKong => "伏空",
             Mark::JianDong => "間發",
+            Mark::RiShang => "日傷",
+            Mark::ShangRi => "傷日",
+            Mark::ShuaiFu => "衰而有扶",
+            Mark::HePo => "合破",
+            Mark::KeHe => "尅合",
+            Mark::XingHe => "刑合",
+            Mark::SuiJun => "值歲",
+            Mark::SuiJunDong => "歲君動",
+            Mark::SuiPo => "歲破",
+            Mark::FuTi => "伏得提挈",
+            Mark::FeiKai => "飛神推開",
+            Mark::FeiKong => "飛空",
+            Mark::DongMu => "入動墓",
+            Mark::MuZhong => "墓中",
+            Mark::JueFengSheng => "絕逢生",
+            Mark::SuiGuiRuMu => "隨鬼入墓",
         }
     }
 }
@@ -535,6 +582,10 @@ pub struct GuaMarks {
     pub nei_wai_jing_fa: bool,
     /// 卦身之支在卦中两见以上（千金賦「卦身重疊，須知事體兩交關」；[`HuangJinOptions::gua`]）
     pub shen_chong_die: bool,
+    /// 三合局（成局与缺一；[`HuangJinOptions::san_he`]）
+    pub san_he: Vec<SanHeJu>,
+    /// 三刑（[`HuangJinOptions::san_xing`]）
+    pub san_xing: Vec<SanXing>,
 }
 
 /// 《黄金策》（《增刪卜易》卷二增刪黃金策千金賦第三十四）及其所引诸章中可机械定出之象
@@ -542,6 +593,8 @@ pub struct GuaMarks {
 pub struct HuangJinMarks {
     /// 各爻旺衰（给月建时）
     pub wang: [Option<WangShuai>; 6],
+    /// 各爻有气否：月建旺相为有气；[`HuangJinOptions::wang_jian_fu`] 开则兼取生扶。暗动、日破依此分
+    pub you_qi: [Option<bool>; 6],
     /// 各爻之象（初至上）
     pub yao: [Vec<Mark>; 6],
     pub gua: GuaMarks,
@@ -549,6 +602,10 @@ pub struct HuangJinMarks {
     pub ri_sheng: [Option<u8>; 6],
     /// 动爻所化之支于本爻五行的十二长生位：千金賦「養主狐疑，墓多暗昧，化病兮傷損，化胎兮勾連，凶化長生熾而未散，吉連沐浴敗而不成」
     pub hua_sheng: [Option<u8>; 6],
+    /// 各爻所受生克（[`HuangJinOptions::guan_xi`]）
+    pub guan_xi: [GuanXi; 6],
+    /// 用神诸爻（[`HuangJinOptions::yong`]；两现按 [`HuangJinOptions::liang_xian`] 取舍；不上卦则取伏神）
+    pub yong: Vec<YongYao>,
 }
 
 /// 十二长生（《卜筮全書》卷八黄金策千金賦注：「長生帝旺，十二座星中至吉者也」）
@@ -562,9 +619,13 @@ pub fn chang_sheng(wx: u8, z: u8) -> u8 {
     (z + 12 - start) % 12
 }
 
-/// 《黄金策》千金賦所言而《增刪卜易》诸章未立为象者，作选项（缺省皆不标，`huang_jin_marks` 结果不变）。
-/// 赋文据《卜筮全書》卷八（哈佛燕京藏本书影，转录见 data/folk/huangjince_qianjinfu.csv）
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+/// 《黄金策》千金賦所言而《增刪卜易》诸章未立为象者，作选项。赋文据《卜筮全書》卷八（哈佛燕京藏本书影，转录见 data/folk/huangjince_qianjinfu.csv），
+/// 逐句与本模块对照见 data/folk/huangjince_rules.csv。
+///
+/// 缺省之定：千金賦首批六项（`chang_sheng`……`gua`）缺省关（`huang_jin_marks` 与网页原有结果不变）；
+/// 次批十三项（生扶克害、三合三刑、太岁、随鬼入墓等）凡书有明文定义者缺省开，书无明文或诸说相反者缺省关，各字段注其依据。
+/// 新增各项只追加象、不改原有之象（`wang_jian_fu` 除外，见其注）。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct HuangJinOptions {
     /// 日辰、变爻之十二长生位（`ri_sheng`、`hua_sheng`）
     pub chang_sheng: bool,
@@ -578,20 +639,283 @@ pub struct HuangJinOptions {
     pub jian_dong: bool,
     /// 内外競發、卦身重疊（[`GuaMarks`]）
     pub gua: bool,
+    /// 句 4、5、12、22、28「生扶拱合」「尅害刑衝」「應位遭傷／世爻受制」「有助有扶」「日傷爻／爻傷日」：
+    /// 各爻所受月建、日辰、动爻（及太岁）之生、扶、克、冲、合、刑（[`GuanXi`]），并标 [`Mark::RiShang`]、[`Mark::ShangRi`]、[`Mark::ShuaiFu`]。
+    /// 依《增刪卜易》五行相生章「凡用神、元神宜於逢生，月建生、日建生，動爻生、動化回頭生」、五行相克章；缺省开
+    pub guan_xi: bool,
+    /// 安静旺相之爻生克休囚之爻（《增刪卜易》動靜生克章「六爻安靜旺相之爻，可以生得休囚之爻，亦可以克得休囚之爻」）；缺省开
+    pub jing_sheng_ke: bool,
+    /// 句 17「合遭破以無功」：合起、合绊之爻又逢日月动爻冲克（[`Mark::HePo`]）。卜筮全書注「若有申字動則申金尅之」、
+    /// 《增刪卜易》「若日月動爻沖克者，則爲合處逢沖」；缺省开
+    pub he_po: bool,
+    /// 句 19「刑合尅合」之尅合：相合两支五行相克（子丑、卯戌、巳申；[`Mark::KeHe`]）。增刪卜易「合中有刑有克，畢竟不合」；缺省开
+    pub ke_he: bool,
+    /// 句 19 之刑合：相合两支相刑（巳申）或其一为自刑之支（辰午酉亥；《增刪卜易》注举「午字帶自刑，名爲刑合」）。
+    /// 何谓刑合两说不一（相刑抑自刑），缺省关
+    pub xing_he: bool,
+    /// 句 24「刑非刑，合非合，爲少支神」之三合（[`GuaMarks::san_he`]）
+    pub san_he: SanHeRule,
+    /// 句 24 之三刑：寅巳申、丑戌未三支俱全（卦爻本位或变爻与日月合计），子卯两见（[`GuaMarks::san_xing`]）。
+    /// 卜筮全書注「若有寅巳二字而無申字……不成三刑」；缺省开
+    pub san_xing: bool,
+    /// 太岁（年支）。句 9「最惡者歲君，宜靜而不宜動」：爻值太岁（[`Mark::SuiJun`]）、值太岁而动（[`Mark::SuiJunDong`]）、
+    /// 太岁冲爻（歲破，[`Mark::SuiPo`]），并入 [`GuanXi`] 之来源。装卦不取年支，由调用方给；缺省 None
+    pub nian: Option<u8>,
+    /// 句 26、27「伏無提挈終徒爾，飛不推開亦枉然」「空下伏神易于引拔」：[`Mark::FuTi`]、[`Mark::FeiKai`]、[`Mark::FeiKong`]。
+    /// 《增刪卜易》注「須宜月建日辰，沖開飛神，生合扶起飛神（伏神）」「飛神卽空……伏神再得月建日辰生扶拱合，脫然出矣」；缺省开
+    pub fu_ti: bool,
+    /// 句 29「墓中人，不衝不發」：入动墓（[`Mark::DongMu`]；他动爻为本爻之墓）与墓未冲破（[`Mark::MuZhong`]）。
+    /// 《增刪卜易》各門類題頭總注「三墓：卽用爻入日墓、入動墓、動而化墓」，舊注「須得日辰動爻沖破或克破其墓」；缺省开
+    pub mu_zhong: bool,
+    /// 句 46「絕逢生而事成」：日辰为本爻绝地而得月建或动爻生（[`Mark::JueFengSheng`]）；缺省开
+    pub jue_feng_sheng: bool,
+    /// 随鬼入墓（《增刪卜易》隨鬼入墓章第三十；黄金策身命章「隨官入墓」、病體章「不可隨官入墓」）
+    pub sui_gui: SuiGuiRule,
+    /// 用神（[`HuangJinMarks::yong`]；句 15、16、33、34 诸「用爻」「主象」之条件）。由占事定（[`yong_shen_of`]），缺省 None
+    pub yong: Option<YongShen>,
+    /// 用神两现之取舍
+    pub liang_xian: LiangXian,
+    /// 旺衰兼取生扶：《增刪卜易》各門類題頭總注「但得用神臨日月、或遇日月動爻變爻生扶、或用爻遇長生逢帝旺，皆謂之旺」。
+    /// 开则 [`HuangJinMarks::you_qi`] 兼取此义，暗动／日破之分依之（书中卦例凡日冲休囚静爻而有生扶者皆称暗动）。
+    /// 总注为「分門各類當用字眼」而设，是否及于暗動章之旺相，书无明文，缺省关（开则改变原有暗动／日破之标）
+    pub wang_jian_fu: bool,
+}
+
+impl Default for HuangJinOptions {
+    fn default() -> Self {
+        HuangJinOptions {
+            chang_sheng: false,
+            chong_san: false,
+            ri_bing: false,
+            fu_kong: false,
+            jian_dong: false,
+            gua: false,
+            guan_xi: true,
+            jing_sheng_ke: true,
+            he_po: true,
+            ke_he: true,
+            xing_he: false,
+            san_he: SanHeRule::LiangDong,
+            san_xing: true,
+            nian: None,
+            fu_ti: true,
+            mu_zhong: true,
+            jue_feng_sheng: true,
+            sui_gui: SuiGuiRule::Shi,
+            yong: None,
+            liang_xian: LiangXian::All,
+            wang_jian_fu: false,
+        }
+    }
 }
 
 impl HuangJinOptions {
-    /// 千金賦诸项全开
+    /// 千金賦诸项全开（刑合、旺衰兼取生扶亦开；太岁、用神仍须调用方给）
     pub fn qian_jin_fu() -> Self {
-        HuangJinOptions { chang_sheng: true, chong_san: true, ri_bing: true, fu_kong: true, jian_dong: true, gua: true }
+        HuangJinOptions {
+            chang_sheng: true,
+            chong_san: true,
+            ri_bing: true,
+            fu_kong: true,
+            jian_dong: true,
+            gua: true,
+            xing_he: true,
+            sui_gui: SuiGuiRule::ShiShen,
+            wang_jian_fu: true,
+            ..Default::default()
+        }
     }
+    /// 次批十三项全关（只余 `huang_jin_marks` 原有之象与首批六项），用于对照
+    pub fn bare() -> Self {
+        HuangJinOptions {
+            guan_xi: false,
+            jing_sheng_ke: false,
+            he_po: false,
+            ke_he: false,
+            san_he: SanHeRule::Off,
+            san_xing: false,
+            fu_ti: false,
+            mu_zhong: false,
+            jue_feng_sheng: false,
+            sui_gui: SuiGuiRule::Off,
+            ..Default::default()
+        }
+    }
+}
+
+/// 三合成局之法
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum SanHeRule {
+    Off,
+    /// 卜筮全書千金賦注「三合須見兩爻動……少一字而不成其合」：三支俱全（卦爻本位、变爻、日、月皆可），其中至少两支出于动爻（明动、暗动或其变爻）（缺省）
+    #[default]
+    LiangDong,
+    /// 《增刪卜易》三合章第十九「一卦之內有一爻動而合局者」：三支俱全，至少一支出于动爻
+    YiDong,
+}
+
+/// 随鬼入墓之所指
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum SuiGuiRule {
+    Off,
+    /// 《增刪卜易》隨鬼入墓章野鶴所验：「只驗世爻入墓有三：世爻隨鬼入日墓，入動墓，動而化墓」——世爻临官鬼而入三墓之一（缺省）
+    #[default]
+    Shi,
+    /// 古法（同章「世爻隨鬼入墓、本命隨鬼入墓、卦身隨鬼入墓、世身隨鬼入墓」）：世爻及卦身所在之爻（本命须年命，不取）
+    ShiShen,
+}
+
+/// 用神
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum YongShen {
+    /// 六亲（[`LIU_QIN`] 序）
+    Qin(u8),
+    /// 世爻（自占）
+    Shi,
+    /// 应爻（占他人，《增刪卜易》千金賦注「占他人以應爻爲用」）
+    Ying,
+}
+
+/// 占事（取用神）。依《增刪卜易》卷一用神章第八逐类开列，黄金策诸章另有所主者见 doc/folk/liuyao.md
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ZhanShi {
+    /// 自占己事
+    ZiZhan,
+    /// 占他人（无六亲可取者）
+    TaRen,
+    /// 父母、尊长、师长；天地城池、宅舍舟车衣服、文书章奏（「一切庇護我身者」）
+    FuMu,
+    /// 功名、官府、雷霆鬼神、妻占夫、乱臣贼盗（「一切拘束我身者」）
+    GuanGui,
+    /// 兄弟姊妹朋友
+    XiongDi,
+    /// 妻妾婢仆、货财珠宝（「我驅使之人」「一切使用之財物」）
+    QiCai,
+    /// 子孙、门生、忠臣良将、医药僧道兵卒、六畜禽兽
+    ZiSun,
+}
+
+/// 由占事取用神（《增刪卜易》卷一用神章第八）
+pub fn yong_shen_of(z: ZhanShi) -> YongShen {
+    match z {
+        ZhanShi::ZiZhan => YongShen::Shi,
+        ZhanShi::TaRen => YongShen::Ying,
+        ZhanShi::FuMu => YongShen::Qin(4),
+        ZhanShi::GuanGui => YongShen::Qin(3),
+        ZhanShi::XiongDi => YongShen::Qin(0),
+        ZhanShi::QiCai => YongShen::Qin(2),
+        ZhanShi::ZiSun => YongShen::Qin(1),
+    }
+}
+
+/// 用神两现（同一六亲两爻以上）之取舍（《增刪卜易》兩現章第三十二）
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum LiangXian {
+    /// 不取舍，诸爻皆标（缺省：同章古法与野鹤所验相反，书无定论）
+    #[default]
+    All,
+    /// 古法「捨其休囚，用其旺相，捨其靜爻而用動爻，捨其月破而用不破，捨其旬空用其不空，捨其被傷用其不傷」（逐项筛，筛空则不筛）
+    GuFa,
+    /// 野鹤「得其驗者，應乎旬空月破，捨其不空而用旬空，捨其不破而用月破」
+    YeHe,
+}
+
+/// 生克之来源
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Yuan {
+    /// 月建
+    Yue,
+    /// 日辰
+    Ri,
+    /// 太岁
+    Nian,
+    /// 他动爻（爻位 0 起，以本位之支论）
+    Dong(u8),
+    /// 安静旺相之爻（只生克休囚之爻，[`HuangJinOptions::jing_sheng_ke`]）
+    Jing(u8),
+}
+
+/// 一爻所受之生、扶（比和）、克、冲、合、刑（[`HuangJinOptions::guan_xi`]）。动爻本身之变爻（回头生克）另见 [`Mark`]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct GuanXi {
+    pub sheng: Vec<Yuan>,
+    pub fu: Vec<Yuan>,
+    pub ke: Vec<Yuan>,
+    pub chong: Vec<Yuan>,
+    pub he: Vec<Yuan>,
+    pub xing: Vec<Yuan>,
+}
+
+impl GuanXi {
+    /// 受日、月、岁、动爻（或旺相静爻）之克或冲
+    pub fn shou_ke_chong(&self) -> bool {
+        !self.ke.is_empty() || !self.chong.is_empty()
+    }
+}
+
+/// 三合局
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SanHeJu {
+    /// 局之五行
+    pub wx: u8,
+    /// 三支（生、旺、墓）
+    pub zhi: [u8; 3],
+    /// 参与之爻位（本位或变爻，0 起）
+    pub yao: Vec<u8>,
+    /// 成局；否则缺一支（`que`，《增刪卜易》「虛一待用」）
+    pub cheng: bool,
+    pub que: Option<u8>,
+}
+
+/// 三刑（寅巳申、丑戌未三支俱全；子卯两见）
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SanXing {
+    pub zhi: Vec<u8>,
+    /// 参与之爻位（本位或变爻，0 起）；余支出于日月
+    pub yao: Vec<u8>,
+}
+
+/// 用神一爻（[`HuangJinOptions::yong`]）
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct YongYao {
+    /// 爻位（0 起）；`fu` 为真则用神不上卦，伏于此爻之下
+    pub k: u8,
+    pub fu: bool,
+    pub zhi: u8,
+    pub wx: u8,
+    /// 有气：月建旺相，或得日月岁动爻生扶（句 15「用爻有氣」）
+    pub you_qi: bool,
+    /// 受伤：月破，或受日月岁动爻克冲（句 15「主象徒存更被傷」、句 33「怕見刑衝尅害」）
+    pub shou_shang: bool,
+    /// 无他故：不受伤、不旬空（冲空不论）（句 15「無他故」）
+    pub wu_gu: bool,
+    /// 有救：受伤而得日月岁动爻生（句 16「有傷須救」：元神生用神）
+    pub you_jiu: bool,
 }
 
 fn yao_zhi_of(g: u8) -> [u8; 6] {
     core::array::from_fn(|k| zhuang(g, k).1)
 }
 
+/// 克：a 之五行克 b
+fn ke_wx(a: u8, b: u8) -> bool {
+    (a + 2) % 5 == b
+}
+/// 生：a 之五行生 b
+fn sheng_wx(a: u8, b: u8) -> bool {
+    (a + 1) % 5 == b
+}
+/// 刑：寅刑巳、巳刑申、申刑寅，丑刑戌、戌刑未、未刑丑，子卯相刑（自刑不论）
+fn xing(a: u8, b: u8) -> bool {
+    matches!((a, b), (2, 5) | (5, 8) | (8, 2) | (1, 10) | (10, 7) | (7, 1) | (0, 3) | (3, 0))
+}
+/// 自刑之支：辰午酉亥
+fn zi_xing(a: u8) -> bool {
+    matches!(a, 4 | 6 | 9 | 11)
+}
+
 /// 由装卦结果定《黄金策》诸象。只标象，不断吉凶：旬空而旺、动、有生扶者「不爲空」（旬空章野鶴說）等取舍留给读者。
+/// 缺省选项见 [`HuangJinOptions`]：原有之象不变，另追加次批书有明文之象。
 pub fn huang_jin_marks(p: &Paigua) -> HuangJinMarks {
     huang_jin_marks_with(p, &HuangJinOptions::default())
 }
@@ -602,9 +926,78 @@ pub fn huang_jin_marks_with(p: &Paigua, o: &HuangJinOptions) -> HuangJinMarks {
     let zhi_z = yao_zhi_of(p.zhi);
     let yue = p.yue_jian;
     let ri = p.ri_chen.map(|r| r.1);
+    let nian = o.nian;
     let kong = p.xun_kong;
     let in_kong = |z: u8| kong.is_some_and(|k| k.contains(&z));
     let wang: [Option<WangShuai>; 6] = core::array::from_fn(|k| yue.map(|m| wang_shuai(m, p.yao[k].wx)));
+    // 一支所受之生克（排除爻位 `self_k`；`jing_xiu` 为真时受旺相静爻之生克）
+    let guan_xi_of = |z: u8, self_k: Option<usize>, jing_xiu: bool| -> GuanXi {
+        let wx = zhi_wx(z);
+        let mut g = GuanXi::default();
+        let mut add = |src: Yuan, s: u8, full: bool| {
+            let sw = zhi_wx(s);
+            if sheng_wx(sw, wx) {
+                g.sheng.push(src);
+            }
+            if ke_wx(sw, wx) {
+                g.ke.push(src);
+            }
+            if full {
+                if sw == wx {
+                    g.fu.push(src);
+                }
+                if chong(s, z) {
+                    g.chong.push(src);
+                }
+                if he(s, z) {
+                    g.he.push(src);
+                }
+                if xing(s, z) {
+                    g.xing.push(src);
+                }
+            }
+        };
+        if let Some(m) = yue {
+            add(Yuan::Yue, m, true);
+        }
+        if let Some(r) = ri {
+            add(Yuan::Ri, r, true);
+        }
+        if let Some(n) = nian {
+            add(Yuan::Nian, n, true);
+        }
+        for j in 0..6 {
+            if Some(j) == self_k {
+                continue;
+            }
+            if p.yao[j].dong {
+                add(Yuan::Dong(j as u8), p.yao[j].zhi, true);
+            } else if o.jing_sheng_ke && jing_xiu && wang[j].is_some_and(|w| w.you_qi()) {
+                add(Yuan::Jing(j as u8), p.yao[j].zhi, false);
+            }
+        }
+        g
+    };
+    let guan_xi: [GuanXi; 6] = core::array::from_fn(|k| {
+        if o.guan_xi {
+            guan_xi_of(p.yao[k].zhi, Some(k), wang[k] == Some(WangShuai::XiuQiu))
+        } else {
+            GuanXi::default()
+        }
+    });
+    // 旺衰兼取生扶（总注）：临日月（同五行）、得日月动爻生扶、日辰为长生帝旺
+    let you_qi: [Option<bool>; 6] = core::array::from_fn(|k| {
+        wang[k].map(|w| {
+            w.you_qi()
+                || (o.wang_jian_fu && {
+                    let y = &p.yao[k];
+                    let g = guan_xi_of(y.zhi, Some(k), false);
+                    let bian_sheng = y.bian.is_some_and(|b| sheng_wx(b.2, y.wx) || b.2 == y.wx);
+                    !g.sheng.is_empty() || !g.fu.is_empty() || bian_sheng || ri.is_some_and(|r| matches!(chang_sheng(y.wx, r), 0 | 4))
+                })
+        })
+    });
+    let mu_of_dong = |k: usize| (0..6).any(|j| j != k && p.yao[j].dong && p.yao[j].zhi == mu_of(p.yao[k].wx));
     let yao: [Vec<Mark>; 6] = core::array::from_fn(|k| {
         let y = &p.yao[k];
         let z = y.zhi;
@@ -614,7 +1007,7 @@ pub fn huang_jin_marks_with(p: &Paigua, o: &HuangJinOptions) -> HuangJinMarks {
         }
         if let Some(r) = ri {
             if chong(r, z) && !y.dong {
-                v.push(if wang[k].is_some_and(|w| w.you_qi()) { Mark::AnDong } else { Mark::RiPo });
+                v.push(if you_qi[k] == Some(true) { Mark::AnDong } else { Mark::RiPo });
             }
         }
         if in_kong(z) {
@@ -624,8 +1017,8 @@ pub fn huang_jin_marks_with(p: &Paigua, o: &HuangJinOptions) -> HuangJinMarks {
             }
         }
         let ri_yue_he = ri.is_some_and(|r| he(r, z)) || yue.is_some_and(|m| he(m, z));
+        let dong_he = y.dong && (0..6).any(|j| j != k && p.yao[j].dong && he(p.yao[j].zhi, z));
         if y.dong {
-            let dong_he = (0..6).any(|j| j != k && p.yao[j].dong && he(p.yao[j].zhi, z));
             if ri_yue_he || dong_he {
                 v.push(Mark::HeBan);
             }
@@ -679,6 +1072,104 @@ pub fn huang_jin_marks_with(p: &Paigua, o: &HuangJinOptions) -> HuangJinMarks {
                 v.push(Mark::JianDong);
             }
         }
+        // ── 次批 ──
+        let g = &guan_xi[k];
+        if o.guan_xi {
+            if g.ke.contains(&Yuan::Ri) {
+                v.push(Mark::RiShang);
+            }
+            if y.dong && ri.is_some_and(|r| ke_wx(y.wx, zhi_wx(r))) {
+                v.push(Mark::ShangRi);
+            }
+            if wang[k] == Some(WangShuai::XiuQiu) && (g.sheng.iter().chain(&g.fu).any(|s| !matches!(s, Yuan::Jing(_)))) {
+                v.push(Mark::ShuaiFu);
+            }
+        }
+        // 合之对方诸支
+        let mut he_with: Vec<u8> = Vec::new();
+        if let Some(r) = ri.filter(|&r| he(r, z)) {
+            he_with.push(r);
+        }
+        if let Some(m) = yue.filter(|&m| he(m, z)) {
+            he_with.push(m);
+        }
+        if y.dong {
+            he_with.extend((0..6).filter(|&j| j != k && p.yao[j].dong && he(p.yao[j].zhi, z)).map(|j| p.yao[j].zhi));
+            if let Some(b) = y.bian.filter(|b| he(z, b.1)) {
+                he_with.push(b.1);
+            }
+        }
+        if o.he_po && (ri_yue_he || dong_he) {
+            let chong_ke = yue.is_some_and(|m| chong(m, z) || ke_wx(zhi_wx(m), y.wx))
+                || ri.is_some_and(|r| chong(r, z) || ke_wx(zhi_wx(r), y.wx))
+                || (0..6).any(|j| j != k && p.yao[j].dong && (chong(p.yao[j].zhi, z) || ke_wx(p.yao[j].wx, y.wx)));
+            if chong_ke {
+                v.push(Mark::HePo);
+            }
+        }
+        if o.ke_he && he_with.iter().any(|&w| ke_wx(zhi_wx(w), y.wx) || ke_wx(y.wx, zhi_wx(w))) {
+            v.push(Mark::KeHe);
+        }
+        if o.xing_he && he_with.iter().any(|&w| xing(w, z) || xing(z, w) || zi_xing(w) || zi_xing(z)) {
+            v.push(Mark::XingHe);
+        }
+        if let Some(n) = nian {
+            if n == z {
+                v.push(Mark::SuiJun);
+                if y.dong {
+                    v.push(Mark::SuiJunDong);
+                }
+            }
+            if chong(n, z) {
+                v.push(Mark::SuiPo);
+            }
+        }
+        if o.fu_ti {
+            if let Some((_, _, fz)) = y.fu {
+                let fw = zhi_wx(fz);
+                let ti = [yue, ri].iter().flatten().any(|&s| sheng_wx(zhi_wx(s), fw) || he(s, fz) || zhi_wx(s) == fw);
+                if ti {
+                    v.push(Mark::FuTi);
+                }
+                let kai = [yue, ri].iter().flatten().any(|&s| chong(s, z) || ke_wx(zhi_wx(s), y.wx));
+                if kai {
+                    v.push(Mark::FeiKai);
+                }
+                if in_kong(z) {
+                    v.push(Mark::FeiKong);
+                }
+            }
+        }
+        let dong_mu = mu_of_dong(k);
+        if o.mu_zhong {
+            if dong_mu {
+                v.push(Mark::DongMu);
+            }
+            // 墓支：日墓为日辰、动墓为他动爻、化墓为变爻；日月冲或克墓支为冲破（日墓之墓即日辰，不论冲破）
+            let mu = mu_of(y.wx);
+            let ri_mu = ri == Some(mu);
+            let hua_mu = y.bian.is_some_and(|b| b.1 == mu);
+            if ri_mu || dong_mu || hua_mu {
+                let po = (dong_mu || hua_mu) && [yue, ri].iter().flatten().any(|&s| chong(s, mu) || ke_wx(zhi_wx(s), zhi_wx(mu)));
+                if ri_mu || !po {
+                    v.push(Mark::MuZhong);
+                }
+            }
+        }
+        if o.jue_feng_sheng && ri.is_some_and(|r| chang_sheng(y.wx, r) == 9) {
+            let sheng = yue.is_some_and(|m| sheng_wx(zhi_wx(m), y.wx)) || (0..6).any(|j| j != k && p.yao[j].dong && sheng_wx(p.yao[j].wx, y.wx));
+            if sheng {
+                v.push(Mark::JueFengSheng);
+            }
+        }
+        if o.sui_gui != SuiGuiRule::Off && y.qin == 3 {
+            let is_shi = k + 1 == p.wei.shi as usize;
+            let is_shen = o.sui_gui == SuiGuiRule::ShiShen && p.gua_shen == Some(z);
+            let ru = ri == Some(mu_of(y.wx)) || dong_mu || y.bian.is_some_and(|b| b.1 == mu_of(y.wx));
+            if (is_shi || is_shen) && ru {
+                v.push(Mark::SuiGuiRuMu);
+            }
+        }
         v
     });
     let ri_sheng: [Option<u8>; 6] = core::array::from_fn(|k| if o.chang_sheng { ri.map(|r| chang_sheng(p.yao[k].wx, r)) } else { None });
@@ -691,6 +1182,52 @@ pub fn huang_jin_marks_with(p: &Paigua, o: &HuangJinOptions) -> HuangJinMarks {
         let changed = (p.ben ^ p.zhi) >> (half * 3) & 7 != 0;
         changed && r.clone().all(|k| f(ben_z[k], zhi_z[k]))
     };
+    // 三合、三刑之支源：(支, 爻位, 动否)；暗动（静爻逢日冲而旺相）作动（《增刪卜易》「一爻明動一爻暗動亦作兩爻動」）
+    let mut src: Vec<(u8, Option<u8>, bool)> = Vec::new();
+    for k in 0..6 {
+        let y = &p.yao[k];
+        let an = yao[k].contains(&Mark::AnDong);
+        src.push((y.zhi, Some(k as u8), y.dong || an));
+        if let Some(b) = y.bian {
+            src.push((b.1, Some(k as u8), true));
+        }
+    }
+    src.extend(ri.map(|r| (r, None, false)));
+    src.extend(yue.map(|m| (m, None, false)));
+    let mut san_he = Vec::new();
+    if o.san_he != SanHeRule::Off {
+        let need = if o.san_he == SanHeRule::LiangDong { 2 } else { 1 };
+        // 申子辰水、巳酉丑金、寅午戌火、亥卯未木（生、旺、墓）
+        for (wx, zs) in [(4u8, [8u8, 0, 4]), (3, [5, 9, 1]), (1, [2, 6, 10]), (0, [11, 3, 7])] {
+            let has: Vec<bool> = zs.iter().map(|&z| src.iter().any(|s| s.0 == z)).collect();
+            let dong_n = zs.iter().filter(|&&z| src.iter().any(|s| s.0 == z && s.2)).count();
+            let yao_n: Vec<u8> = {
+                let mut v: Vec<u8> = src.iter().filter(|s| zs.contains(&s.0)).filter_map(|s| s.1).collect();
+                v.sort();
+                v.dedup();
+                v
+            };
+            let n = has.iter().filter(|&&h| h).count();
+            if n == 3 && dong_n >= need {
+                san_he.push(SanHeJu { wx, zhi: zs, yao: yao_n, cheng: true, que: None });
+            } else if n == 2 && dong_n >= 1 {
+                let que = zs[has.iter().position(|&h| !h).unwrap()];
+                san_he.push(SanHeJu { wx, zhi: zs, yao: yao_n, cheng: false, que: Some(que) });
+            }
+        }
+    }
+    let mut san_xing = Vec::new();
+    if o.san_xing {
+        for zs in [&[2u8, 5, 8][..], &[1, 10, 7], &[0, 3]] {
+            let full = zs.iter().all(|&z| src.iter().any(|s| s.0 == z));
+            let mut ys: Vec<u8> = src.iter().filter(|s| zs.contains(&s.0)).filter_map(|s| s.1).collect();
+            ys.sort();
+            ys.dedup();
+            if full && !ys.is_empty() {
+                san_xing.push(SanXing { zhi: zs.to_vec(), yao: ys });
+            }
+        }
+    }
     let gua = GuaMarks {
         liu_chong: all(&ben_z, chong),
         liu_he: all(&ben_z, he),
@@ -700,8 +1237,74 @@ pub fn huang_jin_marks_with(p: &Paigua, o: &HuangJinOptions) -> HuangJinMarks {
         fu_yin: [tri_rel(0, |a, b| a == b), tri_rel(1, |a, b| a == b)],
         nei_wai_jing_fa: o.gua && (p.ben ^ p.zhi) & 7 != 0 && (p.ben ^ p.zhi) >> 3 != 0,
         shen_chong_die: o.gua && p.gua_shen.is_some_and(|s| ben_z.iter().filter(|&&z| z == s).count() >= 2),
+        san_he,
+        san_xing,
     };
-    HuangJinMarks { wang, yao, gua, ri_sheng, hua_sheng }
+    // 用神
+    let yong = o.yong.map(|ys| {
+        let mut cand: Vec<YongYao> = Vec::new();
+        let mk = |k: usize, fu: bool, z: u8| {
+            let wx = zhi_wx(z);
+            let g = guan_xi_of(z, if fu { None } else { Some(k) }, wang_shuai_opt(yue, wx) == Some(WangShuai::XiuQiu));
+            let w = wang_shuai_opt(yue, wx);
+            let po = yue.is_some_and(|m| chong(m, z));
+            let you_qi = w.is_some_and(|w| w.you_qi()) || g.sheng.iter().chain(&g.fu).any(|s| !matches!(s, Yuan::Jing(_)));
+            let shou_shang = po || g.shou_ke_chong();
+            let kong_ = in_kong(z) && !ri.is_some_and(|r| chong(r, z));
+            YongYao {
+                k: k as u8,
+                fu,
+                zhi: z,
+                wx,
+                you_qi,
+                shou_shang,
+                wu_gu: !shou_shang && !kong_,
+                you_jiu: shou_shang && g.sheng.iter().any(|s| !matches!(s, Yuan::Jing(_))),
+            }
+        };
+        match ys {
+            YongShen::Shi => cand.push(mk(p.wei.shi as usize - 1, false, p.yao[p.wei.shi as usize - 1].zhi)),
+            YongShen::Ying => cand.push(mk(p.wei.ying as usize - 1, false, p.yao[p.wei.ying as usize - 1].zhi)),
+            YongShen::Qin(q) => {
+                for k in 0..6 {
+                    if p.yao[k].qin == q {
+                        cand.push(mk(k, false, p.yao[k].zhi));
+                    }
+                }
+                if cand.is_empty() {
+                    for k in 0..6 {
+                        if let Some((fq, _, fz)) = p.yao[k].fu {
+                            if fq == q {
+                                cand.push(mk(k, true, fz));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if cand.len() > 1 && o.liang_xian != LiangXian::All {
+            let po = |c: &YongYao| yue.is_some_and(|m| chong(m, c.zhi));
+            let kg = |c: &YongYao| in_kong(c.zhi);
+            let dongf = |c: &YongYao| !c.fu && p.yao[c.k as usize].dong;
+            let wangf = |c: &YongYao| wang_shuai_opt(yue, c.wx).is_some_and(|w| w.you_qi());
+            let filters: Vec<Box<dyn Fn(&YongYao) -> bool>> = match o.liang_xian {
+                LiangXian::GuFa => vec![Box::new(wangf), Box::new(dongf), Box::new(move |c: &YongYao| !po(c)), Box::new(move |c: &YongYao| !kg(c)), Box::new(|c: &YongYao| !c.shou_shang)],
+                _ => vec![Box::new(move |c: &YongYao| kg(c)), Box::new(move |c: &YongYao| po(c))],
+            };
+            for f in filters {
+                let kept: Vec<YongYao> = cand.iter().filter(|c| f(c)).cloned().collect();
+                if !kept.is_empty() && kept.len() < cand.len() {
+                    cand = kept;
+                }
+            }
+        }
+        cand
+    });
+    HuangJinMarks { wang, you_qi, yao, gua, ri_sheng, hua_sheng, guan_xi, yong: yong.unwrap_or_default() }
+}
+
+fn wang_shuai_opt(yue: Option<u8>, wx: u8) -> Option<WangShuai> {
+    yue.map(|m| wang_shuai(m, wx))
 }
 
 #[cfg(test)]
@@ -1575,10 +2178,115 @@ mod tests {
         want.sort();
         assert_eq!(he6, want);
     }
+
+    /// 千金賦次批十三项（缺省开者与选项）：逐项以《增刪卜易》书例或构造之卦检验
+    #[test]
+    fn huang_jin_ci_pi_options() {
+        let d = HuangJinOptions::default();
+        // 随鬼入墓章：申月己丑日雷風恆，「世爻隨鬼入墓」——世酉金官鬼，丑日为金墓
+        let v = chart(["妻財戌土⚋應", "官鬼申金⚋", "子孫午火⚊", "官鬼酉金⚊世", "父母亥水⚊", "妻財丑土⚋"]);
+        let p = pai_gua(v, Some(8), Some(gz(5, 1)), LiuyaoOptions::default());
+        let m = huang_jin_marks(&p);
+        assert!(has(&m, 2, Mark::RuMu) && has(&m, 2, Mark::SuiGuiRuMu) && has(&m, 2, Mark::MuZhong));
+        assert!(!has(&huang_jin_marks_with(&p, &HuangJinOptions::bare()), 2, Mark::SuiGuiRuMu));
+        // 同章：未月戊辰日蠱之損，「世爻隨鬼入動墓，又動而化墓……丑墓月破，破羅破网」「日月生世」
+        let v = chart(["兄弟寅木⚊應　兄弟寅木⚊", "父母子水⚋　　父母子水⚋", "妻財戌土⚋　　妻財戌土⚋", "官鬼酉金○世　妻財丑土⚋", "父母亥水⚊　　兄弟卯木⚊", "妻財丑土ㄨ　　子孫巳火⚊"]);
+        let p = pai_gua(v, Some(7), Some(gz(4, 4)), LiuyaoOptions::default());
+        let m = huang_jin_marks(&p);
+        assert!(has(&m, 2, Mark::DongMu) && has(&m, 2, Mark::HuaMu) && has(&m, 2, Mark::SuiGuiRuMu));
+        assert!(!has(&m, 2, Mark::MuZhong), "丑墓逢未月冲破");
+        assert!(m.guan_xi[2].sheng.contains(&Yuan::Ri) && m.guan_xi[2].sheng.contains(&Yuan::Yue));
+        // 千金賦：未月戊辰日復之謙，「世爻子水是申子辰三合水局」——初子动、三辰动化申、日辰
+        let v = chart(["子孫酉金⚋　　子孫酉金⚋", "妻財亥水⚋　　妻財亥水⚋", "兄弟丑土⚋應　兄弟丑土⚋", "兄弟辰土ㄨ　　子孫申金⚊", "官鬼寅木⚋　　父母午火⚋", "妻財子水○世　兄弟辰土⚋"]);
+        let p = pai_gua(v, Some(7), Some(gz(4, 4)), LiuyaoOptions::default());
+        let m = huang_jin_marks(&p);
+        let ju = m.gua.san_he.iter().find(|j| j.wx == 4).unwrap();
+        assert!(ju.cheng && ju.yao == vec![0, 2]);
+        // 「不宜日月克世……動爻辰土又克」
+        assert!(m.guan_xi[0].ke.contains(&Yuan::Ri) && m.guan_xi[0].ke.contains(&Yuan::Yue) && m.guan_xi[0].ke.contains(&Yuan::Dong(2)));
+        assert!(huang_jin_marks_with(&p, &HuangJinOptions::bare()).gua.san_he.is_empty());
+        // 三刑章：寅月庚申日家人之離，「月建在寅，日建在申，與巳爻子孫共作三刑」
+        let v = chart(["兄弟卯木⚊　　子孫巳火⚊", "子孫巳火○應　妻財未土⚋", "妻財未土ㄨ　　官鬼酉金⚊", "父母亥水⚊　　父母亥水⚊", "妻財丑土⚋世　妻財丑土⚋", "兄弟卯木⚊　　兄弟卯木⚊"]);
+        let m = huang_jin_marks(&pai_gua(v, Some(2), Some(gz(6, 8)), LiuyaoOptions::default()));
+        assert!(m.gua.san_xing.iter().any(|x| x.zhi == vec![2, 5, 8] && x.yao == vec![4]));
+        // 缺一支者不成三刑（卜筮全書注）：改为卯月，寅不见
+        let m = huang_jin_marks(&pai_gua(v, Some(3), Some(gz(6, 8)), LiuyaoOptions::default()));
+        assert!(!m.gua.san_xing.iter().any(|x| x.zhi == vec![2, 5, 8]));
+        // 千金賦：未月庚寅日占官運，「今歲子年，太歲拱扶」——世亥水动，子年扶之
+        let v = chart(["官鬼未土⚋　　兄弟子水⚋", "父母酉金⚊　　官鬼戌土⚊", "兄弟亥水○世　父母申金⚋", "兄弟亥水⚊　　兄弟亥水⚊", "官鬼丑土⚋　　官鬼丑土⚋", "子孫卯木⚊應　子孫卯木⚊"]);
+        let p = pai_gua(v, Some(7), Some(gz(6, 2)), LiuyaoOptions::default());
+        let m = huang_jin_marks_with(&p, &HuangJinOptions { nian: Some(0), ..d });
+        assert!(m.guan_xi[3].fu.contains(&Yuan::Nian));
+        // 「防巳年太歲沖害」：巳年冲世亥为歲破；亥年则世值太岁而动
+        let m = huang_jin_marks_with(&p, &HuangJinOptions { nian: Some(5), ..d });
+        assert!(has(&m, 3, Mark::SuiPo));
+        let m = huang_jin_marks_with(&p, &HuangJinOptions { nian: Some(11), ..d });
+        assert!(has(&m, 3, Mark::SuiJun) && has(&m, 3, Mark::SuiJunDong) && has(&m, 2, Mark::SuiJun) && !has(&m, 2, Mark::SuiJunDong));
+        // 日傷爻：巳月壬子日比，子日克二爻巳火
+        let v = chart(["妻財子水⚋應", "兄弟戌土⚊", "子孫申金⚋", "官鬼卯木⚋世", "父母巳火⚋", "兄弟未土⚋"]);
+        let m = huang_jin_marks(&pai_gua(v, Some(5), Some(gz(8, 0)), LiuyaoOptions::default()));
+        assert!(has(&m, 1, Mark::RiShang) && !has(&m, 2, Mark::RiShang));
+        // 合破、尅合：午月乙丑日乾，初爻子水静，丑日合之（子丑合而土克水），午月冲之
+        let p = pai_gua([7; 6], Some(6), Some(gz(1, 1)), LiuyaoOptions::default());
+        let m = huang_jin_marks(&p);
+        assert!(has(&m, 0, Mark::HeQi) && has(&m, 0, Mark::KeHe) && has(&m, 0, Mark::HePo) && has(&m, 0, Mark::YuePo));
+        assert!(!has(&m, 0, Mark::XingHe));
+        // 刑合（选项）：申日合乾宫无巳，改坤（巳在二爻）申日：巳申合而巳刑申
+        let p = pai_gua([8; 6], None, Some(gz(6, 8)), LiuyaoOptions::default());
+        assert!(!has(&huang_jin_marks(&p), 1, Mark::XingHe));
+        assert!(has(&huang_jin_marks_with(&p, &HuangJinOptions { xing_he: true, ..d }), 1, Mark::XingHe));
+        // 伏神提挈、飞神推开、飞空：姤缺妻財，伏二爻亥水之下（寅木）；寅月乙丑日（甲子旬空戌亥）：月建扶伏、丑日克飞亥、飞亥旬空
+        let p = pai_gua([8, 7, 7, 7, 7, 7], Some(2), Some(gz(1, 1)), LiuyaoOptions::default());
+        let m = huang_jin_marks(&p);
+        assert!(has(&m, 1, Mark::FuTi) && has(&m, 1, Mark::FeiKong) && has(&m, 1, Mark::FeiKai));
+        // 申月：月克伏寅，不为提挈；丙午日亦不冲克飞亥
+        let m = huang_jin_marks(&pai_gua([8, 7, 7, 7, 7, 7], Some(8), Some(gz(2, 6)), LiuyaoOptions::default()));
+        assert!(!has(&m, 1, Mark::FuTi) && !has(&m, 1, Mark::FeiKai));
+        // 巳日冲飞神亥水：推开
+        let m = huang_jin_marks(&pai_gua([8, 7, 7, 7, 7, 7], Some(2), Some(gz(1, 5)), LiuyaoOptions::default()));
+        assert!(has(&m, 1, Mark::FeiKai));
+        // 绝逢生：子月庚申日乾，二爻寅木绝于申，子月水生之
+        let m = huang_jin_marks(&pai_gua([7; 6], Some(0), Some(gz(6, 8)), LiuyaoOptions::default()));
+        assert!(has(&m, 1, Mark::JueFengSheng));
+        let m = huang_jin_marks(&pai_gua([7; 6], Some(6), Some(gz(6, 8)), LiuyaoOptions::default()));
+        assert!(!has(&m, 1, Mark::JueFengSheng));
+        // 用神：姤占妻財，不上卦，取伏神（二爻下寅木）；自占取世爻
+        let p = pai_gua([8, 7, 7, 7, 7, 7], Some(2), Some(gz(1, 1)), LiuyaoOptions::default());
+        let m = huang_jin_marks_with(&p, &HuangJinOptions { yong: Some(yong_shen_of(ZhanShi::QiCai)), ..d });
+        assert_eq!(m.yong.len(), 1);
+        assert!(m.yong[0].fu && m.yong[0].k == 1 && m.yong[0].zhi == 2 && m.yong[0].you_qi && m.yong[0].wu_gu);
+        let m = huang_jin_marks_with(&p, &HuangJinOptions { yong: Some(YongShen::Shi), ..d });
+        assert_eq!(m.yong[0].k + 1, p.wei.shi);
+        // 两现：乾占父母，戌（上）辰（三）两现；辰月戌日：戌临日、辰月破之冲……古法舍破用不破、野鹤用破
+        let p = pai_gua([7; 6], Some(4), Some(gz(0, 10)), LiuyaoOptions::default());
+        let all = huang_jin_marks_with(&p, &HuangJinOptions { yong: Some(YongShen::Qin(4)), ..d });
+        assert_eq!(all.yong.iter().map(|y| y.k).collect::<Vec<_>>(), vec![2, 5]);
+        let gu = huang_jin_marks_with(&p, &HuangJinOptions { yong: Some(YongShen::Qin(4)), liang_xian: LiangXian::GuFa, ..d });
+        let ye = huang_jin_marks_with(&p, &HuangJinOptions { yong: Some(YongShen::Qin(4)), liang_xian: LiangXian::YeHe, ..d });
+        // 辰月：辰戌皆土旺；戌日冲辰（静爻旺相为暗动，非破）——月破者，辰月冲戌（上爻）
+        assert_eq!(gu.yong.iter().map(|y| y.k).collect::<Vec<_>>(), vec![2]);
+        assert_eq!(ye.yong.iter().map(|y| y.k).collect::<Vec<_>>(), vec![5]);
+        // 旺衰兼取生扶（选项，缺省关）：暗動章寅月己未日坤之師，丑土春令休囚而巳火动生之——开则暗动（书例），关则日破
+        let v = chart(["子孫酉金⚋世　子孫酉金⚋", "妻財亥水⚋　　妻財亥水⚋", "兄弟丑土⚋　　兄弟丑土⚋", "官鬼卯木⚋應　父母午火⚋", "父母巳火ㄨ　　兄弟辰土⚊", "兄弟未土⚋　　官鬼寅木⚋"]);
+        let p = pai_gua(v, Some(2), Some(gz(5, 7)), LiuyaoOptions::default());
+        assert!(has(&huang_jin_marks(&p), 3, Mark::RiPo));
+        let m = huang_jin_marks_with(&p, &HuangJinOptions { wang_jian_fu: true, ..d });
+        assert!(has(&m, 3, Mark::AnDong) && m.you_qi[3] == Some(true) && m.wang[3] == Some(WangShuai::XiuQiu));
+        assert!(has(&huang_jin_marks(&p), 3, Mark::ShuaiFu));
+    }
     const DUANYU_CSV: &str = include_str!("../../../../data/folk/zsby_duanyu.csv");
 
     /// 一爻是否有某象（`xiang` 为断语表之归一象名）；`None` 为卦象或未识之象
-    fn yao_has_xiang(m: &HuangJinMarks, k: usize, xiang: &str) -> Option<bool> {
+    /// `ext`：入墓兼取三墓与随鬼入墓（[`Mark::DongMu`]、[`Mark::HuaMu`]、[`Mark::SuiGuiRuMu`]），旺相休囚依 `you_qi`
+    fn yao_has_xiang(m: &HuangJinMarks, k: usize, xiang: &str, ext: bool) -> Option<bool> {
+        if ext {
+            match xiang {
+                "旺相" => return Some(m.you_qi[k] == Some(true)),
+                "休囚" => return Some(m.you_qi[k] == Some(false)),
+                "入墓" => return Some([Mark::RuMu, Mark::DongMu, Mark::HuaMu, Mark::SuiGuiRuMu].iter().any(|x| m.yao[k].contains(x))),
+                _ => {}
+            }
+        }
         let mk = match xiang {
             "旺相" => return Some(m.wang[k].is_some_and(|w| w != WangShuai::XiuQiu)),
             "休囚" => return Some(m.wang[k] == Some(WangShuai::XiuQiu)),
@@ -1605,9 +2313,16 @@ mod tests {
     }
 
     /// 断语一条之判：(结果, 所指诸爻之算出象)
-    fn duanyu_judge(e: &(&str, &str, Option<u8>, Option<u8>, &str, &str, [&str; 6]), xiang: &str, neg: bool, suo: &str) -> (&'static str, String) {
+    fn duanyu_judge(
+        e: &(&str, &str, Option<u8>, Option<u8>, &str, &str, [&str; 6]),
+        xiang: &str,
+        neg: bool,
+        suo: &str,
+        o: &HuangJinOptions,
+        ext: bool,
+    ) -> (&'static str, String) {
         let p = pai_gua(chart(e.6), e.2, e.3, LiuyaoOptions::default());
-        let m = huang_jin_marks(&p);
+        let m = huang_jin_marks_with(&p, o);
         let need_yue = matches!(xiang, "月破" | "化破" | "旺相" | "休囚" | "暗動" | "日破");
         let need_ri = matches!(xiang, "日破" | "暗動" | "旬空" | "沖空" | "合起" | "入墓" | "化空");
         if need_yue && p.yue_jian.is_none() {
@@ -1654,14 +2369,15 @@ mod tests {
             cand = (0..6).collect();
         }
         let pos = ["初", "二", "三", "四", "五", "上"];
-        let has = |k: usize| yao_has_xiang(&m, k, xiang).unwrap_or(false);
+        let has = |k: usize| yao_has_xiang(&m, k, xiang, ext).unwrap_or(false);
         let c = cand.iter().any(|&k| has(k));
         let any = (0..6).any(has);
         let desc = cand
             .iter()
             .map(|&k| {
                 let y = &p.yao[k];
-                let mut s = format!("{}{}{}", pos[k], ZHI[y.zhi as usize], m.wang[k].map(|w| w.name()).unwrap_or(""));
+                let wq = if ext && m.you_qi[k] == Some(true) && m.wang[k] == Some(WangShuai::XiuQiu) { "休囚（有扶）" } else { m.wang[k].map(|w| w.name()).unwrap_or("") };
+                let mut s = format!("{}{}{}", pos[k], ZHI[y.zhi as usize], wq);
                 for x in &m.yao[k] {
                     s.push_str(x.name());
                 }
@@ -1687,12 +2403,22 @@ mod tests {
         use std::collections::BTreeMap;
         // (象, 类, 结果) → 条数
         let mut tally: BTreeMap<(String, String, &str), usize> = BTreeMap::new();
+        let mut tally2: BTreeMap<(String, &str), usize> = BTreeMap::new();
+        let mut tally3: BTreeMap<(String, &str), usize> = BTreeMap::new();
         let mut n = 0;
         for l in DUANYU_CSV.lines().filter(|l| !l.starts_with('#')).skip(1) {
             let f: Vec<&str> = l.splitn(6, ',').collect();
             let i: usize = f[0].parse().unwrap();
             let e = &ZSBY[i - 1];
-            let (r, desc) = duanyu_judge(e, f[1], f[2] == "否", f[3]);
+            let (r, desc) = duanyu_judge(e, f[1], f[2] == "否", f[3], &HuangJinOptions::bare(), false);
+            // 次批缺省（随鬼入墓、动墓入「入墓」）、全开（另兼旺衰取生扶）两种对照
+            let (r2, _) = duanyu_judge(e, f[1], f[2] == "否", f[3], &HuangJinOptions::default(), true);
+            let (r3, d3) = duanyu_judge(e, f[1], f[2] == "否", f[3], &HuangJinOptions::qian_jin_fu(), true);
+            if f[4] == "断" && (r2 != r || r3 != r) {
+                println!("CHG\t{}\t{}\t{}\t{}\t{} → {} / {}\t{}", i, f[1], f[5], f[3], r, r2, r3, d3);
+            }
+            *tally2.entry((f[4].to_string(), r2)).or_default() += 1;
+            *tally3.entry((f[4].to_string(), r3)).or_default() += 1;
             let date = format!(
                 "{}{}",
                 e.2.map(|m| format!("{}月", ZHI[m as usize])).unwrap_or_default(),
@@ -1713,7 +2439,16 @@ mod tests {
         println!("共 {n} 条；类「断」：合 {he}，他爻 {ta}，不合 {bu}，缺月日 {que}；类「泛」：合 {}，他爻／不合 {}", count("泛", &|r| r == "合"), count("泛", &|r| r == "他爻" || r == "不合"));
         assert_eq!(n, ZSBY_DUANYU_N);
         assert_eq!((he, ta, bu, que), ZSBY_DUANYU_TALLY);
+        let four = |t: &BTreeMap<(String, &str), usize>| {
+            let g = |pred: &dyn Fn(&str) -> bool| t.iter().filter(|((k, r), _)| k == "断" && pred(r)).map(|(_, c)| c).sum::<usize>();
+            (g(&|r| r == "合"), g(&|r| r == "他爻"), g(&|r| r == "不合"), g(&|r| r.starts_with('缺')))
+        };
+        println!("次批缺省（入墓兼三墓、随鬼入墓）：断 {:?}；全开（另旺衰兼取生扶）：断 {:?}", four(&tally2), four(&tally3));
+        assert_eq!(four(&tally2), ZSBY_DUANYU_TALLY_CI);
+        assert_eq!(four(&tally3), ZSBY_DUANYU_TALLY_QUAN);
     }
     const ZSBY_DUANYU_N: usize = 440;
     const ZSBY_DUANYU_TALLY: (usize, usize, usize, usize) = (194, 32, 94, 20);
+    const ZSBY_DUANYU_TALLY_CI: (usize, usize, usize, usize) = (196, 33, 91, 20);
+    const ZSBY_DUANYU_TALLY_QUAN: (usize, usize, usize, usize) = (198, 29, 93, 20);
 }
