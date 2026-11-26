@@ -12,7 +12,7 @@
 //!   唐大衍术注「使不過三大三小」（钱宝琮校作「三大二小」，本项目取原文，见 [TANG_RUNS]），五纪、正元、宣明承之。
 //!   逐月推：进朔会成连大超限则不进，不进会成连小超限则进，只改当月。
 //! - 麟德正月进朔（[Rules::zhengyue]）：684 年「詔二年元日用甲申，故進以癸未晦」，此后正月定朔过戌初（19 时）者进；
-//!   常月 710 年起四分之三进朔（[PaiyueOptions::linde_changyue]），此前不进。
+//!   常月 709 年起四分之三进朔（[PaiyueOptions::linde_changyue]），此前不进。
 //! - 交会（[PaiyueOptions]，2026-11-18 起）：照各历「步交會」求定朔入交定（[Jiaohui]，常数见 [JiaoConst] 诸处与 `song_jiao`），
 //!   宣明、崇天另照志文日蚀术判有蚀与食甚（[Rishi]）。宣明「或有交，應見虧初，則否」、宋诸历「有食應見者，其朔不進」（[JiaoBujin]）：
 //!   过进朔限而有食、亏初不晚于日入者不进；大衍术注「正月朔有交、加時正見者……令虧在晦、二」只在史载有据之年
@@ -1584,9 +1584,11 @@ impl DingshuoLi for Linde {
     fn rishi(&self, y: i32, m: i64) -> Option<Rishi> {
         self.rishi_ld(y, m)
     }
-    // 两唐书麟德历皆无进朔条文；684 年起中原正月进朔见 [Rules::zhengyue]。常月进朔：710 年起当时历日四见进朔（710 年四月
-    // 义净译经题记「四月壬午朔」、六月中宗哀册「六月辛巳朔」、十一月同册「十一月二日乙〔己〕酉」并本纪十月丁未，713 年四月本纪，
-    // 726 年四月岐王哀册「四月己酉朔」），仅 726 年十一月本纪一条不进，排月取四分之三（18 时）进朔（[PaiyueOptions::linde_changyue]）。
+    // 两唐书麟德历皆无进朔条文；684 年起中原正月进朔见 [Rules::zhengyue]。常月进朔：709 年起当时历日五见进朔（709 年五月
+    // 敦煌伯 2347《十戒經》盟文「五月丁巳朔」，710 年四月义净译经题记「四月壬午朔」、六月中宗哀册「六月辛巳朔」、十一月同册
+    // 「十一月二日乙〔己〕酉」并本纪十月丁未，713 年四月本纪，726 年四月岐王哀册「四月己酉朔」），仅 726 年十一月本纪一条不进；
+    // 705 年三月岱岳观题记「三月庚辰朔」、五月册文「五月己卯朔」、706 年三月本纪纪日皆不进。排月取四分之三（18 时）进朔
+    // （[PaiyueOptions::linde_changyue]）。
     fn jinshuo_limit(&self, y: i32, _t: &Q) -> Option<Q> {
         self.changyue_jin.filter(|&from| y >= from).map(|_| qr(3 * LD_F, 4))
     }
@@ -2710,7 +2712,8 @@ pub struct PaiyueOptions {
     pub dayan_jingfa: bool,
     /// 麟德步交会读法（只关交会检验，不入排月）
     pub linde_jiaohui: LindeJiaohui,
-    /// 麟德常月进朔（四分之三）起始之冬至岁：缺省 Some(710)，据 710—726 年哀册、译经题记与本纪（见 [Linde::jinshuo_limit]）；
+    /// 麟德常月进朔（四分之三）起始之冬至岁：缺省 Some(709)，据 709—726 年盟文、哀册、译经题记与本纪，705—706 年三条不进
+    /// （见 [Linde::jinshuo_limit]）；Some(710) 为 709 年盟文未入前之做法；
     /// None 为常月不进（2026-11-26 前做法）
     pub linde_changyue: Option<i32>,
     /// 麟德本术（定小余近夜半者覆算）十四日、二十八日「分為二日，隨餘初末，如法求之」（《旧唐书·历志二》，读法同大衍一系精法，
@@ -2760,7 +2763,7 @@ impl Default for PaiyueOptions {
             wudai_dingqi: WudaiDingqi::Chongxuan,
             dayan_jingfa: true,
             linde_jiaohui: LindeJiaohui::Xinzhi,
-            linde_changyue: Some(710),
+            linde_changyue: Some(709),
             linde_fen_erri: true,
         }
     }

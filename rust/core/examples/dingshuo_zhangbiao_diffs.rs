@@ -405,8 +405,19 @@ fn main() {
         (cause, verdict)
     };
 
+    // 三分类：①有当时文字证张表误（判定含「证推步」）；②有文字证推步误（含「证张表」）；③无据待核（无证、两歧）
+    let fenlei = |v: &str| -> &'static str {
+        if v.contains("证推步") {
+            "①文字证张表误"
+        } else if v.contains("证张表") {
+            "②文字证推步误"
+        } else {
+            "③无据待核"
+        }
+    };
+
     // CSV
-    let mut csv = String::from("历,年,月,张表月名,推步朔,张表朔,张表−推步,定朔所在日,定小余（时）,进朔限（时）,距限（时）,经朔（时，距定朔所在日夜半）,有交,进退关系,本纪明书朔,纪日证据,已有考证,判定,按语\n");
+    let mut csv = String::from("历,年,月,张表月名,推步朔,张表朔,张表−推步,定朔所在日,定小余（时）,进朔限（时）,距限（时）,经朔（时，距定朔所在日夜半）,有交,进退关系,本纪明书朔,纪日证据,已有考证,判定,分类,按语\n");
     let fmt_shuo = |d: &Diff| -> String {
         d.shuo.iter().map(|s| format!("{} {}{}", s.0, gz(s.1), if s.2 { "（已考讹）" } else { "" })).collect::<Vec<_>>().join("；")
     };
@@ -437,7 +448,7 @@ fn main() {
         };
         let tl = d.t_label.map_or(String::new(), |(m, l)| label(m, l));
         csv += &format!(
-            "{},{},{},{},{},{},{:+},{},{},{},{},{},{},{},{},{},{},{},{}\n",
+            "{},{},{},{},{},{},{:+},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
             d.li,
             d.year,
             lab,
@@ -456,6 +467,7 @@ fn main() {
             fmt_jiri(d).replace(',', "，"),
             d.refs.join(" "),
             verdict,
+            fenlei(&verdict),
             an.replace(',', "，")
         );
         rows_out.push((d.clone(), cause, verdict, an, dd, h, lim, dist));
@@ -465,7 +477,7 @@ fn main() {
     // 文档生成部分
     let mut md = String::new();
     md += "### 逐历汇总\n\n（脚本生成：`rust/core/examples/dingshuo_zhangbiao_diffs.rs`；逐月 CSV 见 `data/calendar/dingshuo_zhangbiao_diffs.csv`。）\n\n";
-    md += "| 历 | 年段 | 月数 | 朔日不同之月 | 张表晚一日 | 张表早一日 | 闰位不同之岁 | 其中统一进朔所致 | 本纪/纪日证推步 | 证张表 | 两歧 | 无证 |\n|---|---|---|---|---|---|---|---|---|---|---|---|\n";
+    md += "| 历 | 年段 | 月数 | 朔日不同之月 | 张表晚一日 | 张表早一日 | 闰位不同之岁 | 其中统一进朔所致 | ①文字证张表误 | ②文字证推步误 | ③中两歧 | ③无据待核（含两歧） |\n|---|---|---|---|---|---|---|---|---|---|---|---|\n";
     let mut total = [0usize; 9];
     let mut stat_sorted: Vec<_> = stat.iter().collect();
     stat_sorted.sort_by_key(|(_, s)| s.0);
@@ -480,7 +492,7 @@ fn main() {
         let pr = rs.iter().filter(|x| x.2.contains("证推步")).count();
         let pt = rs.iter().filter(|x| x.2.contains("证张表")).count();
         let bo = rs.iter().filter(|x| x.2.contains("两歧")).count();
-        let no = rs.len() - pr - pt - bo;
+        let no = rs.len() - pr - pt;
         for (i, v) in [rs.len(), late, early, s.4, uni, pr, pt, bo, no].iter().enumerate() {
             total[i] += v;
         }
@@ -490,13 +502,14 @@ fn main() {
         "| **合计** | | | **{}** | {} | {} | **{}** | {} | **{}** | **{}** | {} | {} |\n\n",
         total[0], total[1], total[2], total[3], total[4], total[5], total[6], total[7], total[8]
     );
+    md += "分类：①有当时文字（本纪明书朔、纪日、写本、册文、题记等）证张表误、推步合；②有文字证推步误、张表合；③无据待核（无本纪纪日可判，或两歧）。三类之和即朔日不同之月。\n\n";
     md += "「其中统一进朔所致」：张表与推步之差恰可由张表「朔日小余在日法四分之三已上者，虚进一日」（李勇、张培瑜 1996 自述）与本历术文进朔限之不同解释者。\n\n";
-    md += "### 有证之月\n\n| 历 | 年 | 月 | 推步 | 张表 | 定小余（时） | 限（时） | 距限 | 本纪明书朔 | 纪日 | 判定 | 按语 |\n|---|---|---|---|---|---|---|---|---|---|---|---|\n";
+    md += "### 有证之月\n\n| 历 | 年 | 月 | 推步 | 张表 | 定小余（时） | 限（时） | 距限 | 本纪明书朔 | 纪日 | 判定 | 分类 | 按语 |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|\n";
     let cell = |s: String| if s.is_empty() { "—".to_string() } else { s.replace('|', "／") };
     for x in rows_out.iter().filter(|x| !x.0.shuo.is_empty() || !x.0.jiri.is_empty() || !x.3.is_empty()) {
         let d = &x.0;
         md += &format!(
-            "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
+            "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
             d.li,
             d.year,
             label(d.month, d.leap),
@@ -508,11 +521,12 @@ fn main() {
             cell(fmt_shuo(d)),
             cell(fmt_jiri(d)),
             x.2,
+            fenlei(&x.2),
             cell(x.3.clone())
         );
     }
     md += "\n### 逐月表（全部朔日不同之月）\n\n「定朔」为定朔所在日干支；「距限」= 定小余 − 进朔限（正为过限）；「有交」= 经朔入交入食限（大衍一系此等月定朔用二次差精法；— 为未复原交会）；「经朔」为经朔距定朔所在日夜半之时（负为前一日）。\n\n";
-    md += "| 历 | 年 | 月 | 推步 | 张表 | 定朔 | 定小余 | 限 | 距限 | 有交 | 进退关系 | 证据 | 已有考证 | 判定 |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n";
+    md += "| 历 | 年 | 月 | 推步 | 张表 | 定朔 | 定小余 | 限 | 距限 | 有交 | 进退关系 | 证据 | 已有考证 | 判定 | 分类 |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n";
     for x in &rows_out {
         let d = &x.0;
         let lab = match d.t_label {
@@ -525,7 +539,7 @@ fn main() {
             .collect::<Vec<_>>()
             .join("；");
         md += &format!(
-            "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
+            "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
             d.li,
             d.year,
             lab,
@@ -539,7 +553,8 @@ fn main() {
             x.1.split('：').next().unwrap_or(""),
             cell(ev),
             cell(d.refs.join(" ")),
-            x.2
+            x.2,
+            fenlei(&x.2)
         );
     }
     md += &format!(
@@ -555,5 +570,5 @@ fn main() {
     let (a, b) = (doc.find("<!-- 生成开始 -->").expect("生成开始"), doc.find("<!-- 生成结束 -->").expect("生成结束"));
     let new = format!("{}<!-- 生成开始 -->\n\n{}\n{}", &doc[..a], md, &doc[b..]);
     std::fs::write(doc_path, new).unwrap();
-    println!("朔日不同之月 {}，闰位不同之岁 {}", total[0], total[3]);
+    println!("朔日不同之月 {}（①文字证张表误 {}、②文字证推步误 {}、③无据待核 {}），闰位不同之岁 {}", total[0], total[5], total[6], total[8], total[3]);
 }
