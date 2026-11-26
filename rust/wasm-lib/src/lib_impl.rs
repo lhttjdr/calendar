@@ -3812,7 +3812,8 @@ pub fn magnetic_declination_wasm(lat_deg: f64, lon_deg: f64, alt_km: f64, decima
 /// 4 起运计法（0 精确、1 以时辰）；5 小运（0 男丙寅女壬申、1 自时柱、2 按生年之旬）；6 胎元（0 月前四位、1 生前三百日）；
 /// 7 命宫生月（0 依节、1 依中气）；8 藏干（0 通行表、1 淵海、2 三命）；9 司令日数（0 三命、1 命理約言舊例）；
 /// 10 长生（0 阳顺阴逆、1 阴阳同生）；11 土长生（0 随火、1 随水）；12 神煞所依（0 年日并起、1 年、2 日）；
-/// 13 天乙（0 甲戊庚牛羊、1 庚辛马虎）；14 羊刃（0 惟阳干、1 禄前一辰）；15 空亡（0 依日、1 依年）。
+/// 13 天乙（0 甲戊庚牛羊、1 庚辛马虎）；14 羊刃（0 惟阳干、1 禄前一辰）；15 空亡（0 依日、1 依年）；
+/// 16 交运时刻（0 按历月、1 岁数乘回归年）；17 交节当日生（0 照常折算、1 作一岁运）。
 fn ziping_options_from(opts: &[u8]) -> lunar_core::folk::ziping::ZipingOptions {
     use lunar_core::calendar::gan_zhi_options::{DayBoundary, SolarTermMode};
     use lunar_core::folk::ziping::{canggan, changsheng, gong, pan, shensha, ZipingOptions};
@@ -3824,6 +3825,8 @@ fn ziping_options_from(opts: &[u8]) -> lunar_core::folk::ziping::ZipingOptions {
         ye_zi_shi: if v(2) == 1 { pan::YeZiShi::BenRi } else { pan::YeZiShi::CiRi },
         qi_yun: if v(3) == 1 { pan::QiYunRule::ZhengSui } else { pan::QiYunRule::ShiLi },
         qi_yun_precision: if v(4) == 1 { pan::QiYunPrecision::Shichen } else { pan::QiYunPrecision::Exact },
+        jiao_yun: if v(16) == 1 { pan::JiaoYunRule::HuiGuiNian } else { pan::JiaoYunRule::LiYue },
+        jiao_jie_ri: if v(17) == 1 { pan::JiaoJieRi::YiSui } else { pan::JiaoJieRi::ZhaoSuan },
         xiao_yun: match v(5) {
             1 => pan::XiaoYunRule::ShiZhu,
             2 => pan::XiaoYunRule::XunShou,
@@ -4002,6 +4005,7 @@ pub fn hehun_json(nan_jd_ut: f64, nv_jd_ut: f64, vsop87_ear: &str, clock_utc_off
     let shu_e = match shu {
         1 => HeHunShu::AoTou,
         2 => HeHunShu::XieJi,
+        3 => HeHunShu::XieJiLiCheng,
         _ => HeHunShu::LeiBian,
     };
     let opts = HeHunOptions { gu_luan: if gu_luan == 1 { GuLuanShuo::SiRi } else { GuLuanShuo::BaRi }, ..HeHunOptions::tongshu(shu_e) };
@@ -4017,7 +4021,7 @@ pub fn hehun_json(nan_jd_ut: f64, nv_jd_ut: f64, vsop87_ear: &str, clock_utc_off
     };
     Ok(format!(
         "{{\"shu\":{},\"nan\":{},\"nv\":{},\"gua\":{},\"deng\":{},\"nvJiaYue\":{},\"panYu\":{}}}",
-        json_str(["類編", "鰲頭", "協紀所述"][(shu as usize).min(2)]),
+        json_str(["類編", "鰲頭", "協紀所述", "協紀立成"][(shu as usize).min(3)]),
         person(&a, r.nan.gong, Xing::Nan),
         person(&b, r.nv.gong, Xing::Nv),
         json_str(r.gua.name()),

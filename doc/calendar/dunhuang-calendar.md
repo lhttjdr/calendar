@@ -66,7 +66,12 @@
 俄、法、韩镜像连不上）；Wikimedia Commons、Wikidata、Biblissima 无此诸件。可用者为 IDP 的 IIIF 接口 data.idp.bl.uk（manifest 与图像
 不在人机验证之后，图高 1476 像素），但须先知该件的 IDP 记录号：由搜索引擎收录之条目页（斯0095）及 Wayback 存档的旧链接
 `database/oo_loader.a4d?pm=…` 跳转新记录（斯2404、斯P.6、斯0612）查得四件，其余七件（斯3824₃、斯1439背、斯0276、斯0681背、
-斯6886背、斯1473、斯3985）未查得记录号，未核。逐件录入 `data/calendar/dunhuang_tuban_check_stein.csv`（列同伯希和诸件，以 IDP
+斯6886背、斯1473、斯3985）未查得记录号，未核。2026-11-26 换途径复查七件，仍未得：中国站 idp.nlc.cn 旧链接
+`oo_loader.a4d?pm=Or.8210/S.xxxx` 皆跳转旧记录（recnum），取得的 S.1473、S.3824 条目页只有物理信息、图数为 0，不给新站记录号（S.1439、S.276 条目页超时，余三件未再取）；Wayback 按旧链接前缀（含补零写法）无存档；
+IIIF 接口无公开的集合或检索端点（`iiif/3/collection`、`iiif/3/search` 跳转到无内容的后端）；大英图书馆档案目录 searcharchives.bl.uk
+不收此诸号，Digitised Manuscripts（www.bl.uk/manuscripts）连不上；敦煌研究院「数字藏经洞」（cave17.e-dunhuang.com，英藏件作
+`GBR.BL.S@号@WX.Chs`）七件正背皆 404（对照件 S.17 可开）；搜索引擎按馆藏号、卷名及 Bridgeman 图库亦未收。Wayback 所存 1045 个新站
+记录号逐个取 manifest 认馆藏号近于枚举，未做。逐件录入 `data/calendar/dunhuang_tuban_check_stein.csv`（列同伯希和诸件，以 IDP
 编号、记录号、图幅代法藏册页），同一脚本逐格生成 [dunhuang-tuban-checks.md](dunhuang-tuban-checks.md)「斯坦因诸件」。
 
 | | 有朔之格（三件） | 图版证合 | 仅证大小 | 图版未见 | 不合 |

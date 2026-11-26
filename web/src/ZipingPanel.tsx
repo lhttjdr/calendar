@@ -48,6 +48,8 @@ const ZP_OPTS: { key: string; label: string; opts: string[] }[] = [
   { key: 'tianYi', label: '天乙贵人', opts: ['甲戊庚牛羊、六辛马虎', '甲戊牛羊、庚辛马虎'] },
   { key: 'yangRen', label: '羊刃', opts: ['惟阳干（三命卷五）', '禄前一辰（三命卷三）'] },
   { key: 'kong', label: '空亡', opts: ['依日柱', '依年柱'] },
+  { key: 'jiaoYun', label: '交运时刻', opts: ['按历月（淵海、三命：月作三十日）', '岁数乘回归年'] },
+  { key: 'jiaoJie', label: '交节当日生', opts: ['照常折算', '作一岁运（淵海又說）'] },
 ]
 
 function fmtLocal(jdUt: number, tz: number) {
@@ -109,7 +111,7 @@ export const ZipingPanel = memo(function ZipingPanel(props: {
         </div>
         <div style={{ marginTop: 8 }}>
           <Text strong style={{ fontSize: 13 }}>大运</Text>
-          <Text type="secondary" style={{ fontSize: 12 }}>{`（${qy.forward ? '阳男阴女顺行' : '阴男阳女逆行'}，数至${qy.forward ? '未来' : '过去'}之${qy.jie} ${fmtLocal(qy.jieJd, tz)}，${qy.days.toFixed(2)} 日；起运 ${qy.years} 岁 ${qy.months} 月 ${qy.dayPart} 日，交运约 ${fmtLocal(qy.startJd, tz)}）`}</Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>{`（${qy.forward ? '阳男阴女顺行' : '阴男阳女逆行'}，数至${qy.forward ? '未来' : '过去'}之${qy.jie} ${fmtLocal(qy.jieJd, tz)}，${qy.days.toFixed(2)} 日；起运 ${qy.years} 岁 ${qy.months} 月 ${qy.dayPart} 日，交运 ${fmtLocal(qy.startJd, tz)}）`}</Text>
           <Table size="small" pagination={false} rowKey="gz" style={{ marginTop: 4 }}
             columns={[
               { title: '大运', dataIndex: 'gz', render: (z: number) => <span style={{ fontSize: 15 }}><Colored c={G[z % 10]!} wx={ganWx(G[z % 10]!)} size={15} /><Colored c={Z[z % 12]!} wx={zhiWx(Z[z % 12]!)} size={15} /></span> },
@@ -151,7 +153,7 @@ export const ZipingPanel = memo(function ZipingPanel(props: {
           ))}
         </OptionsFold>
         <Notes>
-          四柱：立春换年、十二节换月（定气，节气时刻由天文计算），子正换日；十神依《淵海子平》卷一「生我者為正印偏印……陽見陽為偏」；藏干缺省取今通行表（寅甲丙戊、辰戊乙癸合《子平真詮》），可改《淵海》歌诀、《三命通會》人元司事；星运为日干临四支之十二长生（阳顺阴逆，《三命通會》卷二、《子平真詮·論陰陽生死》），自坐为各柱天干临本支。大运依《淵海》「陽男陰女順……三日為一歲」，起运缺省按《三命通會》实历折除（一日四月、一时辰十日），交运时刻以起运岁数乘回归年加于生时，与按历月逐月加之法相差在数日之内。小运缺省男一岁丙寅顺行、女一岁壬申逆行。胎元缺省月前四位，命宫依「子上起正月，逆數至生月……順數遇卯即安命」，身宫在命宫对冲。神煞起例依《三命通會》卷二、卷三、卷五，括注所依之柱；空亡缺省依日柱（「當以日上見之為是」）。只排盘，不断吉凶。
+          四柱：立春换年、十二节换月（定气，节气时刻由天文计算），子正换日；十神依《淵海子平》卷一「生我者為正印偏印……陽見陽為偏」；藏干缺省取今通行表（寅甲丙戊、辰戊乙癸合《子平真詮》），可改《淵海》歌诀、《三命通會》人元司事；星运为日干临四支之十二长生（阳顺阴逆，《三命通會》卷二、《子平真詮·論陰陽生死》），自坐为各柱天干临本支。大运依《淵海》「陽男陰女順……三日為一歲」，起运缺省按《三命通會》实历折除（一日四月、一时辰十日），交运时刻缺省按两书「行運之法」逐历月累加、小月进一日（即月作三十日，一岁三百六十日），此后「十週年方換一運」；可改以起运岁数乘回归年。交节当日生者，可依《淵海》「又說」作一岁运。小运缺省男一岁丙寅顺行、女一岁壬申逆行。胎元缺省月前四位，命宫依「子上起正月，逆數至生月……順數遇卯即安命」，身宫在命宫对冲。神煞起例依《三命通會》卷二、卷三、卷五，括注所依之柱；空亡缺省依日柱（「當以日上見之為是」）。只排盘，不断吉凶。
         </Notes>
         <HehunPanel wasm={props.wasm} ear={props.ear} jdUt={props.jdUt} tz={tz} />
       </div>

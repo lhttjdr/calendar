@@ -187,6 +187,7 @@ export default defineConfig({
           {
             text: '命理',
             items: [
+              { text: '子平八字', link: '/folk/ziping' },
               { text: '七政四余', link: '/folk/qizheng' },
               { text: '紫微斗数', link: '/folk/ziwei' },
             ],

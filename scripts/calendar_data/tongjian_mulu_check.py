@@ -47,8 +47,20 @@ fn main() {
         };
         for (j, m, l) in r { println!("{y},{m},{},{j},{name}", l as u8); }
     }
+    // 漢初殷曆、顓頊曆兩行的参照：顓頊曆推步（zhuanxu）、殷曆推步（guliuli，年終閏與無中氣閏兩法）、李忠林復原（qinhan_restore）
+    use lunar_core::calendar::{guliuli, zhuanxu, qinhan_restore};
+    for y in -210..=-100 {
+        for (j, m, l) in zhuanxu::year_months(y) { println!("QH,颛顼推步,{y},{m},{},{j}", l as u8); }
+        for (j, m, l) in guliuli::year_months(guliuli::Liu::Yin, y, guliuli::Runfa::Nianzhong) { println!("QH,殷历推步（年终闰）,{y},{m},{},{j}", l as u8); }
+        for (j, m, l) in guliuli::year_months(guliuli::Liu::Yin, y, guliuli::Runfa::Wuzhongqi) { println!("QH,殷历推步（无中气闰）,{y},{m},{},{j}", l as u8); }
+        if let Some(v) = qinhan_restore::year_months(y) { for (j, m, l) in v { println!("QH,李忠林复原,{y},{m},{},{j}", l as u8); } }
+    }
 }
 '''
+
+
+QH_REF: dict = {}  # 漢初兩行参照：标签 → {(岁, 当时月序, 闰): 朔 JDN}
+QH_GUO = ("殷曆", "顓頊曆")
 
 
 def reckon_months() -> dict:
@@ -64,6 +76,10 @@ def reckon_months() -> dict:
                              capture_output=True, text=True, env=env, cwd=ROOT, check=True).stdout
     res = {}
     for line in out.splitlines():
+        if line.startswith("QH,"):
+            _, tag, y, m, l, j = line.split(",")
+            QH_REF.setdefault(tag, {})[(int(y), int(m), l == "1")] = int(j)
+            continue
         y, m, l, j, name = line.split(",", 4)
         res[(int(y), int(m), l == "1")] = (int(j), name)
     return res
@@ -182,6 +198,10 @@ def main():
         # 预先导出的推步表（格式同 RECKON_MAIN 输出：岁,月,闰,JDN,历名），cargo 被占用时用
         rk = {}
         for line in open(sys.argv[sys.argv.index("--reckon-csv") + 1], encoding="utf-8"):
+            if line.startswith("QH,"):
+                _, tag, y, m, l, j = line.rstrip("\n").split(",")
+                QH_REF.setdefault(tag, {})[(int(y), int(m), l == "1")] = int(j)
+                continue
             y, m, l, j, name = line.rstrip("\n").split(",", 4)
             if not (807 <= int(y) <= 821):  # 观象术不传，不计推步
                 rk[(int(y), int(m), l == "1")] = (int(j), name)
@@ -205,7 +225,7 @@ def main():
     chain = {}
     for r in rows:
         y = int(r["年"])
-        if not r["朔闰原文"].strip():
+        if not r["朔闰原文"].strip() or r.get("国", "") in QH_GUO:
             continue
         guo = r.get("国", "")
         reg = REGIME.get(guo) if not (guo == "隋" and y >= 590) and not (guo == "魏" and y < 386) else None
@@ -304,14 +324,149 @@ def main():
                 b["only_z"] += (zj == j and pj != j)
                 b["none"] += (zj != j and pj != j)
     print(tot)
-    write_doc(year_rows, diff_rows, tot, by)
+    qh = qinhan_check([r for r in rows if r.get("国", "") in QH_GUO])
+    write_doc(year_rows, diff_rows, tot, by, qh)
 
 
 def gzs(j):
     return "" if j is None else GZ[(j + 49) % 60]
 
 
-def write_doc(year_rows, diff_rows, tot, by):
+def qh_ref_xia(tag: str) -> dict:
+    """参照表换成夏正月名：(天文年, 夏正月, 闰) → JDN。殷曆子正当时月 m → 夏正 m−2（≤0 者属上年）。"""
+    out = {}
+    for (y, m, l), j in QH_REF.get(tag, {}).items():
+        if tag.startswith("殷"):
+            mm = m - 2
+            yy = y if mm >= 1 else y - 1
+            mm = mm if mm >= 1 else mm + 12
+            out[(yy, mm, l)] = j
+        else:
+            out[(y, m, l)] = j
+    return out
+
+
+def qinhan_expand(prev, raw, y):
+    """漢初兩行展开：十月岁首，月序 十、十一、十二、正……九，「後九」即閏九；太初元年（−103）只至十二月。"""
+    raw = raw.replace("朔後九", "朔閏九").replace("後九", "閏九")
+    toks, leap = parse(raw)
+    listed = {(m, l): g for m, l, g in toks}
+    order = [10, 11, 12] + ([] if y == -103 else list(range(1, 10)))
+    slots = []
+    for m in order:
+        slots.append((m, False))
+        if m == leap:
+            slots.append((m, True))
+    out, notes = [], []
+    if prev is None:
+        return None, ["无上岁末月朔可起算"]
+    key = lambda m, l: (y - 1 if m >= 10 else y, m, l)
+    for m, l in slots:
+        g = listed.get((m, l))
+        if g is None:
+            j = prev + 30
+        else:
+            d = (GZ.index(g) - (prev + 49)) % 60
+            if d in (29, 30):
+                j = prev + d
+            elif d == 59:
+                # 目录未记之闰：插在本月之前（十月前即上年後九月）
+                pm = 9 if m == 10 else (12 if m == 1 else m - 1)
+                pk = (y - 1, 9, True) if m == 10 else key(pm, True)
+                out.append((pm, True, prev + 30, pk))
+                notes.append(f"{MN[m]}月朔{g}距上月 59 日，目录未记闰，补閏{MN[pm]}（推定）")
+                j = prev + 59
+            elif 27 <= d <= 32:
+                notes.append(f"{('閏' if l else '') + MN[m]}月{g}距上月朔 {d} 日，从所列干支")
+                j = prev + d
+            else:
+                notes.append(f"{('閏' if l else '') + MN[m]}月{g}距上月朔{d if d < 45 else d - 60:+d}日，不可展开（按小月处理）")
+                j = prev + 29
+        out.append((m, l, j, key(m, l)))
+        prev = j
+    return out, notes
+
+
+def qinhan_check(rows):
+    """殷曆行对殷曆推步（年终闰、无中气闰），顓頊曆行对顓頊曆推步；两行皆对李忠林复原（漢初实用历之今人复原）。
+    比较两种：同名月同日（十至十二月取上一天文年）；朔日见于参照表（不论月名、闰位）。"""
+    refs = {t: qh_ref_xia(t) for t in ("颛顼推步", "殷历推步（年终闰）", "殷历推步（无中气闰）", "李忠林复原")}
+    plan = {"殷曆": ["殷历推步（年终闰）", "殷历推步（无中气闰）", "李忠林复原"], "顓頊曆": ["颛顼推步", "李忠林复原"]}
+    res = {}
+    for guo in QH_GUO:
+        own = refs[plan[guo][0]]
+        chain = {}
+        st = {t: dict(same=0, inset=0, n=0) for t in plan[guo]}
+        detail = []
+        for r in sorted((r for r in rows if r["国"] == guo), key=lambda r: int(r["年"])):
+            y = int(r["年"])
+            raw = r["校读"] or r["朔闰原文"]
+            prev = chain.get(y - 1)
+            anchor = own.get((y - 1, 9, True)) or own.get((y - 1, 9, False))
+            # 干支六十日一周：两月之差在干支上看不出，本行上岁末与参照相差超过 45 日即视为沿链误差，改从参照起算
+            if prev is not None and anchor is not None and abs(prev - anchor) > 45:
+                prev = None
+            ms, notes = qinhan_expand(prev if prev is not None else anchor, raw, y)
+            # 本行上岁末与本岁首列干支接不上（补闰或不可展开）时，改从本行参照上年九月（或後九）朔起算，免一岁误读沿链传下
+            if prev is not None and anchor is not None and any(("补閏" in x or "不可展开" in x) for x in notes[:1]):
+                ms2, notes2 = qinhan_expand(anchor, raw, y)
+                if ms2 is not None and len([x for x in notes2 if "补閏" in x or "不可展开" in x]) < len([x for x in notes if "补閏" in x or "不可展开" in x]):
+                    ms, notes = ms2, ["上岁末与本岁首接不上，改从参照上年九月朔起算"] + notes2
+            if ms is None:
+                detail.append((y, r, None, notes))
+                continue
+            chain[y] = ms[-1][2]
+            mrow = []
+            for m, l, j, key in ms:
+                cell = []
+                for t in plan[guo]:
+                    ref = refs[t]
+                    st[t]["n"] += 1
+                    same = ref.get(key) == j
+                    ins = j in set(ref.values())
+                    st[t]["same"] += same
+                    st[t]["inset"] += ins
+                    cell.append((t, same, ins, ref.get(key)))
+                mrow.append((m, l, j, cell))
+            detail.append((y, r, mrow, notes))
+        res[guo] = (st, detail)
+    return res
+
+
+def write_qh(o, qh):
+    if not qh:
+        return
+    o.append("## 漢初殷曆、顓頊曆兩行（卷二、三）\n")
+    o.append("目录自漢元年至太初元年逐岁并列殷曆（刻作「般」）、顓頊曆两家朔（序云「今所記月數皆因夏正」），十月岁首、闰在岁末称「後九月」。"
+             "两行分别展开（各行自身连续；首岁取本行参照上一年九月朔起算），逐月与参照比较。年为漢紀年所在天文年，十至十二月属上一天文年末。"
+             "殷曆行对 `calendar::guliuli`（殷历，子正，年终闰与无中气闰两法，换夏正月名）；顓頊曆行对 `calendar::zhuanxu`；两行皆对李忠林复原历"
+             "（`calendar::qinhan_restore`，漢初实用历之今人复原，前 106 年以后与张表同）。「同名月同日」= 夏正同名月朔日相同；「朔见参照」= 该朔日见于参照表任一月（不论月名闰位）。\n")
+    o.append("| 行 | 参照 | 月数 | 同名月同日 | 朔见参照 |")
+    o.append("|---|---|---|---|---|")
+    for guo, (st, _) in qh.items():
+        for t, v in st.items():
+            o.append(f"| {guo} | {t} | {v['n']} | {v['same']} | {v['inset']} |")
+    o.append("")
+    o.append("### 逐岁（只列与本行推步或李忠林复原有不同名月同日之月的岁）\n")
+    o.append("| 年 | 行 | PDF 页 | 原文 | 校读 | 不合之月（目录朔/参照朔） | 附注 |")
+    o.append("|---|---|---|---|---|---|---|")
+    for guo, (_, detail) in qh.items():
+        for y, r, mrow, notes in detail:
+            if mrow is None:
+                o.append(f"| {y} | {guo} | {r['PDF页']} | {r['朔闰原文']} | {r['校读']} | 不展开 | {'；'.join(notes)} |")
+                continue
+            bad = []
+            for m, l, j, cell in mrow:
+                for t, same, ins, rj in cell:
+                    if not same:
+                        bad.append(f"{t[:2]}{'閏' if l else ''}{MN[m]}{gzs(j)}/{gzs(rj) or '—'}")
+            if bad or notes:
+                nt = "；".join([x for x in [r.get('附注', '')] + notes if x])
+                o.append(f"| {y} | {guo} | {r['PDF页']} | {r['朔闰原文']} | {r['校读']} | {'，'.join(bad)} | {nt} |")
+    o.append("")
+
+
+def write_doc(year_rows, diff_rows, tot, by, qh=None):
     ys = [y for y, *_ in year_rows]
     o = []
     o.append("# 《资治通鉴目录》朔闰逐条检验\n")
@@ -359,8 +514,8 @@ def write_doc(year_rows, diff_rows, tot, by):
     o.append("- **限制**：读法为「参照」之岁（卷四至六 133—219 年大部、及各段扫描不清处）是对照张表核读的，其相合不是独立证据；"
              "评估目录与张表、推步的异同只应看「独立」栏。东汉 100—219 年已由未看张表者盲读：115 岁原文相同（读法「独立（盲读复核）」），"
              "140、164 两岁以盲读原文加校读为准（终读同现行），127、209、212 三岁两读未定（读法「独立（两读未定）」，附注记两读），检验单列「两读」、不计独立。")
-    o.append("- 未录：卷一至三（前 403—前 86）。卷一战国诸侯年表，无朔闰；卷二、三自汉元年起逐年并列殷历、颛顼历两家朔（「殷」字刻作「般」），"
-             "朔闰杂入正文、不在上栏，太初以前岁阳名又与干支纪年有一年之差（超辰），留待专门整理。\n")
+    o.append("- 卷一（战国）为诸侯年表，无朔闰，不录。卷二、三漢元年（前 206）至太初元年（前 104）殷曆、顓頊曆两行另节检验（见「漢初殷曆、顓頊曆兩行」）；"
+             "太初元年改用太初曆以后单行，与中原一线同法检验。目录岁名与干支纪年在此段一致（无超辰之差）。\n")
     o.append("## 分历\n")
     o.append("按本项目中原一线行用之历分段（推步不经仲裁，实物年亦照推；观象术不传无推步）；他国行以「国（政权）：历名」标出，只对分政权推步、不对张表。「只合推步」「只合张表」「皆不合」以月计。\n")
     o.append("| 历 | 年段 | 月数 | 合张表 | 合推步 | 独立：合张表 | 独立：合推步 | 参照及两读月数 | 只合推步 | 只合张表 | 皆不合 |")
@@ -372,6 +527,7 @@ def write_doc(year_rows, diff_rows, tot, by):
         o.append(f"| {nm} | {b['y0']}—{b['y1']} | {b['n']} | {b['z'] if b.get('nz') else '—'} | {pp} | {iz} | {ip} | {b.get('ref_n', 0)} | {b['only_p'] if b['pn'] else '—'} | "
                  f"{b['only_z'] if b['pn'] else '—'} | {b['none'] if b['pn'] else '—'} |")
     o.append("")
+    write_qh(o, qh)
     o.append("## 逐岁\n")
     o.append("| 年 | 岁次 | 国 | 卷 | PDF 页 | 目录原文 | 校读 | 读法 | 月数 | 合张表 | 合推步 | 附注 |")
     o.append("|---|---|---|---|---|---|---|---|---|---|---|---|")

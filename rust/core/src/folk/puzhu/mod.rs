@@ -540,7 +540,8 @@ fn minyong_names(yi: &[String]) -> Vec<&'static str> {
 /// - 出行：往亡、氣往亡、天賊、月厭、四離、四絕，或巳日（百忌「巳不遠行」，卷十作「巳日忌出行」）；
 /// - 移徙：歸忌、月厭；
 /// - 針刺：血忌、血支；
-/// - 動土（修造動土）：土府（建日）、土符、地囊；
+/// - 動土（修造動土）：土府（建日）、土符、地囊；乾隆三十一年体起（[`ZhuZiBan::for_year`] 非 `QianLong30`）又加五墓
+///   （协纪卷十五墓忌修造動土；三十一年正月廿五乙未、八月初四辛丑与三十三年七月十六辛丑书印，三十年同配置二日不印）；
 /// - 栽種：九焦（时宪书朱字作枯焦）、月煞、月厭，或乙日（百忌「乙不栽植」）。
 ///
 /// 触发神皆为协纪所载该事之忌神：往亡等见卷十各条；四離、四絕卷十同上朔「餘事皆忌」，而卷六四離條引李鼎祚
@@ -586,8 +587,9 @@ fn bu_yi_month(d: &PuzhuDay, m: u8, qs: BuYiQuShe) -> Vec<&'static str> {
     if ji("針刺") && (has("血忌") || has("血支")) {
         hits.push(hit("針刺", false, false));
     }
-    if ji("修造動土") && (has("土府") || has("土符") || has("地囊")) {
-        hits.push(hit("動土", false, !(has("土符") || has("地囊"))));
+    let wu_mu = has("五墓") && ZhuZiBan::for_year(nong_li_nian(d)) != ZhuZiBan::QianLong30;
+    if ji("修造動土") && (has("土府") || has("土符") || has("地囊") || wu_mu) {
+        hits.push(hit("動土", false, !(has("土符") || has("地囊") || wu_mu)));
     }
     let zai_zhong = has("九焦") || has("月煞") || has("月厭");
     if ji("栽種") && (zai_zhong || gan == 1) {
