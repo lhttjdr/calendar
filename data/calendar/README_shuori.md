@@ -363,6 +363,7 @@ in_month（日干支在该历所记之月）、jdn、julian、position（原文�
 | `xixia_song_shuorun.csv` | 转录（2026-11-22） | 彭向前《俄藏西夏历日文献整理研究》（2018）「西夏历与宋历朔闰对照表（1120—1207）」书页 469—514，1088 月：宋历与西夏历月序、大小、朔日、二历异同、文献；宋朔JDN 取张表，夏朔JDN 由干支差推得；「核」列注看图补录与书误。`scripts/calendar_data/xixia_songli_table.py`（OCR 后按坐标还原） |
 | `baoshan_records.csv` | 转录（2026-11-22） | 包山楚简纪日：明书「月名 + 干支之日」者自维基文库录文抽出并依原书校改（脚本 FIX 表注页码），所䛠名单取 baoshan_suofu.csv；同岁同月同干支只留一条；岁名与《包山楚墓》系年（致胙之岁 sui_year 记 zhi，逐年扫描），系年不明之岁记 ?；`scripts/calendar_data/baoshan_check.py` 生成 |
 | `shuihudi_records.csv`、`shuihudi_check.csv` | 转录（2026-11-25，《睡虎地秦墓竹简》文物出版社 1990，逐条对书页）；检验由 `scripts/calendar_data/shuihudi_check.py` 生成 | 睡虎地秦简《编年记》《语书》、《为吏之道》附魏律明书年月日（或朔、后九月）纪日 10 条；检验表为逐条 × 颛顼历与汉传六历（两种闰法），文档 `doc/calendar/shuihudi-checks.md` |
+| `qin_phase_records.csv`、`qin_phase_check.csv` | 转录（2026-11-26）：《奏谳书》10 条逐字对书页、《序意》1 条、里耶 435 条（据东京外国语大学 AA 研《里耶秦簡（壹）索引稿》2021 曆日索引，4 牍对图版核）；检验由 `scripts/calendar_data/qin_phase_check.py` 生成 | 秦王政元年至始皇三十五年纪日，与睡虎地、岳麓《质日》、周家台合读，逐条求秦历平朔相位 δ（距颛顼历平朔，分）的约束窗口，按年按地求可行域与最少段数，文档 `doc/calendar/qin-phase-checks.md` |
 | `baoshan_suofu.csv` | 转录（2026-11-22） | 包山楚简所䛠名单（简 162—196）纪日 170 条，据《包山楚简》（文物出版社 1991）释文书页 29—32 逐条转录：名单、月、干支、简；首简作「归胙」，属归胙之岁（维基文库录文误作「致」） |
 | `baoshan_check.csv` | 检验（2026-11-22） | 包山纪日对汉传六历、颛顼历，按楚正月当夏正某月、系年平移各假设的合数；同上脚本 |
 | `xincai_records.csv` | 转录（2026-11-22） | 新蔡葛陵楚简明书「岁名 + 月名 + 干支之日」纪日 31 条，据《新蔡葛陵楚墓》（大象出版社 2003）附录一释文书页 186—231 逐条转录：岁、月序、月、干支、简号、书页、注（岁名残补等）；`scripts/calendar_data/xincai_check.py` 检验 |

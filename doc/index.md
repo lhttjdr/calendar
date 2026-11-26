@@ -63,6 +63,7 @@
 | [xixia-calendar.md](calendar/xixia-calendar.md) | 西夏历日 1120—1207：彭向前整理俄藏 Инв.No.8085 等历书之朔闰对照表转录、核对（宋历一栏与张表全合）、接入推步政权表 |
 | [baoshan-checks.md](calendar/baoshan-checks.md) | 包山楚简纪日逐条检验（生成文件）：77 条纪日在颛顼、殷、鲁、周、黄帝、夏诸历中为月中第几日，各假设合数 |
 | [shuihudi-checks.md](calendar/shuihudi-checks.md) | 睡虎地秦简《编年记》《语书》与魏律纪日 10 条逐条检验（生成文件）：颛顼历合 8/8，汉传六历无一全合；秦王政二十年相位窗口与统一后秦历不连续；魏律闰再十二月惟夏历合 |
+| [qin-phase-checks.md](calendar/qin-phase-checks.md) | 秦王政至二世纪日对秦历合朔相位 δ 的逐条约束（生成文件）：中央与洞庭郡（《奏谳书》、《序意》、里耶索引稿）一个 δ ∈ [638, 649] 分全合，不容者只在南郡私记与岳麓购藏《质日》 |
 | [xincai-checks.md](calendar/xincai-checks.md) | 新蔡葛陵楚简纪日检验（生成文件）：31 条岁名·月·干支，组内自洽、前 450—前 350 年逐年相位窗口 |
 | [chu-sky-checks.md](calendar/chu-sky-checks.md) | 楚简纪日与实际月相对照（生成文件）：包山 87 条、新蔡前 398 年 19 条在颛顼平朔与看天（合朔日 + 0/1/2 日）下逐条合否 |
 | [s0612-runyue-checks.md](calendar/s0612-runyue-checks.md) | 斯0612 历序閏月（生成文件）：978 年应天历官本历序「六十相屬宫宿法」所列 919—978 年逐年閏月，与张表、中原一线比较（59/60 合，936 年漏书） |
