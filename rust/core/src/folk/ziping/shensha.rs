@@ -46,7 +46,8 @@ pub enum YangRenRule {
 /// 空亡依何柱之旬
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum KongWangBase {
-    /// 日柱：《三命通會》卷三「命中犯者當以日上見之為是，其餘不論」：缺省
+    /// 日柱：今人通行，缺省。（《三命通會》卷三「命中犯者當以日上見之為是，其餘不論」在《論十惡大敗》，
+    /// 说十恶大败日须见于日柱，非泛论空亡；萬曆六年刊本同。依日之书证待补，见 doc/folk/ziping.md 第九节）
     #[default]
     Day,
     /// 年柱（以生年之旬）

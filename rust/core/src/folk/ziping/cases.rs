@@ -153,7 +153,7 @@ fn san_ming_yi_you_yun() {
     let v = load_earth_vsop87_from_repo().unwrap();
     let sz = SiZhu::parse("辛丑庚寅乙巳甲申").unwrap();
     let t = zhang();
-    // 宋元明诸辛丑年（徐子平注《珞琭子》所举，或为宋人之命）
+    // 宋元明诸辛丑年（卷十一《明通賦》注引珞琭賦、徐子平解，或为宋人之命；萬曆六年刊本同文）
     for y in [941, 1001, 1061, 1121, 1181, 1241, 1301, 1361, 1421, 1481, 1541, 1601] {
         for j in find_days(&v, y, &sz) {
             let b = BirthInput { jd_tt: tt_at(j, 16.0), clock_utc_offset_hours: real(8.0), male: true };
