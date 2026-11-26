@@ -152,12 +152,62 @@ fn san_ming_da_yun_example() {
 fn san_ming_yi_you_yun() {
     let v = load_earth_vsop87_from_repo().unwrap();
     let sz = SiZhu::parse("辛丑庚寅乙巳甲申").unwrap();
-    for y in [1241, 1301, 1361, 1421, 1481, 1541, 1601] {
+    let t = zhang();
+    // 宋元明诸辛丑年（徐子平注《珞琭子》所举，或为宋人之命）
+    for y in [941, 1001, 1061, 1121, 1181, 1241, 1301, 1361, 1421, 1481, 1541, 1601] {
         for j in find_days(&v, y, &sz) {
             let b = BirthInput { jd_tt: tt_at(j, 16.0), clock_utc_offset_hours: real(8.0), male: true };
             let pan = pai_pan(&v, &b, 8, &ZipingOptions::default());
             let yun: Vec<String> = pan.da_yun.iter().map(|d| format!("{}{:.1}", gz_name(d.gz), d.age.as_f64())).collect();
-            println!("{y}\t{}\t起运{:.2}岁\t{}\t丙申={}", civil(j), pan.qi_yun.age.as_f64(), yun.join(" "), y + 55);
+            // 乙酉运（逆行第五步）交运之日与丙申年八月十九日
+            let yy = pan.da_yun[4];
+            let jy = (yy.start_jd_tt + real(0.5 + 8.0 / 24.0)).floor().to_i64_floor();
+            let death = lunar_jdn(t.as_ref(), y + 55, 8, false, 19);
+            let nian = death.map(|d| (d - jy) as f64 / 365.2422 + 1.0);
+            println!(
+                "{y}\t{}（{}）\t起运{:.2}岁\t{}\t乙酉交运 {}（{}）\t丙申八月十九 {:?} 为运内第 {:.2} 年",
+                civil(j),
+                lunar_str(t.as_ref(), j),
+                pan.qi_yun.age.as_f64(),
+                yun.join(" "),
+                civil(jy),
+                lunar_str(t.as_ref(), jy),
+                death.map(civil),
+                nian.unwrap_or(f64::NAN)
+            );
+            // 1301、1541 两造：丙申八月十九日在乙酉运第十年，即「前後五年」之后五年（支运）第五年
+            if y == 1301 || y == 1541 {
+                assert!(nian.is_some_and(|n| (10.0..11.0).contains(&n)), "{y}");
+            }
+        }
+    }
+}
+
+/// 《淵海》卷一、《三命》卷二交运例：「甲子年正月初一日子時正一刻生……其年內小六個月即進六日，在初七日……
+/// 却為本年有閏月（三命作閏四月）……當退還本年十二月初七日」——检各甲子年正月初一加三百六十日（十二月各作三十日）落在何日，
+/// 及所经十二月中小月之数、有无闰月
+#[test]
+fn jiao_yun_li_yue_example() {
+    let t = zhang();
+    for ly in [1204, 1264, 1324, 1384, 1444, 1504, 1564, 1624, 1984] {
+        let Some(j0) = lunar_jdn(t.as_ref(), ly, 1, false, 1) else { continue };
+        let j12 = j0 + 360;
+        // 十二个朔望月后之初一与小月数
+        let months: Vec<i64> = zhongyuan_months_in_jdn_range(t.as_ref(), j0, j0 + 400, ZhongyuanPreference::default())
+            .into_iter()
+            .map(|x| x.0)
+            .filter(|&m| m >= j0)
+            .collect();
+        let small = months.windows(2).take(12).filter(|w| w[1] - w[0] == 29).count();
+        let leap = zhongyuan_months_in_jdn_range(t.as_ref(), j0, months[12] - 1, ZhongyuanPreference::default())
+            .into_iter()
+            .filter(|x| x.0 >= j0 && x.3)
+            .map(|x| x.2)
+            .next();
+        println!("{ly}\t正月初一 {}\t+360 日 {}（{}）\t十二月中小月 {small}\t闰 {:?}", civil(j0), civil(j12), lunar_str(t.as_ref(), j12), leap);
+        // 《三命》「本年有閏四月……當退還本年十二月初七日」：弘治十七年甲子闰四月
+        if ly == 1504 {
+            assert_eq!((leap, jdn_lunar(t.as_ref(), j12).map(|x| (x.0, x.1, x.3))), (Some(4), Some((1504, 12, 7))));
         }
     }
 }

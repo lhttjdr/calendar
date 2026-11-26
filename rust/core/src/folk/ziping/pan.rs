@@ -4,7 +4,8 @@
 //! （`calendar::gan_zhi_options::pingqi_jds_from_dingqi`，表外年代仍用定气）。年以立春、月以十二节换，皆比到交节时刻；
 //! 日、时以钟点（`clock_utc_offset_hours` 所指时区的民用时）定，日界依 [DayBoundary]。
 //!
-//! 起运的折算诸说见 [QiYunRule]；节气时刻精确到秒，所以「数至未来/过去交节」可以精确到时辰以下（[QiYunPrecision]）。
+//! 起运的折算诸说见 [QiYunRule]；节气时刻精确到秒，所以「数至未来/过去交节」可以精确到时辰以下（[QiYunPrecision]）；
+//! 交节当日之「又說」见 [JiaoJieRi]；起运岁数落到日历上之法见 [JiaoYunRule]。
 
 use super::canggan::si_ling_with;
 use super::gong::{self, MingGongMonth};
@@ -16,8 +17,10 @@ use crate::calendar::gan_zhi_options::{jd_to_gan_zhi_index_with_options, pingqi_
 use crate::calendar::gregorian::Gregorian;
 use crate::math::real::{real, Real, RealOps};
 
-/// 一个回归年的日数，用于把起运岁数折成交运时刻
+/// 一个回归年的日数：[JiaoYunRule::HuiGuiNian] 折起运岁数、两法每运「十週年」之长
 const TROPICAL_YEAR: f64 = 365.2422;
+/// 运岁之日数（十二月、月作三十日）：[JiaoYunRule::LiYue]
+const YUN_SUI_DAYS: f64 = 360.0;
 
 /// 十二节在 24 气中的序（0 春分 … 23 驚蟄）：立春、驚蟄、清明……小寒；下标即月序（寅 = 0）
 const JIE: [usize; 12] = [21, 23, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19];
@@ -59,6 +62,33 @@ pub enum QiYunPrecision {
     Exact,
     /// 以时辰计（《三命通會》例「自二十四日巳時……至二十九申時，正得五日三時」；《淵海》「若學者不知生刻，獨知生時，則以生時扣算交節之時」）
     Shichen,
+}
+
+/// 交节当日生者之起运（《淵海子平》卷一《論起大運法》「又說」）
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum JiaoJieRi {
+    /// 照常折算（一时辰十日）：《淵海》正文与《三命通會》卷二只有「一辰十嵗」之折除，不另立交节当日之例。缺省
+    #[default]
+    ZhaoSuan,
+    /// 所数之节在生日当日者作一岁运（生于交节之时辰者，顺逆皆作一岁）：《淵海》同节「又說：如本生之日子時生者，就子時交節，不論逆順，皆起一歲運也；若丑時交節，
+    /// 順者以一時辰就作一歲運也，逆者而作十歲運也」。顺者所数即当日之节，不足一岁作一岁；逆者所数为上一节（约三十日前），
+    /// 照常约十岁，书中「十歲」即此，不另作处理
+    YiSui,
+}
+
+/// 交运时刻（起运岁数如何落到日历上）
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum JiaoYunRule {
+    /// 按历月逐月累加，小月进一日：《淵海子平》卷一《論起大運法》「行運之法，假如甲子年正月初一日子時正一刻生，行運筭至乙丑年
+    /// 正月初一日子時正一刻乃作一歲。其年內小六個月，即進六日，在初七日子時正一刻方作一歲。只要筭定十二月，却為本年有閏月，
+    /// 乃多一月矣，當退還本年十二月初七日子時正一刻交運。從此筭後十週年方換一運」；《三命通會》卷二《論大運》同（作「本年有閏四月」），
+    /// 并举「一嵗竒九月……必自十二月生日後實經厯過二十有一之日月運方移宫」。数满十二个朔望月（闰月亦数）再以小月补日，
+    /// 即每月作三十日、一岁三百六十日：交运 = 出生 + 起运日数 × 120 日（「一辰十日」之运日原数）。此后「十週年方換一運」，
+    /// 週年取回归年（农历同月同日之週年与之相差不过半月，排盘不取月历，未按农历月日）。缺省
+    #[default]
+    LiYue,
+    /// 起运岁数 × 回归年（365.2422 日）加于出生时刻，每运再加十个回归年：今人排盘常法，两书无此说
+    HuiGuiNian,
 }
 
 /// 小运起法
@@ -111,7 +141,7 @@ pub struct QiYun {
     pub years: i32,
     pub months: i32,
     pub day_part: i32,
-    /// 交运时刻 JD(TT)：出生 + 岁数 × 回归年
+    /// 交运时刻 JD(TT)：按 [JiaoYunRule]
     pub start_jd_tt: Real,
 }
 
@@ -224,23 +254,38 @@ fn qi_yun(
             real(((b - a).abs()) as f64) / real(12.0)
         }
     };
-    let (age, years, months, day_part) = match o.qi_yun {
-        QiYunRule::ShiLi => {
-            // 一日 = 120 日（四月），一岁 = 360 日
-            let life = days * real(120.0);
-            let y = (life / real(360.0)).floor().to_i32_floor();
-            let rem = life - real(360.0 * y as f64);
-            let m = (rem / real(30.0)).floor().to_i32_floor();
-            let d = (rem - real(30.0 * m as f64)).floor().to_i32_floor();
-            (days / real(3.0), y, m, d)
-        }
-        QiYunRule::ZhengSui => {
-            let n = days.to_i32_round();
-            let y = n / 3 + if n % 3 == 2 { 1 } else { 0 };
-            (real(y as f64), y, 0, 0)
+    // 又說：所数之节在生日当日（钟点民用日）；或生于交节之时辰（「子時生者就子時交節，不論逆順」），则不论所数为哪一节
+    let jiao_jie_ri = o.jiao_jie_ri == JiaoJieRi::YiSui && {
+        let day = |t: Real| (clock_jd(t, clock_off) + real(0.5)).floor().to_i64_floor();
+        let sc = |t: Real| shichen_serial(clock_jd(t, clock_off));
+        let other = if forward { prev.1 } else { next.1 };
+        day(birth) == day(jie_jd) || sc(birth) == sc(other)
+    };
+    let (age, years, months, day_part) = if jiao_jie_ri {
+        (real(1.0), 1, 0, 0)
+    } else {
+        match o.qi_yun {
+            QiYunRule::ShiLi => {
+                // 一日 = 120 日（四月），一岁 = 360 日
+                let life = days * real(120.0);
+                let y = (life / real(360.0)).floor().to_i32_floor();
+                let rem = life - real(360.0 * y as f64);
+                let m = (rem / real(30.0)).floor().to_i32_floor();
+                let d = (rem - real(30.0 * m as f64)).floor().to_i32_floor();
+                (days / real(3.0), y, m, d)
+            }
+            QiYunRule::ZhengSui => {
+                let n = days.to_i32_round();
+                let y = n / 3 + if n % 3 == 2 { 1 } else { 0 };
+                (real(y as f64), y, 0, 0)
+            }
         }
     };
-    QiYun { forward, jie, jie_jd_tt: jie_jd, days, age, years, months, day_part, start_jd_tt: birth + age * real(TROPICAL_YEAR) }
+    let per_sui = match o.jiao_yun {
+        JiaoYunRule::LiYue => YUN_SUI_DAYS,
+        JiaoYunRule::HuiGuiNian => TROPICAL_YEAR,
+    };
+    QiYun { forward, jie, jie_jd_tt: jie_jd, days, age, years, months, day_part, start_jd_tt: birth + age * real(per_sui) }
 }
 
 /// 排盘：四柱、起运与大运（`n_yun` 步）、胎元、命宫身宫、胎息与变、人元司令
@@ -257,7 +302,8 @@ pub fn pai_pan(vsop: &Vsop87, b: &BirthInput, n_yun: usize, o: &ZipingOptions) -
         .map(|k| {
             let gz = (month as i32 + if forward { k } else { -k }).rem_euclid(60) as u8;
             let age = qy.age + real(10.0 * (k - 1) as f64);
-            DaYun { gz, age, start_jd_tt: b.jd_tt + age * real(TROPICAL_YEAR) }
+            // 首运交运后「十週年方換一運」（两法同）
+            DaYun { gz, age, start_jd_tt: qy.start_jd_tt + real(10.0 * TROPICAL_YEAR * (k - 1) as f64) }
         })
         .collect();
 
@@ -352,6 +398,27 @@ mod tests {
         assert_eq!(qy(8.0, &z).years, 3);
         assert_eq!(qy(7.0, &z).years, 2);
         assert_eq!(qy(6.0, &z).years, 2);
+    }
+
+    #[test]
+    fn jiao_yun_rules() {
+        let birth = real(2_451_545.0);
+        // 三命例：一岁奇九月，「實經厯過二十有一之日月」，月作三十日：六百三十日
+        let q = qy(5.0 + 3.0 / 12.0, &o());
+        assert!((q.start_jd_tt - birth - real(630.0)).abs() < real(1e-6));
+        // 淵海例：一岁运「其年內小六個月即進六日」：十二月共三百六十日
+        assert!((qy(3.0, &o()).start_jd_tt - birth - real(360.0)).abs() < real(1e-6));
+        let h = ZipingOptions { jiao_yun: JiaoYunRule::HuiGuiNian, ..o() };
+        assert!((qy(3.0, &h).start_jd_tt - birth - real(TROPICAL_YEAR)).abs() < real(1e-6));
+        // 交节当日「又說」：顺者一时辰作一岁；逆者数上一节照常（约十岁）；生于交节之时辰者逆亦一岁
+        let y = ZipingOptions { jiao_jie_ri: JiaoJieRi::YiSui, ..o() };
+        assert_eq!(qy(1.0 / 12.0, &o()).day_part, 10);
+        let q = qy(1.0 / 12.0, &y);
+        assert_eq!((q.years, q.months, q.day_part), (1, 0, 0));
+        let ni = |next: f64, o: &ZipingOptions| qi_yun(birth, real(8.0), false, (21, birth - real(30.0)), (23, birth + real(next)), o);
+        assert_eq!(ni(1.0 / 12.0, &y).years, 10);
+        assert_eq!(ni(0.01, &y).years, 1);
+        assert_eq!(ni(0.01, &o()).years, 10);
     }
 
     #[test]
