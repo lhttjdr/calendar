@@ -192,6 +192,10 @@ fx(8, "開", ("note", "丁己辛癸", None, "又有「掘樹」，未入事目")
 
 # ---------- 九月 ----------
 fx(9, "除", ("add", "辛", [("諸事", "忌", "", "辛亥純陰之氣、非陽間所用", "")], "补"))
+fx(9, "破",
+   ("set", "庚壬", [("諸事", "忌", "", "餘辰更不吉", "")],
+    "据书影（光緒本第 55 页）改：录文「天月二德、修造小吉」未举干支，初稿推及丙庚壬辰；书影作「丙辰天月二德修造小吉」（九月天德月德皆在丙），庚辰、壬辰属「余辰日更不吉」"),
+   ("note", "丙", None, "书影明指丙辰"))
 fx(9, "滿", ("set", "甲", [("諸事", "宜", "", "甲子有黃羅紫檀星蓋照可用", "")], "后出之说覆盖「餘子日不宜用事」；初稿误作忌"))
 fx(9, "定", ("add", "壬", [("諸事", "忌", "", "壬寅犯月厭、受死無解", "")], "补"))
 fx(9, "危", ("add", "丁己辛癸", [("修造", "宜", "次吉", "餘巳次吉、只宜小作可用", "小作")], "补条件之宜"))
@@ -318,9 +322,23 @@ for (m, jc), ops in F.items():
 
 # 同日：泛言「諸事」与同宜忌之专事并存时，专事保留（原文明举）
 rows.sort(key=lambda r: (int(r["月"]), "建除滿平定執破危成收開閉".index(r["建除"]), GAN.index(r["干支"][0]), ORDER.index(r["事"]), r["条件"]))
+# 书影校（《董公擇日秘要》光緒十九年林豫芬重刊本之翻印，见 dong_gong_shuying.py）：条目级校记入原文表；
+# 影响宜忌（影响 1）者，判定表该条诸日另注（九月破辰已据书影改，不再注）
+import dong_gong_shuying as shuying  # noqa: E402
+
+for m, jc, pg, txt, imp in shuying.SHUYING:
+    enotes.setdefault((m, jc), []).append(f"书影（光緒本第 {pg} 頁）：{txt}")
+    if imp == 1 and (m, jc) != (9, "破"):
+        for r in rows:
+            if int(r["月"]) == m and r["建除"] == jc:
+                addnote(r, "书影宜忌有异文（见原文表校列），判定仍据录文")
+    elif imp == 2:
+        for r in rows:
+            if int(r["月"]) == m and r["建除"] == jc:
+                addnote(r, "书影有异文、文义两可（见原文表校列）")
 assert not any("," in x or '"' in x for r in rows for x in r.values())
-tables.write(OUT, rows)
 for e in ents:
     e["校"] = "；".join(enotes.get((int(e["月"]), e["建除"]), []))
+tables.write(OUT, rows)
 tables.write(ENTRY, ents)
 print(OUT, len(rows), "日", len({(r["月"], r["干支"]) for r in rows}), "校", sum(1 for r in rows if r["校"]))

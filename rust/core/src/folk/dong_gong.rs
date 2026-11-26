@@ -345,6 +345,16 @@ mod tests {
         assert!(has(&d, "起造", true) && has(&d, "安葬", true));
     }
 
+    /// 九月破辰：录文「天月二德、修造小吉」未举干支，据书影（光緒本「丙辰天月二德修造小吉」）只及丙辰，庚辰、壬辰属「余辰日更不吉」
+    #[test]
+    fn jiu_yue_po_chen_shuying() {
+        assert!(has(&day(9, "丙辰"), "修造", true));
+        for gz in ["庚辰", "壬辰"] {
+            let d = day(9, gz);
+            assert!(has(&d, "諸事", false) && !has(&d, "修造", true), "{gz}");
+        }
+    }
+
     /// 十二月：開亥「辛亥陰氣太甚、非陽間所用」；閉子「甲子天赦是進神並戊子宜小可修、為吉。若大用之則凶禍纏繞」
     #[test]
     fn shi_er_yue() {

@@ -48,11 +48,12 @@ pub const PALACES: [&str; 12] = ["命宮", "財帛", "兄弟", "田宅", "男女
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LuoJi {
     /// 计都为升交点、罗睺为降交点：回回历《七政推步》卷一「計都與月相離度……在初宮至五宮為黃道北」；
+    /// 明《大統曆法通軌·四餘通軌》立成（[`DATONG_JI`]，洪武甲子计都距平升交点 −1.4°）；《御定七政四餘萬年書》乾隆二十九年（1764）以后；
     /// 道光十三年（1833）七政经纬躔度时宪书实测（罗计差 25′ 内）。缺省
     JiAscending,
     /// 罗睺为升交点（正交）、计都为降交点：《明史》卷三十一崇祯改历议「羅喉、計都即正交、中交行度」；
     /// 康熙九年（1670）七政经纬躔度时宪历实测（罗睺差 30′、计都差 36′）；杨光先《不得已·摘謬十論》第八謬
-    /// 「顛倒羅計之新……不過以羅為計，以計為羅」即斥此（相对回回旧法）。印度 Rāhu 亦为北交点
+    /// 「顛倒羅計之新……不過以羅為計，以計為羅」即斥此（相对回回旧法）。《御定七政四餘萬年書》至乾隆二十八年（1763）仍如此。印度 Rāhu 亦为北交点
     LuoAscending,
 }
 
@@ -79,11 +80,16 @@ pub enum BeiKind {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ZiQiRule {
     /// 清时宪书：自道光十三年七政经纬躔度时宪书逐旬紫炁宿度反推之匀速运动（周期 28 年、历元黄经见 [`ZIQI_SHIXIAN`]）。
-    /// 推法原文未见，属据实物反推。缺省
+    /// 推法原文未见，属据实物反推
     ShiXian,
     /// 朝鲜南相吉《推步捷例》（1861）上「求紫氣宿度」：「紫氣每日平行爲一百二十六秒七二○七七七……以乾隆甲子爲元……
     /// 又加紫氣應七宮十七度五十分十四秒五三爲年根」，见 [`ZIQI_TUIBU`]。与道光十三年反推之 [`ShiXian`](Self::ShiXian) 差 0′—6′，对宣統二、三年时宪书皆差 +1′、+3′
     TuiBuJieLi,
+    /// 明《大統曆法通軌·四餘通軌》（元統編）「推四餘立成鈐」紫氣：洪武甲子元，至後策八千一百九十四日九十六分二十三秒，
+    /// 周積一萬〇二百二十七日一千七百九十分，度率二十八日（一日行一度之二十八分之一），入箕宿初度起；見 [`DATONG_ZIQI`]。
+    /// 箕初取授时「冬至赤道箕十度」投影于黄道（冬至前 9.0489°，[`DATONG_JI0`]），则与《推步捷例》乾隆甲子紫氣應相差 0.1′，
+    /// 可见清乾隆九年所增紫炁即续大統之数。缺省
+    DaTong,
     /// 不用紫炁（汤若望新法删之；《明史》卷三十一「天行無紫氣……知為妄增」）
     None,
 }
@@ -100,6 +106,32 @@ pub const ZIQI_TUIBU: (f64, f64, f64) = (
     270.0 + 7.0 * 30.0 + 17.0 + 50.0 / 60.0 + 14.53 / 3600.0 - 360.0,
     360.0 * 3600.0 / 126.7207777,
 );
+
+/// 《大統曆法通軌·四餘通軌》四余立成（天文第13组《交食通軌日食通軌月食通軌四餘通軌五星通軌》PDF 第 59—75 页）：
+/// (至後策 日, 周積 日, 度率 日/古度)。至後策为洪武甲子歲前天正冬至时该余自起宿（紫氣、月孛入箕宿初度顺行，羅睺、計都入尾宿末度逆行）
+/// 已行之日；立成「箕九度二百六十八日五十二分」可证「分」为百分之一日
+pub const DATONG_ZIQI: (f64, f64, f64) = (8194.9623, 10227.179, 28.0);
+/// 同上，月孛：至後策一千二百二十日四十六分五十九秒，周積三千二百三十一日九千六百八十四分，度率八日八四八四九二
+pub const DATONG_BEI: (f64, f64, f64) = (1220.4659, 3231.9684, 8.848492);
+/// 同上，羅睺、計都（「法同用」）：羅睺至後策五千三百三十三日六二一七、計都一千九百三十六日九〇〇一（二者差半周積三千三百九十六日七二一六），
+/// 周積六千七百九十三日四四三二，度率一十八日五九九〇七七六
+pub const DATONG_LUO: (f64, f64, f64) = (5333.6217, 6793.4432, 18.5990776);
+pub const DATONG_JI: (f64, f64, f64) = (1936.9001, 6793.4432, 18.5990776);
+/// 大統历元：洪武甲子（1384）歲前天正冬至，氣應五十五日〇三七五分，即洪武十六年十一月己未（1383-12-14，儒略历）0.0375 日，
+/// 應天（南京，东经 118.8°）地方时；化为 JD(UT)
+pub const DATONG_EPOCH_JD: f64 = 2226546.0 - 0.5 + 0.0375 - 118.8 / 360.0;
+/// 大統箕宿初度之黄经（°，冬至为 270°）：授时「冬至赤道箕十度」，黄赤大距二十三度九十分（古度），
+/// 赤经差 10 古度投影于黄道：tan x = cos ε · tan 10 古度，x = 9.0489°（合授时黄道箕 9.18 古度为冬至）
+pub const DATONG_JI0: f64 = 270.0 - 9.0489;
+
+/// 大統紫氣（[`ZiQiRule::DaTong`]）于 `jd`（UT 或 TT，日以下差可忽略）之黄经（°）：箕初 + 至後策 ÷ 度率（古度化度）
+pub fn zi_qi_datong(jd: Real) -> Real {
+    let (z0, p, rate) = DATONG_ZIQI;
+    let x = jd - real(DATONG_EPOCH_JD) + real(z0);
+    let z = x - real(p) * (x / real(p)).floor();
+    // 大統周天三百六十五度二十五分七十五秒
+    norm360(real(DATONG_JI0) + z / real(rate) * real(360.0 / 365.2575))
+}
 
 /// 命宫之法
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -551,7 +583,7 @@ impl Default for QizhengOptions {
             luo_ji: LuoJi::JiAscending,
             node: NodeKind::True,
             bei: BeiKind::MeanApogee,
-            zi_qi: ZiQiRule::ShiXian,
+            zi_qi: ZiQiRule::DaTong,
             ming: MingRule::SunOnHour,
             gong: GongRule::ZhongQi,
             ming_zhu: MingZhuRule::DuZhu,
@@ -816,12 +848,13 @@ pub fn chart<P: EphemerisProvider>(
     yao.push(mk("計都", ji, None, true));
     yao.push(mk("月孛", apogee, None, false));
     let zq = match o.zi_qi {
-        ZiQiRule::ShiXian => Some(ZIQI_SHIXIAN),
-        ZiQiRule::TuiBuJieLi => Some(ZIQI_TUIBU),
+        ZiQiRule::ShiXian => Some(norm360(real(ZIQI_SHIXIAN.1) + real(360.0) * (jd - real(ZIQI_SHIXIAN.0)) / real(ZIQI_SHIXIAN.2))),
+        ZiQiRule::TuiBuJieLi => Some(norm360(real(ZIQI_TUIBU.1) + real(360.0) * (jd - real(ZIQI_TUIBU.0)) / real(ZIQI_TUIBU.2))),
+        ZiQiRule::DaTong => Some(zi_qi_datong(jd)),
         ZiQiRule::None => None,
     };
-    if let Some((j0, l0, p)) = zq {
-        yao.push(mk("紫炁", norm360(real(l0) + real(360.0) * (jd - real(j0)) / real(p)), None, false));
+    if let Some(l) = zq {
+        yao.push(mk("紫炁", l, None, false));
     }
     let sun_gong = yao[0].gong;
     let (ming, ming_lon) = match (o.ming, lst_lat) {
@@ -1136,6 +1169,22 @@ mod tests {
                 let (xi, du) = y.xiu.unwrap();
                 assert_eq!(MANSIONS[xi], x, "{dd} {name}");
                 assert!((du.as_f64() - d).abs() * 60.0 < 30.0, "{dd} {name}: {} vs {d}", du.as_f64());
+            }
+            // 紫炁三说对书（角宿；书逐旬宿度见 doc/folk/qizheng.md §三）
+            let zi_book = match dd {
+                0 => 2.0 + 38.0 / 60.0,
+                20 => 3.0 + 20.0 / 60.0,
+                39 => 4.0,
+                59 => 4.0 + 43.0 / 60.0,
+                79 => 5.0 + 25.0 / 60.0,
+                _ => 6.0 + 26.0 / 60.0,
+            };
+            for zq in [ZiQiRule::DaTong, ZiQiRule::TuiBuJieLi, ZiQiRule::ShiXian] {
+                let c = chart(&eph, t, Some(&frame), 0, None, &QizhengOptions { zi_qi: zq, ..Default::default() }, &opts);
+                let (xi, du) = c.yao[10].xiu.unwrap();
+                let diff = (du.as_f64() - zi_book) * 60.0;
+                eprintln!("道光十三年 +{dd} 日 紫炁 {zq:?}: 书角{zi_book:.2} 算{}{:.2} 差{diff:+.1}′", MANSIONS[xi], du.as_f64());
+                assert!(MANSIONS[xi] == "角" && diff.abs() < 5.0, "{dd} {zq:?}");
             }
             if dd == 0 {
                 assert!((c.yao[0].lon.as_f64() - (330.0 + 51.0 / 60.0)).abs() * 60.0 < 2.0);
@@ -1653,13 +1702,93 @@ mod tests {
             }
             // 紫炁两说（道光十三年反推、《推步捷例》乾隆甲子元）对宣統本
             if let Some((x, d)) = zi {
-                for zq in [ZiQiRule::ShiXian, ZiQiRule::TuiBuJieLi] {
+                for zq in [ZiQiRule::DaTong, ZiQiRule::ShiXian, ZiQiRule::TuiBuJieLi] {
                     let c = chart(&eph, t, Some(&frame), 0, None, &QizhengOptions { zi_qi: zq, ..Default::default() }, &opts);
                     let (xi, du) = c.yao.iter().find(|q| q.name == "紫炁").unwrap().xiu.unwrap();
                     let diff = (du.as_f64() - d) * 60.0;
                     eprintln!("{y} 紫炁 {zq:?}: 书{x}{d:.2} 算{}{:.2} 差{diff:+.0}′", MANSIONS[xi], du.as_f64());
                     assert!(MANSIONS[xi] == x && diff.abs() < 10.0, "{y} {zq:?}");
                 }
+            }
+        }
+    }
+
+    /// 《御定七政四餘萬年書》乾隆十至三十一年正月初一罗睺、计都（data/folk/qizheng_wannianshu_luoji.csv）：
+    /// 书之宿度化黄经（清距星 + 度），与真交点比，定罗睺在升交点抑降交点。乾隆十年至二十八年（1745—1763）罗睺升交，
+    /// 二十九年（1764）起计都升交；书与推算差多在 2° 内（整度、真交点均数之异）
+    #[test]
+    fn wannianshu_luo_ji() {
+        use crate::astronomy::ephemeris::elpmpp02::{load_all, Elpmpp02Correction};
+        use crate::astronomy::ephemeris::vsop87_patch::PatchTarget;
+        use crate::astronomy::ephemeris::{load_earth_vsop87_corrected_from_repo, load_planet_vsop87_corrected_from_repo};
+        use crate::astronomy::frame::nutation::try_init_full_nutation_from_repo;
+        use crate::astronomy::pipeline::{Vsop87Elp, Vsop87Planets};
+        use crate::astronomy::sky_culture::chinese::load_lunar_mansion_systems_from_repo;
+        use crate::astronomy::stars::load_hipparcos_bright_from_repo;
+        use crate::calendar::chinese_lunar::{compute_year_data, to_julian_day, tt_to_day_number_utc8, ChineseLunarDate};
+        use crate::quantity::angle::PlaneAngle;
+        let _ = try_init_full_nutation_from_repo();
+        let earth = load_earth_vsop87_corrected_from_repo(PatchTarget::DEFAULT).unwrap();
+        let planets: Vec<_> = [Planet::Mercury, Planet::Venus, Planet::Mars, Planet::Jupiter, Planet::Saturn]
+            .iter()
+            .map(|&p| (p, load_planet_vsop87_corrected_from_repo(p, PatchTarget::DEFAULT).unwrap()))
+            .collect();
+        let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT).unwrap();
+        let eph = Vsop87Elp { planets: Vsop87Planets { earth: &earth, planets: planets.iter().map(|(p, v)| (*p, v)).collect() }, moon: &elp };
+        let cat = load_hipparcos_bright_from_repo().unwrap();
+        let sys = load_lunar_mansion_systems_from_repo().unwrap().into_iter().find(|s| s.id == "qing").unwrap();
+        let opts = ApparentPipelineOptions::pipeline_default();
+        // (年, 罗睺, 计都)：书之正月初一宿度（宿名取 MANSIONS 字形）
+        type Xd = Option<(&'static str, f64)>;
+        let book: [(i32, Xd, Xd); 22] = [
+            (1745, Some(("壁", 9.0)), Some(("轸", 8.0))),
+            (1746, Some(("室", 5.0)), Some(("翼", 5.0))),
+            (1747, Some(("危", 5.0)), Some(("张", 4.0))),
+            (1748, Some(("女", 8.0)), Some(("柳", 9.0))),
+            (1749, Some(("斗", 20.0)), Some(("井", 24.0))),
+            (1750, Some(("箕", 9.0)), Some(("井", 6.0))),
+            (1751, Some(("尾", 7.0)), None),
+            (1752, Some(("氐", 17.0)), Some(("昴", 2.0))),
+            (1753, Some(("亢", 9.0)), Some(("娄", 9.0))),
+            (1754, Some(("轸", 12.0)), Some(("奎", 2.0))),
+            (1755, Some(("翼", 10.0)), Some(("室", 10.0))),
+            (1756, Some(("张", 9.0)), Some(("危", 12.0))),
+            (1757, Some(("柳", 14.0)), Some(("虚", 2.0))),
+            (1758, Some(("鬼", 2.0)), Some(("牛", 2.0))),
+            (1759, Some(("井", 11.0)), Some(("斗", 6.0))),
+            (1760, None, Some(("尾", 11.0))),
+            (1761, Some(("毕", 0.0)), Some(("心", 1.0))),
+            (1762, Some(("胃", 3.0)), Some(("氐", 5.0))),
+            (1763, Some(("奎", 6.0)), Some(("角", 4.0))),
+            (1764, Some(("翼", 15.0)), Some(("壁", 0.0))),
+            (1765, Some(("张", 15.0)), Some(("危", 17.0))),
+            (1766, Some(("星", 4.0)), Some(("虚", 8.0))),
+        ];
+        let dif = |a: f64, b: f64| (a - b + 540.0).rem_euclid(360.0) - 180.0;
+        for (y, luo, ji) in book {
+            let yd = compute_year_data(&earth, &elp, y, PlaneAngle::from_rad(real(1e-9)), 30).unwrap();
+            let date = ChineseLunarDate { year: y, month: 1, day: 1, is_leap_month: false, days_in_month: 30 };
+            let dn = tt_to_day_number_utc8(to_julian_day(date, &yd).unwrap());
+            let t = TimePoint::new(TimeScale::UT1, real(dn as f64 - 0.5 - 116.4 / 360.0)).to_scale(TimeScale::TT);
+            let frame = MansionFrame::new(&eph, &cat, &sys, t, &opts).unwrap();
+            let ml = mansion_longitudes(&frame, t);
+            let lon_of = |(x, d): (&str, f64)| ml[MANSIONS.iter().position(|m| *m == x).unwrap()].as_f64() + d;
+            // 罗睺升交下之罗睺、计都黄经
+            let c = chart(&eph, t, Some(&frame), 0, None, &QizhengOptions { luo_ji: LuoJi::LuoAscending, ..Default::default() }, &opts);
+            let (asc, desc) = (c.yao[7].lon.as_f64(), c.yao[8].lon.as_f64());
+            let mut d_luo_asc = vec![];
+            for (v, sign) in [(luo, 0.0), (ji, 180.0)] {
+                if let Some(x) = v {
+                    d_luo_asc.push(dif(lon_of(x) + sign, asc));
+                }
+            }
+            let luo_asc = d_luo_asc.iter().all(|d| d.abs() < 90.0);
+            let err: Vec<String> = d_luo_asc.iter().map(|d| format!("{:+.1}°", if luo_asc { *d } else { dif(*d, 180.0) })).collect();
+            eprintln!("萬年書 {y}：罗睺{:?} 计都{:?}；推算升交 {asc:.2}° 降交 {desc:.2}°；{}升交，书差 {}", luo, ji, if luo_asc { "罗睺" } else { "计都" }, err.join(" "));
+            assert_eq!(luo_asc, y < 1764, "{y}");
+            for d in &d_luo_asc {
+                let e = if luo_asc { *d } else { dif(*d, 180.0) };
+                assert!(e.abs() < 4.0, "{y}: {e}");
             }
         }
     }
@@ -1675,6 +1804,50 @@ mod tests {
         }
         // 历元：乾隆甲子天正冬至次日子正平黄经 137.837°
         assert!((lon(ZIQI_TUIBU, ZIQI_TUIBU.0) - 137.8374).abs() < 1e-3);
+    }
+
+    /// 大統紫氣（洪武甲子元）与《推步捷例》乾隆甲子紫氣應：大統紫氣入箕初之时，清紫炁平黄经恒为 260.953°（1585—1893 各周差 0.01° 内），
+    /// 即箕初在冬至前 9.047°，与授时「冬至赤道箕十度」投影之 9.0489° 差 0.1′；两说全程差 2′ 内
+    #[test]
+    fn zi_qi_datong_vs_tuibu() {
+        let tuibu = |jd: f64| norm360(real(ZIQI_TUIBU.1) + real(360.0) * (real(jd) - real(ZIQI_TUIBU.0)) / real(ZIQI_TUIBU.2)).as_f64();
+        let (z0, p, _) = DATONG_ZIQI;
+        for k in 8..20 {
+            // 大統紫氣入箕宿初度之时
+            let jd = DATONG_EPOCH_JD - z0 + k as f64 * p;
+            let l = tuibu(jd + 1e-6);
+            eprintln!("大統紫氣入箕初 JD {jd:.2}（{:.1} 年）：推步捷例平黄经 {l:.4}°，冬至前 {:.4}°", 2000.0 + (jd - 2451545.0) / 365.25, 270.0 - l);
+            assert!((270.0 - l - (270.0 - DATONG_JI0)).abs() * 60.0 < 1.0, "{k}");
+        }
+        // 乾隆甲子历元、道光十三年、宣統二三年正月初一
+        for jd in [ZIQI_TUIBU.0, 2390598.5, 2418702.5, 2419086.5, 2451545.0] {
+            let d = (zi_qi_datong(real(jd)).as_f64() - tuibu(jd) + 540.0).rem_euclid(360.0) - 180.0;
+            eprintln!("JD {jd}：大統 {:.4}°，推步捷例 {:.4}°，差 {:+.2}′", zi_qi_datong(real(jd)).as_f64(), tuibu(jd), d * 60.0);
+            assert!(d.abs() * 60.0 < 2.0);
+        }
+    }
+
+    /// 大統四余立成（[`DATONG_LUO`] 等）：在大統箕初（[`DATONG_JI0`]，冬至固定）之下，計都合平升交点、月孛合平远地点，
+    /// 洪武甲子历元处差 −1.4°、−0.3°；此后计都之差每年约 −0.014°（近岁差 50″），即大統罗计宿度随恒星、不随冬至。
+    /// 可见大統亦以計都为升交，与回回《七政推步》同、与崇祯新法及清初相反
+    #[test]
+    fn datong_luo_ji_bei() {
+        let at = |(z0, p, rate): (f64, f64, f64), jd: f64, sign: f64| {
+            let x = jd - DATONG_EPOCH_JD + z0;
+            let z = x - p * (x / p).floor();
+            (DATONG_JI0 + sign * z / rate * 360.0 / 365.2575).rem_euclid(360.0)
+        };
+        let dif = |a: f64, b: f64| (a - b + 540.0).rem_euclid(360.0) - 180.0;
+        for (y, ji_max, bei_max) in [(1384, 2.0, 0.5), (1500, 3.5, 1.5), (1600, 5.0, 2.0), (1744, 7.0, 3.0)] {
+            let jd = DATONG_EPOCH_JD + 365.2425 * (y - 1384) as f64;
+            let t = TimePoint::new(TimeScale::TT, real(jd));
+            let node = mean_ascending_node(t).as_f64();
+            let apo = (mean_perigee(t).as_f64() + 180.0).rem_euclid(360.0);
+            let (ji, luo, bei) = (at(DATONG_JI, jd, -1.0), at(DATONG_LUO, jd, -1.0), at(DATONG_BEI, jd, 1.0));
+            eprintln!("{y}：計都 {ji:.2} 羅睺 {luo:.2} 平升交 {node:.2}（差 {:+.2}°）；月孛 {bei:.2} 平远地点 {apo:.2}（差 {:+.2}°）", dif(ji, node), dif(bei, apo));
+            assert!(dif(ji, node).abs() < ji_max && dif(bei, apo).abs() < bei_max, "{y}");
+            assert!((dif(luo, ji).abs() - 180.0).abs() < 1e-3);
+        }
     }
 
     #[test]
