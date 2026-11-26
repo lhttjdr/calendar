@@ -8,6 +8,9 @@
 //!   官历（时宪书）不用。卷三十五附錄「男女九宫」引《三元經》男命上元起坎一，谓世俗「誤以上元為中元」；
 //!   卷三十六指出鐵掃帚火局取死月、益財金命十月起、土命七月起、女命火木金早一月、死墓絕妨夫誤與男命同等
 //!   「傳寫之譌」。本模块「协纪」选项即按协纪所述之法（命宫依《三元經》，五行月按长生十二位）推，不是协纪所用。
+//!   卷三十六末「具錄立成於左」，四库录文表空，以浙大藏四库本书影（`06056527.cn` PDF 第 19—25 页）补录：
+//!   立成男命起宫仍是世传之例（上元七，同类编），鐵掃帚女火局七月（同类编，不合正文「死月」），而益財、退財、
+//!   死墓絕妨夫已按正文改正，即「协纪立成」选项。
 //! - **星命诸煞**：陰錯陽差（类编、《星學大成》卷三、《三命通會》卷三同十二日）、孤鸞（《星學大成》卷三、
 //!   《三命通會》卷三八日；卷十二注四日）、曲脚、平頭（类编）。
 //!
@@ -38,6 +41,8 @@ pub enum HeHunShu {
     AoTou,
     /// 协纪卷三十五、三十六所述之法（三元經起宫，五行月按长生十二位推）
     XieJi,
+    /// 协纪卷三十六「合婚立成」之表：起宫、鐵掃帚同类编，益財退財、望門、多厄、死墓絕按长生十二位（正文所正）
+    XieJiLiCheng,
 }
 
 /// 孤鸞之日
@@ -157,7 +162,8 @@ fn run(start: u8, n: u8) -> u16 {
 
 // ───────────────────────── 第 1 层：三元命宫与命卦 ─────────────────────────
 
-/// 起宫（甲子年所在宫）：类编、鳌头男上元七、中元一、下元四；协纪引《三元經》男上元一、中元四、下元七。女三家同：上元五、中元二、下元八
+/// 起宫（甲子年所在宫）：类编、鳌头男上元七、中元一、下元四；协纪引《三元經》男上元一、中元四、下元七
+///（协纪卷三十六立成仍作上元七）。女诸家同：上元五、中元二、下元八
 pub fn qi_gong(xing: Xing, yuan: SanYuan, shu: HeHunShu) -> u8 {
     let i = yuan.idx();
     match (xing, shu) {
@@ -316,7 +322,7 @@ pub fn gu_sui_po_month(year_zhi: u8) -> u8 {
 
 /// 鐵掃帚（男掃女家、女掃男家）：本人生年三合局对本人生月。
 /// 类编、鳌头：男 水局正、金局六、火局四、木局二月；女 水局十二、金局九、火局七、木局八月。
-/// 协纪述其法「火局取臨官與死月」，女火局作八月（死在酉）。
+/// 协纪述其法「火局取臨官與死月」，女火局作八月（死在酉）；协纪立成则作七月，同类编。
 pub fn tie_sao_zhou_month(xing: Xing, year_zhi: u8, shu: HeHunShu) -> u8 {
     let ju = (year_zhi % 12) % 4; // 0 申子辰 1 巳酉丑 2 寅午戌 3 亥卯未
     let m = match xing {
@@ -448,7 +454,7 @@ pub fn cai_yue_masks(xing: Xing, nayin: WuXing, shu: HeHunShu) -> CaiYueMasks {
         duo_e: stage_mask(t, 7..=8),
         si_mu_jue: stage_mask(t, 7..=9),
     };
-    if shu == HeHunShu::XieJi {
+    if matches!(shu, HeHunShu::XieJi | HeHunShu::XieJiLiCheng) {
         return rule;
     }
     let w = wx_idx(nayin);
@@ -736,6 +742,7 @@ fn shu_of(name: &str) -> HeHunShu {
     match name {
         "鳌头" => HeHunShu::AoTou,
         "协纪" => HeHunShu::XieJi,
+        "协纪立成" => HeHunShu::XieJiLiCheng,
         _ => HeHunShu::LeiBian,
     }
 }
@@ -900,7 +907,7 @@ mod tests {
     #[test]
     fn tongshu_vs_xieji_rule_differences() {
         let mut diff: Vec<String> = Vec::new();
-        for r in qili_rows().iter().filter(|r| r.shu != "协纪") {
+        for r in qili_rows().iter().filter(|r| r.shu != "协纪" && r.shu != "协纪立成") {
             let v = qili_compute(r, HeHunShu::XieJi);
             if !same_value(&r.fa, &v, &r.zhi) {
                 diff.push(format!("{}|{}|{}", r.fa, r.shu, r.jian));
@@ -926,6 +933,28 @@ mod tests {
             .filter(|d| !["三元起宫|", "三元命宫|", "鐵掃帚女|", "益財男|", "退財男|", "益財女|", "退財女|", "死墓絕妨夫|", "卦配|"].iter().any(|p| d.starts_with(p)))
             .collect();
         assert!(others.is_empty(), "{others:#?}");
+    }
+
+    /// 协纪卷三十六「合婚立成」（书影补录）：与类编只异于正文所正之益財退財、死墓絕妨夫；
+    /// 与协纪所述之法只异于男命起宫（立成仍从世传）与鐵掃帚女火局（立成七月，正文「死月」）
+    #[test]
+    fn xieji_licheng_vs_leibian_and_rule() {
+        let lc: Vec<QiliRow> = qili_rows().into_iter().filter(|r| r.shu == "协纪立成").collect();
+        assert_eq!(lc.len(), 290);
+        let diff = |shu: HeHunShu| -> Vec<String> {
+            lc.iter()
+                .filter(|r| !same_value(&r.fa, &qili_compute(r, shu), &r.zhi))
+                .map(|r| format!("{}|{}", r.fa, r.jian))
+                .collect()
+        };
+        let lb = diff(HeHunShu::LeiBian);
+        let count = |d: &[String], fa: &str| d.iter().filter(|x| x.starts_with(&format!("{fa}|"))).count();
+        assert_eq!(lb.len(), 15, "{lb:#?}");
+        assert_eq!((count(&lb, "益財男"), count(&lb, "退財男"), count(&lb, "益財女"), count(&lb, "退財女"), count(&lb, "死墓絕妨夫")), (2, 2, 3, 3, 5));
+        let xj = diff(HeHunShu::XieJi);
+        assert_eq!(xj.len(), 33, "{xj:#?}");
+        assert_eq!((count(&xj, "三元起宫"), count(&xj, "三元命宫"), count(&xj, "鐵掃帚女")), (3, 27, 3));
+        assert!(diff(HeHunShu::XieJiLiCheng).is_empty());
     }
 
     /// 知识库逐格核对表与现算一致（`HEHUN_WRITE_CHECKS=1` 时重写）

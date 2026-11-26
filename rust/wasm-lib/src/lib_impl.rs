@@ -4005,6 +4005,7 @@ pub fn hehun_json(nan_jd_ut: f64, nv_jd_ut: f64, vsop87_ear: &str, clock_utc_off
         _ => HeHunShu::LeiBian,
     };
     let opts = HeHunOptions { gu_luan: if gu_luan == 1 { GuLuanShuo::SiRi } else { GuLuanShuo::BaRi }, ..HeHunOptions::tongshu(shu_e) };
+        3 => HeHunShu::XieJiLiCheng,
     let r = he_hun(&a, &b, &opts).ok_or_else(|| JsValue::from_str("合婚未启用"))?;
     let person = |m: &HeHunMing, g: u8, x: Xing| {
         format!(
@@ -4017,7 +4018,7 @@ pub fn hehun_json(nan_jd_ut: f64, nv_jd_ut: f64, vsop87_ear: &str, clock_utc_off
     };
     Ok(format!(
         "{{\"shu\":{},\"nan\":{},\"nv\":{},\"gua\":{},\"deng\":{},\"nvJiaYue\":{},\"panYu\":{}}}",
-        json_str(["類編", "鰲頭", "協紀所述"][(shu as usize).min(2)]),
+        json_str(["類編", "鰲頭", "協紀所述", "協紀立成"][(shu as usize).min(3)]),
         person(&a, r.nan.gong, Xing::Nan),
         person(&b, r.nv.gong, Xing::Nv),
         json_str(r.gua.name()),
