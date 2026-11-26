@@ -242,6 +242,16 @@ mod tests {
         (y - 4).rem_euclid(12) as u8
     }
 
+    /// 《景祐太乙福應經》卷五四例（明谈剑山居钞本）：四神唐天祐四年丁卯入六宫；天乙武德五年壬午入玉堂；
+    /// 地乙后唐应顺元年甲午在明堂（地乙「命起九宫」福應經有明文，补金鏡正文之佚）；直符宋太平兴国元年丙子入九宫
+    #[test]
+    fn fuying_juan5_si_shen() {
+        assert_eq!(si_tai_yi(907, SiTaiYi::SiShen).wei, 6);
+        assert_eq!(si_tai_yi(622, SiTaiYi::TianYi).wei, 12);
+        assert_eq!(si_tai_yi(934, SiTaiYi::DiYi).wei, 11);
+        assert_eq!(si_tai_yi(976, SiTaiYi::ZhiFu).wei, 9);
+    }
+
     /// 金鏡卷五「四神三元五紀立成」逐年比对：自 vendor 录文解析六十年 × 上中下三元 × 四神天乙地乙直符
     #[test]
     fn jinjing_juan5_si_shen_li_cheng() {
