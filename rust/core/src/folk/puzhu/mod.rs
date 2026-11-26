@@ -387,10 +387,91 @@ pub enum JiaoJieBuYi {
     XinYue,
 }
 
+/// 「不宜」应值之事印否（取舍）
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum BuYiQuShe {
+    /// 时宪书取舍（缺省）：在应值全集上按 [`shixianshu_qu_she`] 六条去取。以乾隆三十年、三十一年时宪书逐日归纳，
+    /// 一年定规则、他年检验，逐日全合 95%—97%（全集只 78%），见 doc/folk/shensha.md「「不宜」取舍」
+    #[default]
+    ShiXianShu,
+    /// 应值全集，不取舍（某事在忌内且值触发之神即给）
+    QuanJi,
+}
+
 /// 时宪书「不宜」推算选项
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct BuYiOptions {
     pub jiao_jie: JiaoJieBuYi,
+    pub qu_she: BuYiQuShe,
+}
+
+/// 时宪书取舍：宜事（民用三十七事）字数不过此数者，印「不宜出行」（值往亡、氣往亡、月厭、四離、四絕）、「不宜動土」
+pub const BU_YI_LONG_YI_CHARS: usize = 36;
+/// 时宪书取舍：宜事字数不过此数者，印「不宜移徙」「不宜栽種」及只值天賊或巳日的「不宜出行」
+pub const BU_YI_SHORT_YI_CHARS: usize = 26;
+
+/// 一事之应值及其触发（[`shixianshu_qu_she`] 用）
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BuYiHit {
+    pub shi: &'static str,
+    /// 出行只值天賊或巳日、栽種只值乙日（不值本事的专忌之神）
+    pub weak: bool,
+    /// 動土只值土府（不值土符、地囊）
+    pub only_tu_fu: bool,
+}
+
+/// 一日宜忌的取舍条件（[`shixianshu_qu_she`] 用）
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct BuYiDay<'a> {
+    /// 宜（通书六十事，铺注之后；諸事不宜为 None）
+    pub yi: Option<&'a [String]>,
+    /// 月表凶神
+    pub xiong_shen: &'a [String],
+    /// 土王用事
+    pub tu_wang: bool,
+    /// 铺注值氣往亡、四離或四絕
+    pub qi_wang_wang_li_jue: bool,
+}
+
+/// 时宪书「不宜」的取舍（乾隆三十年、三十一年时宪书逐日归纳，见 doc/folk/shensha.md「「不宜」取舍」）。
+/// `hits` 为应值全集（月表「諸事不宜」之日为空）：
+/// 1. 土王用事之日不印動土、栽種（两年 0/61；土王本忌動土栽種，月首已注）；
+/// 2. 諸事不宜之日（交节之日除外），铺注值氣往亡、四離、四絕者印「不宜出行」（8/8；只值月表往亡者 0/1、交节之日 0/1 不印）；
+/// 3. 出行只值天賊或巳日而宜捕捉或畋獵者不印（书印 1/18；无捕捉畋獵且宜短者 62/64 印）；
+/// 4. 栽種只值乙日而值天吏、月破或月害者不印（0/8；他日宜短者 20/20 印）；
+/// 5. 動土只值土府而宜豎柱上梁者不印（0/5；他日宜短者 24/24 印）；
+/// 6. 版面：宜事字数 L，針刺不论；出行（值专忌之神）、動土 L ≤ [`BU_YI_LONG_YI_CHARS`]；移徙、栽種、
+///    只值天賊巳日之出行 L ≤ [`BU_YI_SHORT_YI_CHARS`]。
+pub fn shixianshu_qu_she(hits: &[BuYiHit], day: &BuYiDay) -> Vec<&'static str> {
+    let Some(yi) = day.yi else {
+        return if day.qi_wang_wang_li_jue { vec!["出行"] } else { Vec::new() };
+    };
+    let has_yi = |e: &str| yi.iter().any(|x| x == e);
+    let has_xs = |n: &str| day.xiong_shen.iter().any(|x| x == n);
+    let len: usize = minyong_names(yi).iter().map(|s| s.chars().count()).sum();
+    hits.iter()
+        .filter(|h| {
+            let keep = match h.shi {
+                "動土" | "栽種" if day.tu_wang => false,
+                "出行" if h.weak && (has_yi("捕捉") || has_yi("畋獵")) => false,
+                "栽種" if h.weak && (has_xs("天吏") || has_xs("月破") || has_xs("月害")) => false,
+                "動土" if h.only_tu_fu && has_yi("豎柱上梁") => false,
+                _ => true,
+            };
+            keep && match h.shi {
+                "針刺" => true,
+                "出行" if !h.weak => len <= BU_YI_LONG_YI_CHARS,
+                "動土" => len <= BU_YI_LONG_YI_CHARS,
+                _ => len <= BU_YI_SHORT_YI_CHARS,
+            }
+        })
+        .map(|h| h.shi)
+        .collect()
+}
+
+/// 通书六十事之宜折成民用三十七事之名
+fn minyong_names(yi: &[String]) -> Vec<&'static str> {
+    MINYONG.iter().filter(|(_, src)| yi.iter().any(|s| shi_index(s) == shi_index(src))).map(|(m, _)| *m).collect()
 }
 
 /// 时宪书「不宜某事」应值之全集（以乾隆三十年时宪书归纳，见 doc/folk/shensha.md「时宪书「不宜」与朱字」）：
@@ -403,18 +484,20 @@ pub struct BuYiOptions {
 ///
 /// 触发神皆为协纪所载该事之忌神：往亡等见卷十各条；四離、四絕卷十同上朔「餘事皆忌」，而卷六四離條引李鼎祚
 /// 「此日忌出行征伐」、四絕條引李鼎祚「此日忌出軍逺行」，专指出行（乾隆三十年四離四絕九日书全印不宜出行，
-/// 二十一年閏九月十四日四絕亦印）。此集中书未印者多在宜事长、栏底无空之日，宜事短之日书亦常只印一二事，
-/// 取舍未明，故只给全集，不模拟取舍。月表「諸事不宜」之日（忌不另列）不给。交节之日按 [`BuYiOptions`]。
+/// 二十一年閏九月十四日四絕亦印）。月表「諸事不宜」之日（忌不另列）全集不给。
+///
+/// 缺省（[`BuYiQuShe::ShiXianShu`]）在全集上按 [`shixianshu_qu_she`] 取舍，即书所印；[`BuYiQuShe::QuanJi`] 给全集。
+/// 交节之日两月各自推（含取舍）再按 [`JiaoJieBuYi`] 取交。
 pub fn bu_yi(d: &PuzhuDay) -> Vec<&'static str> {
     bu_yi_with(d, &BuYiOptions::default())
 }
 
-/// 同 [`bu_yi`]，交节之日的取法按选项
+/// 同 [`bu_yi`]，交节之日的取法与取舍按选项
 pub fn bu_yi_with(d: &PuzhuDay, o: &BuYiOptions) -> Vec<&'static str> {
-    let new = bu_yi_month(d, d.month_ord);
+    let new = bu_yi_month(d, d.month_ord, o.qu_she);
     let late = d.jiao_jie && d.jiao_jie_hour.is_some_and(|h| h >= JIAO_JIE_EARLY_HOUR);
     if late && o.jiao_jie == JiaoJieBuYi::ShiXianShu {
-        let old = bu_yi_month(d, (d.month_ord + 11) % 12);
+        let old = bu_yi_month(d, (d.month_ord + 11) % 12, o.qu_she);
         new.into_iter().filter(|x| old.contains(x)).collect()
     } else {
         new
@@ -422,7 +505,7 @@ pub fn bu_yi_with(d: &PuzhuDay, o: &BuYiOptions) -> Vec<&'static str> {
 }
 
 /// 以某月（月序 `m`）之月表加铺注推当日「不宜」
-fn bu_yi_month(d: &PuzhuDay, m: u8) -> Vec<&'static str> {
+fn bu_yi_month(d: &PuzhuDay, m: u8, qs: BuYiQuShe) -> Vec<&'static str> {
     use super::yiji::yuebiao_day;
     let base = yuebiao_day(m, d.input.day_gz);
     let after = apply(base, &d.input, d.shuo_gz);
@@ -430,23 +513,38 @@ fn bu_yi_month(d: &PuzhuDay, m: u8) -> Vec<&'static str> {
     let has = |n: &str| base.xiong_shen.iter().any(|x| x == n) || names.iter().any(|x| x == n);
     let ji = |e: &str| after.ji.iter().any(|x| x == e);
     let (gan, zhi) = (d.input.day_gz % 10, d.input.day_gz % 12);
-    let mut out = Vec::new();
-    if ji("出行") && (has("往亡") || has("氣往亡") || has("天賊") || has("月厭") || has("四離") || has("四絕") || zhi == 5) {
-        out.push("出行");
+    let hit = |shi, weak, only_tu_fu| BuYiHit { shi, weak, only_tu_fu };
+    let mut hits = Vec::new();
+    let chu_xing = has("往亡") || has("氣往亡") || has("月厭") || has("四離") || has("四絕");
+    if ji("出行") && (chu_xing || has("天賊") || zhi == 5) {
+        hits.push(hit("出行", !chu_xing, false));
     }
     if ji("移徙") && (has("歸忌") || has("月厭")) {
-        out.push("移徙");
+        hits.push(hit("移徙", false, false));
     }
     if ji("針刺") && (has("血忌") || has("血支")) {
-        out.push("針刺");
+        hits.push(hit("針刺", false, false));
     }
     if ji("修造動土") && (has("土府") || has("土符") || has("地囊")) {
-        out.push("動土");
+        hits.push(hit("動土", false, !(has("土符") || has("地囊"))));
     }
-    if ji("栽種") && (has("九焦") || has("月煞") || has("月厭") || gan == 1) {
-        out.push("栽種");
+    let zai_zhong = has("九焦") || has("月煞") || has("月厭");
+    if ji("栽種") && (zai_zhong || gan == 1) {
+        hits.push(hit("栽種", !zai_zhong, false));
     }
-    out
+    match qs {
+        BuYiQuShe::QuanJi => hits.iter().map(|h| h.shi).collect(),
+        BuYiQuShe::ShiXianShu => shixianshu_qu_she(
+            &hits,
+            &BuYiDay {
+                yi: after.yi.as_deref(),
+                xiong_shen: &base.xiong_shen,
+                tu_wang: d.input.tu_wang,
+                // 交节之日不用（乾隆三十年正月十四立春氣往亡，书不印）
+                qi_wang_wang_li_jue: !d.jiao_jie && (has("氣往亡") || has("四離") || has("四絕")),
+            },
+        ),
+    }
 }
 
 /// 铺注诸日中改动婚事（結婚姻、納采問名、嫁娶）之注者，下标即 [`apply_skipping`] 之 `skip` 位（婚嫁择吉「不看」用）。
@@ -759,5 +857,115 @@ mod tests {
         assert_eq!(wulu(40, 0, 10, 9, false), Some(WuLu::Exempt("歲德歲德合天干三朋")));
         // 無解
         assert_eq!(wulu(40, 1, 12, 9, false), Some(WuLu::Yes));
+    }
+
+    /// 时宪书「不宜」取舍六条
+    #[test]
+    fn bu_yi_qu_she_rules() {
+        let v = |xs: &[&str]| xs.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let h = |shi, weak, only_tu_fu| BuYiHit { shi, weak, only_tu_fu };
+        let short = v(&["祭祀", "沐浴"]);
+        let none: Vec<String> = vec![];
+        let all = [h("出行", false, false), h("移徙", false, false), h("針刺", false, false), h("動土", false, false), h("栽種", false, false)];
+        let d = BuYiDay { yi: Some(&short), xiong_shen: &none, ..Default::default() };
+        assert_eq!(shixianshu_qu_she(&all, &d), BU_YI);
+        // 1 土王用事：不印動土栽種
+        let d1 = BuYiDay { tu_wang: true, ..d.clone() };
+        assert_eq!(shixianshu_qu_she(&all, &d1), ["出行", "移徙", "針刺"]);
+        // 2 諸事不宜：铺注氣往亡四離四絕印出行，否则不印
+        assert_eq!(shixianshu_qu_she(&[], &BuYiDay { yi: None, xiong_shen: &none, qi_wang_wang_li_jue: true, ..Default::default() }), ["出行"]);
+        assert!(shixianshu_qu_she(&[], &BuYiDay { yi: None, xiong_shen: &none, ..Default::default() }).is_empty());
+        // 3 天賊巳日之出行，宜捕捉畋獵则不印；值往亡等者照印
+        let bz = v(&["祭祀", "捕捉"]);
+        let d3 = BuYiDay { yi: Some(&bz), ..d.clone() };
+        assert!(shixianshu_qu_she(&[h("出行", true, false)], &d3).is_empty());
+        assert_eq!(shixianshu_qu_she(&[h("出行", false, false)], &d3), ["出行"]);
+        // 4 乙日之栽種，值天吏月破月害则不印
+        let tl = v(&["天吏"]);
+        let d4 = BuYiDay { xiong_shen: &tl, ..d.clone() };
+        assert!(shixianshu_qu_she(&[h("栽種", true, false)], &d4).is_empty());
+        assert_eq!(shixianshu_qu_she(&[h("栽種", false, false)], &d4), ["栽種"]);
+        // 5 只值土府之動土，宜豎柱上梁则不印
+        let sz = v(&["祭祀", "豎柱上梁"]);
+        let d5 = BuYiDay { yi: Some(&sz), ..d.clone() };
+        assert!(shixianshu_qu_she(&[h("動土", false, true)], &d5).is_empty());
+        assert_eq!(shixianshu_qu_she(&[h("動土", false, false)], &d5), ["動土"]);
+        // 6 版面：宜 30 字（>26、≤36）印出行動土針刺，不印移徙栽種；宜 40 字只印針刺
+        let y30 = v(&["祭祀", "上表章", "上官", "結婚姻", "會親友", "嫁娶", "進人口", "裁衣", "修造動土", "豎柱上梁", "牧養"]);
+        let n30: usize = minyong_names(&y30).iter().map(|s| s.chars().count()).sum();
+        assert!(n30 > BU_YI_SHORT_YI_CHARS && n30 <= BU_YI_LONG_YI_CHARS, "{n30}");
+        let d6 = BuYiDay { yi: Some(&y30), ..d.clone() };
+        assert_eq!(shixianshu_qu_she(&all, &d6), ["出行", "針刺", "動土"]);
+        let mut y40 = y30.clone();
+        y40.extend(v(&["經絡", "開市", "立券交易", "納財", "沐浴", "剃頭", "安葬"]));
+        assert!(minyong_names(&y40).iter().map(|s| s.chars().count()).sum::<usize>() > BU_YI_LONG_YI_CHARS);
+        let d7 = BuYiDay { yi: Some(&y40), ..d.clone() };
+        assert_eq!(shixianshu_qu_she(&all, &d7), ["針刺"]);
+    }
+
+    /// 乾隆三十年、三十一年时宪书逐日「不宜」：缺省取舍与书逐日全合之日远多于全集
+    ///（doc/folk/shensha.md「「不宜」取舍」；两年 733 日，取舍合 709、全集合 575，各年分计亦然）
+    #[test]
+    fn bu_yi_vs_shixianshu_1765_1766() {
+        use crate::astronomy::ephemeris::{load_all, load_earth_vsop87_from_repo, Elpmpp02Correction};
+        use crate::calendar::gregorian::Gregorian;
+        use crate::calendar::historical::ShuoriTable;
+        use crate::math::real::RealOps;
+        const GAN: &str = "甲乙丙丁戊己庚辛壬癸";
+        const ZHI: &str = "子丑寅卯辰巳午未申酉戌亥";
+        const MON: [&str; 12] = ["正", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二"];
+        const DAY: [&str; 30] = [
+            "初一", "初二", "初三", "初四", "初五", "初六", "初七", "初八", "初九", "初十", "十一", "十二", "十三", "十四",
+            "十五", "十六", "十七", "十八", "十九", "二十", "廿一", "廿二", "廿三", "廿四", "廿五", "廿六", "廿七", "廿八",
+            "廿九", "三十",
+        ];
+        let root = crate::repo::repo_root();
+        let vsop = load_earth_vsop87_from_repo().unwrap();
+        let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT).unwrap();
+        let hist = ShuoriTable::from_csv(&std::fs::read_to_string(root.join("vendor/calendar/chinese_calendar/实历朔日表.csv")).unwrap()).unwrap();
+        let jd = |y, m, d| (Gregorian::to_julian_day(y, m, d).as_f64() + 0.5).floor() as i64;
+        let days = puzhu_days(&vsop, &elp, Some(&hist), jd(1765, 1, 1), jd(1767, 3, 1), QiWangWangCount::Inclusive);
+        let quan = BuYiOptions { qu_she: BuYiQuShe::QuanJi, ..Default::default() };
+        for (year, file, min_ok) in [(1765, "shixianshu_qianlong30.csv", 360), (1766, "shixianshu_qianlong31.csv", 340)] {
+            let firsts: Vec<i64> = days
+                .iter()
+                .filter(|d| d.lunar.month == 1 && d.lunar.day == 1 && !d.lunar.is_leap_month)
+                .map(|d| d.jdn)
+                .collect();
+            let s0 = *firsts.iter().find(|&&j| Gregorian::from_julian_day(crate::math::real::real(j as f64)).0 == year).unwrap();
+            let s1 = *firsts.iter().find(|&&j| j > s0).unwrap();
+            let key = |d: &PuzhuDay| {
+                let gz = d.input.day_gz as usize;
+                format!(
+                    "{}{},{},{}{}",
+                    if d.lunar.is_leap_month { "閏" } else { "" },
+                    MON[d.lunar.month as usize - 1],
+                    DAY[d.lunar.day as usize - 1],
+                    GAN.chars().nth(gz % 10).unwrap(),
+                    ZHI.chars().nth(gz % 12).unwrap()
+                )
+            };
+            let by: std::collections::HashMap<String, &PuzhuDay> =
+                days.iter().filter(|d| d.jdn >= s0 && d.jdn < s1).map(|d| (key(d), d)).collect();
+            let text = std::fs::read_to_string(root.join("data/folk").join(file)).unwrap();
+            let (mut n, mut ok, mut ok_quan) = (0, 0, 0);
+            for line in text.lines().skip(1) {
+                let f: Vec<&str> = line.split(',').collect();
+                if f[3] == "?" {
+                    continue;
+                }
+                let d = by[&format!("{},{},{}", f[0], f[1], f[2])];
+                let mut book: Vec<&str> = f[4].split_whitespace().collect();
+                book.sort();
+                let mut a = bu_yi(d);
+                a.sort();
+                let mut b = bu_yi_with(d, &quan);
+                b.sort();
+                n += 1;
+                ok += (a == book) as usize;
+                ok_quan += (b == book) as usize;
+            }
+            assert!(ok >= min_ok && ok > ok_quan + 50, "{year}: {n} 日，取舍合 {ok}，全集合 {ok_quan}");
+        }
     }
 }

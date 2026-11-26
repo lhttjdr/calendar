@@ -29,12 +29,13 @@ export type SnapshotJson = {
 }
 export type Star = { hip: number; ra: number; dec: number; v: number; bv: number | null }
 
-/** 星官体系：距星表 id → 所用星官连线体系（《灵台仪象志》只改距星，星官仍用《仪象考成》）。 */
+/** 星官体系：距星表 id → 所用星官连线体系（《崇祯历书》《灵台仪象志》只定距星，星官分别用同时代的《象林》与《仪象考成》）。 */
 export const SYSTEMS: { id: string; label: string; asterisms: string }[] = [
   { id: 'chenzhuo', label: '陈卓（三国—晋，汇汉三家）', asterisms: 'chenzhuo' },
   { id: 'song_huangyou', label: '宋皇祐（1052）', asterisms: 'song_huangyou' },
   { id: 'yuan', label: '元《天文汇钞》', asterisms: 'yuan' },
   { id: 'ming_xianglin', label: '明《象林》（1634）', asterisms: 'ming_xianglin' },
+  { id: 'chongzhen', label: '清初《崇祯历书》（1628）距星', asterisms: 'ming_xianglin' },
   { id: 'qing_lingtai', label: '清《灵台仪象志》（1674）距星', asterisms: 'qing' },
   { id: 'qing', label: '清《仪象考成》（1744）', asterisms: 'qing' },
 ]

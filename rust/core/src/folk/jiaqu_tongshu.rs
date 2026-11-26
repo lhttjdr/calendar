@@ -180,6 +180,13 @@ pub fn nv_jia_e_nian(nv_zhi: u8, year_zhi: u8) -> bool {
     (3 - nv_zhi as i32 % 12).rem_euclid(12) as u8 == year_zhi % 12
 }
 
+/// 紅沙煞鳌头说（鳌头卷三嫁娶凶日，第 4 册第 13 页，读图；`data/folk/aotou_xiongshen.csv`）：巳酉丑逐月轮，即孟巳仲酉季丑，
+/// 「娶忌」。同协纪卷三十六所引「又一本」（[`super::jiaqu::HongShaRule::YouYiBen`]）、董公「小紅沙日」；类编作四月一换，
+/// 《轉神厯》作孟酉仲巳季丑
+pub fn hong_sha_aotou(month_ord: u8, day_zhi: u8) -> bool {
+    col("巳酉丑巳酉丑巳酉丑巳酉丑", month_ord) == day_zhi % 12
+}
+
 /// 荒蕪鳌头序（鳌头第 4 册第 13 页）：巳酉丑申子辰亥卯未寅午戌，即孟平仲破季收（类编卷十五新增之序）。
 /// 类编卷七序（巳酉丑辰申子卯未亥寅戌午）在 [`super::jiaqu::LEIBIAN_SHEN`]「荒蕪」
 pub fn huang_wu_aotou(month_ord: u8, day_zhi: u8) -> bool {
@@ -271,7 +278,7 @@ pub fn sha_gong_zhi_xing_ren_zhuan(month_ord: u8, day_gz: u8) -> Vec<&'static st
 // ───────────────────────── 逐神取舍之表 ─────────────────────────
 
 /// 可选否决诸神：(名, 组, 所主与协纪之断)。下标即 [`super::jiaqu::JiaquOptions::tongshu_mask`] 位（置位者否决，余只作附注）
-pub const TONGSHU_SHEN: [(&str, &str, &str); 19] = [
+pub const TONGSHU_SHEN: [(&str, &str, &str); 20] = [
     ("大煞", "协纪改删", "神樞經忌嫁娶；协纪卷十止忌軍事，删其餘"),
     ("天火（类编）", "协纪改删", "玉帳經忌㑹親娶婦；类编顺行四仲，协纪天火即災煞（已在忌神）"),
     ("黑道", "协纪改删", "神樞經「所值之日皆不可……嫁娶」；协纪卷十「六黑道亦無專忌之事」"),
@@ -291,6 +298,7 @@ pub const TONGSHU_SHEN: [(&str, &str, &str); 19] = [
     ("滅沒", "鳌头", "朔角、望亢、晦婁、弦虛（虛日、盈日未核不编）"),
     ("金神七煞", "董公", "「起造婚姻逢此日，不出三年見哭聲」；煞貢直星人專不能解"),
     ("十惡大敗（年月）", "董公", "董公年月表「百事皆忌」；协纪以無祿論，不取此表"),
+    ("紅沙（鳌头）", "鳌头", "鳌头嫁娶凶日「紅沙煞」孟巳仲酉季丑，娶忌；同协纪所引「又一本」、董公小紅沙"),
 ];
 
 /// 名 → 位
@@ -363,6 +371,9 @@ pub fn tongshu_hits(t: &TongshuInput) -> Vec<(usize, String)> {
     if nv_jia_e_nian(t.nv_year_gz % 12, t.year_gz % 12) {
         push("女嫁厄年", "女嫁厄年".into());
     }
+    if hong_sha_aotou(m, z) {
+        push("紅沙（鳌头）", "紅沙煞（鳌头：孟巳仲酉季丑）".into());
+    }
     if huang_wu_aotou(m, z) {
         push("荒蕪（鳌头序）", "荒蕪（鳌头序）".into());
     }
@@ -391,6 +402,27 @@ mod tests {
 
     fn zi(c: char) -> u8 {
         ZHI.chars().position(|x| x == c).unwrap() as u8
+    }
+
+    /// 紅沙鳌头说：与录文（aotou_xiongshen.csv 嫁娶凶日「紅沙煞」）逐月全合，且即 HongShaRule::YouYiBen
+    #[test]
+    fn hong_sha_aotou_matches() {
+        use super::super::jiaqu::{hong_sha, HongShaRule};
+        const XS: &str = include_str!("../../../../data/folk/aotou_xiongshen.csv");
+        let mut n = 0;
+        for l in XS.lines().filter(|l| !l.starts_with('#')).skip(1) {
+            let f: Vec<&str> = l.split(',').collect();
+            if f[0] == "嫁娶凶日" && f[5] == "紅沙煞" {
+                let m: u8 = f[7].parse::<u8>().unwrap() - 1;
+                let z = zi(f[8].chars().next().unwrap());
+                for d in 0..12u8 {
+                    assert_eq!(hong_sha_aotou(m, d), d == z, "{m} {d}");
+                    assert_eq!(hong_sha(HongShaRule::YouYiBen, m, d), d == z, "{m} {d}");
+                }
+                n += 1;
+            }
+        }
+        assert_eq!(n, 12);
     }
 
     /// 诸神起例逐条与原文核
@@ -441,7 +473,7 @@ mod tests {
         // 仲月煞貢即孟月之后一位；孟月煞貢与仲月直星同
         assert!((0..60u8).all(|g| sha_gong_zhi_xing_ren_zhuan(0, g).contains(&"煞貢") == sha_gong_zhi_xing_ren_zhuan(1, g).contains(&"直星")));
         // 值宿：jdn 2461354（2026-11-09）
-        assert_eq!(TONGSHU_SHEN.len(), 19);
+        assert_eq!(TONGSHU_SHEN.len(), 20);
         assert!(TONGSHU_SHEN.len() <= 32);
     }
 

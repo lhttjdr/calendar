@@ -59,7 +59,7 @@ pub static MONTH_SHEN: Lazy<Vec<MonthShen>> = Lazy::new(|| {
 /// 与月份无关、按日干支固定的神：(名, 吉, 干支列表, 出处)
 pub const FIXED_SHEN: [(&str, bool, &[&str], &str); 8] = [
     ("天恩", true, &["甲子", "乙丑", "丙寅", "丁卯", "戊辰", "己卯", "庚辰", "辛巳", "壬午", "癸未", "己酉", "庚戌", "辛亥", "壬子", "癸丑"],
-        "卷五歷例：常以甲子至戊辰、己卯至癸未、己酉至癸丑凡一十五日"),
+        "卷五歷例：常以甲子至戊辰、己卯至癸未、己酉至癸丑凡一十五日（鳌头卷五日家吉神定局「天恩上吉日」十四日，無壬子，第 6 册第 37 页）"),
     ("五合", true, &["甲寅", "乙卯", "丙寅", "丁卯", "戊寅", "己卯", "庚寅", "辛卯", "壬寅", "癸卯"], "卷五歷例：五合者寅卯日也"),
     ("重日", false, &["乙巳", "丁巳", "己巳", "辛巳", "癸巳", "乙亥", "丁亥", "己亥", "辛亥", "癸亥"], "卷五歷例：重日者巳亥二日也"),
     ("五離", false, &["甲申", "丙申", "戊申", "庚申", "壬申", "乙酉", "丁酉", "己酉", "辛酉", "癸酉"], "卷五歷例：五離者申酉日是也"),
@@ -149,6 +149,28 @@ pub enum HuangWuRule {
     LeiBianQiLi,
 }
 
+/// 地囊之说
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum DiNangRule {
+    /// 协纪卷六按语以三合卦納甲改定（缺省；`shensha_month.csv`）
+    #[default]
+    XieJi,
+    /// 协纪卷六所引《歷例》旧文：正庚子庚午、二癸未癸丑、三甲子甲寅、四己卯己丑、五戊辰戊午、六癸未癸巳、七丙寅丙申、
+    /// 八丁卯丁巳、九戊辰戊子、十庚戌庚子、十一辛未辛酉、十二乙酉乙未（按语谓「四十八字中誤二十三字」）
+    LiLi,
+    /// 鳌头卷三平基動土凶神（第 4 册第 66 页，读图）：同《歷例》而十月庚子庚辰、十一月辛未辛丑（`data/folk/aotou_xiongshen.csv`）
+    AoTou,
+}
+
+const DI_NANG_LILI: [[&str; 2]; 12] = [
+    ["庚子", "庚午"], ["癸未", "癸丑"], ["甲子", "甲寅"], ["己卯", "己丑"], ["戊辰", "戊午"], ["癸未", "癸巳"],
+    ["丙寅", "丙申"], ["丁卯", "丁巳"], ["戊辰", "戊子"], ["庚戌", "庚子"], ["辛未", "辛酉"], ["乙酉", "乙未"],
+];
+const DI_NANG_AOTOU: [[&str; 2]; 12] = [
+    ["庚子", "庚午"], ["癸丑", "癸未"], ["甲子", "甲寅"], ["己丑", "己卯"], ["戊辰", "戊午"], ["癸巳", "癸未"],
+    ["丙寅", "丙申"], ["丁卯", "丁巳"], ["戊辰", "戊子"], ["庚子", "庚辰"], ["辛未", "辛丑"], ["乙未", "乙酉"],
+];
+
 /// 月家日神煞起例选项。缺省全依协纪；[`ShenshaOptions::leibian`] 全依类编（各神取类编正文所主之说）。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct ShenshaOptions {
@@ -156,7 +178,9 @@ pub struct ShenshaOptions {
     /// 天德合作巳、寅、亥、申；协纪卷五按「四維無十干，則不得有其日」，四仲无
     pub tian_de: QiLiYi,
     /// 天火。类编卷十五（02094410.cn PDF 第 59 页）正月子顺行四仲（子卯午酉），即协纪卷六所引《歷例》旧文；
-    /// 协纪按语改逆行，与災煞同位
+    /// 协纪按语改逆行，与災煞同位。鳌头卷五日家凶神（第 6 册第 22 页）及裁衣、修倉諸表同类编顺行；但其卷三種蒔栽植
+    /// 凶日（第 4 册第 35 页）、修竈雜忌（第 4 册第 94 页）两表作子午卯酉，为第三说，此选项不收（见 [`super::aotou_shen`]
+    /// 「天火」两行与 `doc/folk/aotou-qili-checks.md`「天火三说」）
     pub tian_huo: QiLiYi,
     pub ming_fei: MingFeiRule,
     pub ming_fei_dui: MingFeiDuiRule,
@@ -166,6 +190,8 @@ pub struct ShenshaOptions {
     /// 卷十五日凶神表（02094410.cn PDF 第 59 页）、卷十一逐月日表、卷七嫁娶凶神表同，卷五（02094405.cn 第 62 页）
     /// 「滿日忌正四七十月犯天賊」「開日三六九十二月犯天賊」即孟月满日、仲月破日、季月开日。两说 720 日无一日同
     pub tian_zei: QiLiYi,
+    /// 地囊。协纪改定之说（缺省）、协纪所引《歷例》旧文、鳌头（见 [`DiNangRule`]）
+    pub di_nang: DiNangRule,
 }
 
 impl ShenshaOptions {
@@ -179,6 +205,8 @@ impl ShenshaOptions {
             fu_ri: FuRiRule::JiZheng,
             huang_wu: HuangWuRule::LeiBianBiao,
             tian_zei: QiLiYi::LeiBian,
+            // 类编地囊起例未核，仍依协纪
+            di_nang: DiNangRule::XieJi,
         }
     }
 
@@ -196,6 +224,7 @@ impl ShenshaOptions {
             fu_ri: FuRiRule::JiZheng,
             huang_wu: HuangWuRule::LeiBianQiLi,
             tian_zei: QiLiYi::LeiBian,
+            di_nang: DiNangRule::AoTou,
         }
     }
 }
@@ -286,6 +315,10 @@ pub fn shen_for_day_with(month_ord: u8, day_gz: u8, o: &ShenshaOptions) -> Vec<(
             // 类编顺行四仲：正子二卯三午四酉
             "天火" if o.tian_huo == QiLiYi::LeiBian => zhi_i as usize == (3 * m) % 12,
             "復日" if o.fu_ri != FuRiRule::XieJi => fu_ri_gan(month_ord, o.fu_ri).contains(&gan_i),
+            "地囊" if o.di_nang != DiNangRule::XieJi => {
+                let t = if o.di_nang == DiNangRule::LiLi { &DI_NANG_LILI } else { &DI_NANG_AOTOU };
+                t[m].contains(&gz.as_str())
+            }
             _ => s.vals[m].iter().any(|v| v == key),
         };
         if on {
@@ -580,8 +613,8 @@ mod tests {
                 assert_eq!(t - ok, 10, "{n}");
             }
         }
-        // 鳌头选项只动七神
-        let touched = ["天德", "天德合", "天火", "復日", "荒蕪", "鳴吠", "鳴吠對", "天賊"];
+        // 鳌头选项只动八神（九名）
+        let touched = ["天德", "天德合", "天火", "復日", "荒蕪", "鳴吠", "鳴吠對", "天賊", "地囊"];
         for m in 0..12u8 {
             for d in 0..60u8 {
                 let strip = |v: Vec<(String, bool)>| -> Vec<String> {
@@ -590,6 +623,29 @@ mod tests {
                 assert_eq!(strip(shen_for_day(m, d)), strip(shen_for_day_with(m, d, &ao)), "{m} {d}");
             }
         }
+    }
+
+    /// 地囊三说：鳌头选项与 `aotou_xiongshen.csv` 平基動土凶神录文逐日全合；歷例与鳌头只差十月、十一月各一日
+    #[test]
+    fn di_nang_options() {
+        const XS: &str = include_str!("../../../../data/folk/aotou_xiongshen.csv");
+        let mut tab: Vec<Vec<String>> = vec![Vec::new(); 12];
+        for l in XS.lines().filter(|l| !l.starts_with('#')).skip(1) {
+            let f: Vec<&str> = l.split(',').collect();
+            if f[0] == "動土凶日" && f[5] == "地囊" {
+                tab[f[7].parse::<usize>().unwrap() - 1] = f[8].split('+').map(str::to_string).collect();
+            }
+        }
+        assert!(tab.iter().all(|v| v.len() == 2));
+        let ao = ShenshaOptions::aotou();
+        assert_eq!(ao.di_nang, DiNangRule::AoTou);
+        let (t, ok) = compare_month_table("地囊", &tab, &ao);
+        assert_eq!((t, ok), (720, 720));
+        let li = ShenshaOptions { di_nang: DiNangRule::LiLi, ..Default::default() };
+        let (t, ok) = compare_month_table("地囊", &tab, &li);
+        assert_eq!(t - ok, 4, "歷例与鳌头：十月庚戌/庚辰、十一月辛酉/辛丑");
+        let (t, ok) = compare_month_table("地囊", &tab, &ShenshaOptions::default());
+        assert_eq!(t - ok, 38, "协纪改定与鳌头");
     }
 
     #[test]

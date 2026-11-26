@@ -407,7 +407,7 @@ const ZiweiPanel = memo(function ZiweiPanel(props: { wasm: LunarBackend; lunar: 
           <Radio.Group size="small" value={leap} onChange={(e) => setLeap(e.target.value)} optionType="button"
             options={[{ label: '闰月作下月（全书）', value: 0 }, { label: '作本月', value: 1 }, { label: '十五日为界', value: 2 }]} />
           <Radio.Group size="small" value={siHua} onChange={(e) => setSiHua(e.target.value)} optionType="button"
-            options={[{ label: '四化：全书', value: 0 }, { label: '近人表（未核）', value: 1 }]} />
+            options={[{ label: '四化：明刻本', value: 0 }, { label: '全书录文', value: 2 }, { label: '韩藏写本', value: 3 }, { label: '近人表（未核）', value: 1 }]} />
           <Radio.Group size="small" value={bingDing} onChange={(e) => setBingDing(e.target.value)} optionType="button"
             options={[{ label: '丙丁钺酉', value: 0 }, { label: '钺戌（录文）', value: 1 }]} />
           <Radio.Group size="small" value={xin} onChange={(e) => setXin(e.target.value)} optionType="button"
@@ -423,7 +423,7 @@ const ZiweiPanel = memo(function ZiweiPanel(props: { wasm: LunarBackend; lunar: 
         </OptionsFold>
         <Notes>
           {school === 14
-            ? '十四主星派，据《紫微斗數全書》卷二（安身命、五局安紫微、诸星诀、四化、庙旺表），韩国国立中央图书馆藏写本《紫微斗數方書》旁证。红字主星，旁注小字为庙旺，蓝字四化；宫内下方为长生、博士十二神与大限岁数。各家异说并列，缺省取全书。'
+            ? '十四主星派，据《紫微斗數全書》卷二（安身命、五局安紫微、诸星诀、四化、庙旺表），韩国国立中央图书馆藏写本《紫微斗數方書》旁证。红字主星，旁注小字为庙旺，蓝字四化；宫内下方为长生、博士十二神与大限岁数。各家异说并列；四化与火铃起法依明南阳堂刻本（卷六命图为证），余取全书。'
             : `十八飞星派，据《續道藏》本《紫微斗數》（题陈抟），以国家图书馆藏明万历三十五年内府刻本校。原书「甲丙戊庚壬属阴」与通例相反，照原书；宫下小字为流年十二神与大限岁数；星旁小字为卷一「廟樂旺」图之等（卷三星论为选项，二者有异）。${d?.benMing ? `「術天機」图本命星：${d.benMing}（原书未言其用）。` : ''}`}
         </Notes>
       </div>

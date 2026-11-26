@@ -1101,7 +1101,7 @@ pub fn ziwei_json(
         },
         xin_kui_yue: if opt_xin == 1 { XinKuiYue::KuiYinYueWu } else { XinKuiYue::KuiWuYueYin },
         bing_ding_yue: if opt_bing_ding == 1 { BingDingYue::Xu } else { BingDingYue::You },
-        si_hua: if opt_si_hua == 1 { SiHuaTable::Modern } else { SiHuaTable::QuanShu },
+        si_hua: match opt_si_hua { 1 => SiHuaTable::Modern, 2 => SiHuaTable::QuanShu, 3 => SiHuaTable::KoreanMs, _ => SiHuaTable::NanYangTang },
         chang_sheng: if opt_chang_sheng == 1 { ChangShengDir::YangMaleYinFemaleForward } else { ChangShengDir::MaleForward },
     };
     let inp = ZiweiInput { year_gz: year_gz % 60, lunar_month, is_leap_month: is_leap, lunar_day, hour_zhi: hour_zhi % 12, male };
@@ -2268,6 +2268,7 @@ pub fn qili_shen_day_json(jd: f64, vsop87_ear: &str, tian_de: u8, tian_huo: u8, 
         fu_ri: match fu_ri { 1 => FuRiRule::JiZheng, 2 => FuRiRule::BaiJi, 3 => FuRiRule::BeiYong, 4 => FuRiRule::BaiJiGe, _ => FuRiRule::XieJi },
         huang_wu: match huang_wu { 1 => HuangWuRule::AnJi, 2 => HuangWuRule::LeiBianBiao, 3 => HuangWuRule::LeiBianQiLi, _ => HuangWuRule::BuLie },
         tian_zei: qly(tian_zei),
+        ..ShenshaOptions::default()
     };
     let base = shen_for_day_with(month_ord, dgz, &ShenshaOptions::default());
     let sel = shen_for_day_with(month_ord, dgz, &o);

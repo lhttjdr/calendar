@@ -132,7 +132,7 @@ def load_data():
     return rows
 
 
-REGIME = {"周": "北魏/西魏/北周/隋", "隋": "北魏/西魏/北周/隋", "魏": "北魏/西魏/北周/隋", "齊": "东魏/北齐", "東魏": "东魏/北齐"}
+REGIME = {"周": "北魏/西魏/北周/隋", "隋": "北魏/西魏/北周/隋", "魏": "北魏/西魏/北周/隋", "西魏": "北魏/西魏/北周/隋", "齊": "东魏/北齐", "東魏": "东魏/北齐"}
 BENJI_BOOKS = ("jiutangshu_benji", "xintangshu_benji", "jiuwudaishi_benji", "xinwudaishi_benji")
 
 
@@ -302,7 +302,7 @@ def write_doc(year_rows, diff_rows, tot, by):
     o.append(f"## 汇总\n\n已录 {len(ys)} 岁（{min(ys)}—{max(ys)}，中有缺岁见下），展开 {tot['n']} 月；"
              f"与张表可比 {tot['zn']} 月，合 {tot['z']}；与推步可比 {tot['pn']} 月，合 {tot['p']}。"
              f"缺岁：{'、'.join(str(y) for y in range(min(ys), max(ys) + 1) if y not in ys) or '无'}。\n")
-    o.append(f"以上合张表、合推步之数只计中原一线（含陳）；南北朝目录所标他国（周、齊、隋 581—589）对分政权推步"
+    o.append(f"以上合张表、合推步之数只计中原一线（含陳）；南北朝目录所标他国（北魏、東魏、西魏、周、齊、隋 581—589；宋、南齊、梁、陳为中原一线）对分政权推步"
              f"（`data/calendar/推步政权朔日表.csv` 主表）：{tot['rmonths']} 月，可比 {tot['rn']}，合 {tot['rp']}。\n")
     o.append(f"新旧唐书、新旧五代史本纪明书朔（剔除已考讹误与「其他」类）落在已录各月者 {tot['bn']} 条：合目录 {tot['bm']}，"
              f"合张表 {tot['bz']}，合推步 {tot['bp']}（观象 807—821 无推步）。\n")

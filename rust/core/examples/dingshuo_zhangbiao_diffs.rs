@@ -76,6 +76,8 @@ struct Diff {
     t: i64,
     /// 定朔细目（定小余、进朔限等，时）
     ding: Option<(i64, f64, Option<f64>, bool, f64)>,
+    /// 经朔入交入食限（「朔望有交」，大衍一系此等月用精法）；None 为未复原交会
+    youjiao: Option<bool>,
     /// 本纪明书朔日：(书, 本纪朔 JDN, 已考讹误)
     shuo: Vec<(String, i64, bool)>,
     /// 纪日：(书, 支持推步, 原文)
@@ -159,6 +161,10 @@ fn main() {
                 let x = v.iter().find(|x| x.day == rj).or_else(|| v.iter().find(|x| (x.ding_jdn - rj.min(tj)).abs() <= 1))?;
                 Some((x.ding_jdn, x.frac * 24.0, x.limit.map(|l| l * 24.0), x.jin, x.jing_frac * 24.0 + (x.jing_jdn - x.ding_jdn) as f64 * 24.0))
             });
+            let youjiao = dn.and_then(|d| {
+                let v = &details[d];
+                v.iter().find(|x| x.day == rj).or_else(|| v.iter().find(|x| (x.ding_jdn - rj.min(tj)).abs() <= 1)).and_then(|x| x.youjiao)
+            });
             let ding = ding.or_else(|| {
                 let (a, b) = song_early.get(&(name.to_string(), y, label(m, leap)))?;
                 // 定朔所在日：小余以时计，朔日 = 所在日 + 进
@@ -174,6 +180,7 @@ fn main() {
                 r: rj,
                 t: tj,
                 ding,
+                youjiao,
                 shuo: vec![],
                 jiri: vec![],
                 refs: vec![],
@@ -399,7 +406,7 @@ fn main() {
     };
 
     // CSV
-    let mut csv = String::from("历,年,月,张表月名,推步朔,张表朔,张表−推步,定朔所在日,定小余（时）,进朔限（时）,距限（时）,经朔（时，距定朔所在日夜半）,进退关系,本纪明书朔,纪日证据,已有考证,判定,按语\n");
+    let mut csv = String::from("历,年,月,张表月名,推步朔,张表朔,张表−推步,定朔所在日,定小余（时）,进朔限（时）,距限（时）,经朔（时，距定朔所在日夜半）,有交,进退关系,本纪明书朔,纪日证据,已有考证,判定,按语\n");
     let fmt_shuo = |d: &Diff| -> String {
         d.shuo.iter().map(|s| format!("{} {}{}", s.0, gz(s.1), if s.2 { "（已考讹）" } else { "" })).collect::<Vec<_>>().join("；")
     };
@@ -430,7 +437,7 @@ fn main() {
         };
         let tl = d.t_label.map_or(String::new(), |(m, l)| label(m, l));
         csv += &format!(
-            "{},{},{},{},{},{},{:+},{},{},{},{},{},{},{},{},{},{},{}\n",
+            "{},{},{},{},{},{},{:+},{},{},{},{},{},{},{},{},{},{},{},{}\n",
             d.li,
             d.year,
             lab,
@@ -443,6 +450,7 @@ fn main() {
             lim,
             dist,
             jing,
+            d.youjiao.map_or("—", |b| if b { "有" } else { "" }),
             cause,
             fmt_shuo(d).replace(',', "，"),
             fmt_jiri(d).replace(',', "，"),
@@ -503,8 +511,8 @@ fn main() {
             cell(x.3.clone())
         );
     }
-    md += "\n### 逐月表（全部朔日不同之月）\n\n「定朔」为定朔所在日干支；「距限」= 定小余 − 进朔限（正为过限）；「经朔」为经朔距定朔所在日夜半之时（负为前一日）。\n\n";
-    md += "| 历 | 年 | 月 | 推步 | 张表 | 定朔 | 定小余 | 限 | 距限 | 进退关系 | 证据 | 已有考证 | 判定 |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|\n";
+    md += "\n### 逐月表（全部朔日不同之月）\n\n「定朔」为定朔所在日干支；「距限」= 定小余 − 进朔限（正为过限）；「有交」= 经朔入交入食限（大衍一系此等月定朔用二次差精法；— 为未复原交会）；「经朔」为经朔距定朔所在日夜半之时（负为前一日）。\n\n";
+    md += "| 历 | 年 | 月 | 推步 | 张表 | 定朔 | 定小余 | 限 | 距限 | 有交 | 进退关系 | 证据 | 已有考证 | 判定 |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n";
     for x in &rows_out {
         let d = &x.0;
         let lab = match d.t_label {
@@ -517,7 +525,7 @@ fn main() {
             .collect::<Vec<_>>()
             .join("；");
         md += &format!(
-            "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
+            "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
             d.li,
             d.year,
             lab,
@@ -527,6 +535,7 @@ fn main() {
             x.5,
             x.6,
             x.7,
+            d.youjiao.map_or("—", |b| if b { "有" } else { "" }),
             x.1.split('：').next().unwrap_or(""),
             cell(ev),
             cell(d.refs.join(" ")),

@@ -76,6 +76,10 @@ def determinatives():
     # Stellarium 无此体系，按传统距星（第 14 页表 1.2.1，与 chenzhuo 相同）改此三宿生成。
     trad = [r for r in rows if r[0] == "chenzhuo"]
     lingtai = {"奎": 4463, "觜": 26207, "昴": 17702}
+    # 《崇祯历书·恒星历指》卷二「今赤道积宿度」「黄道宿今积度」（崇祯元年 1628 历元）：对 Hipparcos 逐宿认星，28 宿与《灵台仪象志》全同
+    # （奎 η And、觜 λ Ori、昴 η Tau 之改始于崇祯），见 data/sky_culture/chongzhen_juxing.csv 与 doc/astronomy/chongzhen-juxing-checks.md。
+    for _, idx, lodge, hip, _ in trad:
+        rows.append(("chongzhen", idx, lodge, lingtai.get(lodge, hip), ""))
     for _, idx, lodge, hip, _ in trad:
         rows.append(("qing_lingtai", idx, lodge, lingtai.get(lodge, hip), ""))
     with open(OUT / "chinese_lunar_mansion_determinatives.csv", "w", encoding="utf-8") as f:
@@ -83,6 +87,8 @@ def determinatives():
         f.write("# lunar_system.defining_stars；已核对距星属本宿星官且与「距星」标注一致。生成：scripts/sky_culture/lunar_mansions.py。\n")
         for sid, _, note in SYSTEMS:
             f.write(f"# {sid}：{note}\n")
+        f.write("# chongzhen：《崇祯历书·恒星历指》卷二距星赤经、黄经积度（崇祯元年 1628 历元），对 Hipparcos 认星，28 宿同 qing_lingtai\n")
+        f.write("#   （data/sky_culture/chongzhen_juxing.csv，检验 doc/astronomy/chongzhen-juxing-checks.md）；清时宪历 1645—1673 用之。\n")
         f.write("# qing_lingtai：清康熙《灵台仪象志》（1674），据潘鼐《中国恒星观测史》（2009）第 640 页，在传统距星上改奎 η And、觜 λ Ori、昴 η Tau。\n")
         f.write("# 核对：传统距星与潘鼐第 14 页表 1.2.1、清代与第 641 页表 9.1.4 逐宿一致。\n")
         f.write("system,index,mansion,hip,stellarium_name\n")

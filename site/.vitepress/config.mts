@@ -165,6 +165,7 @@ export default defineConfig({
             items: [
               { text: '建除与黄道', link: '/folk/jianchu' },
               { text: '神煞宜忌', link: '/folk/shensha' },
+              { text: '通书异同', link: '/folk/tongshu' },
               { text: '婚嫁择吉', link: '/folk/jiaqu' },
             ],
           },
