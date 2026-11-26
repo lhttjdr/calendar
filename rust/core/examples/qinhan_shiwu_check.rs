@@ -113,8 +113,12 @@ fn main() {
                 .find(|&j| (j + 49).rem_euclid(60) == gi)
                 .unwrap();
             let iv = interval(n, m, leap, d);
-            let skip =
-                f[cb] == "补" || is_exception(n, m, leap) || (f[cs] == "周家台" && n == -212);
+            // 已知歧异（与 qinhan_shiyong::tests::matches_excavated_calendars 同）：周家台三十四年（与同年岳麓差一日之三月）、
+            // 岳麓《质日》二十七年（六、八月与同年里耶 8-133「八月甲戌朔」差一日，整年与官文书不同步，不计；秦一段依官文书定，见 doc/calendar/qin-phase-checks.md）
+            let skip = f[cb] == "补"
+                || is_exception(n, m, leap)
+                || (f[cs] == "周家台" && n == -212)
+                || (f[cs] == "岳麓" && n == -219);
             if let (Some((a, b)), false) = (iv, skip) {
                 lo = lo.max(a);
                 hi = hi.min(b);
@@ -147,7 +151,7 @@ fn main() {
             ));
         }
         md.push(String::new());
-        md.push(format!("各条之交：[{lo}, {hi})。「不计」：整理者补字、史载改朔（高祖九年七月）与秦始皇三十四年周家台本（与同年岳麓本三月、五月、七月相差一日，见下）。"));
+        md.push(format!("各条之交：[{lo}, {hi})。「不计」：整理者补字、史载改朔（高祖九年七月）、秦始皇三十四年周家台本（与同年岳麓本三月、五月、七月相差一日，见下）与岳麓《质日》二十七年（六、八月与同年里耶 8-133「廿七年八月甲戌朔」相差一日，整年不计，见 [qin-phase-checks.md](./qin-phase-checks.md)）。"));
         md.push(String::new());
     }
 

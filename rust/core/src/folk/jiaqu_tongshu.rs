@@ -153,6 +153,13 @@ pub fn jiu_kong_leibian(month_ord: u8, day_zhi: u8) -> bool {
     col("辰丑戌未卯子酉午寅亥申巳", month_ord) == day_zhi % 12
 }
 
+/// 人隔（类编求婚表尾「不犯……九土鬼人隔陰陽錯日」，卷七第 43 页；鳌头第 4 册第 10 页求婚表尾同）。卷七、鳌头卷二至五
+/// 凶神表皆无其起例，见于类编卷九「買納奴婢」凶日表（`02094407.cn` PDF 第 34 页，读图；识典 OCR 卷九同）：
+/// 「人隔 酉未巳卯丑亥酉未巳卯丑亥」，即正月酉、每月退二辰，六月一周。卷九表与九土鬼、離窠、九醜并列
+pub fn ren_ge(month_ord: u8, day_zhi: u8) -> bool {
+    col("酉未巳卯丑亥酉未巳卯丑亥", month_ord) == day_zhi % 12
+}
+
 // ───────────────────────── 三、鳌头卷三嫁娶门 ─────────────────────────
 
 /// 紅嘴朱雀（鳌头第 4 册第 13 页，读图）：壬申辛巳庚寅己亥戊申丁巳（每九日一位，书只列六日），「損宅長」
@@ -172,6 +179,12 @@ pub fn hun_qu_ji_xiu(jdn: i64) -> Option<&'static str> {
 pub const LI_KE: [&str; 13] = ["丁卯", "戊辰", "己巳", "戊寅", "辛巳", "戊子", "己丑", "戊戌", "己亥", "辛丑", "戊午", "壬戌", "癸亥"];
 pub fn li_ke(day_gz: u8) -> bool {
     in_gz(&LI_KE, day_gz)
+}
+
+/// 天狗（無嗣）（鳌头第 4 册第 13 页嫁娶凶神表，读图）：表中此行不分月，只列「立春 春分 立夏 夏至 立秋 秋分 立冬 冬至」，
+/// 神名下小字「無嗣」。照表取八节（四立二分二至）当日；书无他说，是否另有所指未详。协纪卷三十六所斥之天狗（月厭等正位）另是一说
+pub fn tian_gou_wu_si(ba_jie: bool) -> bool {
+    ba_jie
 }
 
 /// 女嫁厄年（鳌头第 4 册第 12 页「女嫁 生命 犯此厄年多疾患」）：女命子丑寅……亥，厄年卯寅丑子亥戌酉申未午巳辰。
@@ -278,7 +291,7 @@ pub fn sha_gong_zhi_xing_ren_zhuan(month_ord: u8, day_gz: u8) -> Vec<&'static st
 // ───────────────────────── 逐神取舍之表 ─────────────────────────
 
 /// 可选否决诸神：(名, 组, 所主与协纪之断)。下标即 [`super::jiaqu::JiaquOptions::tongshu_mask`] 位（置位者否决，余只作附注）
-pub const TONGSHU_SHEN: [(&str, &str, &str); 20] = [
+pub const TONGSHU_SHEN: [(&str, &str, &str); 22] = [
     ("大煞", "协纪改删", "神樞經忌嫁娶；协纪卷十止忌軍事，删其餘"),
     ("天火（类编）", "协纪改删", "玉帳經忌㑹親娶婦；类编顺行四仲，协纪天火即災煞（已在忌神）"),
     ("黑道", "协纪改删", "神樞經「所值之日皆不可……嫁娶」；协纪卷十「六黑道亦無專忌之事」"),
@@ -299,6 +312,8 @@ pub const TONGSHU_SHEN: [(&str, &str, &str); 20] = [
     ("金神七煞", "董公", "「起造婚姻逢此日，不出三年見哭聲」；煞貢直星人專不能解"),
     ("十惡大敗（年月）", "董公", "董公年月表「百事皆忌」；协纪以無祿論，不取此表"),
     ("紅沙（鳌头）", "鳌头", "鳌头嫁娶凶日「紅沙煞」孟巳仲酉季丑，娶忌；同协纪所引「又一本」、董公小紅沙"),
+    ("人隔", "类编", "类编、鳌头求婚表所避；起例见类编卷九買納奴婢凶日（正酉二未三巳……）"),
+    ("天狗無嗣", "鳌头", "鳌头嫁娶凶神表「天狗 無嗣」，列八节（四立二分二至）"),
 ];
 
 /// 名 → 位
@@ -320,6 +335,8 @@ pub struct TongshuInput<'a> {
     pub phase: Option<&'a str>,
     /// 农历月末日
     pub hui: bool,
+    /// 当日交八节（四立二分二至）
+    pub ba_jie: bool,
 }
 
 /// 一日所值 [`TONGSHU_SHEN`] 诸神：(下标, 说明)
@@ -358,6 +375,12 @@ pub fn tongshu_hits(t: &TongshuInput) -> Vec<(usize, String)> {
     }
     if jiu_kong_leibian(m, z) {
         push("九空（类编）", "九空（类编）".into());
+    }
+    if ren_ge(m, z) {
+        push("人隔", "人隔（类编卷九）".into());
+    }
+    if tian_gou_wu_si(t.ba_jie) {
+        push("天狗無嗣", "天狗（無嗣，鳌头：八节当日）".into());
     }
     if hong_zui_zhu_que(g) {
         push("紅嘴朱雀", "紅嘴朱雀".into());
@@ -473,7 +496,10 @@ mod tests {
         // 仲月煞貢即孟月之后一位；孟月煞貢与仲月直星同
         assert!((0..60u8).all(|g| sha_gong_zhi_xing_ren_zhuan(0, g).contains(&"煞貢") == sha_gong_zhi_xing_ren_zhuan(1, g).contains(&"直星")));
         // 值宿：jdn 2461354（2026-11-09）
-        assert_eq!(TONGSHU_SHEN.len(), 20);
+        // 人隔：正酉、二未、三巳、四卯、五丑、六亥，七月起复
+        assert!(ren_ge(0, zi('酉')) && ren_ge(1, zi('未')) && ren_ge(5, zi('亥')) && ren_ge(6, zi('酉')) && ren_ge(11, zi('亥')));
+        assert_eq!((0..12u8).map(|m| (0..12u8).filter(|&z| ren_ge(m, z)).count()).sum::<usize>(), 12);
+        assert_eq!(TONGSHU_SHEN.len(), 22);
         assert!(TONGSHU_SHEN.len() <= 32);
     }
 
@@ -561,13 +587,21 @@ mod tests_book {
         let lk = |_m: u8, g: u8| li_ke(g);
         let v = hit(&lk, "鳌头", "嫁娶");
         assert_eq!(v.len(), 10, "{v:?}");
+        // 人隔（类编卷九起例）：两书求婚表尾皆称不犯人隔
+        let rg = |m: u8, g: u8| ren_ge(m, g % 12);
+        let rg_ao = hit(&rg, "鳌头", "求婚");
+        let rg_lb = hit(&rg, "类编", JiriBiao::QiuHun.name());
+        println!("人隔：鳌头求婚表 {rg_ao:?}；类编求婚表 {rg_lb:?}");
+        // 两书求婚表（105、113 日）只四月三卯日值之（他月全避；他表值之者 7—19 日）——四月或另有所据，未核
+        assert_eq!(rg_ao, ["4月丁卯", "4月辛卯", "4月乙卯"]);
+        assert_eq!(rg_lb.iter().map(|x| &x[..x.find('（').unwrap_or(x.len())]).collect::<Vec<_>>(), ["4月丁卯", "4月辛卯", "4月乙卯"]);
         // 冰消瓦解（类编）、荒蕪（鳌头序）：两书八表无一日值之
         for f in [(|m: u8, g: u8| bing_xiao_wa_jie(BingXiao::LeiBian, m, g % 12)) as fn(u8, u8) -> bool, |m, g| huang_wu_aotou(m, g % 12)] {
             assert!(rows.iter().all(|r| !f(r.2 - 1, r.3)));
         }
         // 逐神逐表统计（打印）
         type F = fn(u8, u8) -> bool;
-        let gods: [(&str, F); 14] = [
+        let gods: [(&str, F); 15] = [
             ("大煞", |m, g| da_sha(m, g % 12)),
             ("天火（类编）", |m, g| tian_huo_leibian(m, g % 12)),
             ("黑道", |m, g| !huang_hei_dao(m, g % 12).1),
@@ -577,6 +611,7 @@ mod tests_book {
             ("九土鬼（鳌头）", |_, g| jiu_tu_gui(JiuTuGui::AoTou, g)),
             ("九土鬼（董公，除建破平收）", |m, g| jiu_tu_gui(JiuTuGui::DongGong, g) && !jiu_tu_gui_wu_fang(m, g % 12)),
             ("九空（类编）", |m, g| jiu_kong_leibian(m, g % 12)),
+            ("人隔", |m, g| ren_ge(m, g % 12)),
             ("紅嘴朱雀", |_, g| hong_zui_zhu_que(g)),
             ("離窠", |_, g| li_ke(g)),
             ("荒蕪（鳌头序）", |m, g| huang_wu_aotou(m, g % 12)),

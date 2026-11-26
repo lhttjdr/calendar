@@ -336,11 +336,72 @@ pub fn yiji_for_day(d: &PuzhuDay) -> YueBiaoDay {
 /// 天獄（通书旧法：正月起子顺行四仲；协纪卷六已改从災煞而书仍用旧法）。
 /// 交节之日新旧两月之神并列（书于立夏、立秋、寒露、立冬、小寒诸日印旧月之神）。
 /// 书上每日实际印出几位还受版面所限（宜事长者栏底无空，常不印），此处给出应值之全集。
+/// 此为 [`ZhuZiBan::QianLong30`] 之神；他版见 [`ZhuZiBan::names`]。
 pub const ZHU_ZI: [&str; 14] = [
     "往亡", "月厭", "劫煞", "天吏", "月刑", "大耗", "小耗", "反支", "四離", "四絕", "荒蕪", "枯焦", "四不祥", "天獄",
 ];
 
+/// 乾隆三十一年（1766）时宪书朱字：天獄改印災煞（协纪卷六按语）、删四不祥（卷三十六辨訛）、荒蕪改名五虛（卷三十四按语）、
+/// 增土符与四耗、四忌、四窮（卷五起例）。以丙戌本全年 355 日归纳（`data/folk/shixianshu_qianlong31.csv`）
+pub const ZHU_ZI_QIANLONG31: [&str; 17] = [
+    "往亡", "月厭", "劫煞", "災煞", "天吏", "月刑", "大耗", "小耗", "反支", "四離", "四絕", "五虛", "枯焦", "土符", "四耗",
+    "四忌", "四窮",
+];
+
+/// 嘉庆五年（1800）时宪书朱字：较乾隆三十一年去大耗、小耗、五虛、土符、四耗、四忌、四窮，增月煞、五墓（月表）、
+/// 長星、短星（铺注），即三煞（劫煞、災煞、月煞）俱全。以国家图书馆藏本（维基共享资源 NLC892-411999011528-17552）
+/// 正月十四至二月十三、六月十四至七月十三、十二月十四至廿九三段 87 日读图归纳，书印 45 处皆在此集之内，
+/// 应值而未印之神无一属此集以外（大小耗、五虛、土符、四窮、四不祥、天獄应值之日书皆不印）。四離三段未遇，从四絕之例收入
+pub const ZHU_ZI_JIAQING5: [&str; 14] = [
+    "往亡", "月厭", "劫煞", "災煞", "月煞", "天吏", "月刑", "五墓", "反支", "四離", "四絕", "枯焦", "長星", "短星",
+];
+
+/// 时宪书底栏朱字之版。以书证定界：乾隆三十年（1765）旧体、三十一年（1766）改从协纪；嘉庆五年（1800）又变。
+/// 1766—1800 之间维基共享资源所见乾隆三十七年（台湾图书馆）、四十二年、四十九年、六十四年（国家图书馆、哈佛燕京）诸本皆无朱字，
+/// 第二次改版之年未定，暂以所见最早之嘉庆五年为界；乾隆二十一年本朱字低清未辨，故旧体上限亦未定（不早于协纪颁行的乾隆四年）。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ZhuZiBan {
+    /// 乾隆三十年体（1765 及以前）：沿钦天监旧例
+    QianLong30,
+    /// 乾隆三十一年体（1766—1799）：改从协纪
+    QianLong31,
+    /// 嘉庆五年体（1800 起）
+    JiaQing5,
+}
+
+impl ZhuZiBan {
+    /// 农历年（正月所在公历年）所用之版
+    pub fn for_year(lunar_year: i32) -> Self {
+        match lunar_year {
+            ..=1765 => Self::QianLong30,
+            1766..=1799 => Self::QianLong31,
+            _ => Self::JiaQing5,
+        }
+    }
+
+    pub fn names(self) -> &'static [&'static str] {
+        match self {
+            Self::QianLong30 => &ZHU_ZI,
+            Self::QianLong31 => &ZHU_ZI_QIANLONG31,
+            Self::JiaQing5 => &ZHU_ZI_JIAQING5,
+        }
+    }
+}
+
+/// 一日所属农历年（正月所在公历年）。`d.lunar.year` 是岁（冬至至冬至）之号，十一、十二月跨入次一公历年者须减一
+pub fn nong_li_nian(d: &PuzhuDay) -> i32 {
+    use crate::calendar::gregorian::Gregorian;
+    let (y, m, _) = Gregorian::from_julian_day(crate::math::real::real(d.jdn as f64));
+    if d.lunar.month >= 11 && m <= 6 { y - 1 } else { y }
+}
+
+/// 一日朱字应值之神，按当年之版（[`ZhuZiBan::for_year`]）
 pub fn zhu_zi(d: &PuzhuDay) -> Vec<&'static str> {
+    zhu_zi_ban(d, ZhuZiBan::for_year(nong_li_nian(d)))
+}
+
+/// 一日朱字应值之神，指定版
+pub fn zhu_zi_ban(d: &PuzhuDay, ban: ZhuZiBan) -> Vec<&'static str> {
     use super::yiji::yuebiao_day;
     let mut months = vec![d.month_ord];
     if d.jiao_jie {
@@ -352,10 +413,10 @@ pub fn zhu_zi(d: &PuzhuDay) -> Vec<&'static str> {
     for &m in &months {
         let xs = &yuebiao_day(m, d.input.day_gz).xiong_shen;
         let has = |n: &str| xs.iter().any(|x| x == n);
-        for n in ZHU_ZI {
+        for &n in ban.names() {
             let on = match n {
                 "往亡" => has("往亡") || names.iter().any(|x| x == "氣往亡"),
-                "反支" | "四離" | "四絕" => names.iter().any(|x| x == n),
+                "反支" | "四離" | "四絕" | "長星" | "短星" => names.iter().any(|x| x == n),
                 "荒蕪" => has("五虛"),
                 "枯焦" => has("九焦"),
                 "四不祥" => matches!(d.input.lunar_day, 4 | 7 | 16 | 19 | 28),
@@ -966,6 +1027,86 @@ mod tests {
                 ok_quan += (b == book) as usize;
             }
             assert!(ok >= min_ok && ok > ok_quan + 50, "{year}: {n} 日，取舍合 {ok}，全集合 {ok_quan}");
+        }
+    }
+
+    /// 朱字按年份分版：乾隆三十年（全年）、三十一年（全年）、嘉庆五年（五段 75 日）书印之神，各以三版应值全集检之。
+    /// 各年以本年之版「书有推算无」最少（1765 年 4、1766 年 3、1800 年 0），且少于他版 10 处以上（doc/folk/shensha.md「朱字按年份分版」）。
+    /// `cargo test --release -p lunar-core --no-default-features --features real-f64 --lib zhu_zi_ban -- --nocapture` 打印表
+    #[test]
+    fn zhu_zi_ban_vs_shixianshu() {
+        use crate::astronomy::ephemeris::{load_all, load_earth_vsop87_from_repo, Elpmpp02Correction};
+        use crate::calendar::gregorian::Gregorian;
+        use crate::calendar::historical::ShuoriTable;
+        use crate::math::real::RealOps;
+        const GAN: &str = "甲乙丙丁戊己庚辛壬癸";
+        const ZHI: &str = "子丑寅卯辰巳午未申酉戌亥";
+        const MON: [&str; 12] = ["正", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二"];
+        const DAY: [&str; 30] = [
+            "初一", "初二", "初三", "初四", "初五", "初六", "初七", "初八", "初九", "初十", "十一", "十二", "十三", "十四",
+            "十五", "十六", "十七", "十八", "十九", "二十", "廿一", "廿二", "廿三", "廿四", "廿五", "廿六", "廿七", "廿八",
+            "廿九", "三十",
+        ];
+        let root = crate::repo::repo_root();
+        let vsop = load_earth_vsop87_from_repo().unwrap();
+        let elp = load_all(&crate::repo::default_loader(), crate::repo::paths::ELPMPP02, Elpmpp02Correction::DEFAULT).unwrap();
+        let hist = ShuoriTable::from_csv(&std::fs::read_to_string(root.join("vendor/calendar/chinese_calendar/实历朔日表.csv")).unwrap()).unwrap();
+        let jd = |y, m, d| (Gregorian::to_julian_day(y, m, d).as_f64() + 0.5).floor() as i64;
+        let bans = [ZhuZiBan::QianLong30, ZhuZiBan::QianLong31, ZhuZiBan::JiaQing5];
+        println!("| 年 | 日数 | 书印 | 乾隆三十年体 书有推算无 | 乾隆三十一年体 | 嘉庆五年体 |\n|---|---|---|---|---|---|");
+        // (年, 文件, 朱字列, 本年之版, 本版书有推算无之上限)
+        for (year, file, col, own, max_out) in [
+            (1765, "shixianshu_qianlong30.csv", 5, ZhuZiBan::QianLong30, 5),
+            (1766, "shixianshu_qianlong31.csv", 5, ZhuZiBan::QianLong31, 3),
+            (1800, "shixianshu_jiaqing05_zhuzi.csv", 3, ZhuZiBan::JiaQing5, 0),
+        ] {
+            assert_eq!(ZhuZiBan::for_year(year), own);
+            let days = puzhu_days(&vsop, &elp, Some(&hist), jd(year, 1, 1), jd(year + 1, 3, 1), QiWangWangCount::Inclusive);
+            let firsts: Vec<i64> = days
+                .iter()
+                .filter(|d| d.lunar.month == 1 && d.lunar.day == 1 && !d.lunar.is_leap_month)
+                .map(|d| d.jdn)
+                .collect();
+            let s0 = *firsts.iter().find(|&&j| Gregorian::from_julian_day(crate::math::real::real(j as f64)).0 == year).unwrap();
+            let s1 = *firsts.iter().find(|&&j| j > s0).unwrap();
+            let key = |d: &PuzhuDay| {
+                let gz = d.input.day_gz as usize;
+                format!(
+                    "{}{},{},{}{}",
+                    if d.lunar.is_leap_month { "閏" } else { "" },
+                    MON[d.lunar.month as usize - 1],
+                    DAY[d.lunar.day as usize - 1],
+                    GAN.chars().nth(gz % 10).unwrap(),
+                    ZHI.chars().nth(gz % 12).unwrap()
+                )
+            };
+            let by: std::collections::HashMap<String, &PuzhuDay> =
+                days.iter().filter(|d| d.jdn >= s0 && d.jdn < s1).map(|d| (key(d), d)).collect();
+            let text = std::fs::read_to_string(root.join("data/folk").join(file)).unwrap();
+            let (mut n, mut printed) = (0, 0);
+            let mut out = [0usize; 3];
+            for line in text.lines().skip(1) {
+                let f: Vec<&str> = line.split(',').collect();
+                let k = format!("{},{},{}", f[0], f[1], f[2]);
+                let d = *by.get(&k).unwrap_or_else(|| panic!("{year} {k}"));
+                n += 1;
+                for z in f[col].split_whitespace().filter(|z| !z.contains('?') && !z.contains('□')) {
+                    printed += 1;
+                    for (k, b) in bans.iter().enumerate() {
+                        out[k] += !zhu_zi_ban(d, *b).contains(&z) as usize;
+                    }
+                }
+            }
+            println!("| {year} | {n} | {printed} | {} | {} | {} |", out[0], out[1], out[2]);
+            let own_k = bans.iter().position(|b| *b == own).unwrap();
+            assert!(out[own_k] <= max_out, "{year} {out:?}");
+            for k in 0..3 {
+                if k != own_k {
+                    assert!(out[k] >= out[own_k] + 10, "{year} {out:?}");
+                }
+            }
+            // 当年之版即缺省 zhu_zi
+            assert!(by.values().all(|d| nong_li_nian(d) == year && zhu_zi(d) == zhu_zi_ban(d, own)));
         }
     }
 }

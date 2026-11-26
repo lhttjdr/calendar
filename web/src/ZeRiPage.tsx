@@ -1,5 +1,5 @@
 /**
- * 择日页：年神方位二十四山图（《协纪辨方书》卷三）、当日神煞宜忌（月表 + 卷十铺注 + 时宪书体例；可切《董公選擇日要覽》为另一说）、日游神鹤神。
+ * 择日页：年神方位二十四山图（《协纪辨方书》卷三）、当日神煞宜忌（月表 + 卷十铺注 + 时宪书体例，含时宪书「不宜」取舍；可切《董公選擇日要覽》为另一说；神煞起例含地囊三说）、鳌头日家神（只列神）、日游神鹤神。
  * 与日历共用所选日期；图依古图南上北下、东左西右。
  */
 import { Button, Card, Checkbox, Flex, InputNumber, Radio, Typography } from 'antd'
@@ -497,6 +497,57 @@ function DongGongYiJi({ wasm, ear, jd }: { wasm: LunarBackend; ear: string; jd: 
   )
 }
 
+type AoTouShen = { n: string; ji: boolean; src: string; xieji: string }
+
+/** 鳌头日家神（《增補鰲頭通書大全》按月起例之神）：只列神，不推宜忌 */
+function AoTouShenList({ wasm, ear, jd }: { wasm: LunarBackend; ear: string; jd: number }) {
+  const list = useMemo((): AoTouShen[] | null => {
+    if (typeof wasm.aotou_shen_day_json !== 'function') return null
+    try { return JSON.parse(wasm.aotou_shen_day_json(jd, ear)) as AoTouShen[] } catch { return null }
+  }, [wasm, ear, jd])
+  if (!list) return <Text type="secondary" style={{ fontSize: 12 }}>鳌头日家神需新版 wasm</Text>
+  if (list.length === 0) return <Text type="secondary" style={{ fontSize: 12 }}>本日不值鳌头按月起例之神</Text>
+  const item = (s: AoTouShen, i: number) => (
+    <span key={`${s.n}${i}`} title={`${s.src}${s.xieji && s.xieji !== s.n ? `；即协纪「${s.xieji}」` : ''}`} style={{ color: s.ji ? '#237804' : '#a8071a', marginRight: 6 }}>
+      {s.n}{s.xieji && s.xieji !== s.n ? <Text type="secondary" style={{ fontSize: 11 }}>{`（${s.xieji}）`}</Text> : null}
+    </span>
+  )
+  const ji = list.filter((s) => s.ji), xiong = list.filter((s) => !s.ji)
+  return (
+    <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+      <div>{'吉神：'}{ji.length ? ji.map(item) : '—'}</div>
+      <div>{'凶神：'}{xiong.length ? xiong.map(item) : '—'}</div>
+      <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>
+        据《增補鰲頭通書大全》卷二至卷五各门表前神栏与卷五日家吉凶神定局中按月（或按季）起例之神，月以节为界；括注为 720 日全同之协纪神名，悬停见出处。只列神，宜忌仍依上文所选。
+      </Text>
+    </div>
+  )
+}
+
+export type DayLunar = { month: number; day: number; leap: boolean; dim: number; phase: number }
+
+/** 时宪书「不宜」五事（出行、移徙、針刺、動土、栽種）：缺省按时宪书取舍（即书所印），可切应值全集 */
+function BuYiLine({ wasm, ear, jd, lunar, quShe }: { wasm: LunarBackend; ear: string; jd: number; lunar: DayLunar; quShe: 'shixian' | 'quan' }) {
+  const r = useMemo((): { shiXianShu: string[]; quanJi: string[] } | null => {
+    if (typeof wasm.shixianshu_bu_yi_json !== 'function') return null
+    try {
+      return JSON.parse(wasm.shixianshu_bu_yi_json(Math.floor(jd + 0.5) - 0.5, ear, lunar.month, lunar.day, lunar.leap, lunar.dim, lunar.phase)) as { shiXianShu: string[]; quanJi: string[] }
+    } catch { return null }
+  }, [wasm, ear, jd, lunar.month, lunar.day, lunar.leap, lunar.dim, lunar.phase])
+  if (!r) return null
+  if (quShe === 'shixian') return <div style={{ fontSize: 13 }}>{`時憲書不宜：${r.shiXianShu.length ? r.shiXianShu.join(' ') : '—'}`}</div>
+  const extra = r.quanJi.filter((x) => !r.shiXianShu.includes(x))
+  return (
+    <div style={{ fontSize: 13 }}>
+      {'時憲書不宜（全集）：'}
+      {r.quanJi.length === 0 ? '—' : r.quanJi.map((x) => (
+        <span key={x} style={{ marginRight: 6, color: extra.includes(x) ? '#8c8c8c' : undefined }} title={extra.includes(x) ? '应值而时宪书取舍不印' : '时宪书所印'}>{x}</span>
+      ))}
+      {extra.length > 0 && <Text type="secondary" style={{ fontSize: 11 }}>{`（灰字 ${extra.join('、')} 为时宪书取舍所去）`}</Text>}
+    </div>
+  )
+}
+
 /** 神煞起例诸说（核心 shensha::ShenshaOptions、nianshen::NianShenOptions；出处见知识库 tongshu.md 第五节） */
 const QILI_ITEMS: { key: string; label: string; opts: string[] }[] = [
   { key: 'tianDe', label: '天德·天德合四仲', opts: ['协纪（四仲无）', '类编（申亥寅巳）'] },
@@ -507,8 +558,10 @@ const QILI_ITEMS: { key: string; label: string; opts: string[] }[] = [
   { key: 'huangWu', label: '荒蕪', opts: ['不列（协纪：即五虚）', '按季三支', '类编表序', '类编新增起例'] },
   { key: 'tianZei', label: '天賊', opts: ['协纪（正月丑逆行）', '类编（正月辰进五辰）'] },
   { key: 'canMing', label: '蠶命（年神）', opts: ['协纪', '类编'] },
+  { key: 'diNang', label: '地囊', opts: ['协纪（按语改定）', '《歷例》旧文', '鳌头（十月庚子庚辰、十一月辛未辛丑）'] },
 ]
-const QILI_LEIBIAN: Record<string, number> = { tianDe: 1, tianHuo: 1, mingFei: 1, mingFeiDui: 1, fuRi: 1, huangWu: 2, tianZei: 1, canMing: 1 }
+/** 类编：地囊起例未核，仍依协纪 */
+const QILI_LEIBIAN: Record<string, number> = { tianDe: 1, tianHuo: 1, mingFei: 1, mingFeiDui: 1, fuRi: 1, huangWu: 2, tianZei: 1, canMing: 1, diNang: 0 }
 
 /** 神煞起例：part=controls 为起例区内的选择，part=diff 为当日结果区「较协纪多／少」 */
 function QiLiPanel(props: { wasm: LunarBackend; ear: string; jd: number; o: Record<string, number>; setO: (o: Record<string, number>) => void; part: 'controls' | 'diff' }) {
@@ -518,7 +571,7 @@ function QiLiPanel(props: { wasm: LunarBackend; ear: string; jd: number; o: Reco
   const r = useMemo(() => {
     if (props.part !== 'diff' || typeof props.wasm.qili_shen_day_json !== 'function') return null
     try {
-      return JSON.parse(props.wasm.qili_shen_day_json(props.jd, props.ear, v('tianDe'), v('tianHuo'), v('mingFei'), v('mingFeiDui'), v('fuRi'), v('huangWu'), v('canMing'), v('tianZei'))) as {
+      return JSON.parse(props.wasm.qili_shen_day_json(props.jd, props.ear, v('tianDe'), v('tianHuo'), v('mingFei'), v('mingFeiDui'), v('fuRi'), v('huangWu'), v('canMing'), v('tianZei'), v('diNang'))) as {
         add: [string, boolean][]; remove: [string, boolean][]; canMing: { xieji: string; sel: string }
       }
     } catch { return null }
@@ -583,11 +636,14 @@ export function ZeRiPage(props: {
   monthLabel?: string
   /** 把全站所选日期移到某民用日（JDN） */
   onPickJdn?: (jdn: number) => void
+  /** 当日农历与朔弦望（时宪书「不宜」用）；无则 null */
+  dayLunar?: DayLunar | null
 }) {
   const { wasm, ear, jd } = props
   const { bar: compassBar, spin } = useCompassBar(props)
   const g = useOptGroup('zeriDay')
   const [yiJiSrc, setYiJiSrc] = useOpt<'xieji' | 'dong'>(g, 'yiJiSrc', 'xieji', '宜忌依董公')
+  const [buYiQuShe, setBuYiQuShe] = useOpt<'shixian' | 'quan'>(g, 'buYiQuShe', 'shixian', '不宜取舍')
   const [qili, setQili] = useState<Record<string, number>>({})
   g.items.push({ label: '神煞起例', changed: Object.values(qili).some((x) => x !== 0), reset: () => setQili({}) })
   const data = useMemo((): NianShenData | null => {
@@ -640,8 +696,9 @@ export function ZeRiPage(props: {
                 ) : (
                   <Text type="secondary">神煞宜忌需农历与岁数据，加载后显示</Text>
                 )}
+                {wasm && ear != null && props.dayLunar && <BuYiLine wasm={wasm} ear={ear} jd={jd} lunar={props.dayLunar} quShe={buYiQuShe} />}
                 <Notes>
-                  据《协纪辨方书》月表加卷十铺注（反支、上朔、四離四絕、晦日、二至二分、土王用事、伏社、朔弦望、月忌、人神、長短星、氣往亡、無祿），并依时宪书体例计嫁娶周堂、交节日；「時憲書宜」为民用三十七事；「時憲書朱字」为底栏朱字应值之神（含钦天监沿用的通书之神荒蕪、枯焦、四不祥、天獄）。日遊神、鶴神、太歲出遊见卷三。
+                  据《协纪辨方书》月表加卷十铺注（反支、上朔、四離四絕、晦日、二至二分、土王用事、伏社、朔弦望、月忌、人神、長短星、氣往亡、無祿），并依时宪书体例计嫁娶周堂、交节日；「時憲書宜」为民用三十七事；「時憲書朱字」为底栏朱字应值之神（含钦天监沿用的通书之神荒蕪、枯焦、四不祥、天獄）。「時憲書不宜」为出行、移徙、針刺、動土、栽種五事：缺省按乾隆三十年、三十一年时宪书逐日归纳之取舍（他年检验逐日全合约 95%—97%），起例区可改为应值全集（某事在忌内且值其忌神即列，全合约 78%）；交节之日取新旧两月之交。日遊神、鶴神、太歲出遊见卷三。
                 </Notes>
               </>
             )}
@@ -654,7 +711,19 @@ export function ZeRiPage(props: {
                 </Radio.Group>
               </Flex>
               {wasm && ear != null && <QiLiPanel wasm={wasm} ear={ear} jd={jd} o={qili} setO={setQili} part="controls" />}
+              <Flex align="center" gap={8} wrap style={{ marginTop: 6 }}>
+                <Text style={{ fontSize: 13 }}>「不宜」取舍：</Text>
+                <Radio.Group size="small" value={buYiQuShe} onChange={(e) => setBuYiQuShe(e.target.value)}>
+                  <Radio.Button value="shixian">按时宪书（缺省）</Radio.Button>
+                  <Radio.Button value="quan">应值全集</Radio.Button>
+                </Radio.Group>
+              </Flex>
             </OptionsFold>
+            {wasm && ear != null && (
+              <Notes title="鳌头日家神（按月起例，只列神）">
+                <AoTouShenList wasm={wasm} ear={ear} jd={jd} />
+              </Notes>
+            )}
           </Card>
         </Flex>
       )}

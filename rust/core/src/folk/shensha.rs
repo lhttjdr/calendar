@@ -779,6 +779,10 @@ mod tests {
         assert_eq!(x2, 600);
         assert_eq!(ours, juan15);
         assert_eq!(ours, juan7);
+        // 卷九買納奴婢凶日表天賊一行（02094407.cn 第 33 页，影像核，2026-11-26）
+        let juan9 = "辰酉寅未子巳戌卯申丑午亥";
+        println!("| 类编说 vs 卷九表 {juan9} | 12 | {} | |", (0..12).filter(|&k| ours.chars().nth(k) == juan9.chars().nth(k)).count());
+        assert_eq!(ours, juan9);
         assert_eq!(ours, man_po_kai);
         assert_eq!(xj, yan_shou);
         assert!((0..12u8).all(|m| tian_zei_zhi(m, QiLiYi::XieJi) != tian_zei_zhi(m, QiLiYi::LeiBian)));
