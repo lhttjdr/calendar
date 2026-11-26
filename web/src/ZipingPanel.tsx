@@ -215,7 +215,7 @@ function HehunPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; tz: 
             <BirthInputRow label="女" v={nv} onChange={setNv} onTake={() => setNv(sel())} />
             <Text type="secondary" style={{ fontSize: 11 }}>{`钟点按所选时区（UTC${props.tz >= 0 ? '+' : ''}${props.tz}）；四柱同子平（立春、节、子正）`}</Text>
             <div style={{ fontSize: 12 }}>依书：<Radio.Group size="small" value={shu} onChange={(e) => setShu(e.target.value)}
-              options={[{ label: '類編卷七', value: 0 }, { label: '鰲頭卷三', value: 1 }, { label: '协纪所述之法', value: 2 }]} /></div>
+              options={[{ label: '類編卷七', value: 0 }, { label: '鰲頭卷三', value: 1 }, { label: '协纪所述之法', value: 2 }, { label: '協紀立成', value: 3 }]} /></div>
             <div style={{ fontSize: 12 }}>孤鸞：<Radio.Group size="small" value={guLuan} onChange={(e) => setGuLuan(e.target.value)}
               options={[{ label: '八日（星學大成、三命卷三）', value: 0 }, { label: '四日（三命卷十二注）', value: 1 }]} /></div>
           </Flex>
@@ -232,7 +232,7 @@ function HehunPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; tz: 
                 {r.nvJiaYue.map((x, k) => <span key={k} style={{ marginRight: 6, color: x === '大利月' ? '#237804' : undefined }}>{`${MONTHS[k]}月${x === '大利月' ? '大利' : x}`}</span>)}
               </div>
               <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>
-                {`依${r.shu}照录判语。协纪卷三十六「男女合婚大利月」述其法而逐条斥之，卷首奏议「男女合婚……應請刪去」；「协纪所述之法」为按协纪所述（命宫依《三元經》，五行月按长生十二位）推得，并非协纪所用。`}
+                {`依${r.shu}照录判语。协纪卷三十六「男女合婚大利月」述其法而逐条斥之，卷首奏议「男女合婚……應請刪去」；「协纪所述之法」为按协纪所述（命宫依《三元經》，五行月按长生十二位）推得，并非协纪所用；「協紀立成」照录协纪卷三十六「合婚立成」290 格（半改之表：正文所斥益財退財已改，男起宫与鐵掃帚女火局仍世传）。`}
               </Text>
             </div>
           )}
