@@ -958,6 +958,8 @@ pub fn judge_day(d: &PuzhuDay, inp: &JiaquInput, o: &JiaquOptions) -> JiaquDay {
         nv_year_gz: inp.nv_year_gz,
         phase: d.input.phase,
         hui: d.input.lunar_day == d.input.days_in_month,
+        // 八节：二分二至当日，或交四立（寅巳申亥月之节）之日
+        ba_jie: d.input.fen_zhi.is_some() || (d.jiao_jie && d.month_ord % 3 == 0),
     };
     let hits = tongshu_hits(&ti);
     for (i, txt) in &hits {
