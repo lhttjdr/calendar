@@ -5,7 +5,8 @@
 本脚本把三表所录纪日合读，逐条求 δ 窗口，按文书性质分两组（官文书 / 私记与购藏，见 group()）、按年按地排出可行域，并求「分段常数 δ」至少要几段、段界可在哪些年。
 
 底本：
-- data/calendar/qin_phase_records.csv：《奏谳书》案例十七、十八、二十二，《吕氏春秋·序意》，《里耶秦簡（壹）索引稿》曆日索引（秦王政二十五年至始皇三十五年），
+- data/calendar/qin_phase_records.csv：《奏谳书》案例十七、十八、二十二，《吕氏春秋·序意》，《里耶秦簡（壹）索引稿》曆日索引（秦王政二十五年至始皇三十五年；
+  逐条对《里耶秦简牍校释》第一卷核过，「核对」列：校释合 / 校释异 / 未核 / 校释补收），
   《嶽麓書院藏秦簡（叁）》《為獄等狀四種》（秦王政十八年至始皇二十八年）；
 - data/calendar/shuihudi_records.csv：睡虎地《编年记》《语书》（国 = 秦）；
 - data/calendar/qinhan_shiwu_months.csv：岳麓《质日》、周家台《历谱》（年 ≤ −208；里耶 12 条已含于索引稿，不重读）。
@@ -117,7 +118,7 @@ recs = []
 for r in read(ROOT / "data/calendar/qin_phase_records.csv"):
     recs.append(dict(来源=r["来源"], 地=r["地"], 纪年=r["纪年"], 年=int(r["年"]), 月=int(r["月"]), 闰=r["闰"] == "1",
                      朔=r["朔"], 日=r["日"], 依据=r["依据"], 系年=r["系年"], 简号=r["简号"], 书页=r["书页"],
-                     原文=r["原文"], 注=r["注"]))
+                     原文=r["原文"], 注=r["注"], 核对=r["核对"]))
 for r in read(ROOT / "data/calendar/shuihudi_records.csv"):
     if r["国"] != "秦":
         continue
@@ -205,6 +206,9 @@ def all_inter(rows):
 central = all_inter(OFF)
 central_pre = all_inter([r for r in OFF if r["年"] <= -221])
 central_yuelu = all_inter(OFF + [r for r in PRIV if r["来源"] == "岳麓" and r["年"] >= -212])
+OFF_JS = [r for r in OFF if r["来源"] != "里耶" or r.get("核对") == "校释合"]
+central_js = all_inter(OFF_JS)
+LIYE_K = OrderedDict((k, sum(1 for r in recs if r["来源"] == "里耶" and r.get("核对") == k)) for k in ("校释合", "校释异", "未核", "校释补收"))
 assert central == CENTRAL, central
 
 
@@ -229,11 +233,11 @@ with open(ROOT / "data/calendar/qin_phase_check.csv", "w", encoding="utf-8", new
             f"窗口为合此条之 δ 区间（扫描 {D_LO}—{D_HI}，端点即扫描边界者表示不限）。入交集：依据为书且系年为书或同牍。"
             f"合单段：δ ∈ [{central[0]}, {central[1]}]（官文书各条之交）内是否相合。\n")
     w = csv.writer(f, lineterminator="\n")
-    w.writerow(["来源", "组", "地", "纪年", "年", "月", "闰", "朔", "日", "依据", "系年", "简号", "书页", "颛顼朔", "窗口", "入交集", "合单段", "合颛顼本术"])
+    w.writerow(["来源", "组", "地", "纪年", "年", "月", "闰", "朔", "日", "依据", "系年", "简号", "书页", "核对", "颛顼朔", "窗口", "入交集", "合单段", "合颛顼本术"])
     for r in recs:
         i = month_index(r["年"], r["月"], r["闰"])
         w.writerow([r["来源"], group(r), r["地"], r["纪年"], r["年"], r["月"], int(r["闰"]), r["朔"], r["日"], r["依据"], r["系年"],
-                    r["简号"], r["书页"], gz(shuo(i)) if i is not None else "", fmt_iv(r["iv"]), int(r["入交集"]),
+                    r["简号"], r["书页"], r.get("核对", ""), gz(shuo(i)) if i is not None else "", fmt_iv(r["iv"]), int(r["入交集"]),
                     "✓" if any(inter((a, b), central) for a, b in r["iv"]) else "✗", "✓" if in_iv(r["iv"], 0) else "✗"])
 
 # ---------- 输出文档 ----------
@@ -256,6 +260,8 @@ P(f"- 官文书（《奏谳书》案例十七、十八、二十二，《序意�
   f"[{central_pre[0]}, {central_pre[1]}]。按地：" + "；".join(
       f"{d} {len(rs)} 条 {wcell(all_inter(rs))}" for d, rs in by_place(OFF).items()) + "。")
 P(f"- 加入岳麓《质日》三十四、三十五年：[{central_yuelu[0]}, {central_yuelu[1]}]。")
+P(f"- 里耶对《里耶秦简牍校释》第一卷逐条核对：" + "、".join(f"{k} {v}" for k, v in LIYE_K.items()) + " 条；"
+  f"官文书中里耶只取「校释合」之条（{len(OFF_JS)} 条）之交：[{central_js[0]}, {central_js[1]}]。")
 bnj = [r for r in PRIV if r["来源"] == "睡虎地"]
 COMBOS = (("官文书", OFF), ("官文书 + 睡虎地《编年记》", OFF + bnj),
           ("官文书 + 睡虎地《编年记》（去廿年七月甲寅）", OFF + [r for r in bnj if not (r["年"] == -226 and r["月"] == 7)]),
@@ -300,7 +306,7 @@ for y in sorted({r["年"] for r in used}):
 P("")
 P("## 四、本项目推步段与里耶全部纪日")
 P("")
-P("`qinhan_shiyong` 秦段所取 δ 与里耶（索引稿）入交集之条的不合者（现行一段；旧两段在 2026-11-26 合一，列出以见其由）：")
+P("`qinhan_shiyong` 秦段所取 δ 与里耶入交集之条的不合者（现行一段；旧两段在 2026-11-26 合一，列出以见其由）：")
 P("")
 P("| | 段 | 段内年 | δ | 不合之条 |")
 P("|---|---|---|---|---|")
@@ -313,8 +319,8 @@ P("## 五、逐条（有限窗口者）")
 P("")
 P("只列窗口不是全域的条目（日干支距月首、月尾都远的条目对 δ 无约束，见 `data/calendar/qin_phase_check.csv`）。合单段：δ 在官文书之交内；合颛顼：δ = 0。")
 P("")
-P("| 来源 | 组 | 地 | 纪年 | 年 | 月 | 朔 / 日 | 依据 | 系年 | 简号 | 书页 | 颛顼朔 | 窗口（分） | 入交集 | 合单段 | 合颛顼 |")
-P("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|")
+P("| 来源 | 组 | 地 | 纪年 | 年 | 月 | 朔 / 日 | 依据 | 系年 | 简号 | 书页 | 核对 | 颛顼朔 | 窗口（分） | 入交集 | 合单段 | 合颛顼 |")
+P("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|")
 n_lim = 0
 for r in recs:
     if not r["有限"] and r["iv"]:
@@ -322,12 +328,12 @@ for r in recs:
     n_lim += 1
     i = month_index(r["年"], r["月"], r["闰"])
     P(f"| {r['来源']} | {group(r)} | {r['地']} | {r['纪年']} | {r['年']} | {'後' if r['闰'] else ''}{r['月']}月 | {r['朔'] + '朔' if r['朔'] else ''}{r['日']} | "
-      f"{r['依据']} | {r['系年']} | {r['简号']} | {r['书页']} | {gz(shuo(i))} | {fmt_iv(r['iv'])} | {'✓' if r['入交集'] else ''} | "
+      f"{r['依据']} | {r['系年']} | {r['简号']} | {r['书页']} | {r.get('核对', '')} | {gz(shuo(i))} | {fmt_iv(r['iv'])} | {'✓' if r['入交集'] else ''} | "
       f"{'✓' if any(inter((a, b), central) for a, b in r['iv']) else '✗'} | {'✓' if in_iv(r['iv'], 0) else '✗'} |")
 P("")
 P(f"共 {len(recs)} 条（有限窗口 {n_lim} 条；入交集 {len(used)} 条：官文书 {len(OFF)}、私记与购藏 {len(PRIV)}）。")
 P("")
 (ROOT / "doc/calendar/qin-phase-checks.md").write_text("\n".join(L), encoding="utf-8")
-print(f"{len(recs)} 条；官文书 {central}，统一前 {central_pre}，加岳麓 34—35 年 {central_yuelu}")
+print(f"{len(recs)} 条；官文书 {central}，统一前 {central_pre}，加岳麓 34—35 年 {central_yuelu}，里耶只取校释合 {central_js}；{dict(LIYE_K)}")
 for name, rows in COMBOS:
     print(name, segments(rows))
