@@ -1,5 +1,5 @@
 /**
- * 排盘页：奇门遁甲、大六壬、太乙、六爻·周易、玄空飞星、七政四余（经星图 Worker）、紫微斗数。
+ * 排盘页：奇门遁甲、大六壬、太乙、六爻·周易、玄空飞星、七政四余（经星图 Worker）、紫微斗数、子平八字（附合婚）。
  * 与日历共用所选时刻；日柱、时支取日历所示四柱。图依古式南上北下、东左西右。
  * 规则与出处见知识库 doc/folk/liuren.md、taiyi.md、qimen.md。
  */
@@ -12,6 +12,7 @@ import { LiurenWheel, QimenWheel, qimenMarks, type QimenGongMarks, type QimenFan
 import { useWorkerRpc } from './useWorkerRpc'
 import type { SkyRequest } from './skyWorker'
 import { DayanDemo } from './DayanDemo'
+import { ZipingPanel } from './ZipingPanel'
 
 const { Text } = Typography
 
@@ -1060,6 +1061,9 @@ export function PaiPanPage(props: LocationProps & {
   /** 月柱之支（月建，以节换月）；干支年（立春分，玄空定运用） */
   monthZhi?: number | null
   ganzhiYear?: number
+  /** 所选时区与 UT 之差（时）；日柱时柱所依钟点与 UT 之差（钟点模式同前者，当地太阳时为其与 UT 之差）。子平、合婚用 */
+  tzOffsetHours?: number
+  pillarClockOffsetHours?: number
 }) {
   const { wasm, ear, dayGz, hourZhi } = props
   const { bar: compassBar, trueHeading, spin } = useCompassBar(props)
@@ -1110,6 +1114,10 @@ export function PaiPanPage(props: LocationProps & {
               children: props.lunar
                 ? <ZiweiPanel wasm={wasm!} lunar={props.lunar} hourZhi={hourZhi!} />
                 : <Text type="secondary">需所选日的农历（岁数据加载后显示）</Text>,
+            },
+            {
+              key: 'ziping', label: '子平八字',
+              children: <ZipingPanel wasm={wasm!} ear={ear!} jdUt={jdUt} tzOffset={props.tzOffsetHours ?? 8} clockOffset={props.pillarClockOffsetHours ?? props.tzOffsetHours ?? 8} />,
             },
           ]}
         />

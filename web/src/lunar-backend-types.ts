@@ -171,7 +171,16 @@ export interface LunarBackend {
   shensha_day_wasm?(jd: number, vsop87_ear: string, lunar_month: number, lunar_day: number, is_leap: boolean, days_in_month: number, phase: number): string
   /** 择日页宜忌另一说：《董公選擇日要覽》（JSON；月建按节） */
   dong_gong_day_json?(jd: number, vsop87_ear: string): string
-  qili_shen_day_json?(jd: number, vsop87_ear: string, tian_de: number, tian_huo: number, ming_fei: number, ming_fei_dui: number, fu_ri: number, huang_wu: number, can_ming: number, tian_zei: number): string
+  /** 神煞起例诸说；di_nang 0 协纪改定、1《歷例》旧文、2 鳌头（可省） */
+  qili_shen_day_json?(jd: number, vsop87_ear: string, tian_de: number, tian_huo: number, ming_fei: number, ming_fei_dui: number, fu_ri: number, huang_wu: number, can_ming: number, tian_zei: number, di_nang?: number | null): string
+  /** 鳌头日家神（按月起例，只列神）：[{n, ji, src, xieji}] */
+  aotou_shen_day_json?(jd: number, vsop87_ear: string): string
+  /** 时宪书「不宜」五事：{shiXianShu: 按时宪书取舍, quanJi: 应值全集} */
+  shixianshu_bu_yi_json?(jd: number, vsop87_ear: string, lunar_month: number, lunar_day: number, is_leap: boolean, days_in_month: number, phase: number): string
+  /** 排盘页子平八字（JSON）；opts 各下标 0 为缺省，见 lib_impl.rs ziping_options_from */
+  ziping_json?(jd_ut: number, vsop87_ear: string, clock_utc_offset_hours: number, male: boolean, n_yun: number, opts: Uint8Array): string
+  /** 合婚（通书说，官历删除）：shu 0 类编 1 鳌头 2 协纪所述；gu_luan 0 八日 1 四日 */
+  hehun_json?(nan_jd_ut: number, nv_jd_ut: number, vsop87_ear: string, clock_utc_offset_hours: number, shu: number, gu_luan: number): string
   /** 建除、日黄黑道、百忌 */
   jianchu_day_wasm?(jd: number, vsop87_ear: string): string
   /** 时黄黑道 */

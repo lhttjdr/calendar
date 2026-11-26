@@ -720,6 +720,21 @@ function App() {
     const utc = utcFromLocalInZone({ year: displayY, month: displayM, day: displayD, hour: displayHour, minute: displayMinute, second: displaySecond }, timeZone)
     return utc.getTime() / 86400000 + 2440587.5
   })()
+  /** 所选时区在所选时刻与 UT 之差（时，按分取整）；子平、合婚的钟点时区 */
+  const tzOffsetHours = (() => {
+    const utc = utcFromLocalInZone({ year: displayY, month: displayM, day: displayD, hour: displayHour, minute: displayMinute, second: displaySecond }, timeZone)
+    const t = new Date(0)
+    t.setUTCFullYear(displayY, displayM - 1, displayD)
+    t.setUTCHours(displayHour, displayMinute, displaySecond, 0)
+    return Math.round((t.getTime() - utc.getTime()) / 60000) / 60
+  })()
+  /** 日柱时柱所依钟点与 UT 之差（时）：钟点模式即时区；当地平太阳时、真太阳时为其与 UT 之差 */
+  const pillarClockOffsetHours = (() => {
+    if (localSolarHours == null) return tzOffsetHours
+    let diff = localSolarHours - (((selectedJdUt + 0.5) % 1) + 1) % 1 * 24
+    diff -= 24 * Math.round(diff / 24)
+    return diff
+  })()
   /** GPS 定位，写回观测地经纬度（时柱当地时、更点、罗盘磁偏角共用）；返回提示文字 */
   const locate = async (): Promise<string> => {
     const f = await getCurrentPosition()
@@ -804,6 +819,9 @@ function App() {
         : ''
       const jianchu = typeof wasm.jianchu_day_wasm === 'function' ? wasm.jianchu_day_wasm(wasm.gregorian_to_jd(displayY, displayM, displayD), ear) : ''
       // 神煞宜忌：月表加卷十铺注，需当日农历（与所显示者一致）与朔弦望
+      /** 当日农历与朔弦望（择日页时宪书「不宜」用，与神煞宜忌同参数） */
+      type DayLunar = { month: number; day: number; leap: boolean; dim: number; phase: number }
+      let dayLunar: DayLunar | null = null
       const shensha = (() => {
         if (typeof wasm.shensha_day_wasm !== 'function' || !selectedLunarSlot) return ''
         const jd0 = wasm.gregorian_to_jd(displayY, displayM, displayD)
@@ -817,6 +835,7 @@ function App() {
             if (Math.floor(jdTtToUtc(wasm, pj[i]!) + 8 / 24 + 0.5) === jdn) { phase = pk[i]!; break }
           }
         }
+        dayLunar = { month: selectedLunarSlot.lunarMonth, day: selectedLunarSlot.dayOfMonth, leap: selectedLunarSlot.isLeapMonth === 1, dim: selectedLunarSlot.daysInMonth, phase }
         return wasm.shensha_day_wasm(
           jd0,
           ear,
@@ -827,7 +846,7 @@ function App() {
           phase,
         )
       })()
-      return { xiu: get('xiu'), qiYao: get('qi_yao'), yearStar: get('year_star'), monthStar: get('month_star'), nianShen: get('nian_shen'), riShen: get('ri_shen'), zajie, geng, jianchu, shensha }
+      return { xiu: get('xiu'), qiYao: get('qi_yao'), yearStar: get('year_star'), monthStar: get('month_star'), nianShen: get('nian_shen'), riShen: get('ri_shen'), zajie, geng, jianchu, shensha, dayLunar: dayLunar as DayLunar | null }
     } catch {
       return null
     }
@@ -970,6 +989,7 @@ function App() {
           jd={wasm ? wasm.gregorian_to_jd(displayY, displayM, displayD) + 0.5 : 0}
           shensha={folkDay?.shensha ?? ''}
           jianchu={folkDay?.jianchu ?? ''}
+          dayLunar={folkDay?.dayLunar ?? null}
           latitude={observerLatitude}
           longitude={observerLongitude}
           onLocate={locate}
@@ -1006,6 +1026,8 @@ function App() {
           isLive={isLiveMode}
           tab={paipanTab}
           onTab={setPaipanTab}
+          tzOffsetHours={tzOffsetHours}
+          pillarClockOffsetHours={pillarClockOffsetHours}
         /></Suspense>
       </div>
     )
