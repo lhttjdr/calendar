@@ -4,7 +4,9 @@
 //! 依据与口径（详见 doc/folk/xuankong.md）：
 //! - 挨星诀（替卦所据）：《青囊奧語》「坤壬乙，巨門從頭出；艮丙辛，位位是破星；巽辰亥，儘是武曲位；甲癸申，貪狼一路行」
 //!   （据维基文库录文，`vendor/folk/wikisource/青囊奧語/`）。扩为二十四山之替星表（子→貪狼、寅午庚丁→右弼等）
-//!   与运盘、山向盘入中飞布之法，出沈竹礽《沈氏玄空學》（民国排印；原书未见，出处未核）。
+//!   与运盘、山向盘入中飞布之法，出沈竹礽《沈氏玄空學》（据近人整理排印本《中国古代术数全书·沈氏玄空学（最新修订版）》
+//!   核过，民国原刊未见；页码见 doc/folk/xuankong.md 第十二节）：挨星口诀「子癸并甲申，贪狼一路行。壬卯乙未坤，五位为巨门。
+//!   乾亥辰巽巳，连戌武曲名。酉辛丑艮丙，天星说破军。寅午庚丁上，右弼四星临」（上卷「论起星」）。
 //! - 零神、正神：经文《天玉經》「陰陽二字看零正，坐向須知病；若遇正神正位裝，撥水入零堂」「正神百步始成龍，水短便遭凶；
 //!   零神不問長何短，吉凶不同斷」（四库本影印第 22—24 页）。四库注以十二支为正神、八干四维为零神（双山三合之读，
 //!   [`si_ku_zheng_shen`]）；玄空家以当运之宫为正神、对宫为零神（沈氏；出处未核），二读并存。
@@ -81,7 +83,7 @@ pub fn is_yang(shan: usize) -> bool {
 }
 
 /// 替星（起星）表：二十四山各所替之星数。《青囊奧語》四句定十二山（坤壬乙→二、艮丙辛→七、巽辰亥→六、甲癸申→一），
-/// 余十二山（子→一，卯未→二，乾戌巳→六，酉丑→七，寅午庚丁→九）依沈氏所扩（出处未核）。
+/// 余十二山（子→一，卯未→二，乾戌巳→六，酉丑→七，寅午庚丁→九）依沈氏挨星口诀（《沈氏玄空學》上卷「论起星」，整理本已核）。
 pub fn ti_xing(shan: usize) -> u8 {
     match SHAN24[shan] {
         "子" | "癸" | "甲" | "申" => 1,
@@ -106,34 +108,40 @@ pub fn fly(center: u8, shun: bool) -> [u8; 9] {
 /// 五黄入中时山盘、向盘的顺逆依何而定
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WuRule {
-    /// 依坐山（山盘）、向首（向盘）本山之阴阳（沈氏通行；出处未核）。缺省
+    /// 依坐山（山盘）、向首（向盘）本山之阴阳（另说）。山盘、向盘入中之五恒在当运之对宫，与运宫同为四正或四隅，
+    /// 故于山向两盘与 `YunGong` 恒同；只于城门（五在向首旁宫）时不同
     BenShan,
-    /// 依运星原宫同元之山之阴阳（另说；出处未核）
+    /// 依当运之星原宫同元之山之阴阳：「此以入中之运为的，如一运壬子癸入中，壬为阳，则五即戊阳，子癸为阴，则五即为阴」；
+    /// 城门「九运挨星为五，五为己阴（九为午为阴，故五入中亦用己阴也）」（《沈氏玄空學》上卷「论下卦」「论城门」）。缺省
     YunGong,
 }
 
 /// 替卦入中之星的顺逆依何而定
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TiShunRule {
-    /// 仍依原入中之星原宫同元之山的阴阳，只换入中之数（沈氏通行；出处未核）。缺省
+    /// 仍依原入中之星原宫同元之山的阴阳，只换入中之数。沈祖绵案章仲山宅断：「八之天元为艮，艮丙辛位位是破军，故以七入中，
+    /// ……艮属阳，故顺行」；宁波府基「乙之挨星为巨门，……乙为阴，故以巨门入中逆行」（《沈氏玄空學》上卷「论起星」）。缺省
     YuanXing,
-    /// 依替星原宫同元之山的阴阳（另说；出处未核）
+    /// 依替星原宫同元之山的阴阳（另说；与沈氏所举宅例不合）
     TiXing,
 }
 
 /// 零神、正神之定法
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LingZhengRule {
-    /// 当运之数的洛书本宫为正神，其对宫（合十之宫）为零神（沈氏通行；出处未核）。缺省
+    /// 当运之数的洛书本宫为正神，其对宫（合十之宫）为零神：「当元之令神为正神，与正神对待者为零神。一运以一白为正神，
+    /// 九紫即为零神」（《沈氏玄空學》上卷「论阴阳零正」）。缺省
     YunGong,
-    /// 上元（一至四运）以一二三四宫为正神、六七八九宫为零神，下元（六至九运）反之（大玄空上下元零正之说；今人转述，未核）
+    /// 上元（一至四运）以一二三四宫为正神、六七八九宫为零神，下元（六至九运）反之：沈氏答谢声棠「河图一二三四之生数，
+    /// 为上元四山之正神，而六七八九之成数，为上元四水之零神，下元以六七八九之成数为四山之正神」（同上）
     ShangXiaYuan,
 }
 
 /// 五运无本宫（中五）时零正之寄
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WuJi {
-    /// 前十年寄坤二、后十年寄艮八（通行；出处未核）。缺省
+    /// 前十年寄坤二、后十年寄艮八：「五黄中前十年寄坤，以八白为零神，后十年寄艮，以二黑为零神」（《沈氏玄空學》上卷
+    /// 「论阴阳零正」）。缺省
     KunGen,
     /// 前十年寄巽四、后十年寄乾六（与 [`JiuYun::WuJiSiLiu`] 同意；另说，未核）
     SiLiu,
@@ -144,9 +152,10 @@ pub enum WuJi {
 /// 七星打劫真假之判
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DaJieRule {
-    /// 离宫打劫（离震乾）为真，坎宫打劫（坎巽兑）为假（沈氏之说；出处未核）。缺省
+    /// 离宫打劫（离震乾）为真，坎宫打劫（坎巽兑）为假：「凡旺星到向者，乾上飞星与离宫相合，为真打劫；若旺星到向巽上飞星
+    /// 与坎宫相合，为假打劫」，并列真假打劫各二十四局（《沈氏玄空學》上卷「论七星打劫」；江志伊案为沈氏晚年之说）。缺省
     LiZhenKanJia,
-    /// 离宫、坎宫打劫皆真（另说；未核）
+    /// 离宫、坎宫打劫皆真：章仲山、温明远「真能打劫者，仅有坎离二宫」（江志伊案引，沈氏初亦用之）
     JieZhen,
 }
 
@@ -178,7 +187,7 @@ pub struct XkOptions {
 }
 
 pub const DEFAULT_OPTIONS: XkOptions = XkOptions {
-    wu: WuRule::BenShan,
+    wu: WuRule::YunGong,
     ti_shun: TiShunRule::YuanXing,
     ti_threshold_deg: real_const(3.0),
     kong_wang_deg: real_const(1.5),
@@ -442,8 +451,11 @@ fn he_tu(a: u8, b: u8) -> bool {
     a != 5 && b != 5 && (a as i32 - b as i32).abs() == 5
 }
 
-/// 城门：向宫左右两宫中与向宫成河图之配者为正城门，另一为副城门。可用与否：城门宫之运星入中，
-/// 以其原宫与向首同元之山阴阳定，阳则顺飞可用（通行说；出处未核）。返回 (宫, 正否, 可用否)。
+/// 城门：向宫左右两宫（「城门维何，即向首一星之旁二卦也」）中与向宫成河图之配者为正城门，另一为副城门（「酉山卯向以艮为
+/// 城门，即三八为朋也……此为正城门」）。可用与否：城门宫之运星入中，以其原宫与向首同元之山阴阳定，**阴则逆飞，当运之星
+/// 复到城门，可用；阳则顺飞，不用**（「子方一运挨星为六，六乃乾阳不用。二运挨星为七，七为酉阴，以七入中宫逆飞，二到子为
+/// 旺星到城门」「故城门遇阴入中，即可将旺星排到」，《沈氏玄空學》上卷「论城门」）。五为城门之运星时按 [`WuRule`]。
+/// 返回 (宫, 正否, 可用否)。
 pub fn cheng_men(p: &ZhaiPan, o: &XkOptions) -> Vec<(u8, bool, bool)> {
     let (gx, _) = gong_of(p.xiang);
     let i = RING8.iter().position(|&g| g == gx).unwrap();
@@ -451,7 +463,7 @@ pub fn cheng_men(p: &ZhaiPan, o: &XkOptions) -> Vec<(u8, bool, bool)> {
         .into_iter()
         .map(|c| {
             let s = p.yun_pan[c as usize - 1];
-            let ok = shun_of(s, p.xiang, p.yun, o);
+            let ok = !shun_of(s, p.xiang, p.yun, o);
             (c, he_tu(c, gx), ok)
         })
         .collect()
@@ -500,10 +512,13 @@ pub struct DaJie {
     pub li: bool,
     /// 依 [`DaJieRule`] 判真假
     pub zhen: bool,
+    /// 山盘或向盘全盘伏吟（与元旦盘同），犯伏吟不用（沈氏真假打劫表除六运巽乾巳亥、九运壬丙、一运丙壬、四运乾巽亥巳）
+    pub fu_yin: bool,
 }
 
 /// 七星打劫：当运山星、向星同到向宫（双星到向），且向宫属离震乾（三六九）或坎巽兑（一四七）一组，
-/// 则此三宫为打劫之宫；向宫在坤艮（二五八组含中五）不能打劫（沈氏；出处未核）。
+/// 则此三宫为打劫之宫；向宫在坤艮（二五八组含中五）不能打劫。下卦九运二十四山与《沈氏玄空學》上卷「北斗七星打劫表」
+/// 真假各二十四局逐局相合（测试 `shen_da_jie_biao`）；表中犯反伏吟不用之六局皆为全盘伏吟（`fu_yin`）。
 /// 三宫之向星必为父母三般（同余于三）——飞星等差，三宫洛书数同余于三，故恒成立，测试验之。
 pub fn da_jie(p: &ZhaiPan, o: &XkOptions) -> Option<DaJie> {
     let (gx, _) = gong_of(p.xiang);
@@ -520,7 +535,37 @@ pub fn da_jie(p: &ZhaiPan, o: &XkOptions) -> Option<DaJie> {
         DaJieRule::LiZhenKanJia => li,
         DaJieRule::JieZhen => true,
     };
-    Some(DaJie { gong, li, zhen })
+    let yd = fly(5, true);
+    let fu_yin = p.shan_pan == yd || p.xiang_pan == yd;
+    Some(DaJie { gong, li, zhen, fu_yin })
+}
+
+/// 打劫局向首入囚之运：「仅向首一星到者，则以向首对宫之星（即向上飞星到山之字）入囚为囚，北斗打劫亦同此法」，即向盘
+/// 坐宫之星（《沈氏玄空學》上卷「七星打劫入囚表」，测试逐局核）。非打劫局为 None。
+pub fn da_jie_qiu(p: &ZhaiPan, o: &XkOptions) -> Option<u8> {
+    da_jie(p, o)?;
+    let (gz, _) = gong_of(p.zuo);
+    Some(p.xiang_pan[gz as usize - 1])
+}
+
+/// 向星入囚前之地运年数：自本运至向盘中宫之星当运，每运二十年（江志伊案：「地运之长短，即于向星之入囚定之，如二八运之
+/// 巽乾、巳亥……然运止二十年。若乾巽、亥巳、戌辰则一百六十年」，《沈氏玄空學》上卷「论令星入囚」）。向星五入中者亦照数
+/// 计（江志伊三运卯酉作四十年）；沈氏本文「惟五黄入中则不囚」，故 [`ru_qiu`] 于五入中给 None，两说并存。
+pub fn di_yun_nian(p: &ZhaiPan) -> u32 {
+    let d = (p.xiang_in as i32 - p.yun as i32).rem_euclid(9);
+    20 * if d == 0 { 9 } else { d as u32 }
+}
+
+/// 囚不住之宫：向盘五黄所临之宫，「阳宅有门路，阴宅有水则不能囚，盖坤方为五黄所临故也（此指向飞星之五黄）」
+/// （《沈氏玄空學》上卷「论令星入囚」，例一运戌向）
+pub fn qiu_bu_zhu_gong(p: &ZhaiPan) -> u8 {
+    (1..=9u8).find(|&g| p.xiang_pan[g as usize - 1] == 5).unwrap()
+}
+
+/// 某山可否用替（替星异于本宫之星）：坎宫惟壬、离宫惟丙、坤宫惟申、兑宫惟庚可替，震、巽、艮三宫三字皆可，乾宫三字皆不可，
+/// 共十三字可替、十一字不可（《沈氏玄空學》上卷「论起星」表）。`src` 为入中之星原宫之山
+pub fn ke_ti(src: usize) -> bool {
+    ti_xing(src) != gong_of(src).0
 }
 
 /// 入囚：宅之山盘、向盘中宫之星即其入囚之运（运行至该运，当旺之星困于中宫）。返回（山星入囚之运，向星入囚之运）；
@@ -583,8 +628,20 @@ pub fn ge_ju(p: &ZhaiPan, o: &XkOptions) -> Vec<GeJu> {
                 (false, true) => "坎宮打劫（真）",
                 (false, false) => "坎宮打劫（假）",
             },
-            if d.li { "七星打劫：双星到向，劫离震乾三宫" } else { "七星打劫：双星到向，劫坎巽兑三宫" },
+            match (d.li, d.fu_yin) {
+                (true, false) => "七星打劫：双星到向，劫离震乾三宫",
+                (false, false) => "七星打劫：双星到向，劫坎巽兑三宫",
+                (true, true) => "七星打劫：双星到向，劫离震乾三宫；犯伏吟不用（沈氏）",
+                (false, true) => "七星打劫：双星到向，劫坎巽兑三宫；犯伏吟不用（沈氏）",
+            },
         );
+    }
+    if p.ti {
+        let (s0, _) = enter(&p.yun_pan, p.zuo, false, p.yun, o);
+        let (x0, _) = enter(&p.yun_pan, p.xiang, false, p.yun, o);
+        if s0 == p.shan_in && x0 == p.xiang_in {
+            add("替而無替", "兼向用替而山向挨星皆不可替，与下卦同盘（沈氏：作陰陽差錯出卦論，不作到山到向論）");
+        }
     }
     if p.xiang_in == w && w != 5 {
         add("向星入囚", "当运向星入中宫");
@@ -640,7 +697,7 @@ pub fn gong_biao(p: &ZhaiPan, qian: bool, o: &XkOptions) -> [Vec<GeJu>; 9] {
         put(
             g,
             if zheng { "正城門" } else { "副城門" },
-            if ok { "可用：城门宫运星入中顺飞" } else { "不可用：城门宫运星入中逆飞" },
+            if ok { "可用：城门宫运星阴，入中逆飞，旺星到城门" } else { "不可用：城门宫运星阳，入中顺飞" },
         );
     }
     let (gz, _) = gong_of(p.zuo);
@@ -1250,6 +1307,204 @@ mod tests {
         // 2025 乙巳年（寅申巳亥）正月二黑；2024 甲辰年（辰戌丑未）正月五黄
         assert_eq!(month_pans(2025)[0][4], 2);
         assert_eq!(month_pans(2024)[0][4], 5);
+    }
+
+    fn csv_rows(src: &str) -> Vec<Vec<&str>> {
+        src.lines().filter(|l| !l.starts_with('#')).skip(1).filter(|l| !l.is_empty()).map(|l| l.split(',').collect()).collect()
+    }
+
+    /// 《沈氏玄空學》盘例（上卷诸论例图、中卷宅断）逐宫与缺省排盘对照
+    #[test]
+    fn shen_pan_li() {
+        let rows = csv_rows(include_str!("../../../../data/folk/xuankong_shen_pan_li.csv"));
+        assert_eq!(rows.len(), 81);
+        for r in rows {
+            let (yun, zuo, xiang) = (r[3].parse::<u8>().unwrap(), idx(r[4]), idx(r[5]));
+            let p = zhai_pan(yun, zuo, r[7] == "替", &DEFAULT_OPTIONS);
+            // 「向替」：只向首用替（宁波府基），山盘依下卦
+            let q = zhai_pan(yun, zuo, r[7] != "下", &DEFAULT_OPTIONS);
+            assert_eq!(p.xiang, xiang, "{}", r[2]);
+            for (s, pan) in [(r[8], &p.shan_pan), (r[9], &q.xiang_pan), (r[10], &p.yun_pan)] {
+                for (k, c) in s.chars().enumerate() {
+                    if c != '.' {
+                        assert_eq!(c.to_digit(10).unwrap() as u8, pan[k], "{} 宫{}：{s}", r[2], k + 1);
+                    }
+                }
+            }
+        }
+    }
+
+    /// 《沈氏玄空學》「论起星」：十三字可替、十一字不可替；替卦宅例（顺逆依原星，`TiShunRule::YuanXing`）
+    #[test]
+    fn shen_qi_xing() {
+        let ke: Vec<&str> = (0..24).filter(|&i| ke_ti(i)).map(|i| SHAN24[i]).collect();
+        assert_eq!(ke.len(), 13);
+        for s in ["壬", "丙", "甲", "卯", "乙", "庚", "辰", "巽", "巳", "申", "丑", "艮", "寅"] {
+            assert!(ke.contains(&s), "{s}");
+        }
+        // 章仲山宅断宁波府基：八运癸山丁向兼丑未，丁上挨星三，三之人元乙挨巨门，二入中逆行
+        let p = zhai_pan(8, idx("癸"), true, &DEFAULT_OPTIONS);
+        assert_eq!((p.xiang_in, p.xiang_shun), (2, false));
+        // 依替星顺逆之另说则顺行，与原文「乙为阴，故以巨门入中逆行」不合
+        let q = zhai_pan(8, idx("癸"), true, &XkOptions { ti_shun: TiShunRule::TiXing, ..DEFAULT_OPTIONS });
+        assert!(q.xiang_shun);
+        // 嵇中堂祖墓子午兼壬丙：坐山挨星八（三运），八之天元艮挨破军，七入中，艮阳顺行
+        let p = zhai_pan(3, idx("子"), true, &DEFAULT_OPTIONS);
+        assert_eq!((p.shan_in, p.shan_shun), (7, true));
+        // 周姓祖墓壬丙兼亥巳（六运）：向上挨星一，一即壬挨巨，二入中
+        assert_eq!(zhai_pan(6, idx("壬"), true, &DEFAULT_OPTIONS).xiang_in, 2);
+        // 阳宅第三图壬丙兼亥巳（五运）：一到山、九到向，用二七，山向均用替
+        let p = zhai_pan(5, idx("壬"), true, &DEFAULT_OPTIONS);
+        assert_eq!((p.shan_in, p.xiang_in), (2, 7));
+        // 沈氏笔记：庚山甲向三运用替，甲上挨星一即壬挨巨，二入中顺行三到乾
+        let p = zhai_pan(3, idx("庚"), true, &DEFAULT_OPTIONS);
+        assert_eq!((p.xiang_in, p.xiang_shun, p.xiang_pan[5]), (2, true, 3));
+        // 二运甲庚用替，八国字字与二运壬丙下卦同
+        let a = zhai_pan(2, idx("甲"), true, &DEFAULT_OPTIONS);
+        let b = zhai_pan(2, idx("壬"), false, &DEFAULT_OPTIONS);
+        assert_eq!((a.shan_pan, a.xiang_pan), (b.shan_pan, b.xiang_pan));
+        // 五运戌山辰向用替：山向飞星字字相同
+        let p = zhai_pan(5, idx("戌"), true, &DEFAULT_OPTIONS);
+        assert_eq!(p.shan_pan, p.xiang_pan);
+        // 不能替而用替：四运庚山甲向兼酉卯，甲上二、庚上六皆不可替，与下卦同盘
+        let p = zhai_pan(4, idx("庚"), true, &DEFAULT_OPTIONS);
+        assert!(p.ge_ju.iter().any(|g| g.name == "替而無替"));
+        assert_eq!(p.shan_pan, zhai_pan(4, idx("庚"), false, &DEFAULT_OPTIONS).shan_pan);
+    }
+
+    /// 五黄入中之阴阳：沈氏「此以入中之运为的」；山向两盘 BenShan 与 YunGong 恒同，城门则异
+    #[test]
+    fn shen_wu_huang() {
+        let bs = XkOptions { wu: WuRule::BenShan, ..DEFAULT_OPTIONS };
+        let mut diff = 0;
+        for yun in 1..=9u8 {
+            for zuo in 0..24 {
+                for ti in [false, true] {
+                    assert_eq!(zhai_pan(yun, zuo, ti, &DEFAULT_OPTIONS), zhai_pan(yun, zuo, ti, &bs));
+                }
+                let p = zhai_pan(yun, zuo, false, &DEFAULT_OPTIONS);
+                if cheng_men(&p, &DEFAULT_OPTIONS) != cheng_men(&p, &bs) {
+                    diff += 1;
+                }
+            }
+        }
+        assert!(diff > 0);
+        // 九运乾山巽水（巽山乾向，城门子）：九运挨星为五，五为己阴，五入中九到子
+        let p = zhai_pan(9, idx("巽"), false, &DEFAULT_OPTIONS);
+        assert!(cheng_men(&p, &DEFAULT_OPTIONS).contains(&(1, true, true)));
+        assert!(cheng_men(&p, &bs).contains(&(1, true, false)));
+    }
+
+    /// 城门：「子方一运挨星为六，六乃乾阳不用。二运挨星为七，七为酉阴……二到子为旺星到城门」；
+    /// 「三元九运可用之城门诀」表 216 格对照（不合者列出，见文档）
+    #[test]
+    fn shen_cheng_men_biao() {
+        for (yun, ok) in [(1u8, false), (2, true), (3, false), (4, true), (5, true), (6, false)] {
+            let p = zhai_pan(yun, idx("巽"), false, &DEFAULT_OPTIONS);
+            assert!(cheng_men(&p, &DEFAULT_OPTIONS).contains(&(1, true, ok)), "{yun}");
+        }
+        // 编者按例：六运甲山庚向，坤（未九）、乾（戌八）城门皆不可用
+        let p = zhai_pan(6, idx("甲"), false, &DEFAULT_OPTIONS);
+        assert!(cheng_men(&p, &DEFAULT_OPTIONS).iter().all(|c| !c.2));
+        let mut bu_he = vec![];
+        for r in csv_rows(include_str!("../../../../data/folk/xuankong_shen_cheng_men.csv")) {
+            let (yun, zuo) = (r[0].parse::<u8>().unwrap(), idx(r[1]));
+            let p = zhai_pan(yun, zuo, false, &DEFAULT_OPTIONS);
+            let (_, y) = gong_of(p.xiang);
+            let cm = cheng_men(&p, &DEFAULT_OPTIONS);
+            // 正、副城门之山（与向首同元）
+            let zheng = cm.iter().find(|c| c.1).unwrap();
+            let fu = cm.iter().find(|c| !c.1).unwrap();
+            assert_eq!((SHAN24[shan_at(zheng.0, y).unwrap()], SHAN24[shan_at(fu.0, y).unwrap()]), (r[3], r[4]), "{}", r[1]);
+            let mut mine: Vec<&str> = cm.iter().filter(|c| c.2).map(|c| SHAN24[shan_at(c.0, y).unwrap()]).collect();
+            mine.sort();
+            let mut biao: Vec<String> = if r[5] == "×" { vec![] } else { r[5].chars().map(|c| c.to_string()).collect() };
+            biao.sort();
+            if mine != biao {
+                bu_he.push(format!("{}{}", yun, r[1]));
+            }
+        }
+        // 二运丑；三运丑艮寅；六运甲至申十二山（与四运同行同字，疑排印串行）
+        let expect: Vec<String> = ["2丑", "3丑", "3艮", "3寅"]
+            .iter()
+            .map(|s| s.to_string())
+            .chain("甲卯乙辰巽巳丙午丁未坤申".chars().map(|c| format!("6{c}")))
+            .collect();
+        assert_eq!(bu_he, expect);
+    }
+
+    /// 《沈氏玄空學》北斗七星打劫表（下卦真假各二十四局）、犯伏吟不用六局、打劫入囚表
+    #[test]
+    fn shen_da_jie_biao() {
+        let rows = csv_rows(include_str!("../../../../data/folk/xuankong_shen_da_jie.csv"));
+        assert_eq!(rows.len(), 48);
+        let mut biao = std::collections::BTreeSet::new();
+        for r in &rows {
+            let (yun, zuo) = (r[1].parse::<u8>().unwrap(), idx(r[3]));
+            biao.insert((yun, zuo));
+            let p = zhai_pan(yun, zuo, false, &DEFAULT_OPTIONS);
+            assert_eq!(SHAN24[p.xiang], r[4]);
+            let d = da_jie(&p, &DEFAULT_OPTIONS).unwrap_or_else(|| panic!("{yun} {}", r[3]));
+            assert_eq!(d.zhen, r[0] == "真", "{yun} {}", r[3]);
+            // 三方之向星即三般
+            let mut x: Vec<u8> = d.gong.iter().map(|&g| p.xiang_pan[g as usize - 1]).collect();
+            x.sort();
+            let b: Vec<u8> = r[6].chars().map(|c| "一二三四五六七八九".chars().position(|d| d == c).unwrap() as u8 + 1).collect();
+            assert_eq!(x, b, "{yun} {}", r[3]);
+            // 犯反伏吟不用者恰为全盘伏吟
+            assert_eq!(d.fu_yin, r[7].is_empty(), "{yun} {}", r[3]);
+            if !r[7].is_empty() {
+                assert_eq!(da_jie_qiu(&p, &DEFAULT_OPTIONS), Some(r[7].parse::<u8>().unwrap()), "{yun} {}", r[3]);
+            }
+        }
+        // 表外无打劫局
+        for yun in 1..=9u8 {
+            for zuo in 0..24 {
+                let p = zhai_pan(yun, zuo, false, &DEFAULT_OPTIONS);
+                assert_eq!(da_jie(&p, &DEFAULT_OPTIONS).is_some(), biao.contains(&(yun, zuo)), "{yun} {}", SHAN24[zuo]);
+            }
+        }
+        // 章、温之说：坎离皆真
+        let p = zhai_pan(1, idx("卯"), false, &DEFAULT_OPTIONS);
+        assert!(da_jie(&p, &XkOptions { da_jie: DaJieRule::JieZhen, ..DEFAULT_OPTIONS }).unwrap().zhen);
+    }
+
+    /// 四十八局（二至八运旺山旺向）、全局合十二十四山向（「论夫妇合十」）、入囚与地运（「论令星入囚」）
+    #[test]
+    fn shen_si_shi_ba_ju_he_shi_ru_qiu() {
+        let mut wang = 0;
+        let mut he = vec![];
+        for yun in 1..=9u8 {
+            for zuo in 0..24 {
+                let p = zhai_pan(yun, zuo, false, &DEFAULT_OPTIONS);
+                if p.ge_ju.iter().any(|g| g.name == "旺山旺向") {
+                    assert!((2..=8).contains(&yun));
+                    wang += 1;
+                }
+                if p.ge_ju.iter().any(|g| g.name == "山星合十" || g.name == "向星合十") {
+                    he.push((yun, zuo));
+                }
+            }
+        }
+        assert_eq!(wang, 48);
+        // 一九运乾巽巳亥、二八运丑未、三七运子午癸丁、四六运庚甲，共二十四山向
+        assert_eq!(he.len(), 24);
+        for (yuns, ss) in [([1u8, 9], "乾巽巳亥"), ([2, 8], "丑未"), ([3, 7], "子午癸丁"), ([4, 6], "庚甲")] {
+            for y in yuns {
+                for c in ss.chars() {
+                    assert!(he.contains(&(y, idx(&c.to_string()))), "{y}{c}");
+                }
+            }
+        }
+        // 一运戌向：运星二到向，至二黑运即囚；坤方五黄所临（囚不住之宫）
+        let p = zhai_pan(1, idx("辰"), false, &DEFAULT_OPTIONS);
+        assert_eq!((ru_qiu(&p).1, qiu_bu_zhu_gong(&p)), (Some(2), 2));
+        // 江志伊：二运巽乾二十年、乾巽一百六十年；三运卯酉四十年；五运子午八十年、午子一百年、丙向八十年、壬向一百年
+        for (yun, zuo, n) in [(2u8, "巽", 20u32), (2, "乾", 160), (3, "卯", 40), (5, "子", 80), (5, "午", 100), (5, "壬", 80), (5, "丙", 100)] {
+            assert_eq!(di_yun_nian(&zhai_pan(yun, idx(zuo), false, &DEFAULT_OPTIONS)), n, "{yun}{zuo}");
+        }
+        // 沈氏「五黄入中则不囚」：三运卯酉向星五入中，ru_qiu 不论
+        assert_eq!(ru_qiu(&zhai_pan(3, idx("卯"), false, &DEFAULT_OPTIONS)).1, None);
     }
 
     /// 生成文档检验表（cargo test ... -- --ignored --nocapture xuankong::tests::dump）

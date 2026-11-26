@@ -6,7 +6,7 @@
 //!
 //! 输出 data/calendar/jiaohui_eclipse_check.csv（逐条：史载日食之月）、终端打印各历汇总。
 //! 用法（仓库根）：cargo run --release --manifest-path rust/Cargo.toml -p lunar-core --no-default-features --features real-f64 --example jiaohui_eclipse_check
-use lunar_core::calendar::dingshuo::{jiao_months, reckon_year, registry, JiaoMonth};
+use lunar_core::calendar::dingshuo::{jiao_months_with, reckon_year, registry, JiaoMonth, LindeJiaohui, PaiyueOptions};
 use lunar_core::calendar::gan_zhi::GAN_ZHI_60;
 use lunar_core::calendar::historical::ShuoriTable;
 use num_traits::ToPrimitive;
@@ -56,6 +56,9 @@ struct Rec {
 /// 检验之历：(显示名, 取入交之历名, 年段之历名)
 const LIS: &[(&str, &str, &[&str])] = &[
     ("麟德历", "麟德历", &["麟德历"]),
+    ("麟德历（旧志交会）", "麟德历", &["麟德历"]),
+    ("麟德历（无变交差準，对照）", "麟德历", &["麟德历"]),
+    ("麟德历（变交分出表按外道判，对照）", "麟德历", &["麟德历"]),
     ("大衍历", "大衍历", &["大衍历"]),
     ("五纪历", "五纪历", &["五纪历"]),
     ("正元历", "正元历", &["正元历"]),
@@ -143,7 +146,14 @@ fn main() {
          历,定朔JDN,定朔干支,定小余（时）,日出（时）,日入（时）,进朔,去交（日）,阴阳历,昼,术蚀,蚀历,食甚（时）,排月朔干支,张表朔干支,张表月,本纪朔干支,本纪书,史载日食\n",
     );
     for &(label, src, span_names) in LIS {
-        let Some(months) = jiao_months(src) else { continue };
+        // 麟德步交会读法：新志（缺省）、旧志、不用变交分与差準
+        let linde_jiaohui = match label {
+            "麟德历（旧志交会）" => LindeJiaohui::Jiuzhi,
+            "麟德历（无变交差準，对照）" => LindeJiaohui::Jian,
+            "麟德历（变交分出表按外道判，对照）" => LindeJiaohui::BianWaidao,
+            _ => LindeJiaohui::Xinzhi,
+        };
+        let Some(months) = jiao_months_with(src, &PaiyueOptions { linde_jiaohui, ..PaiyueOptions::default() }) else { continue };
         // 年段之 JDN 范围
         let mut ranges = vec![];
         for (n, spans) in reg.iter().filter(|(n, _)| span_names.contains(n)) {
@@ -196,7 +206,7 @@ fn main() {
             let j = m.jiao.as_ref().unwrap();
             let zt = (-1..=1).map(|k| m.ding_jdn + k).find(|d| zhang_days.contains_key(d));
             let zhengyue = zt.is_some_and(|d| zhang_days[&d].1 == 1 && !zhang_days[&d].2);
-            if !j.shixian || !(m.jin || zhengyue) {
+            if !j.shixian || !(m.jin || zhengyue) || linde_jiaohui != LindeJiaohui::Xinzhi {
                 continue;
             }
             let bj = (-1..=1).map(|k| m.ding_jdn + k).find(|d| benji.contains_key(d));

@@ -56,7 +56,7 @@ pub enum SiHuaTable {
     /// 全书录文（维基文库）卷二「安祿權科忌四星變化訣」：庚日武陰同、壬梁紫府武、戊貪月弼機
     QuanShu,
     /// 明南陽堂刊本卷三「安祿權科忌四星變化訣」：庚作「日武同相」（太陽祿、武曲權、天同科、天相忌），余九干同录文；
-    /// 卷六命图孔仲尼、孟軻（庚年）四化正如此（缺省，见 doc/folk/ziwei.md）
+    /// 卷六十五幅庚年命图四化皆如此（缺省，见 doc/folk/ziwei.md 第七节）
     NanYangTang,
     /// 近人通行之一：庚太陽武曲天府天同，壬天梁紫微左輔武曲（出处未核）
     Modern,
@@ -106,8 +106,8 @@ pub enum SiYouChouHuoLing {
 /// 火星、铃星之起法
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HuoLingQi {
-    /// 只按生年支安于起宫（寅午戌火丑铃卯等），不数时：全书诀（刻本、录文）只言起宫；明南陽堂刊本卷六命图
-    /// 劉都衛（午年未时）、端木賜（卯年丑时）、子羔（子年戌时）、子產（丑年戌时）火铃皆在起宫（缺省）
+    /// 只按生年支安于起宫（寅午戌火丑铃卯等），不数时：全书诀（刻本、录文）只言起宫；明南陽堂刊本卷六
+    /// 列火星 107 图、铃星 108 图皆在起宫，其中生时非子者 95 图（缺省；见测试 `nanyangtang_ming_li`）
     NianZhi,
     /// 自起宫子时起顺数至生时（近人通行，出处未见）
     ShiShun,
@@ -513,9 +513,9 @@ pub const SUI_QIAN_12: [&str; 12] = ["太歲", "太陽", "喪門", "太陰", "�
 /// - 流禄、流羊、流陀：与禄存、擎羊、陀罗同法，按流年干（全书「安流祿流羊流陀訣」：「假如己丑流年流禄在午、流羊在未、流陀在巳」）。
 /// - 丧门、吊客、白虎、官府：流年太岁前二、后二及其对宫（全书「安喪門白虎弔客官府四飛星訣」）；其余八神名目从写本。
 /// - 斗君：「於流年太歲宮起正月，逆至本生月，又從本生月起子順數至本生時」（全书「安斗君訣」；写本第 10 页同）。
-/// - 天德、月德：「天德星從酉上起子，順數至流年太歲；月德星從子上起子，順數至流年太歲」（全书录文如此，月德即与流年太岁同宫，录文或有脱误，未核）。
+/// - 天德、月德：「天德星從酉上起子，順數至流年太歲；月德星從子上起子，順數至流年太歲」（月德即与流年太岁同宫；明南陽堂刊本卷三第 79 页逐字同录文，非录文脱误）。
 /// - 飞天三杀（奏书、将军、直符）：「寅午戌年飛入亥卯未宮，申子辰年飛入巳酉丑宮，亥卯未年飛入申子辰宮，巳酉丑年飛入寅午戌宮」；
-///   三星与三宫之对应原文未分，此按所列字序（奏书居三合首宫），**未核**。
+///   三星与三宫之对应原文（录文与刻本第 79 页同）未分，此按所列字序（奏书居三合首宫），属读法。
 /// - 流昌、流曲：全书无安法；从韩国藏写本第 11 页：流昌「甲蛇乙馬報君知，丙戊猴宮丁己雞，庚豬辛鼠壬逢虎，癸人見兔步雲梯」，
 ///   流曲「甲年酉宮，乙年申，丙戊年午，丁己年巳，庚年卯宮，辛年寅，壬年子，癸年亥」。
 pub fn liu_nian(inp: &ZiweiInput, c: &Chart, liu_year_gz: u8) -> LiuNian {
@@ -1103,61 +1103,140 @@ mod tests {
         }
     }
 
-    /// 明南陽堂刊本卷六命图八例（`data/folk/ziwei_nanyangtang_mingli.csv`）：缺省选项逐项比对。
-    /// 命、身、紫微、四化、火铃全合；书所标之局二例与星位不合（孔仲尼标土五局、星依火六局，顏亞聖标木三局、紫微依水二局），记于文档。
-    #[test]
-    fn nanyangtang_ming_li() {
+    /// 明南陽堂刊本卷六命图逐图比对：读 `data/folk/ziwei_nanyangtang_mingli.csv`，以给定选项排盘，
+    /// 返回各项 (项名, 图中有此项之图数, 合数) 及逐图不合之项（「名:项 书X/算Y」）。
+    /// 星位：图中一星刻于两宫者计为不合；四化：所化之星同名或同宫者计合（同宫数星引线难分）。
+    fn nanyangtang_compare(o: &ZiweiOptions, x: &ZiweiExtraOptions) -> (Vec<(&'static str, usize, usize)>, Vec<String>) {
         const CSV: &str = include_str!("../../../../data/folk/ziwei_nanyangtang_mingli.csv");
         const GAN: &str = "甲乙丙丁戊己庚辛壬癸";
+        const XING: [&str; 28] = [
+            "紫微", "天機", "太陽", "武曲", "天同", "廉貞", "天府", "太陰", "貪狼", "巨門", "天相", "天梁", "七殺", "破軍", "文昌", "文曲", "左輔", "右弼",
+            "天魁", "天鉞", "祿存", "擎羊", "陀羅", "天馬", "火星", "鈴星", "地劫", "天空",
+        ];
+        const HUA: [&str; 4] = ["化祿", "化權", "化科", "化忌"];
         let gz = |s: &str| {
             let c: Vec<char> = s.chars().collect();
             let g = GAN.chars().position(|x| x == c[0]).unwrap();
             let zz = ZHI.iter().position(|x| x.starts_with(c[1])).unwrap();
             (0..60u8).find(|k| *k as usize % 10 == g && *k as usize % 12 == zz).unwrap()
         };
-        let o = ZiweiOptions::default();
-        let mut ju_bu_he = Vec::new();
-        let mut n = 0;
-        for l in CSV.lines().filter(|l| !l.starts_with('#')).skip(1) {
+        let mut lines = CSV.lines().filter(|l| !l.starts_with('#'));
+        let hdr: Vec<&str> = lines.next().unwrap().split(',').collect();
+        let col = |n: &str| hdr.iter().position(|h| *h == n).unwrap();
+        let mut items: Vec<(&'static str, usize, usize)> = vec![("命", 0, 0), ("身", 0, 0), ("阴阳", 0, 0), ("局", 0, 0)];
+        items.extend(XING.iter().map(|s| (*s, 0, 0)));
+        items.extend(HUA.iter().map(|s| (*s, 0, 0)));
+        let mut bu_he = Vec::new();
+        for l in lines {
             let f: Vec<&str> = l.split(',').collect();
-            let inp = ZiweiInput {
-                year_gz: gz(f[2]),
-                lunar_month: f[3].parse().unwrap(),
-                is_leap_month: false,
-                lunar_day: f[4].parse().unwrap(),
-                hour_zhi: z(f[5]),
-                male: f[6] == "1",
+            let yue = f[col("月")];
+            let (leap, m) = match yue.strip_prefix("閏") {
+                Some(r) => (true, r.parse().unwrap()),
+                None => (false, yue.parse().unwrap()),
             };
-            let c = chart(&inp, &o);
-            assert_eq!(c.ming, z(f[8]), "{} 命", f[0]);
-            if !f[9].is_empty() {
-                assert_eq!(c.shen, z(f[9]), "{} 身", f[0]);
+            let male = f[col("性别")] == "男";
+            let ygz = gz(f[col("生年")]);
+            let inp = ZiweiInput { year_gz: ygz, lunar_month: m, is_leap_month: leap, lunar_day: f[col("日")].parse().unwrap(), hour_zhi: z(f[col("时")]), male };
+            let c = chart_with(&inp, o, x);
+            let name = f[0];
+            let mut tally = |k: usize, ok: bool, msg: String| {
+                items[k].1 += 1;
+                if ok {
+                    items[k].2 += 1;
+                } else {
+                    bu_he.push(format!("{name}:{msg}"));
+                }
+            };
+            tally(0, c.ming == z(f[col("命")]), format!("命 书{}/算{}", f[col("命")], ZHI[c.ming as usize]));
+            if !f[col("身")].is_empty() {
+                tally(1, c.shen == z(f[col("身")]), format!("身 书{}/算{}", f[col("身")], ZHI[c.shen as usize]));
             }
-            if c.ju_name != f[7] {
-                ju_bu_he.push(f[0]);
+            let yy = format!("{}{}", if ygz % 2 == 0 { "陽" } else { "陰" }, if male { "男" } else { "女" });
+            tally(2, yy == f[col("书阴阳")], format!("阴阳 书{}/算{yy}", f[col("书阴阳")]));
+            tally(3, c.ju_name == f[col("书局")], format!("局 书{}/算{}", f[col("书局")], c.ju_name));
+            for (i, s) in XING.iter().enumerate() {
+                let v = f[col(s)];
+                if v.is_empty() {
+                    continue;
+                }
+                let suan = ZHI[c.star(s).unwrap() as usize];
+                tally(4 + i, v == suan, format!("{s} 书{v}/算{suan}"));
             }
-            let zw = c.star("紫微").unwrap();
-            if f[0] == "顏亞聖" {
-                // 图紫微在亥（水二局二十日之位），按木三局当在未
-                assert_eq!((zw, zi_wei_pos(2, 20)), (z("未"), z(f[10])));
-            } else {
-                assert_eq!(zw, z(f[10]), "{} 紫微", f[0]);
+            for (i, h) in HUA.iter().enumerate() {
+                let v = f[col(h)];
+                if v.is_empty() {
+                    continue;
+                }
+                let suan = c.si_hua[i].1;
+                let gong = c.star(suan);
+                let ok = v.split('/').count() == 1
+                    && (v == suan || {
+                        // 同宫：刻本此星所在之宫 == 算得化星之宫
+                        let vc = f[col(v)];
+                        !vc.is_empty() && vc.split('/').count() == 1 && Some(z(vc)) == gong
+                    });
+                tally(4 + XING.len() + i, ok, format!("{h} 书{v}/算{suan}"));
             }
-            let sh: Vec<&str> = c.si_hua.iter().map(|(_, s)| *s).collect();
-            assert_eq!(sh, vec![f[11], f[12], f[13], f[14]], "{} 四化", f[0]);
-            if !f[15].is_empty() {
-                assert_eq!((c.star("火星"), c.star("鈴星")), (Some(z(f[15])), Some(z(f[16]))), "{} 火鈴", f[0]);
-            }
-            n += 1;
         }
-        assert_eq!(n, 8);
-        assert_eq!(ju_bu_he, vec!["孔仲尼"]);
-        // 火铃数时之选项：劉都衛（未时）不合
-        let liu = ZiweiInput { year_gz: gz("甲午"), lunar_month: 9, is_leap_month: false, lunar_day: 3, hour_zhi: 7, male: true };
-        let x = ZiweiExtraOptions { huo_ling_qi: HuoLingQi::ShiShun, ..Default::default() };
-        assert_eq!(chart_with(&liu, &o, &x).star("火星"), Some(z("申")));
-        // 录文四化庚年作「日武陰同」，与命图不合
-        assert_eq!(si_hua(6, SiHuaTable::QuanShu), ["太陽", "武曲", "太陰", "天同"]);
+        (items, bu_he)
+    }
+
+    /// 明南陽堂刊本卷六命图全部 114 图（`data/folk/ziwei_nanyangtang_mingli.csv`，PDF 第 193 页左至第 250 页右）：
+    /// 缺省选项逐项比对，各项合数与逐图不合之项见 doc/folk/ziwei.md 第七节；另以诸选项重比，作缺省取舍之据。
+    #[test]
+    fn nanyangtang_ming_li() {
+        let o = ZiweiOptions::default();
+        let x = ZiweiExtraOptions::default();
+        let (items, bu_he) = nanyangtang_compare(&o, &x);
+        if std::env::var("ZIWEI_NANYANGTANG_REPORT").is_ok() {
+            for (k, n, he) in &items {
+                eprintln!("ITEM {k} {n} {he}");
+            }
+            for b in &bu_he {
+                eprintln!("BUHE {b}");
+            }
+        }
+        let got: Vec<(usize, usize)> = items.iter().map(|i| (i.1, i.2)).collect();
+        #[rustfmt::skip]
+        let want: Vec<(usize, usize)> = vec![
+            // 命、身、阴阳、局
+            (114, 111), (86, 82), (114, 114), (114, 110),
+            // 紫微 天機 太陽 武曲 天同 廉貞 天府 太陰 貪狼 巨門 天相 天梁 七殺 破軍
+            (114, 107), (114, 107), (114, 106), (114, 106), (114, 107), (114, 106), (114, 107),
+            (114, 106), (114, 107), (114, 107), (114, 106), (114, 107), (114, 107), (113, 107),
+            // 文昌 文曲 左輔 右弼 天魁 天鉞 祿存 擎羊 陀羅 天馬 火星 鈴星 地劫 天空
+            (111, 110), (111, 110), (114, 111), (113, 110), (105, 105), (104, 104), (114, 114),
+            (114, 114), (114, 114), (101, 100), (107, 107), (108, 108), (110, 109), (109, 108),
+            // 化祿 化權 化科 化忌
+            (111, 111), (112, 112), (112, 111), (111, 110),
+        ];
+        assert_eq!(got, want, "{bu_he:?}");
+        // 紫微系与书局之外，不合之图：顏亞聖（紫微依水二局）、敫倫與嚴介溪（紫微合前一日）、杭寬、胡總制（紫微系另有所据）、
+        // 馬直節（全图按三月起）、車明（命身互易）
+        let zw: Vec<&str> = bu_he.iter().filter(|b| b.contains(":紫微 ")).map(|b| b.split(':').next().unwrap()).collect();
+        assert_eq!(zw, vec!["顏亞聖", "馬直節", "敫倫", "杭寬", "車明", "嚴介溪", "胡總制"]);
+        let ju: Vec<&str> = bu_he.iter().filter(|b| b.contains(":局 ")).map(|b| b.split(':').next().unwrap()).collect();
+        assert_eq!(ju, vec!["孔仲尼", "陳平", "馬直節", "車明"]);
+
+        let item = |o: &ZiweiOptions, x: &ZiweiExtraOptions, k: &str| {
+            let (it, _) = nanyangtang_compare(o, x);
+            it.iter().find(|i| i.0 == k).map(|i| (i.1, i.2)).unwrap()
+        };
+        // 四化：录文表庚年「日武陰同」，庚年图之化科、化忌不合（太陰、天同同宫者计合）
+        let lu = ZiweiOptions { si_hua: SiHuaTable::QuanShu, ..o };
+        assert_eq!((item(&lu, &x, "化科"), item(&lu, &x, "化忌")), ((112, 100), (111, 96)));
+        // 火铃自子时数至生时：只子时之图合
+        let shi = ZiweiExtraOptions { huo_ling_qi: HuoLingQi::ShiShun, ..x };
+        assert_eq!((item(&o, &shi, "火星"), item(&o, &shi, "鈴星")), ((107, 12), (108, 12)));
+        // 巳酉丑年火戌铃卯（写本）：巳酉丑年之图皆不合
+        let xb = ZiweiExtraOptions { huo_ling: SiYouChouHuoLing::KoreanMs, ..x };
+        assert_eq!((item(&o, &xb, "火星"), item(&o, &xb, "鈴星")), ((107, 82), (108, 83)));
+        // 丙丁年钺在戌（录文「猪狗」）、辛年魁寅钺午：丙丁辛年之图皆不合
+        let bd = ZiweiOptions { bing_ding_yue: BingDingYue::Xu, xin_kui_yue: XinKuiYue::KuiYinYueWu, ..o };
+        assert_eq!((item(&bd, &x, "天魁"), item(&bd, &x, "天鉞")), ((105, 98), (104, 75)));
+        // 闰月作本月：進士二（閏十二月）命身左右皆合
+        let same = ZiweiOptions { leap: LeapRule::SameMonth, ..o };
+        assert_eq!((item(&same, &x, "命"), item(&same, &x, "左輔")), ((114, 112), (114, 112)));
     }
 
     /// 两本庙旺表与「論命宮訣」各主星逐宫等第（`data/folk/ziwei_ming_gong_dengdi.csv`，161 处）互校

@@ -1595,7 +1595,14 @@ pub fn xuankong_json(year: i32, zuo: u8, ti: bool, zuo_az: f64, jd_ut: Option<f6
         jie(p.zuo),
         jie(p.xiang),
         match xk::da_jie(&p, &o) {
-            Some(d) => format!("{{\"gong\":{},\"li\":{},\"zhen\":{}}}", json_arr(d.gong.iter().map(|g| g.to_string())), d.li, d.zhen),
+            Some(d) => format!(
+                "{{\"gong\":{},\"li\":{},\"zhen\":{},\"fuYin\":{},\"qiu\":{}}}",
+                json_arr(d.gong.iter().map(|g| g.to_string())),
+                d.li,
+                d.zhen,
+                d.fu_yin,
+                opt(xk::da_jie_qiu(&p, &o))
+            ),
             None => "null".into(),
         },
         opt(qs),

@@ -129,16 +129,21 @@ pub enum JiuTuGui {
     AoTou,
     /// 董公：乙酉癸巳甲午辛丑壬寅己酉庚戌丁巳戊午（末日作戊午，未核）；「與建、破、平、收日相併……則無妨」
     DongGong,
+    /// 《趨避檢》卷中「九土鬼日」（`data/folk/qubijian_qili.csv`，PDF 第 111 页）：同董公而「己酉」作「己卯」；
+    /// 「其日與建破魁罡相併者大凶，餘日無妨」，与董公之无妨说相反（此不计相併，只给所值之日）
+    QuBiJian,
 }
 
 pub const JIU_TU_GUI_AOTOU: [&str; 9] = ["乙酉", "癸巳", "辛丑", "庚戌", "丁巳", "甲午", "壬寅", "己酉", "戊申"];
 pub const JIU_TU_GUI_DONGGONG: [&str; 9] = ["乙酉", "癸巳", "甲午", "辛丑", "壬寅", "己酉", "庚戌", "丁巳", "戊午"];
+pub const JIU_TU_GUI_QUBIJIAN: [&str; 9] = ["乙酉", "癸巳", "甲午", "辛丑", "壬寅", "己卯", "庚戌", "丁巳", "戊午"];
 
 /// 是否值九土鬼（董公说之「與建破平收日相併則無妨」不在此，见 [`jiu_tu_gui_wu_fang`]）
 pub fn jiu_tu_gui(rule: JiuTuGui, day_gz: u8) -> bool {
     match rule {
         JiuTuGui::AoTou => in_gz(&JIU_TU_GUI_AOTOU, day_gz),
         JiuTuGui::DongGong => in_gz(&JIU_TU_GUI_DONGGONG, day_gz),
+        JiuTuGui::QuBiJian => in_gz(&JIU_TU_GUI_QUBIJIAN, day_gz),
     }
 }
 
@@ -288,10 +293,50 @@ pub fn sha_gong_zhi_xing_ren_zhuan(month_ord: u8, day_gz: u8) -> Vec<&'static st
     ["煞貢", "直星", "人專"].iter().zip(row.iter()).filter(|(_, l)| in_gz(l, day_gz)).map(|(n, _)| *n).collect()
 }
 
+// ───────────────────────── 五、《趨避檢》（《發微曆眼通書大全》首種） ─────────────────────────
+// 起例转录 `data/folk/qubijian_qili.csv`（书、卷、PDF 页见文件头）；对照见 `doc/folk/tongshu.md` 第九节。
+
+/// 金符九星（《趨避檢》卷上「金符選日局」，PDF 第 86—88 页）：(星, 所配黄黑道神, 是否黄道)。
+/// 甲子日寅申巳亥月起齊、子午卯酉月起火、辰戌丑未月起利，逐日顺行，九日一周（六十甲子不复起）。
+/// 三黄道星顯、曲、傳即董公「煞貢、直星、人專」（见 [`sha_gong_zhi_xing_ren_zhuan`]）；六黑道星书皆云嫁娶凶
+pub const JIN_FU_XING: [(&str, &str, bool); 9] = [
+    ("齊", "玄武", false),
+    ("火", "朱雀", false),
+    ("利", "白虎", false),
+    ("顯", "青龍", true),
+    ("曲", "金匱", true),
+    ("朴", "天刑", false),
+    ("解", "天牢", false),
+    ("傳", "玉堂", true),
+    ("章", "勾陳", false),
+];
+
+/// 当日金符星之序（[`JIN_FU_XING`] 下标）：(日干支序 + 孟 0／仲 1／季 2) mod 9。`month_ord` 寅月 0
+pub fn jin_fu_xing(month_ord: u8, day_gz: u8) -> usize {
+    ((day_gz % 60) as usize + (month_ord % 3) as usize) % 9
+}
+
+/// 男婚年（《趨避檢》卷中，PDF 第 133 页，「主疾少樂」）：男命子丑寅……亥，忌年未申酉……午，即男命支加七。
+/// 同页「女嫁年」（「主產厄多憂疾患」）与鳌头女嫁厄年逐格同，即 [`nv_jia_e_nian`]。`year_zhi` 为婚娶之年（立春分年）之支。
+/// 此为择年，需男命，婚嫁择日之输入只有女命，故未接入 [`TONGSHU_SHEN`]
+pub fn nan_hun_nian(nan_zhi: u8, year_zhi: u8) -> bool {
+    (nan_zhi % 12 + 7) % 12 == year_zhi % 12
+}
+
+/// 天狗頭尾方（《趨避檢》卷中「逐月凶殺日」前，PDF 第 139 页）：正二三月、七八九月卯酉方，四五六月、十至十二月子午方，
+/// 「忌路天狗頭尾主無嗣」——行嫁所经之方，不是日。返回两支（方位）
+pub fn tian_gou_tou_wei_fang(month_ord: u8) -> [u8; 2] {
+    if (month_ord % 12 / 3) % 2 == 0 {
+        [3, 9]
+    } else {
+        [0, 6]
+    }
+}
+
 // ───────────────────────── 逐神取舍之表 ─────────────────────────
 
 /// 可选否决诸神：(名, 组, 所主与协纪之断)。下标即 [`super::jiaqu::JiaquOptions::tongshu_mask`] 位（置位者否决，余只作附注）
-pub const TONGSHU_SHEN: [(&str, &str, &str); 22] = [
+pub const TONGSHU_SHEN: [(&str, &str, &str); 23] = [
     ("大煞", "协纪改删", "神樞經忌嫁娶；协纪卷十止忌軍事，删其餘"),
     ("天火（类编）", "协纪改删", "玉帳經忌㑹親娶婦；类编顺行四仲，协纪天火即災煞（已在忌神）"),
     ("黑道", "协纪改删", "神樞經「所值之日皆不可……嫁娶」；协纪卷十「六黑道亦無專忌之事」"),
@@ -314,6 +359,7 @@ pub const TONGSHU_SHEN: [(&str, &str, &str); 22] = [
     ("紅沙（鳌头）", "鳌头", "鳌头嫁娶凶日「紅沙煞」孟巳仲酉季丑，娶忌；同协纪所引「又一本」、董公小紅沙"),
     ("人隔", "类编", "类编、鳌头求婚表所避；起例见类编卷九買納奴婢凶日（正酉二未三巳……）"),
     ("天狗無嗣", "鳌头", "鳌头嫁娶凶神表「天狗 無嗣」，列八节（四立二分二至）"),
+    ("金符黑星", "董公", "《趨避檢》金符選日局：齊火利朴解章六星（玄武朱雀白虎天刑天牢勾陳黑道）嫁娶皆凶；顯曲傳三星即董公煞貢直星人專"),
 ];
 
 /// 名 → 位
@@ -416,6 +462,10 @@ pub fn tongshu_hits(t: &TongshuInput) -> Vec<(usize, String)> {
     if shi_e_da_bai_nian_yue(t.year_gz % 10, m, g) {
         push("十惡大敗（年月）", "十惡大敗（董公年月表）".into());
     }
+    let (jf, jf_shen, jf_huang) = JIN_FU_XING[jin_fu_xing(m, g)];
+    if !jf_huang {
+        push("金符黑星", format!("金符{jf}星（{jf_shen}黑道，趨避檢）"));
+    }
     v
 }
 
@@ -499,7 +549,7 @@ mod tests {
         // 人隔：正酉、二未、三巳、四卯、五丑、六亥，七月起复
         assert!(ren_ge(0, zi('酉')) && ren_ge(1, zi('未')) && ren_ge(5, zi('亥')) && ren_ge(6, zi('酉')) && ren_ge(11, zi('亥')));
         assert_eq!((0..12u8).map(|m| (0..12u8).filter(|&z| ren_ge(m, z)).count()).sum::<usize>(), 12);
-        assert_eq!(TONGSHU_SHEN.len(), 22);
+        assert_eq!(TONGSHU_SHEN.len(), 23);
         assert!(TONGSHU_SHEN.len() <= 32);
     }
 
@@ -634,5 +684,127 @@ mod tests_book {
         for (name, f) in gods {
             println!("| {name} | {} |", tables.iter().map(|(b, t)| rows.iter().filter(|r| r.0 == *b && r.1 == *t && f(r.2 - 1, r.3)).count().to_string()).collect::<Vec<_>>().join(" | "));
         }
+    }
+}
+
+/// 《趨避檢》起例转录（`data/folk/qubijian_qili.csv`）与本模块诸起例逐格核对
+#[cfg(test)]
+mod tests_qubijian {
+    use super::*;
+
+    const CSV: &str = include_str!("../../../../data/folk/qubijian_qili.csv");
+    const GZ: [&str; 60] = [
+        "甲子", "乙丑", "丙寅", "丁卯", "戊辰", "己巳", "庚午", "辛未", "壬申", "癸酉", "甲戌", "乙亥", "丙子", "丁丑", "戊寅", "己卯", "庚辰", "辛巳", "壬午", "癸未", "甲申", "乙酉", "丙戌", "丁亥", "戊子", "己丑", "庚寅", "辛卯", "壬辰", "癸巳", "甲午", "乙未", "丙申", "丁酉", "戊戌", "己亥", "庚子", "辛丑", "壬寅", "癸卯", "甲辰", "乙巳", "丙午", "丁未", "戊申", "己酉", "庚戌", "辛亥", "壬子", "癸丑", "甲寅", "乙卯", "丙辰", "丁巳", "戊午", "己未", "庚申", "辛酉", "壬戌", "癸亥",
+    ];
+
+    fn rows() -> Vec<Vec<&'static str>> {
+        CSV.lines().filter(|l| !l.starts_with('#')).skip(1).map(|l| l.split(',').collect()).collect()
+    }
+    fn zi(s: &str) -> u8 {
+        ZHI.chars().position(|c| s.starts_with(c)).unwrap() as u8
+    }
+
+    #[test]
+    fn rows_match_rules() {
+        let mut n = 0;
+        for r in rows() {
+            let (xiang, jian, zhi) = (r[0], r[1], r[2]);
+            match xiang {
+                "男婚年" => {
+                    let (a, y) = (zi(jian), zi(zhi));
+                    assert!((0..12).all(|k| nan_hun_nian(a, k) == (k == y)), "{jian}");
+                }
+                "女嫁年" => {
+                    let (a, y) = (zi(jian), zi(zhi));
+                    assert!((0..12).all(|k| nv_jia_e_nian(a, k) == (k == y)), "{jian}");
+                }
+                "天狗頭尾方" => {
+                    let m0 = match jian {
+                        "正二三月" => 0,
+                        "四五六月" => 3,
+                        "七八九月" => 6,
+                        _ => 9,
+                    };
+                    let want: Vec<u8> = zhi.split(' ').map(zi).collect();
+                    for m in m0..m0 + 3 {
+                        assert_eq!(tian_gou_tou_wei_fang(m).to_vec(), want, "{jian}");
+                    }
+                }
+                "十隔忌日" if jian == "人隔" => {
+                    for (m, c) in zhi.chars().enumerate() {
+                        assert!(ren_ge(m as u8, zi(&c.to_string())));
+                    }
+                }
+                "九土鬼日" => {
+                    let want: Vec<&str> = zhi.split(' ').collect();
+                    assert_eq!(want, JIU_TU_GUI_QUBIJIAN);
+                }
+                "金符選日局" => {
+                    let off = match jian {
+                        "寅申巳亥月" => 0u8,
+                        "子午卯酉月" => 1,
+                        _ => 2,
+                    };
+                    let stars: Vec<&str> = zhi.split(' ').collect();
+                    // 甲子日之星为该行第一星，逐日顺行
+                    for g in 0..60u8 {
+                        assert_eq!(JIN_FU_XING[jin_fu_xing(off, g)].0, stars[g as usize % 9], "{jian} {}", GZ[g as usize]);
+                        assert_eq!(jin_fu_xing(off, g), jin_fu_xing(off + 3, g));
+                    }
+                }
+                "金符九星" => {
+                    let (name, shen, huang) = JIN_FU_XING.iter().find(|x| x.0 == jian).copied().unwrap();
+                    assert_eq!(zhi, format!("{shen}{}道", if huang { "黃" } else { "黑" }), "{name}");
+                }
+                _ => continue,
+            }
+            n += 1;
+        }
+        assert_eq!(n, 12 + 12 + 4 + 1 + 1 + 3 + 9);
+    }
+
+    /// 董公煞貢、直星、人專即金符顯、曲、傳三星：录文诸日 61 个中 58 个与金符合，
+    /// 不合三处正是录文季月可疑之日——煞貢「己丑」（当乙丑）、直星「辛卯」（当辛亥）、人專「己亥」（当丁亥）
+    #[test]
+    fn dong_gong_san_xing_is_jin_fu() {
+        let mut bad: Vec<String> = Vec::new();
+        let mut ok = 0;
+        for m in 0..3u8 {
+            for g in 0..60u8 {
+                let names = sha_gong_zhi_xing_ren_zhuan(m, g);
+                let star = JIN_FU_XING[jin_fu_xing(m, g)].0;
+                for n in &names {
+                    let want = match *n {
+                        "煞貢" => "顯",
+                        "直星" => "曲",
+                        _ => "傳",
+                    };
+                    if star == want {
+                        ok += 1;
+                    } else {
+                        bad.push(format!("{}{n}{}", ["孟", "仲", "季"][m as usize], GZ[g as usize]));
+                    }
+                }
+            }
+        }
+        bad.sort();
+        assert_eq!(ok, 58);
+        assert_eq!(bad, ["季人專己亥", "季煞貢己丑", "季直星辛卯"]);
+        // 按九日一周校改之日正值其星
+        assert_eq!(JIN_FU_XING[jin_fu_xing(2, gz("乙丑"))].0, "顯");
+        assert_eq!(JIN_FU_XING[jin_fu_xing(2, gz("辛亥"))].0, "曲");
+        assert_eq!(JIN_FU_XING[jin_fu_xing(2, gz("丁亥"))].0, "傳");
+    }
+
+    /// 每月 60 日中黄道三星各值 6—7 日，黑道 40 日上下
+    #[test]
+    fn jin_fu_counts() {
+        for m in 0..12u8 {
+            let huang = (0..60u8).filter(|&g| JIN_FU_XING[jin_fu_xing(m, g)].2).count();
+            assert!((19..=21).contains(&huang), "{m} {huang}");
+        }
+        let hits = tongshu_hits(&TongshuInput { month_ord: 0, day_gz: 0, jdn: 2_460_000, year_gz: 0, nv_year_gz: 0, phase: None, hui: false, ba_jie: false });
+        // 寅月甲子：金符齊星（玄武黑道）
+        assert!(hits.iter().any(|(i, s)| TONGSHU_SHEN[*i].0 == "金符黑星" && s.contains("齊")));
     }
 }
