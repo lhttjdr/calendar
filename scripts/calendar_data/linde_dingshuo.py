@@ -50,13 +50,14 @@ def chisu(x):
     i = int(x)
     frac = x - i
     if i >= 27:
-        return CHISU[27] + ZENG[27] * frac * F / 743  # 末日只 743 分
+        return CHISU[27] - ZENG[27] * frac * F / 743  # 末日只 743 分；迟段增减反号
     if i == 13:  # 十四日：初减百二（至速 0），末增二十九入迟
         chu = Fr(1042, F)
         if frac <= chu:
             return CHISU[13] - 102 * frac / chu
         return -29 * (frac - chu) / (1 - chu)
-    return CHISU[i] + ZENG[i] * frac
+    # 志文增减就迟速积绝对值言：迟段（十五日起）增为迟积加大，故反号（2026-11-26 前误作同号）
+    return CHISU[i] + (ZENG[i] if i < 14 else -ZENG[i]) * frac
 
 
 def year_moons(y, n=14):
