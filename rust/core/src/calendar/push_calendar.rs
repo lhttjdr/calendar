@@ -352,6 +352,9 @@ pub fn regime_year_months_raw(regime: &str, lunar_year: i32) -> Option<(&'static
 /// 某岁所用历术名与各月 (朔日 JDN, 月序, 闰否)。
 pub type RegimeYearFn = fn(i32) -> (&'static str, Vec<(i64, u8, bool)>);
 
+/// 推步政权「秦」自此建亥年（秦王政元年，前 246）起合朔取统一后秦历之相位（见 `regime_calendars` 内 `qin_zhuanxu`）。
+pub const QIN_SHIYONG_FROM: i32 = -245;
+
 /// 推步政权表：(政权, 起年, 止年, 按年推步)。平朔历用 [LiParams]，金用定朔的 [super::daming_li]。
 /// 与 [gregorian_to_all_regimes_lunar] 所用相同。
 pub fn regime_calendars() -> Vec<(&'static str, i32, i32, RegimeYearFn)> {
@@ -429,9 +432,17 @@ pub fn regime_calendars() -> Vec<(&'static str, i32, i32, RegimeYearFn)> {
         (super::guliuli::CHUNQIU_JINGWEN_NAME, super::guliuli::chunqiu_jingwen_year_months(y))
     }
     // 秦：昭王时已行颛顼历（云梦秦简后九月、《编年记》历日，张培瑜等《中国古代历法》书页 211），十月岁首，
-    // 年为纪年年（建亥），月序为当时月名，闰称后九月（记作闰九月）
+    // 年为纪年年（建亥），月序为当时月名，闰称后九月（记作闰九月）。
+    // 秦王政元年（−245）起合朔取统一后秦历同一相位（[super::qinhan_shiyong::SEGMENTS] 第一段 δ = 644/940 日）：
+    // 中央与洞庭郡官文书——张家山《奏谳书》秦王政二年十月癸酉朔、六年八月丙子朔（颛顼本术乙亥，要求 δ ≥ 553）、
+    // 里耶秦简廿五年以后纪年文书——一个相位全合（doc/calendar/zhanguo-calendars.md「秦王政至二世的合朔相位」）。
+    // 代价：睡虎地《编年记》「廿年，七月甲寅」落在六月三十日（晦）；同年《语书》「四月丙戌朔」仍合。昭王至庄襄王无可检相位之纪日，仍按颛顼本术。
     fn qin_zhuanxu(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
-        ("颛顼历", super::zhuanxu::jianhai_year_months(y))
+        if y >= QIN_SHIYONG_FROM {
+            ("颛顼历（秦实用相位）", super::qinhan_shiyong::jianhai_year_months_with(y, super::qinhan_shiyong::SEGMENTS[0].delta()))
+        } else {
+            ("颛顼历", super::zhuanxu::jianhai_year_months(y))
+        }
     }
     // 魏：安釐王时行夏历（云梦秦简《为吏之道》附魏户律「廿五年閏再十二月丙午朔」，同书书页 211、232—234），寅正，年终闰
     fn wei_xia(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
@@ -799,6 +810,21 @@ mod tests {
         assert_eq!(crate::calendar::gan_zhi::GAN_ZHI_60[(qu.0 + 49).rem_euclid(60) as usize], "丁巳");
         assert_eq!(m[0].1, 1, "冬柰为岁首");
         assert!(regime_year_months("战国·周历（对照）", -300).is_none(), "对照政权已撤");
+    }
+
+    /// 秦王政以后取秦实用相位（δ = 644）：《奏谳书》二年十月癸酉朔、六年八月丙子朔，《语书》廿年四月丙戌朔都合；
+    /// 《编年记》「廿年，七月甲寅」落在六月三十日（晦）。秦王政以前仍按颛顼本术。
+    #[test]
+    fn qin_shiyong_phase() {
+        let gz = |j: i64| crate::calendar::gan_zhi::GAN_ZHI_60[(j + 49).rem_euclid(60) as usize];
+        let shuo = |y: i32, mo: u8| regime_year_months("秦", y).unwrap().1.into_iter().find(|e| e.1 == mo && !e.2).unwrap().0;
+        assert_eq!(gz(shuo(-244, 10)), "癸酉");
+        assert_eq!(gz(shuo(-240, 8)), "丙子");
+        assert_eq!(gz(shuo(-226, 4)), "丙戌");
+        let (six, seven) = (shuo(-226, 6), shuo(-226, 7));
+        assert_eq!((gz(six), gz(seven), seven - six), ("乙酉", "乙卯", 30), "甲寅为六月晦");
+        assert_eq!(regime_year_months("秦", -246).unwrap().0, "颛顼历");
+        assert_eq!(regime_year_months("秦", -245).unwrap().0, "颛顼历（秦实用相位）");
     }
 
     #[test]

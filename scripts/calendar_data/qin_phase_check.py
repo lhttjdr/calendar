@@ -27,8 +27,10 @@ GZ = ["甲乙丙丁戊己庚辛壬癸"[i % 10] + "子丑寅卯辰巳午未申酉
 
 _L, _S, _E, _Y0 = Fr(27759, 940), Fr(1461, 4), Fr(1587781), -365
 D_LO, D_HI = -940, 1880
-# 本项目统一后秦历推步两段（rust/core/src/calendar/qinhan_shiyong.rs SEGMENTS）与张培瑜所说 639—649 分
-SHIYONG = [(-230, -216, 429, 532, 480), (-215, -202, 639, 649, 644)]
+# 本项目秦历推步段（rust/core/src/calendar/qinhan_shiyong.rs SEGMENTS 第一段，2026-11-26 由两段合一）：(起年, 止年, lo, hi, δ)；
+# 旧两段（−230—−216 [429, 533) 取 480；−215 起 [639, 650) 取 644）留作对照，见文档第四节
+SHIYONG = [(-230, -202, 639, 649, 644)]
+SHIYONG_OLD = [(-230, -216, 429, 532, 480), (-215, -202, 639, 649, 644)]
 CENTRAL = (638, 649)  # 下文求得的单段可行域，写进文档时由计算结果覆盖校验
 
 
@@ -271,13 +273,13 @@ for y in sorted(set().union(*[set(v) for v in yw.values()])):
 P("")
 P("## 四、本项目推步段与里耶全部纪日")
 P("")
-P("`qinhan_shiyong` 现行两段所取 δ 与里耶（索引稿）入交集之条的不合者：")
+P("`qinhan_shiyong` 秦段所取 δ 与里耶（索引稿）入交集之条的不合者（现行一段；旧两段在 2026-11-26 合一，列出以见其由）：")
 P("")
-P("| 段 | 段内年 | δ | 不合之条 |")
-P("|---|---|---|---|")
-for a, b, lo, hi, d in SHIYONG:
+P("| | 段 | 段内年 | δ | 不合之条 |")
+P("|---|---|---|---|---|")
+for tag, a, b, lo, hi, d in [("现行", *x) for x in SHIYONG] + [("旧", *x) for x in SHIYONG_OLD]:
     bad = [r for r in used if r["来源"] == "里耶" and a <= r["年"] <= b and not in_iv(r["iv"], d)]
-    P(f"| [{lo}, {hi + 1}) | {yname(a)}—{yname(b)} | {d} | " + ("；".join(
+    P(f"| {tag} | [{lo}, {hi + 1}) | {yname(a)}—{yname(b)} | {d} | " + ("；".join(
         f"{r['纪年']}{r['月']}月{r['朔'] + '朔' if r['朔'] else ''}{r['日']}（{r['简号']}，需 {fmt_iv(r['iv'])}）" for r in bad) or "无") + " |")
 P("")
 P("## 五、逐条（有限窗口者）")

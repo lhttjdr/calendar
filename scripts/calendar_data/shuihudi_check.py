@@ -79,7 +79,8 @@ def qin_month(Q, m, leap):
 # 自检：与推步政权朔日表「秦」逐月比对
 n_chk = 0
 for r in csv.DictReader(open(ROOT / "data/calendar/推步政权朔日表.csv", encoding="utf-8")):
-    if r["regime"] != "秦":
+    # 秦王政元年（−245）起推步政权「秦」取秦实用相位（calendar「颛顼历（秦实用相位）」，δ = 644），不是颛顼本术，不比
+    if r["regime"] != "秦" or r["calendar"] != "颛顼历":
         continue
     y, gm, gd = int(r["gregorian_year"]), int(r["gregorian_month"]), int(r["gregorian_day"])
     Q, m, lp = int(r["lunar_year"]), int(r["lunar_month"]), r["is_leap"] == "1"
@@ -162,7 +163,7 @@ def fmt_segs(ss):
 rows = []
 md = ["# 睡虎地秦简纪日检验（自动生成）", "",
       "由 `scripts/calendar_data/shuihudi_check.py` 生成，勿手改。说明见 [zhanguo-calendars.md](./zhanguo-calendars.md)「秦、魏：睡虎地秦简检验」。", "",
-      f"底本 `data/calendar/shuihudi_records.csv`（《睡虎地秦墓竹简》文物出版社 1990，书页见表）。颛顼历按术推步已与 `推步政权朔日表.csv`「秦」{n_chk} 个月逐月比对一致。", "",
+      f"底本 `data/calendar/shuihudi_records.csv`（《睡虎地秦墓竹简》文物出版社 1990，书页见表）。颛顼历按术推步已与 `推步政权朔日表.csv`「秦」昭王至庄襄王 {n_chk} 个月逐月比对一致（秦王政起该表取秦实用相位，见 zhanguo-calendars.md「秦王政至二世的合朔相位」）。", "",
       "## 一、秦：颛顼历按术推步", "",
       "| 纪年 | 年 | 月 | 干支 | 简 | 书页 | 颛顼历该月朔（儒略历） | 该月日干支范围 | 干支在月中第几日 | 合 |",
       "|---|---|---|---|---|---|---|---|---|---|"]

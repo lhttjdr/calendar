@@ -2,7 +2,7 @@
 
 由 `scripts/calendar_data/shuihudi_check.py` 生成，勿手改。说明见 [zhanguo-calendars.md](./zhanguo-calendars.md)「秦、魏：睡虎地秦简检验」。
 
-底本 `data/calendar/shuihudi_records.csv`（《睡虎地秦墓竹简》文物出版社 1990，书页见表）。颛顼历按术推步已与 `推步政权朔日表.csv`「秦」1051 个月逐月比对一致。
+底本 `data/calendar/shuihudi_records.csv`（《睡虎地秦墓竹简》文物出版社 1990，书页见表）。颛顼历按术推步已与 `推步政权朔日表.csv`「秦」昭王至庄襄王 742 个月逐月比对一致（秦王政起该表取秦实用相位，见 zhanguo-calendars.md「秦王政至二世的合朔相位」）。
 
 ## 一、秦：颛顼历按术推步
 
