@@ -187,7 +187,10 @@ pub fn li_ke(day_gz: u8) -> bool {
 }
 
 /// 天狗（無嗣）（鳌头第 4 册第 13 页嫁娶凶神表，读图）：表中此行不分月，只列「立春 春分 立夏 夏至 立秋 秋分 立冬 冬至」，
-/// 神名下小字「無嗣」。照表取八节（四立二分二至）当日；书无他说，是否另有所指未详。协纪卷三十六所斥之天狗（月厭等正位）另是一说
+/// 神名下小字「無嗣」。2026-11-26 400 dpi 复核：八名平列于十二月栏之上而不对月栏（同表「滅没」「伏斷」「婚嫁忌宿」诸行亦平列条件），
+/// 无支无方，故无「何节起何方、正读逆读」可言，只能读作八节（四立二分二至）当日。他书同名者：协纪卷三十六天狗頭尾口腹（按季日支，
+/// [`super::jiaqu::tian_gou`]）、天狗方（四正位）、《趨避檢》天狗頭尾方（[`tian_gou_tou_wei_fang`]，即协纪頭尾两支作方），
+/// 皆按季取支，与八节不合；无据判何书误，并存待核
 pub fn tian_gou_wu_si(ba_jie: bool) -> bool {
     ba_jie
 }
@@ -324,7 +327,8 @@ pub fn nan_hun_nian(nan_zhi: u8, year_zhi: u8) -> bool {
 }
 
 /// 天狗頭尾方（《趨避檢》卷中「逐月凶殺日」前，PDF 第 139 页）：正二三月、七八九月卯酉方，四五六月、十至十二月子午方，
-/// 「忌路天狗頭尾主無嗣」——行嫁所经之方，不是日。返回两支（方位）
+/// 「忌路天狗頭尾主無嗣」——行嫁所经之方，不是日。返回两支（方位）。两支正是协纪卷三十六天狗頭（月厭正位）、天狗尾（厭對正位），
+/// 协纪同條「春夘夏午秋酉冬子」天狗方各居其一（测试 `tian_gou_fang_vs_xieji`）
 pub fn tian_gou_tou_wei_fang(month_ord: u8) -> [u8; 2] {
     if (month_ord % 12 / 3) % 2 == 0 {
         [3, 9]
@@ -806,5 +810,20 @@ mod tests_qubijian {
         let hits = tongshu_hits(&TongshuInput { month_ord: 0, day_gz: 0, jdn: 2_460_000, year_gz: 0, nv_year_gz: 0, phase: None, hui: false, ba_jie: false });
         // 寅月甲子：金符齊星（玄武黑道）
         assert!(hits.iter().any(|(i, s)| TONGSHU_SHEN[*i].0 == "金符黑星" && s.contains("齊")));
+    }
+
+    /// 《趨避檢》天狗頭尾方与协纪卷三十六所斥天狗诸位相校：每季两方正是协纪天狗頭（月厭正位）、天狗尾（厭對正位）两支，
+    /// 协纪同條「春夘夏午秋酉冬子」四正位天狗方各居其一。鳌头「天狗 無嗣」只列八节名，无支无方，与两书不相涉
+    #[test]
+    fn tian_gou_fang_vs_xieji() {
+        for m in 0..12u8 {
+            let mut fang = tian_gou_tou_wei_fang(m).to_vec();
+            fang.sort();
+            let mut xj: Vec<u8> = (0..12u8).filter(|&z| matches!(super::super::jiaqu::tian_gou(m, z), Some(("天狗頭" | "天狗尾", _)))).collect();
+            xj.sort();
+            assert_eq!(fang, xj, "月序 {m}");
+            let si_zheng = [3u8, 6, 9, 0][(m / 3) as usize];
+            assert!(fang.contains(&si_zheng), "月序 {m}");
+        }
     }
 }

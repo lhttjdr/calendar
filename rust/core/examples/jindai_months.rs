@@ -21,6 +21,8 @@ use lunar_core::calendar::gregorian::{civil_from_jdn, civil_to_jdn};
 use lunar_core::math::real::{real, RealOps};
 use lunar_core::quantity::angle::PlaneAngle;
 use std::collections::BTreeMap;
+#[path = "support/shiwu_fenlei.rs"]
+mod fenlei;
 use std::fs;
 
 fn read(p: &str) -> Vec<u8> {
@@ -158,6 +160,25 @@ fn main() {
         "> 由 `rust/core/examples/jindai_months.rs` 生成，勿手改。规则与依据见 [jindai-calendar.md](jindai-calendar.md)。".to_string(),
         String::new(),
     ];
+    // 实物：民国历书、时宪书、通书（data/calendar/minguo_shixianshu_months.csv，A 级），按（岁, 月, 闰）聚合，各书各算一条
+    let mut books: BTreeMap<Key, Vec<String>> = BTreeMap::new();
+    let mut book_notes: BTreeMap<Key, Vec<String>> = BTreeMap::new();
+    {
+        let txt = String::from_utf8(read("data/calendar/minguo_shixianshu_months.csv")).unwrap();
+        for l in txt.lines().filter(|l| !l.starts_with('#')).skip(1) {
+            let f: Vec<&str> = l.split(',').collect();
+            if let (Ok(y), Ok(m)) = (f[0].parse::<i32>(), f[2].parse::<u8>()) {
+                if f[5].is_empty() {
+                    continue; // 书无此月朔干支
+                }
+                books.entry((y, m, f[3] == "1")).or_default().push(f[5].to_string());
+                let note = f.get(8).copied().unwrap_or("");
+                book_notes.entry((y, m, f[3] == "1")).or_default().push(format!("{}{}", f[1].split('（').next().unwrap_or(""), if note.is_empty() { String::new() } else { format!("：{note}") }));
+            }
+        }
+    }
+    let mut cats: Vec<(&str, char)> = vec![];
+    let mut odd_rows: Vec<String> = vec![];
     let mut rows: Vec<String> = Vec::new();
     let mut near_rows: Vec<String> = Vec::new();
     let mut stat: BTreeMap<&str, (usize, usize, usize)> = BTreeMap::new();
@@ -217,6 +238,24 @@ fn main() {
                 z.map_or("—".into(), fmt),
                 if z == Some(d) { "✓" } else { "✗" }
             );
+            {
+                let tg = GAN_ZHI_60[(d + 49).rem_euclid(60) as usize];
+                let zg = z.map_or("", |x| GAN_ZHI_60[(x + 49).rem_euclid(60) as usize]);
+                let ob: Vec<&str> = books.get(&k).map(|v| v.iter().map(|x| x.as_str()).collect()).unwrap_or_default();
+                if let Some(cl) = fenlei::classify(tg, zg, &ob, 'A', "历书") {
+                    cats.push((cl.0, if ob.is_empty() { '—' } else { 'A' }));
+                    if !matches!(cl.0, "有证" | "无证") {
+                        odd_rows.push(format!(
+                            "| {ly} | {}{} | {tg} | {zg} | {} | {} | {} |",
+                            if k.2 { "闰" } else { "" },
+                            k.1,
+                            ob.join("、"),
+                            fenlei::label(&cl),
+                            book_notes.get(&k).map(|v| v.join("；")).unwrap_or_default()
+                        ));
+                    }
+                }
+            }
             if z != Some(d) || mn.abs() < 30.0 {
                 near_rows.push(cells.clone());
             }
@@ -245,6 +284,25 @@ fn main() {
     md.push("|---|---|---|---|".into());
     for (seg, (n, a, o)) in &stat {
         md.push(format!("| {seg} | {n} | {a} | {o} |"));
+    }
+    md.push(String::new());
+    md.push(format!(
+        "分类对象是按当时规则现算（「推步」）与张表；证据为民国历书、时宪书、通书所载月朔（`data/calendar/minguo_shixianshu_months.csv`，A 级实物，\
+同月数书各算一条）。{}",
+        fenlei::RULE
+    ));
+    md.push(String::new());
+    md.push(format!("{}。", fenlei::headline(&cats, "推步")));
+    md.push(String::new());
+    md.extend(fenlei::grade_table(&cats));
+    md.push(String::new());
+    if odd_rows.is_empty() {
+        md.push("同误、①②③之月：无。".into());
+    } else {
+        md.push("同误、①②③之月：".into());
+        md.push(String::new());
+        md.push("| 农历年 | 月 | 推步 | 张表 | 历书 | 分类 | 书与备注 |\n|---|---|---|---|---|---|---|".into());
+        md.extend(odd_rows);
     }
     md.push(String::new());
     let head = "| 农历年 | 月 | 大小 | 朔日 | 干支 | 定日基准 | 合朔（基准地方时） | 距子夜（分） | 另一基准朔日 | 张表朔日 | 合张表 |\n|---|---|---|---|---|---|---|---|---|---|---|";

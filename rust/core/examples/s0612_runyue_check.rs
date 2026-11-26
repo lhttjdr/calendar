@@ -5,6 +5,8 @@
 //! 用法（仓库根）：cargo run --release -p lunar-core --no-default-features --features real-f64 --example s0612_runyue_check
 use lunar_core::calendar::historical::ShuoriTable;
 use lunar_core::calendar::lifa::{zhongyuan_year_months, ZhongyuanPreference};
+#[path = "support/shiwu_fenlei.rs"]
+mod fenlei;
 
 const NUM: [&str; 13] = ["", "正", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二"];
 
@@ -27,9 +29,10 @@ fn main() {
         String::new(),
         "录文：邓文宽《敦煌天文历法文献辑校》下编第三三件（书页 523—527），岁 1 = 978 年逆数至岁 60 = 919 年。原卷：《英藏敦煌文献》第 2 卷书页 73 图版，只录读图时逐行确认之岁。「历序閏」取原卷，原卷未录者取录文（「依据」列注明）。".into(),
         String::new(),
-        "| 岁 | 公历年 | 干支 | 年号 | 历序閏 | 依据 | 张表閏 | 合张表 | 中原一线閏 | 来源 | 合中原一线 |".into(),
-        "|---|---|---|---|---|---|---|---|---|---|---|".into(),
+        "| 岁 | 公历年 | 干支 | 年号 | 历序閏 | 依据 | 张表閏 | 合张表 | 中原一线閏 | 来源 | 合中原一线 | 分类 |".into(),
+        "|---|---|---|---|---|---|---|---|---|---|---|---|".into(),
     ];
+    let mut cats: Vec<(&str, char)> = vec![];
     let (mut n, mut ok_z, mut ok_c, mut n_yuan) = (0, 0, 0, 0);
     let mut diffs = Vec::new();
     let mut variants = Vec::new();
@@ -58,10 +61,23 @@ fn main() {
             diffs.push(format!("{y}（{}）历序{}、张表{}、中原一线{}", f[2], show(book), show(z), show(c)));
         }
         let mk = |b: bool| if b { "✓" } else { "✗" };
-        md.push(format!("| {} | {y} | {} | {} | {} | {basis} | {} | {} | {} | {label} | {} |", f[0], f[1], f[2], show(book), show(z), mk(book == z), show(c), mk(book == c)));
+        // 分类按岁（閏位）：中原一线诸岁皆按术推步，与张表比；历序是官本历书抄本（A 级）
+        let (sb, sz, sc) = (show(book), show(z), show(c));
+        let cl = fenlei::classify(&sc, &sz, &[sb.as_str()], 'A', "历序").unwrap();
+        cats.push((cl.0, 'A'));
+        md.push(format!("| {} | {y} | {} | {} | {} | {basis} | {} | {} | {} | {label} | {} | {} |", f[0], f[1], f[2], sb, sz, mk(book == z), sc, mk(book == c), fenlei::label(&cl)));
     }
     md.push(String::new());
     md.push(format!("共 {n} 年（原卷 {n_yuan} 年、录文 {} 年）：合张表 {ok_z}，合中原一线 {ok_c}。", n - n_yuan));
+    md.push(String::new());
+    md.push(format!(
+        "分类按岁（閏位，无閏亦算一种）：分类对象是中原一线（此段诸岁皆按术推步）与张表；历序是官本历书抄本（A 级实物）。{}",
+        fenlei::RULE.replace("每月一个", "每岁一个").replace("之月", "之岁")
+    ));
+    md.push(String::new());
+    md.push(format!("{}。", fenlei::headline_unit(&cats, "推步", "岁")));
+    md.push(String::new());
+    md.extend(fenlei::grade_table(&cats));
     if !variants.is_empty() {
         md.push(String::new());
         md.push(format!("录文异读：{}。", variants.join("；")));

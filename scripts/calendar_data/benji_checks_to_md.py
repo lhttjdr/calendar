@@ -31,6 +31,68 @@ def table(head, body):
     return out
 
 
+# 证据等级（高到低）：A 实物历日；B 当时文字；C 当朝或近时所修史书明书朔；D 当朝史书纪日；E 后人追修史书（多转录前史，非独立）。
+# 复原性质材料（《通鉴目录》即刘羲叟长历、今人诸表）不作证据。
+# 《新唐书》本纪多据实录，与《旧唐书》同级；《南史》《北史》《新五代史》节录前史，与前史同条者按前史计、不重计，前史无者才为 E。
+# 同一事件各书互见只算一证：以 (政权, 年, 月, 本纪朔) 为一事，计数以事计，等级取诸书最高者。
+E_BOOKS = ("houhanshu", "jinshu", "nanshi", "beishi", "xinwudaishi")
+
+
+def level(b, shuo=True):
+    return "E" if b.startswith(E_BOOKS) else ("C" if shuo else "D")
+
+
+def pang_conflict(p):
+    """旁证「a/b（共n）」：他书同月纪日 n 条中只有 b 条落在以本纪朔起算 30 日内，b < n 即他证与本纪朔冲突。"""
+    m = re.match(r"(\d+)/(\d+)（共(\d+)）", p or "")
+    return bool(m) and int(m[2]) < int(m[3])
+
+
+def kaozheng_index():
+    """已有考证：(年, 月) → [(本纪朔, 结论)]，取各 *_shuo_kaozheng.csv 与 beichao、liao 考证表。"""
+    idx = defaultdict(list)
+    for name in ("tang_shuo_kaozheng.csv", "tangsong_cunyi_kaozheng.csv", "wudai_shuo_kaozheng.csv", "song_shuo_kaozheng.csv",
+                 "yuan_shuo_kaozheng.csv", "beichao_shuo_kaozheng.csv", "liao_shuo_kaozheng.csv"):
+        for r in rows(name):
+            idx[(r["年"], r["月"])].append((r.get("本纪朔") or r.get("本纪") or "", r.get("结论") or r.get("初判") or ""))
+    return idx
+
+
+def shishu_vs_zhang(r, errata, qita, kz, sky):
+    """史载与张表不合之条：史书误（已有考证沿用）／张表误（推步合史载且无他证冲突）／待核。返回 (判, 依据)。"""
+    key = (r["书"], r["年"], r["月"], r["本纪朔"])
+    if key[:3] in errata:
+        return "史书误", "已考讹（benji_shuo_errata.csv）"
+    if r["类"] == "其他":
+        j = qita.get(key, "")
+        if j and not j.startswith("未明"):
+            return "史书误", f"其他类考证：{j}"
+        return "待核", "其他类考证：未明" if j else "其他类未考"
+    for g, c in kz.get((r["年"], r["月"]), []):
+        if r["本纪朔"] in g and ("讹" in c or "」误" in c):
+            return "史书误", "已有考证：" + c[:40]
+    if r["本项目推步"] == "合":
+        if pang_conflict(r["旁证（张表/本纪朔）"]):
+            return "待核", "推步合本纪，但他书同月纪日与本纪朔冲突"
+        return "张表误", f"推步合本纪（{level(r['书'])} 级）"
+    s = sky.get(key, {})
+    if r["日食"] and r["朝代"] in ("汉", "三国", "晋", "南朝", "北朝", "隋") and s.get("合朔地方时日差（合朔日−本纪朔）") == "0":
+        return "史书误", "平朔时代食日书朔（所书为合朔之日，非历日之朔）"
+    return "待核", ""
+
+
+def tuibu_vs_zhang(r):
+    """本项目推步与张表互异之条（本纪只合其一）：①史载证张表误、②史载证推步误、③无据待核。返回 (分类, 等级)。"""
+    hr, ht = r["本项目推步"] == "合", r["张表"] == "合"
+    if not r["本项目推步"] or hr == ht:
+        return None
+    if r["类"] == "其他":
+        return "③无据待核", "—（本纪自误）"
+    if pang_conflict(r["旁证（张表/本纪朔）"]) and hr:
+        return "③无据待核", "—（他证冲突）"
+    return ("①史载证张表误" if hr else "②史载证推步误"), level(r["书"])
+
+
 def book(b):
     return "、".join(BOOK.get(x, x) for x in b.split("、")) if b else ""
 
@@ -39,6 +101,11 @@ def main():
     chk, leaps, sky, base = rows("benji_shuo_check.csv"), rows("benji_leap_check.csv"), rows("benji_shuo_sky.csv"), \
         rows("benji_shuo_baseline.csv")
     sky_by = {(s["书"], s["年"], s["月"], s["本纪朔"]): s for s in sky}
+    errata = {(r["书"], r["年"], r["月"]) for r in rows("benji_shuo_errata.csv")}
+    qita = {(r["书"], r["年"], r["月"], r["本纪朔"]): r["判"] for r in rows("benji_qita_kaozheng_notes.csv")}
+    kz = kaozheng_index()
+    pan = {id(r): shishu_vs_zhang(r, errata, qita, kz, sky_by) for r in chk if r["类"]}
+    fen = {id(r): tuibu_vs_zhang(r) for r in chk}
     L = ["# 以本纪核验历日：逐条结果", "",
          "由 `scripts/calendar_data/verify_benji_rili.py`、`scripts/phenomena/benji_shuo_sky.py` 计算，"
          "`scripts/calendar_data/benji_checks_to_md.py` 生成，**勿手改**。方法与结论见 "
@@ -54,12 +121,75 @@ def main():
         if r["本项目推步"]:
             s["pn"] += 1
             s["pok"] += r["本项目推步"] == "合"
+    # 以事计：同朝代同年月同朔干支之各书互见合为一事；判取史书误 > 张表误 > 待核（一书已考讹即同一记载之误），分类等级取最高
+    ev_pan, ev_fen, ev_dyn = {}, {}, {}
+    for r in chk:
+        k = (r["政权"], r["年"], r["月"], r["本纪朔"])
+        ev_dyn.setdefault(k, r["朝代"])
+        if r["类"]:
+            p0 = pan[id(r)][0]
+            if k not in ev_pan or ["史书误", "张表误", "待核"].index(p0) < ["史书误", "张表误", "待核"].index(ev_pan[k]):
+                ev_pan[k] = p0
+        f = fen[id(r)]
+        if f:
+            old = ev_fen.get(k)
+            if old is None or (old[0][0] == f[0][0] and f[1] < old[1]):
+                ev_fen[k] = f
+    # 逐条显示：同事之书有更高一级者（如《北史》条前史有同条），按前史之级注出
+    for r in chk:
+        f = fen[id(r)]
+        if f:
+            e = ev_fen[(r["政权"], r["年"], r["月"], r["本纪朔"])]
+            if e[0] == f[0] and e[1] < f[1]:
+                fen[id(r)] = (f[0], f"{e[1]}，前史同条，不重计")
+    # 推步与张表相同（本纪合两家，或两家皆不合）之事：有证 / 同误（皆不合者，注判史书误与否）
+    ev_same = {}
+    for r in chk:
+        if not r["本项目推步"] or fen[id(r)]:
+            continue
+        k = (r["政权"], r["年"], r["月"], r["本纪朔"])
+        both = r["本项目推步"] == "合" and r["张表"] == "合"
+        c = ("有证", level(r["书"])) if both else ("同误", pan.get(id(r), ("待核",))[0])
+        old = ev_same.get(k)
+        if old is None or (old[0] == c[0] == "有证" and c[1] < old[1]):
+            ev_same[k] = c
+    same_lv = defaultdict(int)
+    for k, c in ev_same.items():
+        st[ev_dyn[k]]["同" + c[0]] += 1
+        same_lv[c] += 1
+    for k, p0 in ev_pan.items():
+        st[ev_dyn[k]]["判" + p0] += 1
+    for k, f in ev_fen.items():
+        st[ev_dyn[k]][f[0][0]] += 1
     L += ["## 一、明书朔日（本纪「某月某干支朔」）", "",
           "不合者分三类：**朔差一二日**（朔日推算之差，张表或本纪有一误）、**差一月**（所书干支为张表邻月或闰月之朔，闰位或月序不同）、"
-          "**其他**（多为干支传写之误或解析误定年月，不作张表证据）。北朝、隋另列本项目推步表。", ""]
-    L += table(["朝代", "条数", "与张表合", "朔差一二日", "差一月", "其他", "本项目推步合"],
+          "**其他**（多为干支传写之误或解析误定年月，不作张表证据）。北朝、隋另列本项目推步表。", "",
+          "不合张表者再按证据定谁误（各表「判」列）：**史书误**——已考为讹误（`benji_shuo_errata.csv`）、「其他」类已判致误之由"
+          "（[benji-qita-kaozheng.md](./benji-qita-kaozheng.md)，「未明」除外）、已有考证表判为讹，或平朔时代日食之条所书即合朔之日（食日书朔）；"
+          "**张表误**——本项目推步合本纪而他书同月纪日不与本纪朔冲突（北朝、隋、辽、金之推步为本政权之历，此时「张表误」指张表不能代表该政权历日）；"
+          "**待核**——余者（史书、张表各有可能，无据不否定张表）。天文计算的合朔所在日只作旁证，不据以判。", "",
+          "本项目推步与张表互异、本纪只合其一之条另按三类分（「分类」列）：**①史载证张表误**（本纪合推步）、**②史载证推步误**（本纪合张表）、"
+          "**③无据待核**（本纪属「其他」类自误，或他书同月纪日与本纪朔冲突）；①②注证据等级：C 当朝或近时所修史书明书朔，"
+          "E 后人追修史书（《后汉书》《晋书》；《南史》《北史》《新五代史》前史无同条者）。《新唐书》本纪多据实录，与《旧唐书》同级；"
+          "各书互见同一记载只算一证（同政权同年月同朔干支合为一事，等级取诸书最高，前史有同条即按前史计）。"
+          "单条明书朔与他证冲突者不判，归③。合张表不算证实张表。表中「不合中」「互异」各栏以事计，「条数」等栏以条计。", ""]
+    L += table(["朝代", "条数", "与张表合", "朔差一二日", "差一月", "其他", "不合中（事）：史书误", "张表误", "待核", "本项目推步合",
+                "推步与张表相同（事）：有证", "同误", "推步与张表互异（事）：①", "②", "③"],
                [[d, st[d]["n"], st[d]["ok"], st[d]["朔差一二日"], st[d]["差一月"], st[d]["其他"],
-                 f"{st[d]['pok']}/{st[d]['pn']}" if st[d]["pn"] else ""] for d in DYNS if st[d]["n"]])
+                 st[d]["判史书误"], st[d]["判张表误"], st[d]["判待核"],
+                 f"{st[d]['pok']}/{st[d]['pn']}" if st[d]["pn"] else "",
+                 *([st[d]["同有证"], st[d]["同同误"], st[d]["①"], st[d]["②"], st[d]["③"]] if st[d]["pn"] else ["", "", "", "", ""])] for d in DYNS if st[d]["n"]])
+    tot = lambda k: sum(st[d][k] for d in DYNS)
+    lv = defaultdict(int)
+    for f in ev_fen.values():
+        lv[(f[0][0], f[1])] += 1
+    L += ["", f"合计（以事计，各书互见合为一事）：不合张表 {tot('判史书误') + tot('判张表误') + tot('判待核')} 事，史书误 {tot('判史书误')}、张表误 {tot('判张表误')}、待核 {tot('判待核')}；"
+          f"推步与张表互异（本纪只合其一）{tot('①') + tot('②') + tot('③')} 事，①{tot('①')}（"
+          + "、".join(f"{k} 级 {v}" for (c, k), v in sorted(lv.items()) if c == "①") + f"）、②{tot('②')}（"
+          + "、".join(f"{k} 级 {v}" for (c, k), v in sorted(lv.items()) if c == "②") + f"）、③{tot('③')}；"
+          f"有本项目推步之条中推步与张表相同 {tot('同有证') + tot('同同误')} 事：有证（本纪合两家）{tot('同有证')}（"
+          + "、".join(f"{k} 级 {v}" for (c, k), v in sorted(same_lv.items()) if c == "有证") + f"），同误（本纪两家皆不合）{tot('同同误')}（"
+          + "、".join(f"判{k} {v}" for (c, k), v in sorted(same_lv.items()) if c == "同误") + "）。逐月之相同、互异分类（含无证之月）见第三节与分政权检验。", ""]
     L += ["", "### 朔差一二日：实际合朔（第 6 级，只作旁证）", "",
           "合朔为 DE441 视合朔换算为都城地方平时；「日差」= 合朔所在日 − 本纪朔日。日食记录在平朔时代常把食日（即合朔日）书为朔，"
           "不作历日证据（见 historical-calendar.md）。", ""]
@@ -68,17 +198,19 @@ def main():
         if r["类"] != "朔差一二日":
             continue
         s = sky_by.get((r["书"], r["年"], r["月"], r["本纪朔"]), {})
+        f = fen[id(r)]
         body.append([BOOK.get(r["书"], r["书"]), r["政权"], r["年"], r["纪年"], r["月"], r["本纪朔"], r["张表"], r["本项目推步"], r["日食"],
                      s.get("合朔地方时日差（合朔日−本纪朔）", ""), s.get("合朔地方时", ""), s.get("判定", ""), book(r["他书同记"]),
-                     r["旁证（张表/本纪朔）"], r["原文"]])
+                     r["旁证（张表/本纪朔）"], "：".join(x for x in pan[id(r)] if x), f"{f[0]}（{f[1]}）" if f else "", r["原文"]])
     L += table(["书", "政权", "年", "纪年", "月", "本纪朔", "张表", "本项目推步", "日食", "日差", "合朔地方时", "合朔所在（旁证）", "他书同记",
-                "旁证（张表/本纪朔）", "原文"], body)
+                "旁证（张表/本纪朔）", "判", "分类", "原文"], body)
     for kind in ("差一月", "其他"):
         L += ["", f"### {kind}", "",
               "「旁证」为他书同月记日干支落在张表该月内者 / 落在以本纪所书朔起算 30 日内者（共几条）。致误之由（一字误、「朔」字衍、年月误等）逐条见 [benji-qita-kaozheng.md](./benji-qita-kaozheng.md)。", ""]
-        L += table(["书", "政权", "年", "纪年", "月", "本纪朔", "张表", "本项目推步", "日食", "他书同记", "旁证（张表/本纪朔）", "原文"],
+        L += table(["书", "政权", "年", "纪年", "月", "本纪朔", "张表", "本项目推步", "日食", "他书同记", "旁证（张表/本纪朔）", "判", "分类", "原文"],
                    [[BOOK.get(r["书"], r["书"]), r["政权"], r["年"], r["纪年"], r["月"], r["本纪朔"], r["张表"], r["本项目推步"], r["日食"],
-                     book(r["他书同记"]), r["旁证（张表/本纪朔）"], r["原文"]] for r in chk if r["类"] == kind])
+                     book(r["他书同记"]), r["旁证（张表/本纪朔）"], "：".join(x for x in pan[id(r)] if x),
+                     f"{fen[id(r)][0]}（{fen[id(r)][1]}）" if fen[id(r)] else "", r["原文"]] for r in chk if r["类"] == kind])
     if base:
         L += ["", "### 相合者之朔日与实际合朔", "",
               "本纪明书朔日与张表相合者，合朔（都城地方平时）所在日 − 朔日之分布。−1 即朔在合朔次日；唐代此类合朔时刻几乎都在 16 时以后，为进朔。", ""]
@@ -107,9 +239,41 @@ def main():
               "本项目按当时行用之历的术文推步（平朔诸历与唐至明定朔诸历），与张表逐月比较，并以本纪明书朔日（不含「其他」类）逐条检验两家。"
               "「本纪合推步」「本纪合张表」按月名（含闰）取该月朔日比对；已考为讹误的本纪朔日不计入，另列「已考讹不计」，明细照列。推步合数含史载例外表的修正；其中只有本纪明书、推步临限而直接从本纪者另列「从本纪修正」，合推步减去此数即纯按术推算之合数。中原一线以实物历日为第 1 级来源之年（明大统、清时宪书实物）不在推步检验之列。逐历取法：本纪合推步不少于合张表之历缺省取推步，余缺省取张表"
               "（见 [rili-sources.md](./rili-sources.md)）。由 `rust/core/examples/zhongyuan_reckoning_eval.rs` 计算。", ""]
-        L += table(["历", "起", "止", "月数", "与张表同", "闰位不同之岁", "本纪条数", "本纪合推步", "本纪合张表", "只合推步", "只合张表", "已考讹不计", "从本纪修正"],
+        L += ["推步与张表互异之月（「月数 − 与张表同」，含闰位所致月名之异）逐月按证据三分：**①硬据证张表误**、**②硬据证推步误**、**③无据待核**"
+              "（无证或证据冲突）。证据取实物历日（A：整年实物、出土具注历）、写本题记册文（B）、本纪明书朔（C；追修史书 E）、本纪纪日（D；追修史书 E）；"
+              "619—1911 年朔日之异沿用定朔诸历逐月考证之分类（[dingshuo-zhangbiao-diffs.md](./dingshuo-zhangbiao-diffs.md)）。有 A 级者从 A；余者诸证一致即从之，"
+              "相冲突则归③。张表与推步皆为今人复原，合张表不算证实。逐月见 `data/calendar/zhongyuan_reckoning_diffs.csv`。", ""]
+        L += table(["历", "起", "止", "月数", "与张表同", "闰位不同之岁", "本纪条数", "本纪合推步", "本纪合张表", "只合推步", "只合张表", "已考讹不计", "从本纪修正",
+                    "相同：有证", "同误", "无证", "互异之月", "①", "②", "③"],
                    [[r["历"], r["起"], r["止"], r["月数"], r["与张表同"], r["闰位不同之岁"] or "—", r["本纪条数"], r["本纪合推步"],
-                     r["本纪合张表"], r["只合推步"], r["只合张表"], r.get("已考讹不计") or "0", r.get("从本纪修正") or "0"] for r in ev])
+                     r["本纪合张表"], r["只合推步"], r["只合张表"], r.get("已考讹不计") or "0", r.get("从本纪修正") or "0",
+                     r.get("相同有证", ""), r.get("相同同误", ""), r.get("相同无证", ""),
+                     r.get("互异之月", ""), r.get("①硬据证张表误", ""), r.get("②硬据证推步误", ""), r.get("③无据待核", "")] for r in ev])
+        zm = rows("zhongyuan_reckoning_months.csv")
+        if zm:
+            sc = defaultdict(int)
+            for r in zm:
+                if r["异同"] == "相同":
+                    sc[(r["分类"], r["证据等级"])] += 1
+            L += ["", "推步与张表相同之月（朔日、月名皆同）逐月分：**有证**——实物（A）、明书朔（C，追修史书 E）合两家，或两条以上独立纪日"
+                  "（落在朔日、晦日或书日序者，D）合两家；**同误**——史载与两家皆不合（注已判史书误与否；纪日须两条以上）；**无证**——只是两家相同，"
+                  "不算证实（纪日只一见者亦归此，注倾向）。逐月分类在中原一线逐月表之「分类」列（`data/calendar/zhongyuan_reckoning_months.csv`）。", ""]
+            L += table(["相同之月", "A", "B", "C", "D", "E", "计"],
+                       [[c, *[sc[(c, k)] for k in "ABCDE"], sum(v for kk, v in sc.items() if kk[0] == c)] for c in ("有证", "同误")]
+                       + [["无证", "—", "—", "—", "—", "—", sum(v for kk, v in sc.items() if kk[0] == "无证")]])
+        zd = rows("zhongyuan_reckoning_diffs.csv")
+        if zd:
+            cnt = defaultdict(int)
+            for r in zd:
+                cnt[(r["分类"][0], r["证据等级"][0])] += 1
+            L += ["", f"合计互异之月 {len(zd)}：①{sum(v for k, v in cnt.items() if k[0] == '①')}、②{sum(v for k, v in cnt.items() if k[0] == '②')}、"
+                  f"③{sum(v for k, v in cnt.items() if k[0] == '③')}。三类 × 等级：", ""]
+            L += table(["分类", "A", "B", "C", "D", "E", "计"],
+                       [[c, *[cnt[(c[0], k)] for k in "ABCDE"], sum(v for kk, v in cnt.items() if kk[0] == c[0])] for c in ("①硬据证张表误", "②硬据证推步误")]
+                       + [["③无据待核", "—", "—", "—", "—", "—", sum(v for k, v in cnt.items() if k[0] == "③")]])
+            L += ["", "①② 之月：", ""]
+            L += table(["历", "年", "月", "推步朔", "张表朔", "异之类", "分类", "等级", "证据"],
+                       [[r["历"], r["年"], r["月"], r["推步朔"], r["张表朔"], r["异之类"], r["分类"], r["证据等级"], r["证据"]] for r in zd if not r["分类"].startswith("③")])
         dt = rows("zhongyuan_reckoning_benji.csv")
         L += ["", "### 推步与张表不同、或本纪只合其一之条", ""]
         L += table(["历", "书", "年", "月", "本纪朔", "推步朔", "张表朔", "本纪合推步", "本纪合张表", "类", "原文"],
@@ -216,14 +380,45 @@ def main():
             ("成天历 1271—1276（《宋史》）", "song_成天_check.csv", "成天定朔", "本纪合进朔", "本纪合不进朔", "定朔小余（时）"),
             ("授时历 1281—1367（通轨应数）", "shoushi_tonggui_check.csv", "授时（通轨应数）定朔", "本纪合进朔", "本纪合不进朔", "定朔小余（时）"),
             ("大统历 1368—1644", "datong_check.csv", "大统定朔", "本纪合进朔", "本纪合不进朔", "定朔小余（时）")]
-    L += ["", "## 六、唐至明定朔诸历与本纪明书朔日", "", "术数见 [calendar-compendium.md](./calendar-compendium.md)。下表列本纪不合张表、或不合进朔限之条（限：麟德试用 18 时，崇玄经验 18 时（术文限不合本纪），大衍 19 时，宣明、五纪、正元据志文，崇天日入分，纪元 3/4 日法并春分后减限）。"]
+    L += ["", "## 六、唐至明定朔诸历与本纪明书朔日", "", "术数见 [calendar-compendium.md](./calendar-compendium.md)。下表列本纪不合张表、或不合进朔限之条（限：麟德试用 18 时，崇玄经验 18 时（术文限不合本纪），大衍 19 时，宣明、五纪、正元据志文，崇天日入分，纪元 3/4 日法并春分后减限）。",
+          "",
+          "此处「术推进朔」为纯按术文与进朔限之推（未经史载例外表）。术推与张表互异之条按本纪三分（「分类」列）：①本纪合术推（史载证张表误）、"
+          "②本纪合张表（史载证术推误，多已据以入例外表）、③本纪两家皆不合或已考讹；①②注等级（C 明书朔；《新唐书》与《旧唐书》同级，《新五代史》与《旧五代史》同条者按旧史计）。"
+          "单条与他证冲突与否、最终推步（经例外表）与张表之异，见定朔诸历逐月考证（[dingshuo-zhangbiao-diffs.md](./dingshuo-zhangbiao-diffs.md)，合纪日、写本等判）。"]
+    tang_cnt = defaultdict(int)
     for title, name, col, jin_, bu, hcol in tang:
         rs = rows(name)
+        # 术推进朔后之朔（「…进朔」列；无则定朔所在日）
+        jc = next((k for k in (rs[0] if rs else {}) if "进朔" in k and "限" not in k and not k.startswith("本纪合")), col)
+
+        def tfen(r):
+            if r[jc] == r["张表朔"]:
+                if r["本纪朔"] == r[jc]:
+                    return f"相同·有证（{level(r['书'])}）"
+                return "相同·同误（判史书误）" if (r["书"], r["年"], r["月"]) in errata else "相同·同误（未判）"
+            if (r["书"], r["年"], r["月"]) in errata:
+                return "③无据待核（本纪已考讹）"
+            if r["本纪朔"] == r[jc]:
+                return f"①史载证张表误（{level(r['书'])}）"
+            if r["本纪朔"] == r["张表朔"]:
+                return f"②史载证术推误（{level(r['书'])}）"
+            return "③无据待核"
+        n3 = defaultdict(int)
+        seen_ev = set()  # 旧、新唐书等同条互见只算一事
+        for r in rs:
+            f = tfen(r)
+            if f and (r["年"], r["月"], r["本纪朔"]) not in seen_ev:
+                seen_ev.add((r["年"], r["月"], r["本纪朔"]))
+                kk = f[:5] if f.startswith("相同") else f[0]
+                n3[kk] += 1
+                tang_cnt[kk] += 1
         L += ["", f"### {title}", "", f"共 {len(rs)} 条：合张表 {sum(int(r['本纪合张表']) for r in rs)}，合进朔 {sum(int(r[jin_]) for r in rs)}，"
-              f"合不进朔 {sum(int(r[bu]) for r in rs)}。逐条见 `data/calendar/{name}`。", ""]
-        L += table(["书", "年", "纪年", "月", "本纪朔", "张表朔", "术推朔", "小余（时）", "日食", "原文"],
-                   [[BOOK.get(r["书"], r["书"]), r["年"], r["纪年"], r["月"], r["本纪朔"], r["张表朔"], r[col], r[hcol], r["日食"], r["原文"]]
-                    for r in rs if r["本纪合张表"] == "0" or r[jin_] == "0"])
+              f"合不进朔 {sum(int(r[bu]) for r in rs)}；术推与张表相同 {n3['相同·有证'] + n3['相同·同误']} 事（有证 {n3['相同·有证']}、同误 {n3['相同·同误']}），互异 {n3['①'] + n3['②'] + n3['③']} 事（①{n3['①']}、②{n3['②']}、③{n3['③']}）。逐条见 `data/calendar/{name}`。", ""]
+        L += table(["书", "年", "纪年", "月", "本纪朔", "张表朔", "术推朔", "术推进朔", "小余（时）", "日食", "分类", "原文"],
+                   [[BOOK.get(r["书"], r["书"]), r["年"], r["纪年"], r["月"], r["本纪朔"], r["张表朔"], r[col], r[jc], r[hcol], r["日食"], tfen(r), r["原文"]]
+                    for r in rs if r["本纪合张表"] == "0" or r[jin_] == "0" or (tfen(r) and not tfen(r).startswith("相同·有证"))])
+    L += ["", f"诸历合计（各书互见合为一事）：术推与张表相同 {tang_cnt['相同·有证'] + tang_cnt['相同·同误']} 事（有证 {tang_cnt['相同·有证']}、同误 {tang_cnt['相同·同误']}），"
+          f"互异 {tang_cnt['①'] + tang_cnt['②'] + tang_cnt['③']} 事（①{tang_cnt['①']}、②{tang_cnt['②']}、③{tang_cnt['③']}）。表中只列本纪不合张表、不合术推或两家互异之条，相同而有证之条不列。"]
     # 七、宝祐四年会天历（check_huitian_1256.py）
     L = blocks["huitian"] = []
     ht = rows("huitian_1256_check.csv")

@@ -246,6 +246,8 @@ allk2 = set(KS)
 for r in nosuo:
     allk2 &= {k for k in KS if qin_ok(r, k)}
 md += [f"去掉《语书》书朔一条（只用 {len(nosuo)} 条纪日）：δ ∈ {fmt_segs(segs(sorted(allk2)))} 时。", ""]
+md += ["比对分类：此段无张表；秦八条已并入 [qin-phase-checks.md](./qin-phase-checks.md)「六、分类（按月）」，按实用历推步（δ = 644）与颛顼本术分类"
+       "（《语书》秦王政二十年四月、《编年记》同年七月甲寅为 B 级当时文字；其中七月甲寅合颛顼、不合实用推步，归②）。汉传六历只作比对，不另分类。", ""]
 
 # 魏
 md += ["## 四、魏：安釐王二十五年閏再十二月丙午朔", "",

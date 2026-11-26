@@ -20,11 +20,14 @@
 """
 import csv
 import math
+import sys
 from collections import OrderedDict, defaultdict
 from fractions import Fraction as Fr
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import shiwu_fenlei as fl  # noqa: E402
 GZ = ["甲乙丙丁戊己庚辛壬癸"[i % 10] + "子丑寅卯辰巳午未申酉戌亥"[i % 12] for i in range(60)]
 
 _L, _S, _E, _Y0 = Fr(27759, 940), Fr(1461, 4), Fr(1587781), -365
@@ -332,6 +335,73 @@ for r in recs:
       f"{'✓' if any(inter((a, b), central) for a, b in r['iv']) else '✗'} | {'✓' if in_iv(r['iv'], 0) else '✗'} |")
 P("")
 P(f"共 {len(recs)} 条（有限窗口 {n_lim} 条；入交集 {len(used)} 条：官文书 {len(OFF)}、私记与购藏 {len(PRIV)}）。")
+P("")
+# ---------- 分类（按月） ----------
+D_SHI = SHIYONG[0][4]
+
+
+def grade(r):
+    """A 历谱、质日；B 官文书与睡虎地《编年记》；《吕氏春秋·序意》为传世书，记 C。"""
+    if r["来源"] in ("岳麓", "周家台"):
+        return "A"
+    return "C" if r["来源"] == "吕氏春秋" else "B"
+
+
+months = defaultdict(list)
+for r in used:
+    months[(r["年"], r["月"], r["闰"])].append(r)
+cats, odd = [], []
+for k, rs in sorted(months.items(), key=lambda kv: (kv[0][0], (kv[0][1] - 10) % 12 + (0.5 if kv[0][2] else 0))):
+    i = month_index(*k)
+    if i is None:
+        continue
+    same = shuo(i, D_SHI) == shuo(i)
+    p = [r for r in rs if in_iv(r["iv"], D_SHI) and not in_iv(r["iv"], 0)]
+    z = [r for r in rs if in_iv(r["iv"], 0) and not in_iv(r["iv"], D_SHI)]
+    b = [r for r in rs if in_iv(r["iv"], 0) and in_iv(r["iv"], D_SHI)]
+    x = [r for r in rs if not in_iv(r["iv"], 0) and not in_iv(r["iv"], D_SHI)]
+    g = min(grade(r) for r in rs)
+    if same:  # 朔同：只合一家之纪日判的是次月朔，于本月不作证
+        if b:
+            c, note, g = "有证", (f"另 {len(x)} 条两家皆不合" if x else ""), min(grade(r) for r in b)
+        elif x:
+            c, note, g = "同误", "两家皆不合，待核", min(grade(r) for r in x)
+        else:
+            c, note, g = "无证", "纪日只判次月朔", "—"
+    elif p and z:
+        c, note = "③", f"证据冲突：只合推步 {len(p)}、只合颛顼 {len(z)}"
+    elif p:
+        c, note, g = "①", (f"另 {len(x)} 条两家皆不合" if x else ""), min(grade(r) for r in p)
+    elif z:
+        c, note, g = "②", (f"另 {len(x)} 条两家皆不合" if x else ""), min(grade(r) for r in z)
+    else:
+        c, note, g = "③", ("两家皆不合" if x else "纪日落在两家月内重合之日，不能判"), "—"
+    cats.append((c, g))
+    if c not in ("有证", "①", "无证"):
+        y, m, lp = k
+        P_ = rs[0]
+        odd.append(f"| {P_['纪年']} | {'後' if lp else ''}{m}月 | {gz(shuo(i, D_SHI))} | {gz(shuo(i))} | "
+                   + "；".join(f"{r['来源']} {r['朔'] + '朔' if r['朔'] else ''}{r['日']}" for r in rs[:4]) + ("……" if len(rs) > 4 else "")
+                   + f" | {c}{f'（{note}）' if note else ''} | {g} |")
+P("## 六、分类（按月）")
+P("")
+P(f"此段无张表；分类对象是本项目实用历推步（δ = {D_SHI}，「推步」）与颛顼本术（δ = 0，「张表」位），限入交集之条。"
+  "某月两家朔日同者为相同，否则为互异。书朔之条看朔干支；书日干支之条看是否落在该家此月之内，落在两家此月重合之日者不能判"
+  "（朔同之月，只合一家的纪日判的是次月之朔，于本月不作证）。"
+  "等级：历谱、质日 A；官文书与睡虎地《编年记》B；《吕氏春秋·序意》C。当时文字一条即可判，同月冲突归③。"
+  "注意实用推步的 δ 本由官文书定出，「①」对颛顼本术是检验，对实用推步不是独立检验。" + fl.RULE.replace("张表误", "颛顼本术误"))
+P("")
+P(f"有入交集之条之月 {len(cats)}：" + fl.headline(cats, "实用推步").replace("与张表", "与颛顼本术").replace("证张表误", "证颛顼本术误") + "。")
+P("")
+for line in fl.grade_table(cats):
+    P(line.replace("①证张表误", "①证颛顼误"))
+P("")
+P("②、③与同误之月（③中「不能判」者是纪日落在两家此月重合之日）：")
+P("")
+P("| 纪年 | 月 | 推步朔 | 颛顼朔 | 所记 | 分类 | 等级 |")
+P("|---|---|---|---|---|---|---|")
+for line in odd:
+    P(line)
 P("")
 (ROOT / "doc/calendar/qin-phase-checks.md").write_text("\n".join(L), encoding="utf-8")
 print(f"{len(recs)} 条；官文书 {central}，统一前 {central_pre}，加岳麓 34—35 年 {central_yuelu}，里耶只取校释合 {central_js}；{dict(LIYE_K)}")
