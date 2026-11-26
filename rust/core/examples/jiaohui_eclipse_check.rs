@@ -55,6 +55,7 @@ struct Rec {
 
 /// 检验之历：(显示名, 取入交之历名, 年段之历名)
 const LIS: &[(&str, &str, &[&str])] = &[
+    ("麟德历", "麟德历", &["麟德历"]),
     ("大衍历", "大衍历", &["大衍历"]),
     ("五纪历", "五纪历", &["五纪历"]),
     ("正元历", "正元历", &["正元历"]),
@@ -119,7 +120,7 @@ fn main() {
     // 张表朔日、本纪明书朔日（供第二表）
     let zhang = ShuoriTable::from_csv(&read("vendor/calendar/chinese_calendar/实历朔日表.csv")).unwrap();
     let mut zhang_days: BTreeMap<i64, (i32, u8, bool)> = BTreeMap::new();
-    for y in 700..1290 {
+    for y in 660..1290 {
         for &(j, m, l) in zhang.year_months(y).unwrap_or_default().iter() {
             zhang_days.insert(j, (y, m, l));
         }
