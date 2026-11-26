@@ -1,7 +1,8 @@
 """把敦煌历日换算的逐条检验写进 doc/calendar/dunhuang-calendar.md 末尾（标记行以下整段重写）。
 
 输入：data/calendar/dunhuang_shuori_check.csv、data/calendar/dunhuang_years.csv（rust/core/examples/dunhuang_check.rs）、
-data/calendar/dunhuang_fallback_check.csv（scripts/phenomena/dunhuang_fallback_check.py）。
+data/calendar/dunhuang_fallback_check.csv（scripts/phenomena/dunhuang_fallback_check.py）；
+《俄藏敦煌文獻》补录 data/calendar/dunhuang_ezang.csv 与 dunhuang_ezang_check.csv（同上 --ezang）。
 
 用法（仓库根）：uv run --project scripts python scripts/calendar_data/dunhuang_checks_to_md.py
 """
@@ -26,6 +27,39 @@ def table(head, body):
     out = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
     out += ["| " + " | ".join(str(c) for c in r) + " |" for r in body]
     return "\n".join(out)
+
+
+def ezang_section():
+    """《俄藏敦煌文獻》补录：文书所书之朔（B 级）与残历月大小推得之月；两家同上（张表、实际合朔日）。"""
+    src, chk = rows("dunhuang_ezang.csv"), rows("dunhuang_ezang_check.csv")
+    ck = {(c["公元"], c["敦煌月"]): c for c in chk}
+    sh = lambda g, d: fl.GZ[(fl.GZ.index(g) - d) % 60]
+    body, cats = [], []
+    for r in src:
+        key = (r["公元"], ("閏" if r["闰"] == "1" else "") + r["月"])
+        c = ck.get(key)
+        if c is None:
+            body.append([r["件"], r["俄敦册页"], r["公元"], key[1] + "月", "—", r["依据"], r["等级"], r["定年方式"], "—", "—", "不分类（只书闰月）",
+                         r["原文"], r["考定年所依"]])
+            continue
+        # 年份由该月朔（闰）推定者，选年已用到所比之朔，不独立，不作证据
+        tuiding = "推定" in r["定年方式"]
+        ev = r["依据"] == "原件" and not tuiding
+        cl, note = fl.classify(sh(c["朔"], int(c["敦煌−合朔日"])), sh(c["朔"], int(c["敦煌−张表"])), [c["朔"]] if ev else [],
+                               r["等级"], "文书" if r["等级"] == "B" else "残历")
+        if tuiding:
+            note = "年由朔干支推定，不独立" + (f"；{note}" if note else "")
+        cats.append((cl, r["等级"] if ev else "—"))
+        body.append([r["件"], r["俄敦册页"], r["公元"], key[1] + "月", c["朔"], r["依据"], r["等级"], r["定年方式"], c["张表朔"],
+                     f'{c["合朔日"]}（{c["合朔地方时"]} 时）', cl + (f"（{note}）" if note else ""), r["原文"], r["考定年所依"]])
+    return ["## 《俄藏敦煌文獻》补录", "",
+            "第 2—10 册图版所见、比较表以外的敦煌历月朔与闰月（`data/calendar/dunhuang_ezang.csv`；合朔日由 "
+            "`scripts/phenomena/dunhuang_fallback_check.py --ezang` 算出，`data/calendar/dunhuang_ezang_check.csv`）。"
+            "两家与上节同：张表、实际合朔日（敦煌地方平时）；文书明书之朔为证据（B 级），残历「月大小推得」之月不作证据（记无证或③）。"
+            "年份由该月朔或闰位与张表最近而推定者（定年方式「据朔推定」「据闰推定」），选年已用到所比之朔，属循环，不作证据（互异者归③）；"
+            "只书闰月之条不分类。学界对此二件的独立定年未得，待核。", "",
+            fl.headline(cats, "实际合朔日") + "。", "",
+            table(["件", "俄敦册页", "公元", "敦煌月", "朔", "依据", "等级", "定年方式", "张表朔", "实际合朔日", "分类", "原文", "考定年所依"], body), ""]
 
 
 def main():
@@ -91,6 +125,7 @@ def main():
         parts += [f"- **{p}**：原件 {len(cats[p])} 月，" + fl.headline(cats[p], "实际合朔日") + "。"]
     parts += ["", fl.headline(allc, "实际合朔日") + "（合计）。", "", "\n".join(fl.grade_table(allc)), "",
               "非「有证」之月：", "", table(["公元", "敦煌月", "敦煌朔", "张表朔", "合朔日", "分类", "文书"], per), ""]
+    parts += ezang_section()
     text = DOC.read_text(encoding="utf-8")
     head = text.split(MARK)[0].rstrip() + "\n\n"
     DOC.write_text(head + "\n".join(parts), encoding="utf-8")

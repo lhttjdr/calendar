@@ -521,6 +521,26 @@ mod tests {
         }
     }
 
+    #[test]
+    fn fuying_jiu_tian_jiu_di() {
+        // 《景祐遁甲符應經》上部卷上「九天九地太陰六合」、卷中「太陰六合九天九地例」：阳遁天上直符所临之宫后一九天、后二九地、
+        // 前二太陰、前三六合；阴遁前一九天、前二九地、后二太陰、后三六合（前后依八宫顺序）。三例皆转盘八宫，不入中五
+        let o = DEFAULT_PAN;
+        let shen = |p: &QimenPan| -> [Option<&str>; 10] { core::array::from_fn(|g| if g == 0 { None } else { p.at(g as u8).shen }) };
+        // 阳遁上元一局甲己日丙寅时：直符临八宫，九天一宫、九地六宫、太陰四宫、六合九宫
+        let p = pai_pan(&sj(true, 1), gz("丙寅"), o);
+        let x = shen(&p);
+        assert_eq!((p.zhi_fu_gong, x[8], x[1], x[6], x[4], x[9]), (8, Some("直符"), Some("九天"), Some("九地"), Some("太陰"), Some("六合")));
+        // 阴遁上元九局甲己日丙寅时：直符临二宫，九天七宫、九地六宫、太陰四宫、六合三宫
+        let p = pai_pan(&sj(false, 9), gz("丙寅"), o);
+        let x = shen(&p);
+        assert_eq!((p.zhi_fu_gong, x[2], x[7], x[6], x[4], x[3]), (2, Some("直符"), Some("九天"), Some("九地"), Some("太陰"), Some("六合")));
+        // 阴遁上元一局甲己日丙寅时：直符临三宫，九天四宫、九地九宫、太陰一宫、六合六宫
+        let p = pai_pan(&sj(false, 1), gz("丙寅"), o);
+        let x = shen(&p);
+        assert_eq!((p.zhi_fu_gong, x[3], x[4], x[9], x[1], x[6]), (3, Some("直符"), Some("九天"), Some("九地"), Some("太陰"), Some("六合")));
+    }
+
     /// 《奇門遁甲元靈經》卷一「奇門起例」二例（「以符頭加用時干上，如前法分布儀奇」，即飞布）以飞盘衡之：
     /// 天盘干、直符所加（时干在中即加中宫，不寄）合；阴遁九星「逆布英、蓬」与直使「逐时数宫」二处与本库飞盘异（见文档）
     #[test]

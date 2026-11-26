@@ -170,6 +170,9 @@ mod tests {
         assert_eq!(zhi_shi(3361, Dun::Yang), zhi_shi(ji_nian(724, JiNian::JinJing), Dun::Yang));
         assert_eq!(zhi_shi(1, Dun::Yang).men, 0);
         assert_eq!(zhi_shi(31, Dun::Yang).men, 1);
+        // 《景祐太乙福應經》卷四「三門具不具」：宋乾德二年甲子开门直使，淳化五年甲子休门，天圣二年甲子生门
+        let m = |y| zhi_shi(ji_nian(y, JiNian::JinJing), Dun::Yang);
+        assert_eq!([m(964), m(994), m(1024)].map(|z| (z.men, z.ru)), [(0, 1), (1, 1), (2, 1)]);
     }
 
     /// 金鏡卷一张良：阳遁甲日夜半甲子开门、丙日日中甲午生门、己日夜半甲子惊门、辛日日中甲午休门；阴遁杜死伤景

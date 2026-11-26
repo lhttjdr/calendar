@@ -24,7 +24,7 @@ pub const YIN_STARS: [&str; 9] = ["天貴", "紅鸞", "天異", "毛頭", "天�
 
 /// 卷一「廟樂旺」图（刻本第 167 冊 PDF 第 26—27 页）逐格转录：`data/folk/ziwei18_miao_le_wang.csv`
 const MIAO_TU_CSV: &str = include_str!("../../../../data/folk/ziwei18_miao_le_wang.csv");
-/// 卷三诸星论「廟某旺某樂某」（维基文库录文，未以刻本校）：`data/folk/ziwei18_xing_lun_miao.csv`
+/// 卷三诸星论「廟某旺某樂某」（维基文库录文，2026-11-26 以刻本第 168、169 冊逐条校，天福据刻本补「樂巳」）：`data/folk/ziwei18_xing_lun_miao.csv`
 const XING_LUN_CSV: &str = include_str!("../../../../data/folk/ziwei18_xing_lun_miao.csv");
 
 /// 星之简称（图中所用）→ 星名
@@ -71,7 +71,7 @@ impl MiaoLe {
 pub enum MiaoBiao {
     /// 卷一「廟樂旺」图：十二宫各列廟、樂、旺三格之星（缺省，刻本逐格转录）
     JuanYiTu,
-    /// 卷三诸星论「廟某旺某樂某身命宮」（录文；文昌、天哭不具，紅鸞只言廟）
+    /// 卷三诸星论「廟某旺某樂某身命宮」（录文，已以刻本校；文昌、天哭不具，紅鸞只言廟）
     JuanSanXingLun,
 }
 
@@ -503,7 +503,7 @@ mod tests {
         let same = s3.iter().filter(|x| t.contains(x)).count();
         let diff = s3.iter().filter(|x| t.iter().any(|y| y.0 == x.0 && y.1 == x.1 && y.2 != x.2)).count();
         println!("卷三星论 {} 格：与卷一图同 {same}，等第异 {diff}，图无 {}", s3.len(), s3.len() - same - diff);
-        assert_eq!((s3.len(), same, diff), (57, 45, 8));
+        assert_eq!((s3.len(), same, diff), (58, 45, 8));
         // 卷一末诸星「喜」之宫（天姚卯辰戌亥、天哭丑申卯午、天杖子申亥未、天刃申巳午寅、天刑寅酉戌、紅鸞辰丑寅卯亥）与图之三等之宫全同
         let zs = |n: &str| {
             let mut v: Vec<u8> = t.iter().filter(|x| x.0 == n).map(|x| x.1).collect();

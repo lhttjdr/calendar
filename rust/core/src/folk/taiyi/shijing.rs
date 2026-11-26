@@ -174,12 +174,37 @@ pub const BA_JIE: [&str; 8] = ["立春", "春分", "立夏", "夏至", "立秋",
 /// 立春行之宫序：八、三、四、九、二、七、六、一；余节依次前移一位（立成八行皆如此，唯立冬、冬至二行坤位书作「三」）
 const SHUAI_WANG_XU: [u8; 8] = [8, 3, 4, 9, 2, 7, 6, 1];
 
-/// 某节（`jie`：0 立春 … 7 冬至）某宫之衰旺（[`SHUAI_WANG`] 序）；中五无。
-/// 宫数照立成原文；书中宫数用太乙之九宫（乾一離二……）抑洛书之九宫（坎一坤二……），表无明文：
-/// 依洛书读，立春艮旺、冬至坎旺，即八卦八节旺相之常说；依太乙宫数读，则冬至乾旺、立春坎旺（**未核**）。
+/// 某节（`jie`：0 立春 … 7 冬至）某宫之衰旺（[`SHUAI_WANG`] 序）；中五无。`gong` 为立成所书之宫数（照原文，不论读法）。
+/// 《景祐太乙福應經》卷十末「衰旺立成」（明谈剑山居钞本）八行 64 格与本函数全合，立冬休、冬至囚皆作「二」，
+/// 证集成二「三」字为刻误。
 pub fn shuai_wang(jie: usize, gong: u8) -> Option<usize> {
     let i = SHUAI_WANG_XU.iter().position(|g| *g == gong)?;
     Some((i + 8 - jie % 8) % 8)
+}
+
+/// 衰旺立成宫数之读法
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum ShuaiWangDu {
+    /// 依洛书数（坎一坤二震三巽四乾六兌七艮八離九）：立春艮旺、春分震旺……立冬乾旺、冬至坎旺，即八卦八节旺相之常说；
+    /// 福應經卷二「九宫所主」引张良「一為陽九……至亥陰在一宫之地」「二午八子」，八节所当之支（冬至子、立冬亥）
+    /// 依此读法与张良之配相应。缺省
+    #[default]
+    LuoShu,
+    /// 依太乙九宫数（乾一離二艮三震四兌六坤七坎八巽九）：福應經「當以太乙立休囚王相決之」，太乙所在宫本以此数，
+    /// 照数对表则此读；然冬至乾旺、立春坎旺、立冬兌旺，与张良二至二分之支配皆不相应（**无据待核**）
+    TaiYiGong,
+}
+
+/// 太乙九宫数 → 洛书数（乾一→六、離二→九、艮三→八、震四→三、中五、兌六→七、坤七→二、坎八→一、巽九→四）
+pub const TAI_YI_TO_LUO_SHU: [u8; 10] = [0, 6, 9, 8, 3, 5, 7, 2, 1, 4];
+
+/// 太乙所立之宫（太乙九宫数）当某节之衰旺：福應經卷十「凡占萬物，當以太乙立休囚王相決之」
+pub fn tai_yi_shuai_wang(jie: usize, tai_yi_gong: u8, du: ShuaiWangDu) -> Option<usize> {
+    let g = match du {
+        ShuaiWangDu::LuoShu => *TAI_YI_TO_LUO_SHU.get(tai_yi_gong as usize)?,
+        ShuaiWangDu::TaiYiGong => tai_yi_gong,
+    };
+    shuai_wang(jie, g)
 }
 
 // ---------------------------------------------------------------- 阳九、百六
@@ -390,5 +415,9 @@ mod tests {
         }
         assert_eq!(bu, vec![("立冬", "休"), ("冬至", "囚")]);
         assert_eq!(shuai_wang(0, 5), None);
+        // 洛书读：冬至太乙在坎八宫（洛书一）为旺；太乙宫数读：冬至太乙在乾一宫为旺
+        assert_eq!(tai_yi_shuai_wang(7, 8, ShuaiWangDu::LuoShu), Some(0));
+        assert_eq!(tai_yi_shuai_wang(7, 1, ShuaiWangDu::TaiYiGong), Some(0));
+        assert_eq!(tai_yi_shuai_wang(0, 3, ShuaiWangDu::LuoShu), Some(0)); // 立春艮旺
     }
 }
