@@ -5,6 +5,9 @@
 输出 data/calendar/dunhuang_fallback_check.csv，汇总印出，结论写在 doc/calendar/dunhuang-calendar.md「无据之月」。
 
 用法（仓库根）：uv run --no-project --with skyfield python -I scripts/phenomena/dunhuang_fallback_check.py
+
+加 --ezang：只处理《俄藏敦煌文獻》补录 data/calendar/dunhuang_ezang.csv 有朔之行（文书原件与月大小推得之月），
+与张表同月之朔、实际合朔所在日比较，输出 data/calendar/dunhuang_ezang_check.csv（不动 dunhuang_fallback_check.csv）。
 """
 import csv
 import os
@@ -37,6 +40,34 @@ def conjunction(jdn):
         if best is None or abs(day - jdn) < abs(best[0] - jdn):
             best = (day, hour)
     return best
+
+
+def ezang():
+    """俄藏补录：按岁月取张表该月朔，在其前后 3 日内找补录之朔干支，再算实际合朔。"""
+    months = {(ly, lm, lp): s for ly, lm, lp, s in g._months()}
+    with open(ROOT / "data/calendar/dunhuang_ezang.csv", encoding="utf-8") as f:
+        recs = list(csv.DictReader(line for line in f if not line.startswith("#")))
+    out = []
+    for r in recs:
+        if not r["朔干支"]:
+            continue
+        y, m, lp = int(r["公元"]), int(r["月"]), r["闰"] == "1"
+        z = months[(y, m, lp)]
+        cands = [z + k for k in range(-3, 4) if g.ganzhi_of_jdn(z + k) == r["朔干支"]]
+        assert len(cands) == 1, (r, cands)
+        dh = cands[0]
+        day, hour = conjunction(dh)
+        out.append({"公元": y, "敦煌月": ("閏" if lp else "") + str(m), "朔": r["朔干支"], "依据": r["依据"], "等级": r["等级"],
+                    "张表朔": g.ganzhi_of_jdn(z), "敦煌−张表": dh - z, "合朔日": g.ganzhi_of_jdn(day),
+                    "敦煌−合朔日": dh - day, "合朔地方时": f"{hour:.1f}", "件": r["件"], "俄敦册页": r["俄敦册页"]})
+    with open(ROOT / "data/calendar/dunhuang_ezang_check.csv", "w", encoding="utf-8", newline="") as f:
+        f.write("# 《俄藏敦煌文獻》补录（dunhuang_ezang.csv）有朔之月与张表朔、实际合朔（DE441，无则 DE406；敦煌地方平时 94.66°E）比较；"
+                f"scripts/phenomena/dunhuang_fallback_check.py --ezang 生成（历表 {bsp.parent.name}）。\n")
+        w = csv.DictWriter(f, fieldnames=list(out[0].keys()))
+        w.writeheader()
+        w.writerows(out)
+    for o in out:
+        print(o)
 
 
 def main():
@@ -74,4 +105,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    ezang() if "--ezang" in sys.argv[1:] else main()
