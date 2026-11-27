@@ -57,7 +57,7 @@ def zhang():
     out = {}
     for r in csv.DictReader(open(ROOT / "vendor/calendar/chinese_calendar/实历朔日表.csv", encoding="utf-8")):
         y = int(r["lunar_year"])
-        if 1350 <= y <= 1920:
+        if 1300 <= y <= 1920:
             out[(y, int(r["lunar_month"]), int(r["is_leap"]))] = g.jdn(int(r["gregorian_year"]), int(r["gregorian_month"]),
                                                                     int(r["gregorian_day"]))
     return out
@@ -93,6 +93,19 @@ def tui_tables():
             near = [d for d in days if abs(d - z) <= 3]
             if near:
                 dt[k] = min(near, key=lambda d: abs(d - z))
+    # 康熙五至八年（1666—1669）复用大统：月序、闰位取大统本身推步（推步政权朔日表中明郑所用「大统历（明郑）」，子初进朔；
+    # 1669 年与中原大统 reckon_year_any 逐月相同，已核），
+    # 不借张表月名——张表此四年随时宪，闰位不同（如 1669 大统閏十二月、时宪次年閏二月）
+    ming = defaultdict(dict)
+    for r in rows(ROOT / "data/calendar/推步政权朔日表.csv"):
+        if r["calendar"].startswith("大统历") and 1666 <= int(r["lunar_year"]) <= 1670:
+            ming[r["calendar"]][(int(r["lunar_year"]), int(r["lunar_month"]), int(r["is_leap"]))] = g.jdn(
+                int(r["gregorian_year"]), int(r["gregorian_month"]), int(r["gregorian_day"]))
+    if ming:
+        src = ming.get("大统历", {}) or next(iter(ming.values()))
+        for k in [k for k in dt if 1666 <= k[0] <= 1669]:
+            del dt[k]
+        dt.update({k: v for k, v in src.items() if 1666 <= k[0] <= 1669})
     lab["大统"] = dt
     return lab
 
@@ -142,7 +155,8 @@ def day_num(s):
 
 
 # ---------------------------------------------------------------- 主
-def check_rows(R, src):
+def check_rows(R, src, grade_same="B", grade_diff="D", what="当时文字"):
+    """grade_same / grade_diff：两家相同 / 互异之月按何级判（碑文、日记为当时文字 B；互异时单条不足以判，按 D 需两条）。"""
     ZH = zhang()
     TT = tui_tables()
     lines = []
@@ -195,7 +209,8 @@ def check_rows(R, src):
         lines.append(dict(来源=src, 编号=r["编号"], 篇名=r.get("篇名", ""), 纪年=f"{r['年号']}{r['年号年']}年" if r["年号"] else "",
                           干支年=r["干支年"], 农历年=y or "", 月=("闰" if leap else "") + (str(m) if m else ""), 日=r["日"],
                           日干支=r["日干支"], 验项=item, 书=obs, 推步法=meth, 推步=tui_v, 张表=zh_v, 月内=inmonth, 公历=greg,
-                          节气=qi, 原文=r["原文"], 出处=f"第{r['册']}册 PDF {r['PDF页']}／书页 {r['书页']}", 备注=r["备注"], 分类=""))
+                          节气=qi, 原文=r["原文"], 出处=f"第{r['册']}册 PDF {r['PDF页']}／书页 {r['书页']}", 备注=r["备注"], 分类="",
+                          史源=r.get("史源", "")))
     # 分类：同年同月同验项之独立条合为一组
     groups = defaultdict(list)
     for x in lines:
@@ -205,13 +220,19 @@ def check_rows(R, src):
     cats = []
     for key, xs in groups.items():
         tv, zv = xs[0]["推步"], xs[0]["张表"]
-        obs = [x["书"] for x in xs]
-        grade = "B" if tv == zv else "D"
-        cat, note = fl.classify(tv, zv, obs, grade, "当时文字")
+        # 同一史源（如《中山世譜》蔡鐸本与蔡温本同文）只算一条独立证据
+        seen, obs = set(), []
+        for x in xs:
+            src_key = x.get("史源") or x["编号"]
+            if src_key not in seen:
+                seen.add(src_key)
+                obs.append(x["书"])
+        grade = grade_same if tv == zv else grade_diff
+        cat, note = fl.classify(tv, zv, obs, grade, what)
         if cat is None:
             cat, note = "无张表或推步", ""
         else:
-            cats.append((cat, "B"))
+            cats.append((cat, grade_same))
         for x in xs:
             x["分类"] = cat + ("；" + note if note else "")
     for x in lines:
@@ -220,7 +241,7 @@ def check_rows(R, src):
         if x["验项"] in ("日干支", "朔干支") and x["日干支"] and not x["书"]:
             same = x["推步"] == x["张表"]
             x["分类"] = "无证（只书日干支，不能定朔）" if same else "③（只书日干支）"
-            cats.append(("无证" if same else "③", "B"))
+            cats.append(("无证" if same else "③", grade_same))
         elif x["验项"] in ("节气", "冬至距日"):
             x["分类"] = "节气另检（只比后编）"
         else:
