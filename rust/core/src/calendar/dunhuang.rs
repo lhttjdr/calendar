@@ -65,7 +65,7 @@ pub struct DunhuangCalendar {
 }
 
 impl DunhuangCalendar {
-    /// 仓库内嵌的 `data/calendar/敦煌朔日表.csv`（254 月，数 KB，供 wasm 直接用）。
+    /// 仓库内嵌的 `data/calendar/敦煌朔日表.csv`（258 月，数 KB，供 wasm 直接用）。
     pub fn embedded() -> Self {
         Self::from_csv(include_str!("../../../../data/calendar/敦煌朔日表.csv")).expect("敦煌朔日表.csv 解析失败")
     }
@@ -252,7 +252,7 @@ mod tests {
     fn embedded_table_is_consistent() {
         let dh = DunhuangCalendar::embedded();
         let ms = dh.months();
-        assert_eq!(ms.len(), 254);
+        assert_eq!(ms.len(), 258);
         assert_eq!(ms.iter().filter(|m| m.shuo_basis == ShuoBasis::Original).count(), 144);
         // 月日数与紧接下一有据之月之朔相合（转录自校在表内重做一次）
         for (i, w) in ms.windows(2).enumerate() {
