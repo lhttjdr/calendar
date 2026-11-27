@@ -151,6 +151,7 @@ TONGWU = [r for r in MONTHS if r["分类"] == "同误"]
 
 shuo_ev: dict = defaultdict(list)   # key -> [dict]
 IN_ROWS: dict = defaultdict(list)   # (key, 书) -> 该月内纪日之行号（定月外之条在月前还是月后）
+ROW_KINDS: dict = defaultdict(list)  # (key, 书) -> [(行号, 类)]：0 月内（或只在一家月内），1 两家月外，2 月内而日序、晦不合（同 eval jiri_rows）
 jiri_ev: dict = defaultdict(list)   # key -> [dict]
 
 
@@ -163,7 +164,7 @@ def collect_shuo():
             y, rec = int(r["年"]), int(r["本纪朔 JDN"])
         except ValueError:
             continue
-        if r["政权"] == "元" and y < 1280:
+        if not ok_regime(r["政权"], y):  # 同 eval：北朝诸国、隋 590 年前、元 1280 年前等不检中原诸历
             continue
         mm = r["月"]
         leap = mm.startswith("闰") or mm.startswith("閏")
@@ -238,6 +239,7 @@ def collect_jiri():
                     ok = d == a + nth - 1
                 elif d == a or (br == bt and d == br - 1):
                     ok = True
+            ROW_KINDS[(t, b)].append((ri, 1 if (not in_r and not in_t) else (2 if ok is False else 0)))
             if ok is None:
                 continue
             jiri_ev[t].append(dict(kind="纪日", book=b, regime=r[0], ok=ok, obs=r[7], day=d, pos=pos, nth=nth, grade=book_level(b, False), text=full, era=r[1], eyear=r[2], mname=name, leap_lab=leap, ri=ri,
@@ -259,6 +261,28 @@ def jiri_count(js):
     return sum(by.values()), lv
 
 
+def jiri_count_con(key):
+    """同 eval jiri_count_con：不合两家之纪日按独立错误计——同书同月按行序，两家月外之条连续成串者只算一处，月内而日序、晦不合者
+    各算一处；同源诸书取处数最多者，各史源相加。"""
+    by = defaultdict(int)
+    lv = "E"
+    for (k, b), v in ROW_KINDS.items():
+        if k != key:
+            continue
+        n, prev_out = 0, False
+        for _, kd in sorted(v):
+            if kd == 1:
+                n += 0 if prev_out else 1
+                prev_out = True
+            else:
+                n += kd == 2
+                prev_out = False
+        if n:
+            by[lineage(b)] = max(by[lineage(b)], n)
+            lv = min(lv, book_level(b, False))
+    return sum(by.values()), lv
+
+
 def reproduce_class(key):
     """按 eval 规则重判该月（以核对重取之证据与生成器一致）。"""
     sup, con = [], []
@@ -267,7 +291,7 @@ def reproduce_class(key):
     js = [j for j in jiri_ev.get(key, []) if j["ok"]]
     jc = [j for j in jiri_ev.get(key, []) if not j["ok"]]
     ns, ls = jiri_count(js)
-    nc, lc = jiri_count(jc)
+    nc, lc = jiri_count_con(key) if jc else (0, "E")
     if ns >= 2:
         sup.append((ls, False))
     if nc >= 2:
@@ -493,12 +517,18 @@ TPL_RE = re.compile(r"\{\{\*\|.*?\}\}|\{\{[^{}]*\}\}|<[^>]+>", re.S)
 
 
 def clean(t):
-    """去 <ref> 校勘记、{{*|…}} 注文与其余模板、标签（月名判读只看正文）；{{YL|年号}} 之类正文模板保留其字。"""
+    """去 <ref> 校勘记、{{*|…}} 注文与其余模板、标签（月名判读只看正文）；{{YL|年号}} 之类正文模板保留其字，繁简转换标记
+    「-{丑}-」取其字；引号「」内文字（诏令、奏报所言之日）遮去，与纪日生成器同。"""
     t = REF_RE.sub("", t)
+    t = re.sub(r"-\{([^{}]*)\}-", r"\1", t)
     t = re.sub(r"\{\{(?:YL|PUA|lang\|[^|{}]*)\|([^{}|]*)\}\}", r"\1", t)
     for _ in range(3):
         t = TPL_RE.sub("", t)
-    return t
+    while True:
+        t2 = re.sub(r"「[^「」]*」", lambda q: "　" * len(q.group(0)), t)
+        if t2 == t:
+            return t
+        t = t2
 
 
 def locate(e, n_chars=16):
@@ -548,8 +578,9 @@ def year_heading(win):
     last = None
     for mm in YEAR_RE.finditer(win):
         after = win[mm.end():mm.end() + 4]
-        prev = win[mm.start() - 1] if mm.start() else "。"
-        if not (prev in HEAD_PREV or "\u4e00" <= prev <= "\u9fff"):
+        # 只取段首年首（编年纪事每年起段）；段中「某年」多为传记、追述或预叙（纪日生成器另有规则处理）
+        line_head = win[:mm.start()].rsplit("\n", 1)[-1]
+        if line_head.strip("　 ") and not re.fullmatch(r"[　 ]*(?:[^，。\s]{1,8}?)", line_head):
             continue
         mon = MON_RE.match(win[mm.end():mm.end() + 3])
         if mon and re.match(r"[一二三四五六七八九十廿]+日", win[mm.end() + mon.end():mm.end() + mon.end() + 4]):
@@ -596,8 +627,8 @@ def context(e):
     if not hit:
         return ("未找到", "原文未见或多处见", "")
     n, s, p = hit
-    # 本条若以月首起（如「九月己未，……」），月首即在本条内，故窗口含本条开头
-    own = MON_RE.match(e["text"])
+    # 本条若以月首起（如「九月己未，……」「夏五月戊辰」「三年春正月癸丑」），月首即在本条内，故窗口含本条开头
+    own = re.match(r"^(?:[^，。]{0,8}?[年春夏秋冬])?" + MON_RE.pattern, e["text"])
     win = clean(s[max(0, p - 5000):p + (own.end() + 2 if own else 0)])
     yr = year_heading(win)
     try:
@@ -605,7 +636,8 @@ def context(e):
     except (TypeError, ValueError):
         ey = None
     # 「明年」：其后接月名或季名、在最后一个年首之后，而纪日表未加一年（改年后该日正在同名月内）
-    my = list(re.finditer(r"明年(?=[春夏秋冬正二三四五六七八九十])", win))
+    # 「明年」只取段首者（段中多为预叙、诏文；纪日生成器已按段首、卷首传记、身后叙事三种读「明年」）
+    my = list(re.finditer(r"(?:^|\n)[　 ]*明年(?=[春夏秋冬正二三四五六七八九十])", win))
     if my and e.get("key") and (not yr or win.rfind(yr[1]) < my[-1].start()):
         k2 = (e["key"][0] + 1,) + tuple(e["key"][1:])
         if k2 in ZHANG and k2 in ZHANG_NEXT:
@@ -628,7 +660,9 @@ def context(e):
         after = win[mm.end():mm.end() + 4]
         # 月首：前为句界、季名或年，后接干支、「，」或「朔」（如「十月庚寅朔」「冬十月，」）；否则为文中日期或叙述（「十月二十五日」「五月後來」）
         head_after = after[:2] in GZ or after[:1] in "，,、。" or "朔" in after[:3]
-        embedded = prev not in HEAD_PREV or not head_after or bool(re.match(r"[一二三四五六七八九十廿]+日|朔日|晦日|望", after))
+        # 「去年十一月」「今年」：奏报所言之月，不是月首
+        embedded = prev not in HEAD_PREV or not head_after or bool(re.match(r"[一二三四五六七八九十廿]+日|朔日|晦日|望", after)) \
+            or win[max(0, mm.start() - 2):mm.start()] in ("去年", "今年")
         toks.append((mm.group(0), bool(mm.group(1)), CNNUM[mm.group(2)], embedded, mm.start()))
     heads = [x for x in toks if not x[3]]
     lab_m = e["mname"]
@@ -1036,12 +1070,13 @@ def write_md(rows, months, mism):
     L.append(f"- 不合之证 {len(rows)} 条中纪日 {nj} 条、明书朔 {len(rows) - nj} 条。纪日之条差三日以上者 {nbig} 条（{100 * nbig // max(nj, 1)}%），"
              "是整条落在邻月（系月），不是朔日差一二日；能指向月界移动一二日的只有 "
              f"{nsmall} 条（含明书朔），其中没有一组能构成两源以上、同向、无反证的改推步候选（见第四节）。")
-    L.append(f"- **纪日抽取误 {nchou} 条**：纪日表系月、系年与原文不合，是本项目纪日表的解析之误，不是史文，也不是推步或张表之误；"
-             "宜回到 `scripts/calendar_data/qinhan_eval/zhi_star_records.py` 修正（文中日期不作月首、年号年数越界、录文月首干支讹）后重跑 eval。")
+    L.append(f"- **纪日抽取误 {nchou} 条**：纪日表系月、系年与原文不合，是本项目纪日表的解析之误，不是史文，也不是推步或张表之误。"
+             "2026-11-27 纪日生成器（`scripts/calendar_data/qinhan_eval/zhi_star_records.py`）已按规则修正引语与奏报中的日期、相对纪年（「明年」等）、"
+             "年号年数越界与录文月首干支讹（规则见 [benji-checks.md](benji-checks.md)「纪日抽取」），修正前此类 202 条；余者见逐条表。")
     L.append(f"- 原文本身系于此月而落在邻月、同月成串者 {nrun} 条：多为史文（或维基文库录文）脱下月月名、月名错位，"
              "清《清史稿》本纪尤多（如乾隆十三年三月丁巳以下诸条，录文脱「夏四月」）。")
-    L.append(f"- 《北史》《隋书》所记北魏、北周、隋（开皇九年以前）之条 {nbei} 条以南朝之历衡之，不合是检验口径所致，"
-             "应在 eval 中剔除或改检分政权推步（`regime_benji_check`）。")
+    L.append(f"- 《北史》《隋书》所记北魏、东魏、西魏、北齐、北周、隋（开皇九年以前）之条（明书朔、纪日）已不入中原一线检验（eval 只取中原一线政权之条，"
+             f"同纪日；北朝之条由 `regime_benji_eval` 以分政权推步检验），本表中此类 {nbei} 条。")
     L.append(f"- 点校本校勘记已指出干支有误者 {njk} 条（晋书、宋书为多，如《晋书·武帝纪》太康元年五月「丙寅」校勘记：「五月丁亥朔，無丙寅……皆在六月內」）。")
     L.append("")
     # 按朝代
@@ -1119,8 +1154,9 @@ def write_md(rows, months, mism):
     L.append(f"- 「纪日抽取误」靠在原文中定位该条与判读月首：月首判法（句界或季名之后、接干支或「，」「朔」）是启发式；原文中找不到或多处出现者 {nf} 条未判。"
              "系年之误只查了年号越界、「明年」与年首年数三种，其余（如改元之年新旧年号并用）未查；年首年数一法只记「疑」。人工复核只有 124 年十一月三条（`MANUAL`）。")
     L.append("- 原文系于此月、成串落入邻月者判「疑脱下月月名／月名错位」：维基文库录文脱字与点校本原文脱字未分，须对点校本核。")
-    L.append("- 纪日之条（占同误证据之大半）不书日序，只知落在两家月外，不能定朔；同书一串条目常因一处月名脱漏而同时落入邻月，eval 以「同源取条数最多之书」计独立条数，"
-             "一串实只一误，故 eval 的「纪日 N 条不合两家」高估了证据之独立性。")
+    L.append("- 纪日之条不书日序，只知落在两家月外，不能定朔；同书一串条目常因一处月名脱漏而同时落入邻月。eval 不合两家之纪日按独立错误计："
+             "同书同月按原文行序，两家月外之条连续成串（中间无月内之条）只算一处，月内而日序、晦不合者各算一处，同源诸书取处数最多者；"
+             "须两处以上才判同误，一处者只注「纪日一处不合两家」。")
     L.append("- 《北史》《隋书》所记北魏、北齐、北周、隋（590 年前）事按中原（南朝）之历检验，不合多因政权历不同，属检验口径问题，宜在 eval 中按政权剔除或改检分政权推步。")
     L.append("- 「纪年换算误」「实际合朔」两类没有一条成为主因：年号、月序换算之误实际都出在纪日表抽取（归「纪日抽取误」）；实际合朔只在明书朔、日序之条差一二日时作旁证，"
              "这些条另有更直接的解释（食日书朔、「朔」字衍、进朔）或无从判断。")

@@ -42,6 +42,55 @@ struct SameEv {
     shuo: Vec<(bool, char, bool, String)>,
     /// 纪日（只计能分辨之条：朔日、晦日，或书日序者）：(合两家, 书, 文首)
     jiri: Vec<(bool, String, String)>,
+    /// 不合两家之纪日的独立错误：书 → 该书该月诸条（行号, 类：0 在两家月内或只在一家月内，1 两家月外，2 月内而日序、晦不合）
+    jiri_rows: BTreeMap<String, Vec<(usize, u8)>>,
+}
+
+/// 不合两家之纪日的独立错误数与等级。同书同月诸条按原文行序排，两家月外之条连续成串者（中间无月内之条隔开）多出一处脱月名、
+/// 月名错位或系月之误，一串只算一处；月内而日序、晦不合者各算一处。同源诸书（见 [`lineage`]）取处数最多之书，各史源相加
+fn jiri_count_con(rows: &BTreeMap<String, Vec<(usize, u8)>>) -> (usize, char) {
+    let mut by: BTreeMap<String, usize> = BTreeMap::new();
+    let mut lv = 'E';
+    for (b, v) in rows {
+        let mut v = v.clone();
+        v.sort();
+        let mut n = 0;
+        let mut prev_out = false;
+        for &(_, k) in &v {
+            match k {
+                1 => {
+                    if !prev_out {
+                        n += 1;
+                    }
+                    prev_out = true;
+                }
+                2 => {
+                    n += 1;
+                    prev_out = false;
+                }
+                _ => prev_out = false,
+            }
+        }
+        if n > 0 {
+            let e = by.entry(lineage(b).to_string()).or_default();
+            *e = (*e).max(n);
+            lv = lv.min(book_level(b, false));
+        }
+    }
+    (by.values().sum(), lv)
+}
+
+/// 中原一线之条：北魏、东魏、西魏、北齐、北周与隋平陈（589）以前，元 1280 年以前（金重修大明历）不是中原一线所行之历，
+/// 其书（《北史》《隋书》等）之条不以中原诸历衡之（另由 regime_benji_eval 以分政权推步检验）；明 1644 年后、清 1645 年前同
+fn zhongyuan_regime(regime: &str, y: i32) -> bool {
+    match regime {
+        "西汉" | "东汉" | "魏" | "晋" | "宋" | "齐" | "梁" | "陈" | "唐" | "武周" | "后梁" | "后唐" | "后晋" | "后汉" | "后周" => true,
+        "隋" => y >= 590,
+        "元" => y >= 1280,
+        "明" => y <= 1644,
+        "清" => y >= 1645,
+        _ => false,
+    }
 }
 
 /// 纪日独立条数与等级：同源内取条数最多之书，等级取同源最高者
@@ -213,8 +262,9 @@ fn main() {
             continue;
         }
         let (Ok(y), Ok(rec)) = (r[cy].parse::<i32>(), r[cr].parse::<i64>()) else { continue };
-        // 元 1280 年以前行金重修大明历，不是中原一线（南宋）之历，其本纪纪日不检中原诸历
-        if r[cs] == "元" && y < 1280 {
+        // 只检中原一线之条（北朝诸国、隋 590 年前、元 1280 年前等不检中原诸历，见 zhongyuan_regime）；宋代史书「宋」与刘宋同名，
+        // 960 年后的「宋」即赵宋，亦属中原一线
+        if !zhongyuan_regime(&r[cs], y) {
             continue;
         }
         let (leap, m) = match r[cm].strip_prefix('闰').or_else(|| r[cm].strip_prefix('閏')) {
@@ -416,21 +466,16 @@ fn main() {
     let same_set: BTreeSet<(i32, u8, bool)> = sames.iter().map(|s| (s.2, s.3 .1, s.3 .2)).collect();
     for b in zy_books {
         let Ok(t) = std::fs::read_to_string(root.join(format!("data/calendar/本纪纪日/{b}_benji.csv"))) else { continue };
-        for r in parse_csv(&t).iter().skip(1).filter(|r| r.len() >= 15 && !r[0].starts_with('#')) {
+        for (ri, r) in parse_csv(&t).iter().skip(1).enumerate() {
+            if r.len() < 15 || r[0].starts_with('#') {
+                continue;
+            }
             let (Ok(y), Ok(m)) = (r[3].parse::<i32>(), r[4].parse::<u8>()) else { continue };
             let pos = r[12].as_str();
             if pos == "朔" {
                 continue;
             }
-            let ok_regime = match r[0].as_str() {
-                "西汉" | "东汉" | "魏" | "晋" | "宋" | "齐" | "梁" | "陈" | "唐" | "武周" | "后梁" | "后唐" | "后晋" | "后汉" | "后周" => true,
-                "隋" => y >= 590,
-                "元" => y >= 1280,
-                "明" => y <= 1644,
-                "清" => y >= 1645,
-                _ => false,
-            };
-            if !ok_regime {
+            if !zhongyuan_regime(&r[0], y) {
                 continue;
             }
             let regime = match r[0].as_str() {
@@ -453,8 +498,10 @@ fn main() {
             let nth = pos.strip_prefix('日').and_then(|n| n.parse::<i64>().ok());
             let text: String = r[14..].join("，").chars().take(20).collect();
             let e = same_ev.entry(key).or_default();
+            let mut kind = 0u8;
             if !in_r && !in_t {
                 e.jiri.push((false, b.to_string(), text));
+                kind = 1;
             } else if in_r && in_t {
                 let exact = match (pos, nth) {
                     ("晦", _) => Some(br == bt && d == br - 1),
@@ -463,11 +510,15 @@ fn main() {
                 };
                 match exact {
                     Some(true) => e.jiri.push((true, b.to_string(), text)),
-                    Some(false) => e.jiri.push((false, b.to_string(), text)),
+                    Some(false) => {
+                        e.jiri.push((false, b.to_string(), text));
+                        kind = 2;
+                    }
                     None if d == a || (br == bt && d == br - 1) => e.jiri.push((true, b.to_string(), text)),
                     None => {}
                 }
             }
+            e.jiri_rows.entry(b.to_string()).or_default().push((ri, kind));
         }
     }
     // 实物
@@ -499,16 +550,18 @@ fn main() {
             let js: Vec<_> = e.jiri.iter().filter(|j| j.0).collect();
             let jc: Vec<_> = e.jiri.iter().filter(|j| !j.0).collect();
             let (ns, ls) = jiri_count(&js);
-            let (nc, lc) = jiri_count(&jc);
+            // 不合两家者按独立错误计（同书同月连续落在月外之一串只算一处，见 jiri_count_con）
+            let (nc, lc) = if jc.is_empty() { (0, 'E') } else { jiri_count_con(&e.jiri_rows) };
             if ns >= 2 {
                 sup.push((ls, format!("纪日 {ns} 条")));
             } else if ns == 1 {
                 note.push("纪日一见，合两家".into());
             }
+            let nrow = jc.iter().map(|j| (&j.1, &j.2)).collect::<BTreeSet<_>>().len();
             if nc >= 2 {
-                con.push((lc, false, format!("纪日 {nc} 条不合两家")));
+                con.push((lc, false, format!("纪日 {nc} 处不合两家（{nrow} 条）")));
             } else if nc == 1 {
-                note.push("纪日一见，不合两家".into());
+                note.push(if nrow > 1 { format!("纪日一处不合两家（同书同月连续 {nrow} 条）") } else { "纪日一见，不合两家".into() });
             }
         }
         let best = |v: &[char]| v.iter().min().copied().map_or("—".to_string(), |c| c.to_string());
