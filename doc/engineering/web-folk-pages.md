@@ -5,11 +5,17 @@
 | 页 | 文件 | 内容 | wasm |
 |---|---|---|---|
 | 择日 | `web/src/ZeRiPage.tsx` | 年神方位二十四山圆图（协纪卷三）；当日建除、日游神鹤神太岁出游、神煞宜忌（月表 + 卷十铺注 + 时宪书体例、時憲書宜、時憲書朱字） | `nian_shen_json`、`shensha_day_wasm`、`jianchu_day_wasm`、`dong_gong_day_json` |
-| 排盘 | `web/src/PaiPanPage.tsx` | 奇门九宫盘（时家／日家／月家／年家，转盘／飞盘、寄宫三说、八神名目、定局法、节气来源皆可选，另列年月日家顺飞诸法）；大六壬天地盘与四课三传（换将法中气／恒星过宫／节可选，旺相两说，配偶本命供繁昌课）；太乙盘（外圈十六神、内圈九宫；岁月日时四计、积年两家；时计八门张良／王希明二至加时起门，月计章岁法示闰月）；紫微斗数命盘（以所选时刻为生时，性别与闰月、四化、魁钺、长生诸说可选；十四主星派可加排写本诸星、输入流年示小限大限与羊陀迭并诸格；十八飞星派星旁标庙乐旺，卷一图／卷三星论两表可选）；六爻·周易；玄空飞星；七政四余（经星图 Worker）；三元九运 | `qimen_json`、`liuren_json`、`taiyi_json`、`ziwei_json`、`ziwei18_json`、`liuyao_json`、`xuankong_json`、`paipan_wasm`；`SkyEngine::qizheng`、`SkyEngine::liuren_jiang_xiu`（六壬恒星过宫，选此说时才建 Worker） |
+| 排盘 | `web/src/PaiPanPage.tsx` | 奇门九宫盘（时家／日家／月家／年家，转盘／飞盘、寄宫三说、八神名目、定局法、节气来源皆可选，另列年月日家顺飞诸法与秘笈大全日家八门、大八門）；大六壬天地盘与四课三传（换将法中气／恒星过宫／节可选，旺相两说，配偶本命供繁昌课）；太乙盘（外圈十六神、内圈九宫；岁月日时四计、积年两家；时计八门张良／王希明二至加时起门，月计章岁法示闰月；衰旺立成两种宫数读法）；紫微斗数命盘（以所选时刻为生时，性别与闰月、四化、魁钺、长生诸说可选；十四主星派可加排写本诸星、输入流年示小限大限与羊陀迭并诸格；十八飞星派星旁标庙乐旺，卷一图／卷三星论两表可选）；六爻·周易；玄空飞星；七政四余（经星图 Worker）；三元九运 | `qimen_json`、`liuren_json`、`taiyi_json`、`ziwei_json`、`ziwei18_json`、`liuyao_json`、`xuankong_json`、`paipan_wasm`；`SkyEngine::qizheng`、`SkyEngine::liuren_jiang_xiu`（六壬恒星过宫，选此说时才建 Worker） |
 
 **宜忌两说**：「当日」卡片可切「宜忌依：协纪（缺省）／董公」；董公（《董公選擇日要覽》，`dong_gong_day_json`，月建按节）列宜忌、等第、条件、董公所举神煞与所据原句，无宜忌之文的日子只注「董公无宜忌之文」，不以协纪填补（数据与校订见 `doc/folk/tongshu_yiji.md` 第九节）。
 
 **择日页另有**：二十四山图外缘色带标当月月厌、厌对（以节换月，正月厌戌逆行）与厌前（阳，浅红）、厌后（阴，浅蓝）两半，并给当日干支的阴阳将（类编「論隂陽不將日」）；「婚嫁择吉」面板按所示月份逐日判定（`jiaqu_days_json`，农历与朔弦望由页面传入，与日历同源），缺省列出全部日子及否决缘由；赤口可选不用（协纪）、类编、祛疑説、兀日起法（协纪卷三十六所述，即类编卷二六輪兀，逐日另标上兀、下兀；`opts` 位 2048），见 `doc/folk/jiaqu.md` 第三节。婚嫁另有铺注九项逐项不看（`puzhu_skip`）、协纪改删旧说与类编鳌头董公诸神逐神否决（`tongshu_mask`，位义 `tongshu_shen_list_json`）、董公婚姻宜忌与鳌头婚姻四表（`opts` 位 131072/262144/524288），各项各书之说由 `jiaqu_rule_catalog_json`、`hun_shen_info_json` 给出（见 `doc/folk/jiaqu.md` 第三之三节）。排盘页六壬外圈标十二天将（贵人两说、昼夜可选），奇门列演义卷二格局，紫微可切十四主星派与十八飞星派、主星旁注庙旺。
+
+**式占新增（2026-11-27）**：
+- 奇门：`qimen_json` 顶层加 `riJiaBaMen`、`daBaMen`（洛书 1—9 宫之门名，中五 null；`folk::qimen::nianjia` 的 `ri_jia_ba_men`、`da_ba_men`，《奇門遁甲秘笈大全》卷二十），`shunFei` 末加「月奇（秘笈大全起月例，未核）」一行（`yue_jian_qi`）；不加参数。`PaiPanPage.tsx` 的 `QimenPanel` 于顺飞诸法下列「日家八门」两行（八門三奇出行定局、大八門逐日出行訣，书式「休坎 死坤……」，`baMenShu`），点宫详注该宫两门。日干支取页面日柱，大八門所分六段之节气取所选时刻所交之定气。
+- 太乙：`taiyi_json` 加 `shuaiWang`（`{jie, du, deng, gong[10]}`，`folk::taiyi::shijing::tai_yi_shuai_wang`，《景祐太乙福應經》卷十衰旺立成），读法为 `opts` 位 11（0 洛书数，缺省，同 `ShuaiWangDu::default()`；1 太乙宫数）。`TaiyiPanel` 列「衰旺」一行（所交八节、太乙所立、福應經「法曰」所主之事），点宫时宫名旁注该宫衰旺；起例加「衰旺立成宫数」单选（洛书数／太乙宫数，未核；localStorage 键 `opt:taiyi/swDu`）。
+- 两 wasm 同源（`wasm-lib-f64` 以 `include!` 用 `wasm-lib/src/lib_impl.rs`），导出自然一致；`lunar-wasm.d.ts`、`lunar-backend-types.ts` 签名不变。
+- 检验：2026-11-27 10:30（乙巳日、小雪）奇门日家八门「休兌 死艮 傷離 杜坎 開坤 驚震 生巽 景乾」，休门与演义日家「休門在兌」合；大八門（霜降至大雪段甲子组起乾）「休坤……」；太乙时计太乙在三宫（艮），立冬依洛书读胎、依太乙宫数读沒，与 `shuai_wang(6, 8)`、`shuai_wang(6, 3)` 合。无头 Chromium 截图两页显示正常。
 
 **神煞起例**（择日页当日卡片「神煞起例依：协纪（缺省）／类编／逐神选」）：`qili_shen_day_json` 以协纪起例与所选诸说（天德天德合四仲、天火、鳴吠、鳴吠對、復日、荒蕪、天賊、蠶命，`shensha::ShenshaOptions`、`nianshen::NianShenOptions`）各列当日之神，显示较协纪多、少之神与蠶命方位；只改所列之神，宜忌仍依协纪月表。出处见 `doc/folk/tongshu.md` 第五节。
 
