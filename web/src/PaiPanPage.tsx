@@ -8,7 +8,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { Notes, OptionsFold, useOpt, useOptGroup } from './fold'
 import type { LunarBackend } from './lunar-backend-types'
 import { CompassSpin, useCompassBar, type CompassSpinSource, type LocationProps } from './CompassBar'
-import { LiurenWheel, QimenWheel, qimenMarks, type QimenGongMarks, type QimenFangGe, QizhengWheel, TaiyiWheel, XuankongGrid, XuankongWheel, YAO_SHORT, type XuankongWheelData, type QizhengWheelData } from './Wheels'
+import { LiurenWheel, QimenWheel, qimenMarks, type QimenGongMarks, type QimenFangGe, QizhengWheel, TaiyiWheel, TY_GUA, XuankongGrid, XuankongWheel, YAO_SHORT, type XuankongWheelData, type QizhengWheelData } from './Wheels'
 import { useWorkerRpc } from './useWorkerRpc'
 import type { SkyRequest } from './skyWorker'
 import { DayanDemo } from './DayanDemo'
@@ -864,7 +864,7 @@ const TaiyiPanel = memo(function TaiyiPanel(props: { wasm: LunarBackend; ear: st
             options={[{ label: '岁计', value: 0 }, { label: '月计', value: 1 }, { label: '日计', value: 2 }, { label: '时计', value: 3 }]} />
           {kind === 3 && (
             <label style={{ fontSize: 12 }}>
-              <input type="checkbox" checked={interp} onChange={(e) => setInterp(e.target.checked)} /> 时辰内插值（示意，非原典：只文昌、计神沿环向下一局之位滑去；太乙按洛书移宫飞行，始击、主客将仍逐局跳）
+              <input type="checkbox" checked={interp} onChange={(e) => setInterp(e.target.checked)} /> 时辰内插值（示意，非原典：只文昌、计神沿环向下一局之位滑去；太乙按太乙宫数移宫飞行，始击、主客将仍逐局跳）
             </label>
           )}
           {kind !== 3 && (
@@ -883,7 +883,7 @@ const TaiyiPanel = memo(function TaiyiPanel(props: { wasm: LunarBackend; ear: st
           return (
             <div className="gong-detail" style={{ marginTop: 10 }}>
               <Flex justify="space-between" align="center">
-                <Text strong>{`${'　坎坤震巽中乾兌艮離'[selG]}${selG}宫${d.men?.[selG] ? ` · ${d.men[selG]}` : ''}${d.shuaiWang?.gong[selG] ? ` · ${d.shuaiWang.jie}${d.shuaiWang.gong[selG]}` : ''}`}</Text>
+                <Text strong>{`${TY_GUA[selG] ?? ''}${selG}宫${d.men?.[selG] ? ` · ${d.men[selG]}` : ''}${d.shuaiWang?.gong[selG] ? ` · ${d.shuaiWang.jie}${d.shuaiWang.gong[selG]}` : ''}`}</Text>
                 <Button size="small" type="text" onClick={() => setSelG(null)}>✕</Button>
               </Flex>
               <div style={{ fontSize: 13 }}>{items.join('、') || <Text type="secondary" style={{ fontSize: 12 }}>此宫无太乙、诸将与宫中诸神</Text>}</div>
@@ -893,7 +893,7 @@ const TaiyiPanel = memo(function TaiyiPanel(props: { wasm: LunarBackend; ear: st
         {d && (
           <div style={{ marginTop: 10, lineHeight: 1.8 }}>
             <div>{`${d.kind}第${d.r}局 ${d.dun}遁 · ${d.yuan}元第${d.ju}局 · 第${d.ji}纪`}</div>
-            <div>太乙在{gongLink(d.gong, `${d.gong}宫`)}{`（入宫第${d.ruGong}）· 文昌${d.tianMu}（${d.tianMuPos}）· 計神${d.jiShen} · 始擊${d.shiJi}（${d.shiJiPos}）`}</div>
+            <div>太乙在{gongLink(d.gong, `${TY_GUA[d.gong] ?? ''}${d.gong}宫`)}{`（入宫第${d.ruGong}）· 文昌${d.tianMu}（${d.tianMuPos}）· 計神${d.jiShen} · 始擊${d.shiJi}（${d.shiJiPos}）`}</div>
             <div>{`主算${d.zhuSuan}（大將`}{gongLink(d.zhuDa, String(d.zhuDa ?? '杜'))}{'、參將'}{gongLink(d.zhuCan, String(d.zhuCan ?? '杜'))}{`）· 客算${d.keSuan}（大將`}{gongLink(d.keDa, String(d.keDa ?? '杜'))}{'、參將'}{gongLink(d.keCan, String(d.keCan ?? '杜'))}{'）'}</div>
             {d.dingJi && <div>{`定计目${d.dingJi}（${d.dingJiPos}）· 定算${d.dingJiSuan}（大將${d.dingJiDa ?? '杜'}、參將${d.dingJiCan ?? '杜'}）`}</div>}
             {d.siShen && <div style={{ fontSize: 13 }}>{`${d.suiNian ?? ''}岁：四神${d.siShen.name}、天乙${d.tianYi?.name ?? ''}、地乙${d.diYi?.name ?? ''}、直符${d.zhiFu?.name ?? ''}；五福${d.wuFu?.name ?? ''}；大游${d.daYou?.gong ?? ''}宫、小游${d.xiaoYou ?? ''}宫；君基${d.junJi?.zhi ?? ''}、臣基${d.chenJi?.zhi ?? ''}、民基${d.minJi?.zhi ?? ''}`}</div>}

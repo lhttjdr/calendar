@@ -85,6 +85,16 @@ function Frame({ children, label }: { children: ReactNode; label: string }) {
 /** 洛书宫 → 罗盘方位角（坎北 0、艮东北 45、震东 90、巽东南 135、离南 180、坤西南 225、兑西 270、乾西北 315） */
 const GONG_AZ: Record<number, number> = { 1: 0, 8: 45, 3: 90, 4: 135, 9: 180, 2: 225, 7: 270, 6: 315 }
 const GUA: Record<number, string> = { 1: '坎', 8: '艮', 3: '震', 4: '巽', 9: '離', 2: '坤', 7: '兌', 6: '乾', 5: '中' }
+/**
+ * 太乙宫数（乾一離二艮三震四中五兌六坤七坎八巽九，金鏡卷一「以乾西北為一宫」、淘金歌「一天二火三為鬼……」）→ 罗盘方位角、卦名。
+ * 太乙盘诸项（太乙、主客定计将、四神天乙地乙直符、五福、大游小游、八门、十精宫类、衰旺）core 皆用太乙宫数，与奇门、玄空之洛书数不同
+ */
+const TY_GONG_AZ: Record<number, number> = { 8: 0, 3: 45, 4: 90, 9: 135, 2: 180, 7: 225, 6: 270, 1: 315 }
+export const TY_GUA: Record<number, string> = { 1: '乾', 2: '離', 3: '艮', 4: '震', 6: '兌', 7: '坤', 8: '坎', 9: '巽', 5: '中' }
+/** 太乙宫数之八宫，依方位自北顺时针（坎艮震巽離坤兌乾） */
+const TY_GONGS = [8, 3, 4, 9, 2, 7, 6, 1]
+/** 太乙移宫之序（阳遁顺、阴遁逆，不游中五） */
+const TY_CYCLE = [1, 2, 3, 4, 6, 7, 8, 9]
 
 /**
  * 天盘转角（度，屏幕顺时针）：目标角变化时取最短路径累加，免于跨 0° 时倒转一周；配合 CSS transition 呈现天盘相对地盘之转动。
@@ -434,7 +444,7 @@ export type TaiyiWheelData = {
   siShen?: TyGong; tianYi?: TyGong; diYi?: TyGong; zhiFu?: TyGong; wuFu?: TyGong; daYou?: TyGong; xiaoYou?: number | null
   junJi?: TyZhi; chenJi?: TyZhi; minJi?: TyZhi
   dingJiPos?: string | null; dingJiDa?: number | null; dingJiCan?: number | null; daYouTianMuPos?: string | null
-  /** 八门：下标为宫数（0、5 为 null），值为门名（taiyi::bamen） */
+  /** 八门：下标为太乙宫数（0、5 为 null），值为门名（taiyi::bamen） */
   men?: (string | null)[]
   /** 十精（taiyi::shijing）：十六神类、十二辰类给 pos，宫类给 gong */
   shiJing?: { n: string; pos?: string; gong?: number; shu?: number; label: string }[]
@@ -450,10 +460,10 @@ const SHEN16 = ['地主', '陽德', '和德', '呂申', '高叢', '太陽', '大
  */
 /**
  * `next`：时计插值（示意，非原典）——下一时辰之局与本时辰已过比例 f。只有文昌（十六神逐局进一位，遇重留则停）、计神（逆行一辰）
- * 两者逐局各移一位，可沿外环向下一局之位滑去；太乙按洛书数移宫（坎一→坤二→震三跨盘）、始击与主客将由算数得，皆不插值。
- * 太乙移宫时沿洛书路径飞行（经五穿中心）。
+ * 两者逐局各移一位，可沿外环向下一局之位滑去；太乙按太乙宫数移宫（乾一→離二→艮三跨盘）、始击与主客将由算数得，皆不插值。
+ * 太乙移宫时沿太乙宫数之序飞行（不游中五）。
  */
-/** `hl`、`onGong`：与文字联动之宫（1—9） */
+/** `hl`、`onGong`：与文字联动之宫（太乙宫数 1—9） */
 export function TaiyiWheel({ d, next, hl, onGong }: { d: TaiyiWheelData; next?: { d: TaiyiWheelData; f: number }; hl?: number | null; onGong?: (g: number) => void }) {
   const R = [46, 76, 98, 120, 140, 160, 178, 198, 216, 226, 236]
   const mid = (k: number) => (R[k]! + R[k + 1]!) / 2
@@ -499,14 +509,14 @@ export function TaiyiWheel({ d, next, hl, onGong }: { d: TaiyiWheelData; next?: 
       <DegreeRing r0={R[9]!} r1={R[10]!} />
       {[8, 7, 6, 5, 4].map((k) => ring(k, true))}
       {[3, 2, 1, 0].map((k) => ring(k, false))}
-      {[1, 8, 3, 4, 9, 2, 7, 6].map((g) => {
-        const deg = scr(GONG_AZ[g]!)
+      {TY_GONGS.map((g) => {
+        const deg = scr(TY_GONG_AZ[g]!)
         const js = jiang.get(g), ss = shen.get(g)
         return (
           <g key={g}>
             {d.gong === g && <path d={sector(R[0]!, R[1]!, deg - 22.5, deg + 22.5)} fill="#fff1b8" />}
             {hl === g && <path d={sector(R[0]!, R[4]!, deg - 22.5, deg + 22.5)} fill="#bae0ff" opacity={0.55} stroke="#1677ff" strokeWidth={1.5} />}
-            <T r={mid(0) - 7} deg={deg} size={11} fill="#888">{`${GUA[g]}${g}`}</T>
+            <T r={mid(0) - 7} deg={deg} size={11} fill="#888">{`${TY_GUA[g]}${g}`}</T>
             {js && <T r={mid(1)} deg={deg} size={sz(js, 12)} fill="#0958d9">{lab(js)}</T>}
             {ss && <T r={mid(2)} deg={deg} size={sz(ss, 12)} fill="#531dab">{lab(ss)}</T>}
             {d.men?.[g] && <T r={mid(3)} deg={deg} size={12} fill={['開門', '休門', '生門'].includes(d.men[g]!) ? '#237804' : '#8c8c8c'}>{d.men[g]!}</T>}
@@ -524,8 +534,8 @@ export function TaiyiWheel({ d, next, hl, onGong }: { d: TaiyiWheelData; next?: 
           </g>
         )
       })}
-      {/* 太乙：移宫沿洛书路径飞行 */}
-      <Fly g={d.gong} pos={(g) => (g === 5 ? [C, C, 0] : polar(mid(0) + 8, scr(GONG_AZ[g]!)))} size={13} fill="#ad4e00">太乙</Fly>
+      {/* 太乙：移宫沿太乙宫数之序飞行（不游中五） */}
+      <Fly g={d.gong} cycle={TY_CYCLE} pos={(g) => (g === 5 ? [C, C, 0] : polar(mid(0) + 8, scr(TY_GONG_AZ[g]!)))} size={13} fill="#ad4e00">太乙</Fly>
       {next && (() => {
         const w = slide(d.tianMuPos, next.d.tianMuPos), j = slide(d.jiShen, next.d.jiShen)
         return (
@@ -541,9 +551,9 @@ export function TaiyiWheel({ d, next, hl, onGong }: { d: TaiyiWheelData; next?: 
       {center.slice(0, 3).map((t, i) => <text key={t} x={C} y={C + 9 + i * 11} fontSize={9} textAnchor="middle" fill="#531dab">{t}</text>)}
       {onGong && (
         <g style={{ cursor: 'pointer' }}>
-          {[1, 8, 3, 4, 9, 2, 7, 6].map((g) => {
-            const deg = scr(GONG_AZ[g]!)
-            return <path key={g} d={sector(R[0]!, R[4]!, deg - 22.5, deg + 22.5)} fill="transparent" pointerEvents="all" onClick={() => onGong(g)}><title>{`${GUA[g]}${g}宫`}</title></path>
+          {TY_GONGS.map((g) => {
+            const deg = scr(TY_GONG_AZ[g]!)
+            return <path key={g} d={sector(R[0]!, R[4]!, deg - 22.5, deg + 22.5)} fill="transparent" pointerEvents="all" onClick={() => onGong(g)}><title>{`${TY_GUA[g]}${g}宫`}</title></path>
           })}
         </g>
       )}
@@ -741,13 +751,13 @@ const GUA_SYM: Record<number, string> = { 1: '☵', 8: '☶', 3: '☳', 4: '☴'
 /** 极坐标点（屏幕角）及该处字的旋转角 */
 const polar = (r: number, deg: number): [number, number, number] => { const [x, y] = pt(r, deg); return [x, y, deg] }
 /** 洛书飞行之序：一二三四五六七八九，九后复一（五居中） */
-const LUO_NEXT = (g: number, dir: 1 | -1) => ((g - 1 + dir + 9) % 9) + 1
 
 /**
  * 飞宫动画：一星从旧宫飞到新宫，沿洛书顺序逐宫经过（经五则穿过中心），取步数少的一向；
  * 每段约 220 ms，整段至多约 1.5 s。位置与字的旋转角逐帧插值，直接写 transform（不经 React 重绘）。
+ * `cycle`：逐宫经过之序（缺省洛书一至九；太乙用太乙宫数去中五之八宫）
  */
-function Fly({ g, pos, children, size, fill }: { g: number; pos: (g: number) => [number, number, number]; children: ReactNode; size: number; fill: string }) {
+function Fly({ g, pos, children, size, fill, cycle }: { g: number; pos: (g: number) => [number, number, number]; children: ReactNode; size: number; fill: string; cycle?: number[] }) {
   const ref = useRef<SVGGElement | null>(null)
   const prev = useRef<number | null>(null)
   const posRef = useRef(pos)
@@ -759,11 +769,14 @@ function Fly({ g, pos, children, size, fill }: { g: number; pos: (g: number) => 
     const from = prev.current
     prev.current = g
     if (from == null || from === g) { put(posRef.current(g)); return }
-    const fwd = (((g - from) % 9) + 9) % 9
-    const dir: 1 | -1 = fwd <= 4 ? 1 : -1
-    const steps = dir === 1 ? fwd : 9 - fwd
+    const cyc = cycle ?? [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    const n = cyc.length, i0 = cyc.indexOf(from), i1 = cyc.indexOf(g)
+    if (i0 < 0 || i1 < 0) { put(posRef.current(g)); return }
+    const fwd = (((i1 - i0) % n) + n) % n
+    const dir: 1 | -1 = fwd <= n / 2 ? 1 : -1
+    const steps = dir === 1 ? fwd : n - fwd
     const way: number[] = [from]
-    for (let k = 0, cur = from; k < steps; k++) { cur = LUO_NEXT(cur, dir); way.push(cur) }
+    for (let k = 1; k <= steps; k++) way.push(cyc[(((i0 + dir * k) % n) + n) % n]!)
     const pts = way.map((w) => posRef.current(w))
     const segMs = Math.min(220, 1500 / steps)
     const t0 = performance.now()
