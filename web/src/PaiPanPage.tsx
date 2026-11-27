@@ -8,7 +8,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { Notes, OptionsFold, useOpt, useOptGroup } from './fold'
 import type { LunarBackend } from './lunar-backend-types'
 import { CompassSpin, useCompassBar, type CompassSpinSource, type LocationProps } from './CompassBar'
-import { LiurenWheel, QimenWheel, qimenMarks, type QimenGongMarks, type QimenFangGe, QizhengWheel, TaiyiWheel, XuankongGrid, XuankongWheel, YAO_SHORT, type XuankongWheelData, type QizhengWheelData } from './Wheels'
+import { LiurenWheel, QimenWheel, qimenMarks, type QimenGongMarks, type QimenFangGe, QizhengWheel, TaiyiWheel, TY_GUA, XuankongGrid, XuankongWheel, YAO_SHORT, type XuankongWheelData, type QizhengWheelData } from './Wheels'
 import { useWorkerRpc } from './useWorkerRpc'
 import type { SkyRequest } from './skyWorker'
 import { DayanDemo } from './DayanDemo'
@@ -74,16 +74,22 @@ type TaiyiData = {
   yangJiu?: TyELi; baiLiu?: TyELi
   /** 金鏡章岁法所求干支年之闰月（11、12 为前一年冬月腊月），无闰 null */
   zhangSuiRun?: number | null
+  /** 衰旺（福應經卷十衰旺立成）：所交八节、宫数读法、太乙所立之宫之衰旺、各宫（太乙九宫数 1—9）衰旺 */
+  shuaiWang?: { jie: string; du: string; deng: string | null; gong: (string | null)[] }
 }
 type TyG = { gong: number; name?: string; zhi?: string; ruNian?: number } | null
 type TySuan = { he: boolean; ming: string[]; sanCai: string }
 type TyELi = { di: number; ruNian: number; bang: string }
+/** 福應經卷十衰旺立成前「法曰」：太乙立某神所主之事 */
+const SHUAI_WANG_ZHU: Record<string, string> = { 旺: '主新事', 相: '言相爭之事', 胎: '主生產事', 沒: '主沒溺之事', 囚: '主刑禁事', 死: '主死喪之事', 廢: '主改易革變事', 休: '主有疾病事' }
 
 type QimenData = {
   geju?: { n: string; gong: number | null; ji: boolean; basis: string; note: string | null }[]
   ju: string; xunShou: string; xunYi: string; zhiFu: string; zhiShi: string; zhiFuGong: number; zhiShiGong: number
   /** 家名与局（时家、日家、月家、年家）；顺飞诸法之文字（遁年奇、遁月奇、统宗日家、演义休门） */
   jia?: string; shunFei?: string[]
+  /** 《奇門遁甲秘笈大全》卷二十日家八门全布（八門三奇出行定局）、大八門（逐日出行訣，按节气分六段）：洛书 1—9 宫之门，中五 null */
+  riJiaBaMen?: (string | null)[]; daBaMen?: (string | null)[]
   gong: ({ di: string[]; tian: string[]; xing: string[]; men: string | null; shen: string | null } & QimenGongMarks)[]
   xunKong?: string[]; xu?: string[]; kongGong?: number[]; riXunKong?: string[]; ma?: string; maGong?: number | null; jieLuKong?: boolean
   /** 方位格（演义卷二）：月将、天門地戸私門天馬亭亭貴人登天門（系于地盘支）、三勝五不擊、寄宫避五（卷三） */
@@ -93,6 +99,10 @@ type QimenData = {
   biWu?: { n: string; gong: number | null; basis: string; note: string | null }[]
 }
 
+/** 八门依秘笈大全定局之书式列：休坎 死坤 傷震……（门在前、宫卦在后） */
+const baMenShu = (a: (string | null)[]) => ['休', '死', '傷', '杜', '開', '驚', '生', '景']
+  .map((m) => { const g = a.findIndex((x) => x === `${m}門`); return g > 0 ? `${m}${'　坎坤震巽中乾兌艮離'[g]}` : '' })
+  .filter(Boolean).join(' ')
 
 const QimenPanel = memo(function QimenPanel(props: { wasm: LunarBackend; ear: string; jdUt: number; hourGz: number; dayGz: number; spin: CompassSpinSource }) {
   const g = useOptGroup('qimen')
@@ -156,6 +166,7 @@ const QimenPanel = memo(function QimenPanel(props: { wasm: LunarBackend; ear: st
                 <Button size="small" type="text" onClick={() => setSelGong(null)}>✕</Button>
               </Flex>
               <div style={{ fontSize: 13 }}>{[`地盘${c.di.join('')}`, c.tian.length ? `天盘${c.tian.join('')}` : '', c.xing.join(''), c.men ?? '', c.shen ?? '', c.anGan ? `暗干${c.anGan}` : ''].filter(Boolean).join(' · ')}</div>
+              {(d.riJiaBaMen?.[selGong] || d.daBaMen?.[selGong]) && <div style={{ fontSize: 12 }}>{`日家八门${d.riJiaBaMen?.[selGong] ?? '—'} · 大八門${d.daBaMen?.[selGong] ?? '—'}（秘笈大全）`}</div>}
               {qimenMarks(c).length > 0 && <div style={{ fontSize: 12, color: '#a8071a' }}>{qimenMarks(c).join(' ')}</div>}
               <div style={{ fontSize: 12 }}>{inG.length ? inG.join('、') : <Text type="secondary" style={{ fontSize: 12 }}>此宫无克应、格局</Text>}</div>
             </div>
@@ -234,6 +245,13 @@ const QimenPanel = memo(function QimenPanel(props: { wasm: LunarBackend; ear: st
               <Text strong style={{ fontSize: 12 }}>年月日家顺飞诸法：</Text>
               {d.shunFei.map((l, i) => <div key={i}>{l}</div>)}
               <Text type="secondary" style={{ fontSize: 11 }}>统宗自谓「诸说纷纭，全无定见……姑备录之」；阴遁诸式原文无例，依「阳顺阴逆」推，未核</Text>
+            </div>
+          )}
+          {d?.riJiaBaMen && (
+            <div style={{ fontSize: 12 }}>
+              <Text strong style={{ fontSize: 12 }}>日家八门（《奇門遁甲秘笈大全》卷二十，一卦管三日）：</Text>
+              <div>{`八門三奇出行定局：${baMenShu(d.riJiaBaMen)}`}</div>
+              {d.daBaMen && <div>{`大八門逐日出行訣（按节气）：${baMenShu(d.daBaMen)}`}</div>}
             </div>
           )}
           {method === 0 && (
@@ -807,7 +825,9 @@ const TaiyiPanel = memo(function TaiyiPanel(props: { wasm: LunarBackend; ear: st
   const [yueFa, setYueFa] = useOpt(g, 'yueFa', 0, '月计')
   /** 时计八门：张良（缺省）／王希明二至加时起门 */
   const [shiMen, setShiMen] = useOpt(g, 'shiMen', 0, '时计八门')
-  const opts = buMen | (menJu << 2) | (heFa << 4) | (sanCai << 6) | (eLi << 8) | (yueFa << 9) | (shiMen << 10)
+  /** 衰旺立成宫数读法：洛书数（缺省）／太乙宫数 */
+  const [swDu, setSwDu] = useOpt(g, 'swDu', 0, '衰旺读法')
+  const opts = buMen | (menJu << 2) | (heFa << 4) | (sanCai << 6) | (eLi << 8) | (yueFa << 9) | (shiMen << 10) | (swDu << 11)
   const d = useMemo((): TaiyiData | null => {
     if (typeof props.wasm.taiyi_json !== 'function') return null
     try { return JSON.parse(props.wasm.taiyi_json(props.jdUt, props.ear, props.dayGz, props.hourZhi, kind, school, dun, opts)) as TaiyiData } catch { return null }
@@ -844,7 +864,7 @@ const TaiyiPanel = memo(function TaiyiPanel(props: { wasm: LunarBackend; ear: st
             options={[{ label: '岁计', value: 0 }, { label: '月计', value: 1 }, { label: '日计', value: 2 }, { label: '时计', value: 3 }]} />
           {kind === 3 && (
             <label style={{ fontSize: 12 }}>
-              <input type="checkbox" checked={interp} onChange={(e) => setInterp(e.target.checked)} /> 时辰内插值（示意，非原典：只文昌、计神沿环向下一局之位滑去；太乙按洛书移宫飞行，始击、主客将仍逐局跳）
+              <input type="checkbox" checked={interp} onChange={(e) => setInterp(e.target.checked)} /> 时辰内插值（示意，非原典：只文昌、计神沿环向下一局之位滑去；太乙按太乙宫数移宫飞行，始击、主客将仍逐局跳）
             </label>
           )}
           {kind !== 3 && (
@@ -863,7 +883,7 @@ const TaiyiPanel = memo(function TaiyiPanel(props: { wasm: LunarBackend; ear: st
           return (
             <div className="gong-detail" style={{ marginTop: 10 }}>
               <Flex justify="space-between" align="center">
-                <Text strong>{`${'　坎坤震巽中乾兌艮離'[selG]}${selG}宫${d.men?.[selG] ? ` · ${d.men[selG]}` : ''}`}</Text>
+                <Text strong>{`${TY_GUA[selG] ?? ''}${selG}宫${d.men?.[selG] ? ` · ${d.men[selG]}` : ''}${d.shuaiWang?.gong[selG] ? ` · ${d.shuaiWang.jie}${d.shuaiWang.gong[selG]}` : ''}`}</Text>
                 <Button size="small" type="text" onClick={() => setSelG(null)}>✕</Button>
               </Flex>
               <div style={{ fontSize: 13 }}>{items.join('、') || <Text type="secondary" style={{ fontSize: 12 }}>此宫无太乙、诸将与宫中诸神</Text>}</div>
@@ -873,7 +893,7 @@ const TaiyiPanel = memo(function TaiyiPanel(props: { wasm: LunarBackend; ear: st
         {d && (
           <div style={{ marginTop: 10, lineHeight: 1.8 }}>
             <div>{`${d.kind}第${d.r}局 ${d.dun}遁 · ${d.yuan}元第${d.ju}局 · 第${d.ji}纪`}</div>
-            <div>太乙在{gongLink(d.gong, `${d.gong}宫`)}{`（入宫第${d.ruGong}）· 文昌${d.tianMu}（${d.tianMuPos}）· 計神${d.jiShen} · 始擊${d.shiJi}（${d.shiJiPos}）`}</div>
+            <div>太乙在{gongLink(d.gong, `${TY_GUA[d.gong] ?? ''}${d.gong}宫`)}{`（入宫第${d.ruGong}）· 文昌${d.tianMu}（${d.tianMuPos}）· 計神${d.jiShen} · 始擊${d.shiJi}（${d.shiJiPos}）`}</div>
             <div>{`主算${d.zhuSuan}（大將`}{gongLink(d.zhuDa, String(d.zhuDa ?? '杜'))}{'、參將'}{gongLink(d.zhuCan, String(d.zhuCan ?? '杜'))}{`）· 客算${d.keSuan}（大將`}{gongLink(d.keDa, String(d.keDa ?? '杜'))}{'、參將'}{gongLink(d.keCan, String(d.keCan ?? '杜'))}{'）'}</div>
             {d.dingJi && <div>{`定计目${d.dingJi}（${d.dingJiPos}）· 定算${d.dingJiSuan}（大將${d.dingJiDa ?? '杜'}、參將${d.dingJiCan ?? '杜'}）`}</div>}
             {d.siShen && <div style={{ fontSize: 13 }}>{`${d.suiNian ?? ''}岁：四神${d.siShen.name}、天乙${d.tianYi?.name ?? ''}、地乙${d.diYi?.name ?? ''}、直符${d.zhiFu?.name ?? ''}；五福${d.wuFu?.name ?? ''}；大游${d.daYou?.gong ?? ''}宫、小游${d.xiaoYou ?? ''}宫；君基${d.junJi?.zhi ?? ''}、臣基${d.chenJi?.zhi ?? ''}、民基${d.minJi?.zhi ?? ''}`}</div>}
@@ -885,6 +905,11 @@ const TaiyiPanel = memo(function TaiyiPanel(props: { wasm: LunarBackend; ear: st
             {(d.zhuJiangFa || d.keJiangFa) && <div style={{ fontSize: 13 }}>{[d.zhuJiangFa && '主將發', d.keJiangFa && '客將發'].filter(Boolean).join('、')}</div>}
             {d.zhiShiMen && <div style={{ fontSize: 13 }}><b>八门</b> {`${d.zhiShiMen}直使（入第${d.zhiShiRu}）· ${d.menJu ?? ''}`}</div>}
             {d.zhuSuanHe && <div style={{ fontSize: 13 }}>{`主算${suanText(d.zhuSuanHe)} · 客算${suanText(d.keSuanHe)}`}</div>}
+            {d.shuaiWang && (
+              <div style={{ fontSize: 13 }} title={d.shuaiWang.deng ? `福應經：「若太乙立${d.shuaiWang.deng}神${SHUAI_WANG_ZHU[d.shuaiWang.deng] ?? ''}」` : undefined}>
+                <b>衰旺</b> {`${d.shuaiWang.jie}，太乙立${d.shuaiWang.deng ?? '—'}${d.shuaiWang.deng ? `（${SHUAI_WANG_ZHU[d.shuaiWang.deng] ?? ''}）` : ''} · 衰旺立成依${d.shuaiWang.du}读（《景祐太乙福應經》卷十）`}
+              </div>
+            )}
             {d.shiJing && <div style={{ fontSize: 13 }}><b>十精</b> {d.shiJing.map((x) => `${x.n}${x.label}`).join('、')}{d.shiJingHe?.length ? `；${d.shiJingHe.join('、')}` : ''}</div>}
             {kind === 1 && yueFa === 1 && d.zhangSuiRun !== undefined && <div style={{ fontSize: 13 }}>{`章岁法本年${d.zhangSuiRun == null ? '无闰' : `闰${['', '正', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二'][d.zhangSuiRun]}月${d.zhangSuiRun >= 11 ? '（前一年）' : ''}`}（閏差二十秒二十七）`}</div>}
             {d.yangJiu && <div style={{ fontSize: 13 }}>{`${d.suiNian ?? ''}岁：第${d.yangJiu.di}陽九第${d.yangJiu.ruNian}年（${d.yangJiu.bang}邦）· 第${d.baiLiu?.di}百六第${d.baiLiu?.ruNian}年（${d.baiLiu?.bang}邦）`}</div>}
@@ -899,9 +924,10 @@ const TaiyiPanel = memo(function TaiyiPanel(props: { wasm: LunarBackend; ear: st
           {three(heFa, setHeFa, '算和', ['金镜', '淘金歌', '秘书'])}
           {three(sanCai, setSanCai, '三才', ['金镜', '淘金歌', '秘书'])}
           {three(eLi, setELi, '阳九百六', ['金镜甲寅积年', '黄帝元年起'])}
+          {three(swDu, setSwDu, '衰旺立成宫数', ['洛书数（坎一坤二……）', '太乙宫数（乾一離二……，未核）'])}
         </OptionsFold>
         <Notes>
-          据《太乙金鏡式經》卷一、《古今圖書集成·藝術典》卷六八八、《太乙秘書》、淘金歌；时计冬至后阳遁、夏至后阴遁。内圈八宫（太乙不入中五），其外主客定计将、宫中诸神；八门（绿为开休生）；外圈十六神位与神名、目击诸神、三基与天皇帝符天时。诸岁神依金镜卷五按年推（月日时计亦用该岁）；十精依金镜卷七以本计积数推，阴遁取阳遁所冲；阳九百六依金镜卷七按年推。
+          据《太乙金鏡式經》卷一、《古今圖書集成·藝術典》卷六八八、《太乙秘書》、淘金歌；时计冬至后阳遁、夏至后阴遁。内圈八宫（太乙不入中五），其外主客定计将、宫中诸神；八门（绿为开休生）；外圈十六神位与神名、目击诸神、三基与天皇帝符天时。诸岁神依金镜卷五按年推（月日时计亦用该岁）；十精依金镜卷七以本计积数推，阴遁取阳遁所冲；阳九百六依金镜卷七按年推。衰旺依《景祐太乙福應經》卷十衰旺立成，以所选时刻所交八节查太乙所立之宫（立成宫数缺省依洛书数读）。
         </Notes>
       </div>
     </Flex>

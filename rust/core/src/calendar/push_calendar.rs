@@ -355,7 +355,7 @@ pub type RegimeYearFn = fn(i32) -> (&'static str, Vec<(i64, u8, bool)>);
 /// 推步政权「秦」自此建亥年（秦王政元年，前 246）起合朔取统一后秦历之相位（见 `regime_calendars` 内 `qin_zhuanxu`）。
 pub const QIN_SHIYONG_FROM: i32 = -245;
 
-/// 推步政权表：(政权, 起年, 止年, 按年推步)。平朔历用 [LiParams]，金用定朔的 [super::daming_li]。
+/// 推步政权表：(政权, 起年, 止年, 按年推步)。平朔历用 [LiParams]（麴氏高昌经 [super::gaochang] 加历元平移），金用定朔的 [super::daming_li]。
 /// 与 [gregorian_to_all_regimes_lunar] 所用相同。
 pub fn regime_calendars() -> Vec<(&'static str, i32, i32, RegimeYearFn)> {
     fn ping(y: i32, (name, p): (&'static str, LiParams)) -> (&'static str, Vec<(i64, u8, bool)>) {
@@ -458,6 +458,11 @@ pub fn regime_calendars() -> Vec<(&'static str, i32, i32, RegimeYearFn)> {
             .collect();
         ("颛顼历（包山楚简检验，冬柰当夏正十月）", ms)
     }
+    // 麴氏高昌（523—640）：正光常数 + 两段历元平移 δ（616 年以前 −0.144 日，617 年起 +0.026 日），δ 由吐鲁番砖志反推，
+    // 不是术文（[super::gaochang]，doc/calendar/tulufan-jiri-checks.md「高昌历推步」）；640 年八月唐平高昌，此后行唐历（中原一线）
+    fn gaochang(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
+        super::gaochang::year_months(y).unwrap_or(("高昌历", Vec::new()))
+    }
     // 西夏（1120—1207）：俄藏 Инв.No.8085 等历书，彭向前 2018 整理的西夏历朔闰；西夏朔日原缺之月以宋历代（super::xixia）
     fn xixia(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
         ("西夏历（Инв.No.8085 等，彭向前整理）", super::xixia::year_months(y))
@@ -476,6 +481,7 @@ pub fn regime_calendars() -> Vec<(&'static str, i32, i32, RegimeYearFn)> {
         ("后秦", 384, 416, later_qin),
         ("北凉", 398, 439, northern_liang),
         ("北魏/西魏/北周/隋", 398, 590, wzs),
+        ("高昌", super::gaochang::YEARS.0, super::gaochang::YEARS.1, gaochang),
         ("东魏/北齐", 534, 577, wq),
         ("金", 1137, 1234, jin),
     ]
@@ -934,6 +940,24 @@ mod tests {
             vec![("北凉", 430, 2, 1), ("北魏/西魏/北周/隋", 430, 2, 1), ("吴", 244, 12, 1), ("吴", 247, 9, -1)],
             "朔日不同之月（上游人工修正）"
         );
+    }
+
+    /// 麴氏高昌经推步政权表接入换算：615 年六月卅日（义和二年，唐幼谦妻麴氏墓表「六月朔辛酉，卅日庚寅」）、617 年十一月戊申朔；640 年以后不给
+    #[test]
+    fn gaochang_regime_routes() {
+        let (cal, ms) = regime_year_months("高昌", 617).unwrap();
+        assert_eq!(cal, "高昌历（正光常数，历元 +0.026 日）");
+        let nov = ms.iter().find(|e| e.1 == 11 && !e.2).unwrap().0;
+        assert_eq!((nov + 49).rem_euclid(60), 44, "617 年十一月戊申朔");
+        // 民用历（儒略历）615 年 6 月卅日之日：由六月朔推得，再转前推格里高利历查换算
+        let jun = regime_year_months("高昌", 615).unwrap().1.into_iter().find(|e| e.1 == 6 && !e.2).unwrap().0;
+        assert_eq!((jun + 49).rem_euclid(60), 57, "615 年六月辛酉朔");
+        let day30 = jun + 29;
+        assert_eq!((day30 + 49).rem_euclid(60), 26, "卅日庚寅");
+        let (gy, gm, gd) = gregorian::Gregorian::from_julian_day(crate::math::real::real(day30 as f64));
+        let e = gregorian_to_all_regimes_lunar(gy, gm, gd).into_iter().find(|e| e.region == "高昌").expect("高昌应有此日");
+        assert_eq!((e.lunar_year, e.month, e.is_leap, e.day), (615, 6, false, 30));
+        assert!(gregorian_to_all_regimes_lunar(642, 1, 1).iter().all(|e| e.region != "高昌"));
     }
 
     #[test]

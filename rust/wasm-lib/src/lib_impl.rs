@@ -878,7 +878,8 @@ pub fn nian_shen_json(jd: f64, vsop87_ear: &str) -> Result<String, JsValue> {
 /// "biWu":[{"n":"避五","gong","basis","note"}]（转盘直符或直使在五，演义卷三）。
 /// `jia` 0 时家（缺省）1 日家（以日干支为时，局取本日子时之时家局；統宗「遁日奇法」、元靈經）2 月家（以月建干支为时，阴遁本元之局）
 /// 3 年家（三元年遁，演义卷一）；`jia_rule` 月家元局 0 演义（孟上一、仲中七、季下四）1 統宗（仲上一、孟中四、季下七）。
-/// 另出 "jia"（家名与局）、"shunFei":[string]（順飛诸法：遁年奇、遁月奇、統宗日家九星顺飞与局、演义日家月家休门）。年月以立春、交节（子平四柱）
+/// 另出 "jia"（家名与局）、"shunFei":[string]（順飛诸法：遁年奇、遁月奇、統宗日家九星顺飞与局、演义日家月家休门、秘笈大全起月例月奇）、
+/// "riJiaBaMen"/"daBaMen":[null,"休門",…洛书 1—9 宫，中五 null]（秘笈大全卷二十日家八门全布、大八門逐日出行，皆按页面日柱，后者按所交节气）。年月以立春、交节（子平四柱）
 #[wasm_bindgen]
 pub fn qimen_json(jd_ut: f64, vsop87_ear: &str, hour_gz: u8, method: u8, ji_gong: u8, shen_ming: u8, ding_ju: u8, source: u8, day_gz: u8, an_gan: u8, gan_mu: u8, ji_xing: u8, kong: u8, jia: u8, jia_rule: u8) -> Result<String, JsValue> {
     use lunar_core::folk::qimen;
@@ -926,7 +927,7 @@ pub fn qimen_json(jd_ut: f64, vsop87_ear: &str, hour_gz: u8, method: u8, ji_gong
         _ => (qimen::pai_pan(&ju, hour_gz % 60, opts), format!("時家 {}", ju.describe())),
     };
     // 顺飞诸法（各自成说，只作文字）：节气取当时所交之节气（定气）
-    let shun_fei = {
+    let term = {
         let jd_tt = jd_ut + lunar_core::astronomy::time::delta_t(real(jd_ut)).seconds().as_f64() / 86400.0;
         let mut last: Option<(f64, usize)> = None;
         for y in [gy - 1, gy] {
@@ -937,7 +938,13 @@ pub fn qimen_json(jd_ut: f64, vsop87_ear: &str, hour_gz: u8, method: u8, ji_gong
                 }
             }
         }
-        let term = last.map_or(18, |x| x.1);
+        last.map_or(18, |x| x.1)
+    };
+    // 秘笈大全卷二十日家八门全布（「八門三奇出行定局」）与大八門（「大八門逐日出行訣」，按节气分六段），日干支取页面日柱
+    let men10 = |a: [&'static str; 10]| json_arr(a.iter().map(|m| if m.is_empty() { "null".into() } else { json_str(m) }));
+    let ri_jia_ba_men = men10(qimen::ri_jia_ba_men(day_gz % 60));
+    let da_ba_men = men10(qimen::da_ba_men(day_gz % 60, term));
+    let shun_fei = {
         let tn = qimen::JIE_QI[term];
         let (nd, tou) = qimen::dun_nian_qi(year_gz, term);
         let qi3 = |d: &[&str; 10]| ["乙", "丙", "丁"].iter().map(|q| format!("{q}{}", (1..=9).find(|&p| d[p] == *q).unwrap_or(0))).collect::<Vec<_>>().join("、");
@@ -950,6 +957,10 @@ pub fn qimen_json(jd_ut: f64, vsop87_ear: &str, hour_gz: u8, method: u8, ji_gong
             format!("遁月奇（統宗）：{}年在{ng}宫，本月（{}）在{}宫；三奇之月到{}宫", gzn(year_gz), gzn(month_gz), mg[mi], mq.iter().map(|g| g.to_string()).collect::<Vec<_>>().join("、")),
             format!("日家（統宗附日奇門）：{}{}局，九星順飛 {xing}", if qimen::is_yang(term) { "陽" } else { "隂" }, qimen::ri_jia_ju_tong_zong(day_gz % 60)),
             format!("休門（演義）：日家在{}，月家在{}", qimen::ri_jia_xiu_men(day_gz % 60), qimen::yue_jia_xiu_men(month_gz)),
+            {
+                let yq = qimen::yue_jian_qi(mg[mi], month_gz, qimen::is_yang(term));
+                format!("月奇（秘笈大全起月例，未核）：月建{}於{}宫起，乙{}丙{}丁{}", gzn(month_gz), mg[mi], yq[0], yq[1], yq[2])
+            },
         ];
         json_arr(lines.iter().map(|l| json_str(l)))
     };
@@ -1043,9 +1054,11 @@ pub fn qimen_json(jd_ut: f64, vsop87_ear: &str, hour_gz: u8, method: u8, ji_gong
         )
     }));
     Ok(format!(
-        "{{\"jia\":{},\"shunFei\":{},\"ju\":{},\"xunShou\":{},\"xunYi\":{},\"zhiFu\":{},\"zhiShi\":{},\"zhiFuGong\":{},\"zhiShiGong\":{},\"gong\":{},\"geju\":{},\"xunKong\":{},\"xu\":{},\"kongGong\":{},\"riXunKong\":{},\"ma\":{},\"maGong\":{},\"jieLuKong\":{},\"yueJiang\":{},\"fangGe\":{},\"sanSheng\":{},\"biWu\":{}}}",
+        "{{\"jia\":{},\"shunFei\":{},\"riJiaBaMen\":{},\"daBaMen\":{},\"ju\":{},\"xunShou\":{},\"xunYi\":{},\"zhiFu\":{},\"zhiShi\":{},\"zhiFuGong\":{},\"zhiShiGong\":{},\"gong\":{},\"geju\":{},\"xunKong\":{},\"xu\":{},\"kongGong\":{},\"riXunKong\":{},\"ma\":{},\"maGong\":{},\"jieLuKong\":{},\"yueJiang\":{},\"fangGe\":{},\"sanSheng\":{},\"biWu\":{}}}",
         json_str(&jia_label),
         shun_fei,
+        ri_jia_ba_men,
+        da_ba_men,
         json_str(&pan.ju.describe()),
         json_str(pan.xun_shou),
         json_str(pan.xun_yi),
@@ -1844,7 +1857,10 @@ pub fn liuren_json(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8, rule:
 /// "zhiShiMen":"開門","zhiShiRu":..,"men":[null,"開門",…],"menJu":"三門具","zhuMenJu":bool,"keMenJu":bool,
 /// "zhuSuanHe"/"keSuanHe":{"he":bool,"ming":["上和"],"sanCai":"無天"},"shiJing":[{"n":"天皇","pos":"申","label":"武德"},…],
 /// "shiJingHe":["飛鳥合太乙"],"yangJiu"/"baiLiu":{"di":..,"ruNian":..,"bang":"寅"},"zhangSuiRun":所闰之月 1—12 或 null（金鏡章岁法，11、12 为前一年冬月腊月）}。
-/// `opts` 位域（0 为缺省）：0—1 布门、2—3 门具、4—5 算和与算名、6—7 三才、8 阳九百六积年、9 月计章岁法、10 时计八门王希明二至加时起门（doc/folk/taiyi.md 第九节）
+/// 衰旺（福應經卷十衰旺立成）："shuaiWang":{"jie":"立冬","du":"洛書數"|"太乙宫數","deng":"旺"|…|null（太乙所立之宫）,
+/// "gong":[null,…各宫（太乙九宫数 1—9，中五 null）之衰旺]}，八节取所选时刻所交之节气。
+/// `opts` 位域（0 为缺省）：0—1 布门、2—3 门具、4—5 算和与算名、6—7 三才、8 阳九百六积年、9 月计章岁法、10 时计八门王希明二至加时起门、
+/// 11 衰旺立成宫数读法（0 洛书数、1 太乙宫数）（doc/folk/taiyi.md 第九节）
 #[wasm_bindgen]
 pub fn taiyi_json(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8, kind: u8, school: u8, dun: u8, opts: u32) -> Result<String, JsValue> {
     use lunar_core::astronomy::aspects::solar_term_jds_for_year_cached;
@@ -2014,6 +2030,30 @@ pub fn taiyi_json(jd_ut: f64, vsop87_ear: &str, day_gz: u8, hour_zhi: u8, kind: 
                 ",\"zhangSuiRun\":{}",
                 taiyi::zhang_sui_run_yue(year, taiyi::JiNian::JinJing, taiyi::RunYueFa::XiangZhi).map(|(_, m)| m.to_string()).unwrap_or_else(|| "null".into())
             )
+            // 衰旺（福應經卷十「凡占萬物，當以太乙立休囚王相決之」，doc/folk/taiyi.md 第十三节「宫数读法」）：
+            // 八节取所选时刻所交之节气（定气，立春起）；opts 位 11 读法 0 洛书数（缺省）1 太乙宫数
+            + &{
+                let du = if opts >> 11 & 1 == 1 { sj::ShuaiWangDu::TaiYiGong } else { sj::ShuaiWangDu::LuoShu };
+                let mut last: Option<(f64, usize)> = None;
+                for y in [gy - 1, gy] {
+                    for (k, t) in solar_term_jds_for_year_cached(vsop.as_ref(), y).into_iter().enumerate() {
+                        let t = t.as_f64();
+                        if t <= jd_tt && last.map_or(true, |(lt, _)| t > lt) {
+                            last = Some((t, k));
+                        }
+                    }
+                }
+                // 节气序春分 = 0 … 立春 = 21 → 八节序立春 = 0 … 冬至 = 7
+                let jie = (last.map_or(18, |x| x.1) + 3) % 24 / 3;
+                let deng = |g: u8| sj::tai_yi_shuai_wang(jie, g, du).map(|i| json_str(sj::SHUAI_WANG[i])).unwrap_or_else(|| "null".into());
+                format!(
+                    ",\"shuaiWang\":{{\"jie\":{},\"du\":{},\"deng\":{},\"gong\":{}}}",
+                    json_str(sj::BA_JIE[jie]),
+                    json_str(if du == sj::ShuaiWangDu::LuoShu { "洛書數" } else { "太乙宫數" }),
+                    deng(j.gong),
+                    json_arr((0..10u8).map(|g| if g == 0 || g == 5 { "null".into() } else { deng(g) }))
+                )
+            }
     };
     Ok(format!(
         "{{\"kind\":{},\"r\":{},\"dun\":{},\"yuan\":{},\"ju\":{},\"ji\":{},\"gong\":{},\"ruGong\":{},\"tianMu\":{},\"tianMuPos\":{},\"jiShen\":{},\"shiJi\":{},\"shiJiPos\":{},\"zhuSuan\":{},\"keSuan\":{},\"zhuDa\":{},\"zhuCan\":{},\"keDa\":{},\"keCan\":{}{}}}",

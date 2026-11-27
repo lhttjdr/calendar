@@ -2,7 +2,7 @@
 //!
 //! **四层结构**（见 `doc/calendar/calendar-layers.md`、跨域关系见 `doc/architecture/three-domains.md`）：
 //! - **第 1 层·独立基础层**（不查天文）：[gregorian]（儒略历/格里高利历）、[ancient_restore]（古历复原：分数推步、
-//!   平朔平气，仅作验证）、[push_calendar]（历谱生成；定朔的金重修大明历在 [daming_li]）、[gan_zhi]（干支纯循环命名）、
+//!   平朔平气，仅作验证）、[push_calendar]（历谱生成；定朔的金重修大明历在 [daming_li]；麴氏高昌历即正光常数加两段历元平移，在 [gaochang]）、[gan_zhi]（干支纯循环命名）、
 //!   [pingqi]（按行用历推平气；只在换时标时用 ΔT）。
 //! - **第 2 层·聚合/实算层**：某一部历的具体历日，按来源分四种——[artifacts]（实物历日，如《宝祐四年会天历》）、
 //!   [push_calendar] 按术推步（第 1 层的历谱生成在此用作某历的历日）、[historical]（[historical::ShuoriTable]，今人历表：
@@ -35,6 +35,7 @@ pub mod shixian_xinfa;
 pub mod dunhuang;
 pub mod era_gaiyuan;
 pub mod era_names;
+pub mod gaochang;
 pub mod gan_zhi;
 pub mod gan_zhi_options;
 pub mod gregorian;
