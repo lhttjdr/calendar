@@ -27,6 +27,7 @@
 """
 import csv
 import sys
+from functools import lru_cache
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -104,9 +105,9 @@ NOTES = """
   （各取满足最多之区间 [−0.14497, −0.14307)、[+0.01548, +0.03556) 之中），年限 523—640，经推步政权表（政权「高昌」）供换算。
   δ 由本页砖志反推，属「按术推步 + 据实物定参」，不是术文。麴氏高昌朔 162 条合 142（正光不平移 128、玄始 123、张表 113），
   闰 7 条合 6，卅日 11 条合 10，630 残历有据之月 11 全合。按月分类（147 月）：与张表**相同 117**（有证 103／同误 13／无证 1），
-  **互异 30**（①证张表误 25／②证推步误 0／③无据待核 5）。旧以正光外推（不平移）为推步一栏时相同 130（有证 103／同误 27／无证 0）、
+  **互异 30**（①证张表误 24／②证推步误 0／③无据待核 6；① 须过留一检验，原 25 月中 573 年三月不过改 ③，见「分类」节）。旧以正光外推（不平移）为推步一栏时相同 130（有证 103／同误 27／无证 0）、
   互异 17（①12／②0／③5）；今只记日序干支、不书朔者作纪日（D 级）一条不判，正光外推一栏 567 年七月（第 8 条）由①改③，成①11／③6。
-  正光外推 → 高昌推步之变：14 个月由「同误（墓表早张表、正光一日）」变为①，567 年七月由③变为无证（推步闰位移到六月后，与张表同）。
+  正光外推 → 高昌推步之变：14 个月由「同误（墓表早张表、正光一日）」变为①（留一检验后 13 个月仍①、1 个月③），567 年七月由③变为无证（推步闰位移到六月后，与张表同）。
   这 14 个月正是 δ 所据，推步合之是拟合的结果；墓表证张表误则不依赖 δ。
   区间两端各重跑一次，逐条结果与取中全同；切点移到 616、618、620 年合计各少 1 条（见「高昌历推步」一节）。
 - **未合之条**（高昌历推步，逐条见「未能合之条」）：朔 20 条——月名差一 7（多为墓表书误或解释之异，567 年七月纪日、592 年五月等），
@@ -257,17 +258,23 @@ def leap_section(rows, zhang):
     return out
 
 
-def shift_section(delta, P, pname, rows=()):
-    """把朔日记录与「某月卅日」（data/calendar/高昌_卅日.csv）合起来，求某历（P）平朔整体平移 δ（及随时间线性变化的 δ）的可行域。
+@lru_cache(maxsize=None)
+def _leap_hits(pkey, y, mo, lstep):
+    import numpy as np
+    P = dict(pkey)
+    lgrid = np.round(np.arange(-1.0, 1.0, lstep), 3)
+    return np.array([any(m == mo and lp for m, lp, _ in pingshuo_year(dict(P, jd_epoch=P["jd_epoch"] + d), y)) for d in lgrid])
 
-    朔日记录：floor(m + δ + 0.5) = 所记朔日（m 取所记朔日最近的该历平朔，不受闰位影响）；
-    卅日记录：该月为大月，即 floor(m₂ + δ + 0.5) − floor(m₁ + δ + 0.5) = 30，m₁、m₂ 取该历外推中同名之月及下月
-    （高昌闰位若与该历不同，月名所指可差一月）。只用麴氏高昌。"""
+
+def delta_constraints(delta, P, rows):
+    """以历 P 为底的 δ 约束：(朔日与卅日约束, 闰月约束, 闰月网格步)。每条约束 (标签, 年, 距 630 年十二月月数, 判定函数 δ→布尔)；
+    标签以「（编号）」结尾（卅日为「（王素 编号）」），供留一检验剔除某条砖志。
+    朔日：floor(m + δ + 0.5) = 所记朔日；卅日：该月为大月；闰月：平移 δ 后（气不动）当年有此闰月。只用麴氏高昌。"""
     import numpy as np
     xs = extrap_table(P, 530, 645)
     lunar = P["lunar"]
     ref = mean_conj(P, xs[(630, 12, False)])
-    cons = []  # (标签, 年, 月数 n, 判定函数(δ数组)→布尔数组)
+    cons = []
     for r, lo, hi, m in delta:
         if r["政权"] != "麴氏高昌":
             continue
@@ -286,6 +293,80 @@ def shift_section(delta, P, pname, rows=()):
         n = round((m1 - ref) / lunar)
         cons.append((f"卅日 {y}年{MON[mo - 1]}月（王素 {r['编号']}）", y, n,
                      lambda d, m1=m1, m2=m2: (np.floor(m2 + d + 0.5) - np.floor(m1 + d + 0.5)) == 30))
+    lstep = 0.005
+    pkey = tuple(sorted(P.items()))
+    lcons = []
+    for r in rows:
+        if r["闰"] != "1" or r.get("计入", "1") == "0" or r["政权"] != "麴氏高昌":
+            continue
+        y, mo = int(r["公元"]), int(r["月"])
+        hit = _leap_hits(pkey, y, mo, lstep)
+        n = round((mean_conj(P, xs[(y, mo, False)]) - ref) / lunar)
+        lcons.append((f"閏 {y}年閏{MON[mo - 1]}月（{r['编号']}）", y, n,
+                      lambda d, hit=hit: hit[np.clip(np.round((np.asarray(d) + 1.0) / lstep).astype(int), 0, len(hit) - 1)]))
+    return cons, lcons, lstep
+
+
+def add_630_delta(delta):
+    """延寿七年（630）残历有据之月并入 δ 约束（以玄始外推为参照，记朔日区间）。"""
+    xs = extrap_table(XUANSHI, 390, 645)
+    for r in csv.DictReader(l for l in open(ROOT / "data/calendar/gaochang_630.csv", encoding="utf-8") if not l.startswith("#")):
+        if r["依据"] == "推拟":
+            continue
+        key = (int(r["年"]), int(r["月"]), r["闰"] == "1")
+        if key not in xs:
+            continue
+        s = GZI[r["朔干支"]]
+        m = mean_conj(XUANSHI, xs[key])
+        D = next(xs[key] + k for k in range(-2, 3) if (xs[key] + k + 49) % 60 == s)
+        delta.append(({"编号": "630残历", "公元": r["年"], "月": r["月"], "闰": r["闰"], "政权": "麴氏高昌"}, D - 0.5 - m, D + 0.5 - m, m))
+
+
+def loo_check(delta, rows, obs, cls, zhang):
+    """留一检验（推步参数由砖志反推，推步与某砖志相合可能只是拟合所致）：对高昌推步判 ① 之月，剔除该月诸砖志（及其闰月约束），
+    以其余约束重求该段 δ（满足最多之区间中、取离原值最近之一段的中点，步 0.001），重推该月。
+    → {月: (留一 δ, 留一推步朔, 是否仍合砖志而异张表)}。"""
+    import numpy as np
+    P = OTHERS["正光"]
+    cons, lcons, _ = delta_constraints(delta, P, rows)
+    allc = cons + lcons
+    grid = np.round(np.arange(-1.0, 1.0, 0.001), 3)
+    (y1, d1, _), (y2, d2, _) = GC_SEG
+    out = {}
+    for k, (c, _, _) in cls.items():
+        if c != "①":
+            continue
+        ids = {x[2] for x in obs[k]}
+        later = k[0] >= y2
+        cs = [x for x in allc if (x[1] >= y2) == later and not any(x[0].endswith(f"（{i}）") for i in ids)]
+        sat = np.zeros_like(grid, dtype=int)
+        for x in cs:
+            sat += x[3](grid)
+        best = sat == sat.max()
+        # 最优点分成连续段，取离原 δ 最近之段的中点
+        idx = np.flatnonzero(best)
+        runs = np.split(idx, np.flatnonzero(np.diff(idx) > 1) + 1)
+        d0 = d2 if later else d1
+        run = min(runs, key=lambda r: min(abs(grid[r[0]] - d0), abs(grid[r[-1]] - d0)))
+        dn = round((grid[run[0]] + grid[run[-1]] + 0.001) / 2, 3)
+        t = gaochang_table(dn if not later else d1, dn if later else d2)
+        sg = _g(t, k)
+        rec = {x[0] for x in obs[k]}
+        out[k] = (dn, sg, sg in rec and sg != _g(zhang, k))
+    return out
+
+
+def shift_section(delta, P, pname, rows=()):
+    """把朔日记录与「某月卅日」（data/calendar/高昌_卅日.csv）合起来，求某历（P）平朔整体平移 δ（及随时间线性变化的 δ）的可行域。
+
+    朔日记录：floor(m + δ + 0.5) = 所记朔日（m 取所记朔日最近的该历平朔，不受闰位影响）；
+    卅日记录：该月为大月，即 floor(m₂ + δ + 0.5) − floor(m₁ + δ + 0.5) = 30，m₁、m₂ 取该历外推中同名之月及下月
+    （高昌闰位若与该历不同，月名所指可差一月）。只用麴氏高昌。"""
+    import numpy as np
+    xs = extrap_table(P, 530, 645)
+    lunar = P["lunar"]
+    ref = mean_conj(P, xs[(630, 12, False)])
+    cons, lcons, lstep = delta_constraints(delta, P, rows)
     grid = np.round(np.arange(-1.0, 1.0, 0.001), 3)
     out = [f"## {pname}平朔整体平移 δ 的可行域（并入「某月卅日」）", "",
            f"把上表朔日与 `data/calendar/高昌_卅日.csv` 的「某月卅日」（该月须大）合起来，以{pname}外推为底，逐条求 δ 的可行区间（步长 0.001 日），"
@@ -335,18 +416,7 @@ def shift_section(delta, P, pname, rows=()):
         else:
             out.append(f"- {name}：可行切点 {len(ok)} 处，最早在「{ok[0][0]}」之后（前段 δ ∈ {ok[0][2]}，后段 {ok[0][3]}），"
                        f"最晚在「{ok[-1][1]}」之前（前段 {ok[-1][2]}，后段 {ok[-1][3]}）。")
-    # 闰月并入：平移 δ 后该历当年闰位是否与高昌所记相合（δ 网格步 0.005，取最近格点）
-    lstep = 0.005
-    lgrid = np.round(np.arange(-1.0, 1.0, lstep), 3)
-    lcons = []
-    for r in rows:
-        if r["闰"] != "1" or r.get("计入", "1") == "0" or r["政权"] != "麴氏高昌":
-            continue
-        y, mo = int(r["公元"]), int(r["月"])
-        hit = np.array([any(m == mo and lp for m, lp, _ in pingshuo_year(dict(P, jd_epoch=P["jd_epoch"] + d), y)) for d in lgrid])
-        n = round((mean_conj(P, xs[(y, mo, False)]) - ref) / lunar)
-        lcons.append((f"閏 {y}年閏{MON[mo - 1]}月（{r['编号']}）", y, n,
-                      lambda d, hit=hit: hit[np.clip(np.round((np.asarray(d) + 1.0) / lstep).astype(int), 0, len(hit) - 1)]))
+    # 闰月并入：平移 δ 后该历当年闰位是否与高昌所记相合（δ 网格步 0.005，取最近格点；约束见 delta_constraints）
     out += ["", f"闰月并入：{pname}平朔平移 δ 后（气不动），当年闰位与高昌所记相合的 δ 区间（网格步 {lstep} 日）：", "",
             "| 约束 | 公元 | δ 可行区间 | 容于前段 | 容于后段 |", "|---|---|---|---|---|"]
     for c in lcons:
@@ -494,8 +564,9 @@ MISMATCH_NOTES = {
 }
 
 
-def fenlei_section(rows, zhang, gc, xs, zg):
-    """麴氏高昌有朔之月按月分类：高昌历推步（正光 + δ）与张表互异、相同；玄始、正光外推（不平移）作对照。"""
+def fenlei_section(rows, zhang, gc, xs, zg, delta):
+    """麴氏高昌有朔之月按月分类：高昌历推步（正光 + δ）与张表互异、相同；玄始、正光外推（不平移）作对照。
+    高昌推步之 ① 须过留一检验（loo_check）：剔除该月砖志重求 δ 后推步仍合，才算推步与砖志两路独立；否则改 ③。"""
     obs = month_obs(rows)
     tang = Counter()
     for r in rows:
@@ -503,12 +574,24 @@ def fenlei_section(rows, zhang, gc, xs, zg):
             tang[judge(r, zhang)[1][0]] += 1
     tabs = {"高昌推步": classify_months(obs, gc, zhang), "正光外推": classify_months(obs, zg, zhang),
             "玄始外推": classify_months(obs, xs, zhang)}
+    loo = loo_check(delta, rows, obs, tabs["高昌推步"], zhang)
+    raw_one = sum(1 for v in tabs["高昌推步"].values() if v[0] == "①")
+    for k, (dn, sg, ok) in loo.items():
+        c, note, g = tabs["高昌推步"][k]
+        if ok:
+            tabs["高昌推步"][k] = ("①", f"留一通过：剔除本月砖志重求 δ = {dn:+.3f}，推步仍{sg}" + (f"；{note}" if note else ""), g)
+        else:
+            tabs["高昌推步"][k] = ("③", f"留一不过：剔除本月砖志重求 δ = {dn:+.3f}，推步作{sg}，与砖志之合系 δ 拟合所致；倾向砖志", g)
+    n_pass = sum(1 for v in loo.values() if v[2])
     out = ["", "## 分类（按月）", "",
            "分类对象是**高昌历推步**（正光常数 + 两段历元平移，见下「高昌历推步」）与张表，限麴氏高昌有朔（明书或由日序逆推）之月。"
            "墓表、衣物疏明书朔者是当时文字（B 级），一条即可判，同月诸条冲突归③；只记日序与日干支、不书朔者作纪日（D 级），"
            "同月两条以上独立才判，一条者相同归无证、互异归③。同月诸方各算一条。一家无此月（闰位异）者亦算互异。"
-           "张表在此段是中原历，不代表高昌历日，①即「张表不能代表高昌」。δ 是由这些砖志反推的参数，"
-           "故「有证」不全是独立检验（见下「高昌历推步」一节之说明）。" + fl.RULE, ""]
+           "张表在此段是中原历，不代表高昌历日，①即「张表不合高昌所行之历」（不是说张表作为中原历表有误）。δ 是由这些砖志反推的参数，"
+           "推步与某砖志相合可能只是拟合所致，故**①须过留一检验**：剔除该月砖志（朔、闰约束）后以其余约束重求该段 δ"
+           "（满足最多之区间、取离原值最近一段之中点），重推该月仍合砖志而异张表，才算砖志与推步两路独立、判 ①；否则改 ③（倾向砖志）。"
+           "中原各朝推步出自术文、与砖志墓志无关，不需此检验。「有证」同理不全是独立检验（见下「高昌历推步」一节之说明）。" + fl.RULE, "",
+           f"留一检验：原判 ① 之月 {raw_one}，过者 {n_pass}，改 ③ {raw_one - n_pass}（逐月见下表「分类（高昌推步）」括注）。", ""]
     for name in ("高昌推步", "正光外推", "玄始外推"):
         cats = [(c, g) for c, _, g in tabs[name].values() if c]
         lab = {"高昌推步": "**高昌历推步（正光 + δ）**", "正光外推": "正光外推（不平移，对照）", "玄始外推": "玄始外推（不平移，对照）"}[name]
@@ -720,23 +803,14 @@ def main():
                 md.append(f"| {g} | " + " | ".join(cells) + " |")
         md.append("")
 
-    md += fenlei_section(rows, zhang, gc, xs, others["正光"])
+    add_630_delta(delta)
+    md += fenlei_section(rows, zhang, gc, xs, others["正光"], delta)
     md += gaochang_section(rows, gc, zhang)
     # δ 区间
     md += ["", "## 玄始外推的常数偏移 δ", "",
            "设高昌实用之历的平朔比本项目玄始常数一律晚 δ 日（δ>0 即合朔时刻推后），各条有据之朔容许的 δ 区间如下"
            "（含 630 年残历诸月，录自 data/calendar/gaochang_630.csv 之有据者）。", "",
            "| 来源 | 公元 | 月 | 记朔 | 玄始小余 | δ 下限 | δ 上限 |", "|---|---|---|---|---|---|---|"]
-    for r in csv.DictReader(l for l in open(ROOT / "data/calendar/gaochang_630.csv", encoding="utf-8") if not l.startswith("#")):
-        if r["依据"] == "推拟":
-            continue
-        key = (int(r["年"]), int(r["月"]), r["闰"] == "1")
-        if key not in xs:
-            continue
-        s = GZI[r["朔干支"]]
-        m = mean_conj(XUANSHI, xs[key])
-        D = next(xs[key] + k for k in range(-2, 3) if (xs[key] + k + 49) % 60 == s)
-        delta.append(({"编号": "630残历", "公元": r["年"], "月": r["月"], "闰": r["闰"], "政权": "麴氏高昌"}, D - 0.5 - m, D + 0.5 - m, m))
     for r, lo, hi, m in sorted(delta, key=lambda x: x[3]):
         lab = ("閏" if r["闰"] == "1" else "") + MON[int(r["月"]) - 1] + "月"
         sg = GZ[(round(lo + m + 0.5) + 49) % 60]
