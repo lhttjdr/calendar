@@ -174,7 +174,7 @@ $$m_{\lim} = m_{\text{网格}} + f\bigl(\lg(B + C/\theta^2)\bigr) - f(\lg B)$$
 |---|---:|---:|---:|---:|---:|---:|---:|
 | 极限星等 | 0.48 | 2.47 | 3.13 | 3.64 | 3.82 | 3.90 | 3.92 |
 
-与 Schaefer 1991 图 1「紧靠满月极限约 0 等」的已有对照（本实现 0.4 等，见 [phenomena-checks](./phenomena-checks.md)）一致。极限星等这一节不算太阳眩光：白昼极限星等已低到看不见一般恒星。行星作眩光源也未接入，同偕日。
+与 Schaefer 1991 图 1「紧靠满月极限约 0 等」的已有对照（本实现 0.4 等，见 [phenomena-checks](./phenomena-checks.md)）一致。极限星等这一节不算太阳眩光：白昼极限星等已低到看不见一般恒星。行星作眩光源也未接入（偕日伏见一节已计，`HeliacalOptions::include_planet_glare`，见 [celestial-phenomena.md](celestial-phenomena.md)「行星作眩光源」）。
 
 网格上的亮度本身仍是不含眩光的大气亮度；眩光在着色器里另加，既压低极限星等，也画成光晕，见下。
 
