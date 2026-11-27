@@ -183,7 +183,7 @@ $\Delta T$ 的配套要知道两部月历表的月亮平黄经之差 $\Delta\lam
 ## 参考文献
 
 1. 《元史》卷五十四《曆志三·授時曆經上》，明宋濂等撰。据维基文库录文；《步日躔第三·求盈縮差》。
-2. 张培瑜、陈美东、薄树人、胡铁珠：《中国古代历法》，中国科学技术出版社，2013 年，第一章《历表及表格计算法》，第 5、51、55 页。
+2. 张培瑜、陈美东、薄树人、胡铁珠：《中国古代历法》，中国科学技术出版社，2008 年初版，据 2013 年印本，第一章《历表及表格计算法》，第 5、51、55 页。
 3. A.-M. Legendre, *Nouvelles méthodes pour la détermination des orbites des comètes*, Paris, 1805；附录《Sur la méthode des moindres quarrés》，第 72—73 页。据 archive.org 所存 1805 年本核。
 4. C. F. Gauss, *Theoria motus corporum coelestium in sectionibus conicis solem ambientium*, Hamburg, 1809, §§175–186。据 archive.org 所存 1809 年本核第 186 条。
 5. C. F. Gauss, *Theoria combinationis observationum erroribus minimis obnoxiae*, Göttingen, 1823，第 17 条起（回顾正态误差律下的论证与拉普拉斯的大样本论证，再给出不依赖误差律的一般论证）。据 archive.org 所存本核。
