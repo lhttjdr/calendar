@@ -8,7 +8,8 @@
 //! 输出 `data/calendar/dingshuo_zhangbiao_diffs.csv`，并改写 `doc/calendar/dingshuo-zhangbiao-diffs.md` 中
 //! `<!-- 生成开始 -->`、`<!-- 生成结束 -->` 之间的部分（其余为手写）。
 //! 用法（仓库根）：cargo run --release --manifest-path rust/Cargo.toml -p lunar-core --no-default-features --features real-f64 --example dingshuo_zhangbiao_diffs
-use lunar_core::calendar::dingshuo::{dingshuo_months, DingshuoMonth};
+use lunar_core::calendar::dingshuo::{dingshuo_months, Biaoduan, DingshuoMonth};
+use lunar_core::calendar::song_early;
 use lunar_core::calendar::gan_zhi::GAN_ZHI_60;
 use lunar_core::calendar::historical::ShuoriTable;
 use lunar_core::calendar::lifa::{zhongyuan_year_months, RiliSource, ZhongyuanCalendarPeriods, ZhongyuanPreference};
@@ -78,6 +79,8 @@ struct Diff {
     ding: Option<(i64, f64, Option<f64>, bool, f64)>,
     /// 经朔入交入食限（「朔望有交」，大衍一系此等月用精法）；None 为未复原交会
     youjiao: Option<bool>,
+    /// 经朔所入表段（[Biaoduan]）
+    bd: Option<Biaoduan>,
     /// 本纪明书朔日：(书, 本纪朔 JDN, 已考讹误)
     shuo: Vec<(String, i64, bool)>,
     /// 纪日：(书, 支持推步, 原文)
@@ -131,6 +134,46 @@ fn jiri_events(d: &Diff, sup_r: bool) -> usize {
         *e = (*e).max(n);
     }
     by_lin.values().sum()
+}
+
+/// 气名（冬至起）；麟德、戊寅气序启蛰在雨水前
+fn qi_name(li: &str, k: usize) -> &'static str {
+    const A: [&str; 24] =
+        ["冬至", "小寒", "大寒", "立春", "雨水", "惊蛰", "春分", "清明", "谷雨", "立夏", "小满", "芒种", "夏至", "小暑", "大暑", "立秋", "处暑", "白露", "秋分", "寒露", "霜降", "立冬", "小雪", "大雪"];
+    if (li.starts_with("麟德") || li.starts_with("戊寅")) && (k == 4 || k == 5) {
+        return if k == 4 { "启蛰" } else { "雨水" };
+    }
+    A[k % 24]
+}
+
+/// 表段三栏：(月离所入, 日躔所入, 距月离段界（时，入转之时）)
+fn fmt_bd(li: &str, bd: &Option<Biaoduan>) -> (String, String, Option<f64>) {
+    let Some(b) = bd else { return ("—".into(), "—".into(), None) };
+    let (yue, jie) = match b.yue {
+        Some((n, yu, chu)) => {
+            let mut bounds = vec![yu, 1.0 - yu];
+            let seg = chu.map_or(String::new(), |c| {
+                bounds.push((yu - c).abs());
+                format!("{}段，初数 {c:.3}", if yu <= c { "初" } else { "末" })
+            });
+            let j = bounds.iter().cloned().fold(f64::INFINITY, f64::min).max(0.0) * 24.0;
+            (if seg.is_empty() { format!("第{n}日 余{yu:.3}") } else { format!("第{n}日 余{yu:.3}（{seg}）") }, Some(j))
+        }
+        None => ("—".into(), None),
+    };
+    let (k, d, len) = b.ri;
+    (yue, format!("{} {d:.2}/{len:.2}日", qi_name(li, k)), jie)
+}
+
+/// 疑格表（`data/calendar/dingshuo_biao_yige.csv`）一行
+struct Yige {
+    li: String,
+    biao: String,
+    ge: String,
+    yiju: String,
+    /// 满一日（月离）或满一气（日躔、进朔限）之影响上限（时）
+    shang: Option<f64>,
+    shuo: String,
 }
 
 fn label(m: u8, leap: bool) -> String {
@@ -212,6 +255,15 @@ fn main() {
                 let v = &details[d];
                 v.iter().find(|x| x.day == rj).or_else(|| v.iter().find(|x| (x.ding_jdn - rj.min(tj)).abs() <= 1)).and_then(|x| x.youjiao)
             });
+            let bd = dn
+                .and_then(|d| {
+                    let v = &details[d];
+                    v.iter().find(|x| x.day == rj).or_else(|| v.iter().find(|x| (x.ding_jdn - rj.min(tj)).abs() <= 1)).and_then(|x| x.biaoduan.clone())
+                })
+                .or_else(|| {
+                    let n = if name.starts_with("钦天历") { "应天历（代推钦天）" } else { name };
+                    song_early::biaoduan(n, rj).or_else(|| song_early::biaoduan(n, rj - 1)).or_else(|| song_early::biaoduan(n, rj + 1))
+                });
             let ding = ding.or_else(|| {
                 let (a, b) = song_early.get(&(name.to_string(), y, label(m, leap)))?;
                 // 定朔所在日：小余以时计，朔日 = 所在日 + 进
@@ -228,6 +280,7 @@ fn main() {
                 t: tj,
                 ding,
                 youjiao,
+                bd,
                 shuo: vec![],
                 jiri: vec![],
                 refs: vec![],
@@ -416,6 +469,59 @@ fn main() {
         }
     }
 
+    // 疑格：定朔所用之格为校改格、版本异文或疑讹之格者
+    let mut yige: Vec<Yige> = Vec::new();
+    if let Ok(t) = std::fs::read_to_string(root.join("data/calendar/dingshuo_biao_yige.csv")) {
+        for r in parse_csv(&t).into_iter().filter(|r| r.len() >= 8 && !r[0].starts_with('#') && r[0] != "历") {
+            yige.push(Yige { li: r[0].clone(), biao: r[1].clone(), ge: r[2].clone(), yiju: r[5].clone(), shang: r[6].parse().ok(), shuo: r[7].clone() });
+        }
+    }
+    // 一月所用之疑格：(说明, 影响上限（时）)
+    let hits = |d: &Diff| -> Vec<(String, Option<f64>)> {
+        let Some(b) = &d.bd else { return vec![] };
+        let dn = ding_name(d.li).unwrap_or(d.li);
+        let mut out = Vec::new();
+        for y in yige.iter().filter(|y| d.li.starts_with(y.li.as_str()) || dn.starts_with(y.li.as_str())) {
+            let hit = match y.biao.as_str() {
+                "月离" => b.yue.and_then(|(n, yu, chu)| {
+                    // 格：「7」整日，「7初」「7末」分段
+                    let (num, part) = y.ge.split_at(y.ge.find(|c: char| !c.is_ascii_digit()).unwrap_or(y.ge.len()));
+                    let num: u32 = num.parse().ok()?;
+                    if num != n {
+                        return None;
+                    }
+                    let frac = match (part, chu) {
+                        ("初", Some(c)) if yu <= c => yu / c,
+                        ("末", Some(c)) if yu > c => (yu - c) / (1.0 - c),
+                        ("", _) => yu,
+                        _ => return None,
+                    };
+                    Some(frac)
+                }),
+                "日躔" => (qi_name(d.li, b.ri.0) == y.ge).then(|| b.ri.1 / b.ri.2),
+                // 进朔限：疑格在气初（节点），气内线性内插，前后两气皆用之，取满值为上限
+                // 格作「某气初」者节点在本气之初（权 1 − 入气比），「某气末」者在本气之末（权 = 入气比）
+                "进朔限" => {
+                    let x = b.ri.1 / b.ri.2;
+                    let q = qi_name(d.li, b.ri.0);
+                    if y.ge == format!("{q}初") {
+                        Some(1.0 - x)
+                    } else if y.ge == format!("{q}末") {
+                        Some(x)
+                    } else {
+                        (y.ge == q).then_some(1.0)
+                    }
+                }
+                _ => None,
+            };
+            if let Some(fr) = hit {
+                let shuo = if y.shuo.is_empty() { String::new() } else { format!("：{}", y.shuo) };
+                out.push((format!("{}{}「{}」（{}）{shuo}", y.biao, if y.biao == "月离" { "第" } else { "" }, y.ge, y.yiju), y.shang.map(|s| s * fr)));
+            }
+        }
+        out
+    };
+
     // 判定
     let classify = |d: &Diff| -> (String, String) {
         let sr: Vec<_> = d.shuo.iter().filter(|s| !s.2 && s.1 == d.r).collect();
@@ -487,7 +593,7 @@ fn main() {
     };
 
     // CSV
-    // 证据等级（只对①②）：判定所依之证中最高一级。判定以「实物」起为 A，「写本、题记、碑、墓志、册、诏」起为 B，
+    // 证据等级（只对①②）：判定所依之证中最高一级。判定以「实物」起为 A，「写本、题记、碑、墓志、册、诏、祭文」起为 B，
     // 「本纪证」为明书朔（C，追修史书 E），「纪日证」为纪日（D，追修史书 E）。
     let dengji = |d: &Diff, v: &str| -> String {
         let f = fenlei(v);
@@ -498,8 +604,12 @@ fn main() {
         if v.starts_with("实物") {
             return "A".into();
         }
-        if ["写本", "题记", "碑", "墓志", "册", "诏"].iter().any(|k| v.starts_with(k)) {
+        if ["写本", "题记", "碑", "墓志", "册", "诏", "祭文"].iter().any(|k| v.starts_with(k)) {
             return "B".into();
+        }
+        // 本纪以外之当朝或近时史书（《长编》等）明书朔
+        if v.starts_with("他书明书朔") {
+            return "C".into();
         }
         let lv = if v.starts_with("本纪") {
             let want = if sup_r { d.r } else { d.t };
@@ -509,7 +619,52 @@ fn main() {
         };
         lv.map_or("—".into(), |c| c.to_string())
     };
-    let mut csv = String::from("历,年,月,张表月名,推步朔,张表朔,张表−推步,定朔所在日,定小余（时）,进朔限（时）,距限（时）,经朔（时，距定朔所在日夜半）,有交,进退关系,本纪明书朔,纪日证据,已有考证,判定,分类,证据等级,按语\n");
+    // 推步须移多少时（定朔）方与张表同：张表晚一日者须过进朔限（无限者过子夜），张表早一日者须退过限或子夜；
+    // 推步依排月细则或例外表而与定小余所示相反者为 None（不是表格之事）
+    let need = |d: &Diff| -> Option<f64> {
+        let (base, h, lim, _, _) = d.ding?;
+        if h.is_nan() {
+            return None;
+        }
+        let (ro, to) = (d.r - base, d.t - base);
+        match (ro, to) {
+            (0, 1) => {
+                let thr = lim.unwrap_or(24.0);
+                (h < thr).then(|| thr - h)
+            }
+            // 麟德 684—708 年正月过戌初（19 时）进（排月细则，限不在术文）
+            (1, 0) => lim.or((d.li.starts_with("麟德") && d.month == 1 && !d.leap).then_some(19.0)).filter(|l| h >= *l).map(|l| h - l),
+            (0, -1) => Some(h),
+            (-1, 0) | (1, 2) => Some(24.0 - h),
+            (2, 1) => Some(h),
+            _ => None,
+        }
+    };
+    let fuhe = |d: &Diff| -> String {
+        let nd = need(d);
+        let nd_s = match (nd, d.ding.is_some_and(|x| !x.1.is_nan())) {
+            (Some(n), _) => format!("推步须移 {n:.2} 时方同张表"),
+            (None, true) => "差由排月细则（有交不进、三大三小等）或例外表，不在表格".to_string(),
+            (None, false) => "本历无定朔细目".to_string(),
+        };
+        let hs = hits(d);
+        if d.bd.is_none() {
+            return format!("无表段细目；{nd_s}");
+        }
+        if hs.is_empty() {
+            return format!("所用格无校改、异文；{nd_s}");
+        }
+        let parts: Vec<String> = hs
+            .iter()
+            .map(|(t, u)| match (u, nd) {
+                (Some(u), Some(n)) => format!("{t}，影响上限 {u:.2} 时{}", if *u < n { "，不足以致异" } else { "，或可致异（须核方向）" }),
+                (Some(u), None) => format!("{t}，影响上限 {u:.2} 时"),
+                _ => t.clone(),
+            })
+            .collect();
+        format!("{}；{nd_s}", parts.join("；"))
+    };
+    let mut csv = String::from("历,年,月,张表月名,推步朔,张表朔,张表−推步,定朔所在日,定小余（时）,进朔限（时）,距限（时）,经朔（时，距定朔所在日夜半）,有交,进退关系,本纪明书朔,纪日证据,已有考证,判定,分类,证据等级,按语,距子夜（时）,月离所入,日躔所入,距月离段界（时）,复核\n");
     let fmt_shuo = |d: &Diff| -> String {
         d.shuo.iter().map(|s| format!("{} {}{}", s.0, gz(s.1), if s.2 { "（已考讹）" } else { "" })).collect::<Vec<_>>().join("；")
     };
@@ -546,8 +701,12 @@ fn main() {
             None => ("—".into(), "—".into(), "—".into(), "—".into(), "—".into()),
         };
         let tl = d.t_label.map_or(String::new(), |(m, l)| label(m, l));
+        let ziye = d.ding.map_or("—".to_string(), |(_, h, ..)| format!("{:.2}", h.min(24.0 - h)));
+        let (yue, ri, jie) = fmt_bd(d.li, &d.bd);
+        let jie_s = jie.map_or("—".to_string(), |j| format!("{j:.2}"));
+        let fh = fuhe(d);
         csv += &format!(
-            "{},{},{},{},{},{},{:+},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
+            "{},{},{},{},{},{},{:+},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
             d.li,
             d.year,
             lab,
@@ -568,12 +727,69 @@ fn main() {
             verdict,
             fenlei(&verdict),
             dengji(d, &verdict),
-            an.replace(',', "，")
+            an.replace(',', "，"),
+            ziye,
+            yue,
+            ri,
+            jie_s,
+            fh.replace(',', "，")
         );
         let lv = dengji(d, &verdict);
-        rows_out.push((d.clone(), cause, verdict, an, dd, h, lim, dist, lv));
+        rows_out.push((d.clone(), cause, verdict, an, dd, h, lim, dist, lv, (ziye, yue, ri, jie_s, fh)));
     }
     std::fs::write(root.join("data/calendar/dingshuo_zhangbiao_diffs.csv"), csv).unwrap();
+
+    // 表段分布：全部推步之月（有定朔细目者）按「月离入分段之日」「定小余距进朔限（无限者距子夜）≤ 0.5 时」分，与张表朔日不同者各占几何。
+    // 用以检验「与张表之异多在进朔临界或月离分段处」之说
+    let diff_set: BTreeSet<(&str, i64)> = diffs.iter().map(|d| (d.li, d.r)).collect();
+    let mut fenbu: BTreeMap<&str, (i32, [usize; 8])> = BTreeMap::new();
+    for (&y, r) in &reck {
+        let name = names[&y];
+        let Some(dn) = ding_name(name) else { continue };
+        let e = fenbu.entry(name).or_insert((y, [0; 8]));
+        for &(rj, _, _) in r {
+            let Some(x) = details[dn].iter().find(|x| x.day == rj) else { continue };
+            let df = diff_set.contains(&(name, rj)) as usize;
+            let h = x.frac * 24.0;
+            let near = match x.limit {
+                Some(l) => (h - l * 24.0).abs() <= 0.5,
+                None => h.min(24.0 - h) <= 0.5,
+            };
+            let split = x.biaoduan.as_ref().and_then(|b| b.yue).is_some_and(|(_, _, c)| c.is_some());
+            let c = &mut e.1;
+            c[0] += 1;
+            c[1] += df;
+            if split {
+                c[2] += 1;
+                c[3] += df;
+            }
+            if near {
+                c[4] += 1;
+                c[5] += df;
+            }
+            if !split && !near {
+                c[6] += 1;
+                c[7] += df;
+            }
+        }
+    }
+    let mut fenbu_md = String::from(
+        "\n### 表段分布\n\n有定朔细目之历（宋初三历、钦天、时宪不在内）全部推步之月，按经朔所入月离是否为分段之日（七、十四、二十一、二十八日等初末分段），\n与定小余距本历进朔限（术文不进朔者距子夜）是否在 0.5 时以内，分别计与张表朔日不同者。\n\n| 历 | 月数 | 其中异 | 分段日之月 | 其中异 | 距限 ≤0.5 时之月 | 其中异 | 二者皆否之月 | 其中异 |\n|---|---|---|---|---|---|---|---|---|\n",
+    );
+    let mut ft = [0usize; 8];
+    let mut fs: Vec<_> = fenbu.iter().collect();
+    fs.sort_by_key(|(_, v)| v.0);
+    for (n, (_, c)) in fs {
+        for i in 0..8 {
+            ft[i] += c[i];
+        }
+        fenbu_md += &format!("| {n} | {} | {} | {} | {} | {} | {} | {} | {} |\n", c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]);
+    }
+    let pct = |a: usize, b: usize| if b == 0 { "—".to_string() } else { format!("{:.1}%", 100.0 * a as f64 / b as f64) };
+    fenbu_md += &format!(
+        "| **合计** | {} | {}（{}） | {} | {}（{}） | {} | {}（{}） | {} | {}（{}） |\n",
+        ft[0], ft[1], pct(ft[1], ft[0]), ft[2], ft[3], pct(ft[3], ft[2]), ft[4], ft[5], pct(ft[5], ft[4]), ft[6], ft[7], pct(ft[7], ft[6])
+    );
 
     // 文档生成部分
     let mut md = String::new();
@@ -664,8 +880,8 @@ fn main() {
             cell(x.3.clone())
         );
     }
-    md += "\n### 逐月表（全部朔日不同之月）\n\n「定朔」为定朔所在日干支；「距限」= 定小余 − 进朔限（正为过限）；「有交」= 经朔入交入食限（大衍一系此等月定朔用二次差精法；— 为未复原交会）；「经朔」为经朔距定朔所在日夜半之时（负为前一日）。\n\n";
-    md += "| 历 | 年 | 月 | 推步 | 张表 | 定朔 | 定小余 | 限 | 距限 | 有交 | 进退关系 | 证据 | 已有考证 | 判定 | 分类 | 等级 |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n";
+    md += "\n### 逐月表（全部朔日不同之月）\n\n「定朔」为定朔所在日干支；「距限」= 定小余 − 进朔限（正为过限）；「有交」= 经朔入交入食限（大衍一系此等月定朔用二次差精法；— 为未复原交会）；「经朔」为经朔距定朔所在日夜半之时（负为前一日）。「距子夜」= 定小余距最近夜半之时；「月离」「日躔」为经朔所入之格（月离第几日、入余，分段之日注初末段与初数；日躔所入之气、入气日／本气日数）；「段界」= 入余距本日首尾或初末分界之时（按入转之时计）；「复核」见上「方法·逐月复核」：所用之格是否为校改、异文或疑讹之格（[dingshuo_biao_yige.csv](../../data/calendar/dingshuo_biao_yige.csv)），其影响上限是否足以致异，及推步须移几时方同张表。\n\n";
+    md += "| 历 | 年 | 月 | 推步 | 张表 | 定朔 | 定小余 | 限 | 距限 | 距子夜 | 有交 | 月离 | 日躔 | 段界 | 进退关系 | 证据 | 已有考证 | 判定 | 分类 | 等级 | 复核 |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n";
     for x in &rows_out {
         let d = &x.0;
         let lab = match d.t_label {
@@ -678,7 +894,7 @@ fn main() {
             .collect::<Vec<_>>()
             .join("；");
         md += &format!(
-            "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
+            "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
             d.li,
             d.year,
             lab,
@@ -688,15 +904,69 @@ fn main() {
             x.5,
             x.6,
             x.7,
+            x.9.0,
             d.youjiao.map_or("—", |b| if b { "有" } else { "" }),
+            x.9.1,
+            x.9.2,
+            x.9.3,
             x.1.split('：').next().unwrap_or(""),
             cell(ev),
             cell(d.refs.join(" ")),
             x.2,
             fenlei(&x.2),
-            x.8
+            x.8,
+            cell(x.9.4.clone())
         );
     }
+    md += &fenbu_md;
+    // 复核归类：每月按先后次序归入一类（逐月见上表「复核」列）
+    let mut gl: Vec<(&str, usize, usize, usize, usize)> = [
+        "本历无定朔细目",
+        "排月细则（有交不进、三大三小、正月之规等）或例外表",
+        "张表统一四分之三进朔与术文之限不同",
+        "麟德 709—728 年常月进朔（推步进、张表不进）",
+        "近子夜（差在定朔所在日）",
+        "临限：推步须移 ≤ 0.1 时",
+        "推步须移 0.1—0.5 时",
+        "推步须移 0.5—2 时",
+        "推步须移 > 2 时",
+    ]
+    .iter()
+    .map(|n| (*n, 0, 0, 0, 0))
+    .collect();
+    for x in &rows_out {
+        let d = &x.0;
+        let nd = need(d);
+        let k = if d.ding.is_none_or(|v| v.1.is_nan()) {
+            0
+        } else if nd.is_none() {
+            1
+        } else if x.1.contains("张表统一四分之三进朔") {
+            2
+        } else if d.li.starts_with("麟德") && d.year >= 709 && d.r > d.t {
+            3
+        } else if x.1.starts_with("差在定朔所在日") {
+            4
+        } else {
+            match nd.unwrap() {
+                n if n <= 0.1 => 5,
+                n if n <= 0.5 => 6,
+                n if n <= 2.0 => 7,
+                _ => 8,
+            }
+        };
+        let hs = hits(d);
+        let g = &mut gl[k];
+        g.1 += 1;
+        g.2 += (!hs.is_empty()) as usize;
+        g.3 += hs.iter().any(|(_, u)| u.zip(nd).is_some_and(|(u, n)| u >= n)) as usize;
+        g.4 += fenlei(&x.2).starts_with('①') as usize + fenlei(&x.2).starts_with('②') as usize;
+    }
+    md += "\n### 复核归类\n\n朔日不同之月逐月按下列次序归入一类；「用疑格」为所用日躔、月离之格或进朔限节点是校改、异文或疑讹之格（`data/calendar/dingshuo_biao_yige.csv`），「足以致异」为其影响上限不小于推步须移之时。\n\n| 类 | 月数 | 用疑格 | 疑格足以致异 | 已有①② |\n|---|---|---|---|---|\n";
+    for g in &gl {
+        md += &format!("| {} | {} | {} | {} | {} |\n", g.0, g.1, g.2, g.3, g.4);
+    }
+    md += &format!("| **合计** | {} | {} | {} | {} |\n", gl.iter().map(|g| g.1).sum::<usize>(), gl.iter().map(|g| g.2).sum::<usize>(), gl.iter().map(|g| g.3).sum::<usize>(), gl.iter().map(|g| g.4).sum::<usize>());
     md += &format!(
         "\n### 节日纪日逆推之朔\n\n本纪纪日中明书节名之条（中和节二月一日、上巳三月三日、重阳九月九日；罢、停、禁、贡、改者不算）凡 {} 条，\n逆推之朔合张表 {}、合推步 {}。两家不同或皆不合者：\n\n| 书 | 年 | 月 | 日干支 | 节日日序 | 推步 | 张表 | 原文 |\n|---|---|---|---|---|---|---|---|\n{}",
         fest_stat.0, fest_stat.1, fest_stat.2, fest_rows

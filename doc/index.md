@@ -57,6 +57,7 @@
 | [guliuli-shuo.md](calendar/guliuli-shuo.md) | 古六历书朔逐历分析：七套参数的平朔相差、各时段平朔与天文真朔之差，逐条对春秋经传书朔、《汉书》日食朔晦、实历朔日表与秦汉初复原历 |
 | [tongjian-mulu-checks.md](calendar/tongjian-mulu-checks.md) | 《资治通鉴目录》（刘羲叟《长历》）朔闰逐条检验（生成文件）：汉初殷历颛顼历两行（前 206—前 104，另节）与前 104—959 年 1303 岁；独立读出 1016 岁中原一线合张表 12359/12540、合推步 12090/12350，参照核读 43 岁、两读未定 3 岁另栏不计；吴蜀北朝诸国行对分政权推步；目录独异处本纪多不从（宋人复原，只作对照） |
 | [dingshuo-zhangbiao-diffs.md](calendar/dingshuo-zhangbiao-diffs.md) | 定朔诸历推步与张表朔日不同之月逐条考证（214 月、闰异 7 岁；797 年二月依史入例外表）：定小余、进朔限与距限，张表统一四分之三进朔 111 月，本纪/纪日/节日证据，703 年九月庚寅、891 年旧纪三条之精算 |
+| [tongwu-causes.md](calendar/tongwu-causes.md) | 中原一线「同误」356 月（推步与张表相同而本纪证据两家皆不合）逐条成因：纪日抽取误 202 条/62 月（待修抽取程序）、史文讹误、北朝之事对南朝历等；可改推步之候选 0 |
 | [calendar-compendium.md](calendar/calendar-compendium.md) | 历代历法总录：总表与已复原定朔历（戊寅、麟德、大衍、五纪、正元、宣明、崇玄、金大明）的常数、表、算法、检验；辽（调元、贾俊大明以宣明代推，947—1087） |
 | [calendar-source-texts.md](calendar/calendar-source-texts.md) | 历法原文摘录（脚本生成）：唐诸历、重修大明历、庚午元历表、《辽史》大明历 |
 | [push-algorithms.md](calendar/push-algorithms.md) | 各朝代/政权历法推步算法与历术参数总结 |
@@ -73,6 +74,7 @@
 | [ryukyu-rili-checks.md](calendar/ryukyu-rili-checks.md) | 琉球《大清乾隆二十七年選日通書》（生成文件）：13 月朔闰全合后编与张表（有证 13），25 气日合后编、交时差 ±1 分内，按京师推算 |
 | [ryukyu-tuibu-checks.md](calendar/ryukyu-tuibu-checks.md) | 琉球推步手册（第 23 册《推朔望法》《求節氣》《四行立成》、第 24 册三种立成）常数与立成逐格比对：属《历象考成》上编一系平朔求实朔法、立成与部分根数沿用汤若望新法；「入學庚申年」= 乾隆五年 1740 |
 | [ryukyu-jiri-checks.md](calendar/ryukyu-jiri-checks.md) | 琉球当时文字纪日逐条：《琉球國碑文記》118 条（可检 4 项皆有证）、蔡大鼎《北上雜記》卷一二 46 条（可检 2 项有证，节气 5 条合后编京师用时）；互异 0 |
+| [ryukyu-shipu-qiuyang-checks.md](calendar/ryukyu-shipu-qiuyang-checks.md) | 《中山世譜》《球陽》（后修史书，C/D）纪日 91 条、天象 39 条逐条：互异只康熙八年閏十二月（大统原颁，归 ③）；附卷或转记日本历待核；日食 3 条首里皆可见 |
 | [gaochang-630-checks.md](calendar/gaochang-630-checks.md) | 高昌延寿七年（630）残历各月朔与张表、玄始历外推（生成文件）：有据 11 月，合玄始 10、张表 9 |
 | [tulufan-jiri-checks.md](calendar/tulufan-jiri-checks.md) | 吐鲁番出土文书与墓表纪日检验（生成文件）：麴氏高昌朔日 7 条合玄始外推 5、张表 3，闰月 4 条合玄始 0、正光外推 3；630 年十二月差一日非进朔，620 年前后高昌历元或改；北凉无可检之条 |
 | [chutu-rili-checks.md](calendar/chutu-rili-checks.md) | 吐鲁番、黑城出土唐宋历日残件（720、1182、1211）月朔与张表、中原一线（生成文件）；多为定年所用，独立者一月 |
