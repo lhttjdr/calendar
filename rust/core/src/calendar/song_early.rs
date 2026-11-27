@@ -369,6 +369,87 @@ fn sui_days(li: &Li, y: i32, read: JinRead) -> (Vec<i64>, Real) {
     (out, dz)
 }
 
+impl Li {
+    /// 入转 x（日）、距冬至 t（日）→ 表段（[crate::calendar::dingshuo::Biaoduan]）。月离日序：应天先历 1—14、后历 15—28；
+    /// 乾元 1—28；仪天疾初、疾末、迟初、迟末四象各 7 日，依次 1—28。日躔：应天按定气（YT_DING），乾元、仪天按恒气。
+    fn biaoduan(&self, x: Real, t: Real) -> crate::calendar::dingshuo::Biaoduan {
+        let x = fmod(x, self.zhuan().as_f64()).as_f64();
+        let yue = match self.kind {
+            Kind::Yingtian => {
+                let lz = 551_201_242.0 / 10_000.0 * 5.0 / 10_002.0 / 2.0;
+                let (y, add) = if x >= lz { (x - lz, 14) } else { (x, 0) };
+                let k = (y.floor() as usize).min(13);
+                let chu = match k {
+                    6 => Some(8888.0 / 10_002.0),
+                    13 => Some(7774.0 / 10_002.0),
+                    _ => None,
+                };
+                (k as u32 + 1 + add, y - k as f64, chu)
+            }
+            Kind::Qianyuan => {
+                let k = (x.floor() as usize).min(27);
+                let chu = match k {
+                    6 => Some(2612.0 / 2940.0),
+                    13 => Some(2285.0 / 2940.0),
+                    20 => Some(1958.0 / 2940.0),
+                    27 => Some(1632.0 / 2940.0),
+                    _ => None,
+                };
+                (k as u32 + 1, x - k as f64, chu)
+            }
+            Kind::Yitian => {
+                let lz = 2_783_010_165.0 / 10_000.0 / 2.0 / 10_100.0;
+                let xiang = lz / 2.0;
+                let (y, a) = if x >= lz { (x - lz, 2) } else { (x, 0) };
+                let (z, b) = if y >= xiang { (y - xiang, 1) } else { (y, 0) };
+                let j = (z.floor() as usize).min(6);
+                ((a + b) as u32 * 7 + j as u32 + 1, z - j as f64, None)
+            }
+        };
+        let year = self.year().as_f64();
+        let t = fmod(t, year).as_f64();
+        let ri = match self.kind {
+            Kind::Yingtian => {
+                let ding: Vec<f64> = YT_DING.iter().copied().chain(YT_DING.iter().rev().copied()).collect();
+                let (mut acc, mut k) = (0.0, 0);
+                while k < 23 && acc + ding[k] <= t {
+                    acc += ding[k];
+                    k += 1;
+                }
+                (k, t - acc, ding[k])
+            }
+            _ => {
+                let qi = year / 24.0;
+                let k = ((t / qi).floor() as usize).min(23);
+                (k, t - k as f64 * qi, qi)
+            }
+        };
+        crate::calendar::dingshuo::Biaoduan { yue: Some(yue), ri }
+    }
+}
+
+/// 宋初三历（及应天代推钦天）朔日为 `shuo_jdn` 之月所入表段：按推步所得朔日（进朔后）找月；历名或月不在推步内返回 None
+pub fn biaoduan(name: &str, shuo_jdn: i64) -> Option<crate::calendar::dingshuo::Biaoduan> {
+    let (_, li, y0, y1) = LIS.iter().find(|(n, _, _, _)| *n == name)?;
+    for y in y0 - 1..=y1 + 1 {
+        let dz = dongzhi_abs(li, y);
+        let (_, run, x0) = li.epoch(y);
+        let jing0 = dz - run;
+        let f = r(li.f as f64);
+        for m in 0..14 {
+            let mm = r(m as f64) * li.shuo();
+            let jing = jing0 + mm;
+            let ding = jing + (li.sun_def(jing - dz) + li.moon_def(x0 + mm)) / f;
+            let day = ding.floor();
+            let lim = li.jin_limit(day - dz, li.read);
+            if day.to_i64_floor() + i64::from(ding - day >= lim) == shuo_jdn {
+                return Some(li.biaoduan(x0 + mm, jing - dz));
+            }
+        }
+    }
+    None
+}
+
 fn sui_months(li: &Li, y: i32, read: JinRead) -> Vec<(i64, u8, bool)> {
     let (a, _) = sui_days(li, y - 1, read);
     let (b, dz) = sui_days(li, y, read);
@@ -420,6 +501,19 @@ pub fn reckon_year_with(name: &str, lunar_year: i32, read: JinRead) -> Option<Ve
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 表段：应天 982 年四月（推步癸亥朔，定朔壬戌 18.22 时进）经朔入先历第十二日、谷雨
+    #[test]
+    fn biaoduan_yingtian_982() {
+        let ms = reckon_year("应天历", 982).unwrap();
+        let (j, _, _) = *ms.iter().find(|m| m.1 == 4 && !m.2).unwrap();
+        assert_eq!((j + 49).rem_euclid(60), 59, "癸亥");
+        let b = biaoduan("应天历", j).unwrap();
+        let (n, yu, chu) = b.yue.unwrap();
+        assert_eq!((n, chu), (12, None));
+        assert!((yu - 0.123).abs() < 0.001);
+        assert_eq!(b.ri.0, 8, "谷雨");
+    }
 
     /// 与 Python 复原逐月朔日相同（data/calendar/song_early_check.csv「月」行）
     #[test]

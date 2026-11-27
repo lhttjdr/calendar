@@ -105,6 +105,21 @@ pub trait DingshuoLi: Send + Sync {
     fn rishi(&self, _y: i32, _m: i64) -> Option<Rishi> {
         None
     }
+    /// 冬至岁 y 第 m 月经朔所入日躔、月离表段（供逐月考证，见 [Biaoduan]）；None 为未提供
+    fn biaoduan(&self, _y: i32, _m: i64) -> Option<Biaoduan> {
+        None
+    }
+}
+
+/// 经朔所入表段（供逐月考证，`examples/dingshuo_zhangbiao_diffs.rs`）：定朔所用日躔、月离表的哪一格，
+/// 以查临界之月是否落在分段处、所用格是否为校改或疑讹之格。时刻皆按经朔（定朔即由此二格的损益加减而得）。
+#[derive(Clone, Debug, PartialEq)]
+pub struct Biaoduan {
+    /// 月离：(入转（入历、入变）第几日，1 起；入余（占一日之比）；分段之日的初数（占一日之比，非分段日 None）)。
+    /// 宣明前后半周两表，后半周日序加 14；授时、明天等以公式求者亦给入转日序（无表格可查）
+    pub yue: Option<(u32, f64, Option<f64>)>,
+    /// 日躔：(所入气序，0 = 冬至；入气日数（含余）；本气日数)。定气之历按定气，恒气之历按恒气
+    pub ri: (usize, f64, f64),
 }
 
 /// 冬至岁 y 的十三恒气中气所在日 JDN：天正冬至加岁实 k/12（k = 0..=12）
@@ -573,6 +588,9 @@ impl DingshuoLi for Paiyue {
     }
     fn ding_for_calendar(&self, y: i32, m: i64) -> Q {
         self.li.ding_for_calendar(y, m)
+    }
+    fn biaoduan(&self, y: i32, m: i64) -> Option<Biaoduan> {
+        self.li.biaoduan(y, m)
     }
     fn fixed_days(&self) -> Option<&[i64]> {
         Some(&self.days(true).0)
@@ -1061,6 +1079,28 @@ impl DingshuoLi for Dayan {
         }
         Some((self.night_lou(y, t) + qr(5, 2)) / q(100))
     }
+    fn biaoduan(&self, y: i32, m: i64) -> Option<Biaoduan> {
+        let tong = self.tong(y);
+        let jing = tong - tong.rem_euclid(self.she) + m * self.she;
+        let f = q(self.f);
+        let x = md(&q(jing), &self.zhuan);
+        let (tab, x, add) = if self.moon.len() == 1 {
+            (&self.moon[0], x, 0)
+        } else {
+            let zhong = &self.zhuan / q(2);
+            if x < zhong { (&self.moon[0], x, 0) } else { (&self.moon[1], x - zhong, 14) }
+        };
+        let i = (fl(&(&x / &f)) as usize).min(tab.rates.len() - 1);
+        let yu = (&x - q(i as i64) * &f) / &f;
+        let chu = tab.split.iter().find(|s| s.0 == i).map(|s| (&s.1 / &f).to_f64().unwrap());
+        let t = q(jing - tong);
+        let k = self.seg(&t);
+        let (a, b) = (self.ding_qi(k), self.ding_qi(k + 1));
+        Some(Biaoduan {
+            yue: Some((i as u32 + 1 + add, yu.to_f64().unwrap(), chu)),
+            ri: (k.rem_euclid(24) as usize, ((&t - &a) / &f).to_f64().unwrap(), ((b - a) / &f).to_f64().unwrap()),
+        })
+    }
     fn rishi(&self, y: i32, m: i64) -> Option<Rishi> {
         if self.xuanming_shi {
             self.xuanming_rishi(y, m)
@@ -1335,6 +1375,25 @@ impl Linde {
         let chisu = Self::chisu(&bian);
         (chq, yn, chisu)
     }
+    /// 速要所入：(定气序 k（可为负，取模 24 为气序）, 入定气日（含余）, 本气日数, 入变（日，含余）)，同 [Linde::suyao]
+    fn suyao_ru(&self, y: i32, m: i64) -> (i64, Q, Q, Q) {
+        let qizong = Self::qizong(y);
+        let t0 = qizong - qizong.rem_euclid(LD_SHUO);
+        let zongshi = t0 - t0.rem_euclid(LD_F);
+        let bian0 = qr((zongshi * LD_BIAN_QI).rem_euclid(LD_BIAN_ZHOU), LD_BIAN_QI) / q(LD_F);
+        let qi_len = qr(LD_QI, 24);
+        let dingqi = |k: i64| q(qizong) + &qi_len * q(k) - q(LD_XIAOXI[k.rem_euclid(24) as usize]);
+        let chq = q(t0 + m * LD_SHUO);
+        let mut k = fl(&((&chq - q(qizong)) / &qi_len)) - 2;
+        while dingqi(k + 1) <= chq {
+            k += 1;
+        }
+        let t = (&chq - dingqi(k)) / q(LD_F);
+        let len = (dingqi(k + 1) - dingqi(k)) / q(LD_F);
+        let yn = self.suyao(y, m).1;
+        let bian = md(&(bian0 + qr(t0.rem_euclid(LD_F), LD_F) + qr(m * LD_SHUO, LD_F) + &yn / q(LD_F)), &(qr(LD_BIAN_ZHOU, LD_BIAN_QI) / q(LD_F)));
+        (k, t, len, bian)
+    }
 
     /// 麟德日蚀：入交、蚀否与食定小余（食甚）。读法与两志异文见 `doc/calendar/calendar-compendium.md` 麟德节「步交会」。
     /// - 变交分（新志注「其朔，月在日道裏者，以所入限數減遲速定數，餘以速減、遲加其定交分。而出日道表者，為變交分。不出表者，
@@ -1592,6 +1651,18 @@ impl DingshuoLi for Linde {
     fn jinshuo_limit(&self, y: i32, _t: &Q) -> Option<Q> {
         self.changyue_jin.filter(|&from| y >= from).map(|_| qr(3 * LD_F, 4))
     }
+    /// 月离为入变（速要所用之日，十四日初数 1042、二十八日 743 分）；日躔为入定气
+    fn biaoduan(&self, y: i32, m: i64) -> Option<Biaoduan> {
+        let (k, t, len, bian) = self.suyao_ru(y, m);
+        let i = fl(&bian).min(27);
+        let yu = (&bian - q(i)).to_f64().unwrap();
+        let chu = match i {
+            13 => Some(1042.0 / LD_F as f64),
+            27 => Some(743.0 / LD_F as f64),
+            _ => None,
+        };
+        Some(Biaoduan { yue: Some((i as u32 + 1, yu, chu)), ri: (k.rem_euclid(24) as usize, t.to_f64().unwrap(), len.to_f64().unwrap()) })
+    }
     fn ding_for_calendar(&self, y: i32, m: i64) -> Q {
         let ding = self.month(y, m).1;
         let xiao = md(&ding, &q(LD_F));
@@ -1682,6 +1753,24 @@ impl DingshuoLi for Wuyin {
         }
         let ding = &jing + Self::sun_def(&(&p - dz)) - Self::moon_def(&x);
         (jing, ding)
+    }
+    /// 月离为入历（历法 28968 分为一日）；日躔为入恒气
+    fn biaoduan(&self, y: i32, m: i64) -> Option<Biaoduan> {
+        if self.ping {
+            return None;
+        }
+        let nn = Self::nn(y);
+        let jiyue = (nn * 8361).div_euclid(676);
+        let dz = qr(nn * WY_SUI, WY_QIFA);
+        let p = qr((jiyue + m) * WY_YUE, WY_RI);
+        let pf = q(fl(&p));
+        let x = md(&(q((fl(&p) * WY_LIFA).rem_euclid(WY_LIZHOU)) + (&p - &pf) * q(WY_LIFA)), &q(WY_LIZHOU));
+        let i = fl(&(&x / q(WY_LIFA))).min(27);
+        let yu = ((&x - q(i * WY_LIFA)) / q(WY_LIFA)).to_f64().unwrap();
+        let qd = qr(WY_SUI, WY_QIFA * 24);
+        let t = &p - dz;
+        let k = fl(&(&t / &qd));
+        Some(Biaoduan { yue: Some((i as u32 + 1, yu, None)), ri: (k.rem_euclid(24) as usize, (&t - q(k) * &qd).to_f64().unwrap(), qd.to_f64().unwrap()) })
     }
 }
 
@@ -1932,6 +2021,28 @@ impl DingshuoLi for Song {
         let jing = &t0 + q(m) * &self.shuo;
         let ding = &jing + self.sun_def(&(&jing - &tong)) + self.moon_def(&md(&(base + q(m) * &self.shuo), &self.zhuan));
         (jing, ding)
+    }
+    /// 月离为入转（分段之日初数照表）；日躔为入恒气（观天以公式，亦按恒气记）
+    fn biaoduan(&self, y: i32, m: i64) -> Option<Biaoduan> {
+        let tong = self.tong(y);
+        let t0 = self.first_shuo(y);
+        let base = match &self.cha {
+            Some(c) => md(&(&t0 - q(c.zhuan)), &self.zhuan),
+            None => md(&t0, &self.zhuan),
+        };
+        let jing = &t0 + q(m) * &self.shuo;
+        let f = q(self.f);
+        let x = md(&(base + q(m) * &self.shuo), &self.zhuan);
+        let i = (fl(&(&x / &f)) as usize).min(self.moon.days.len() - 1);
+        let yu = ((&x - q(i as i64) * &f) / &f).to_f64().unwrap();
+        let chu = match &self.moon.days[i].1 {
+            Err((n0, _, _)) => Some((n0 / &f).to_f64().unwrap()),
+            Ok(_) => None,
+        };
+        let t = md(&(&jing - &tong), &q(self.sui));
+        let qi = self.qi();
+        let k = fl(&(&t / &qi));
+        Some(Biaoduan { yue: Some((i as u32 + 1, yu, chu)), ri: (k.rem_euclid(24) as usize, ((&t - q(k) * &qi) / &f).to_f64().unwrap(), (qi / f).to_f64().unwrap()) })
     }
     fn jiao(&self, y: i32, m: i64) -> Option<Jiaohui> {
         let jc = self.jiao.as_ref()?;
@@ -2215,6 +2326,10 @@ impl DingshuoLi for FengyuanBuxiu {
     fn rishi(&self, y: i32, m: i64) -> Option<Rishi> {
         DingshuoLi::rishi(&self.base, y, self.base_m(y, m))
     }
+    /// 借观天日月改正：观天之格
+    fn biaoduan(&self, y: i32, m: i64) -> Option<Biaoduan> {
+        DingshuoLi::biaoduan(&self.base, y, self.base_m(y, m))
+    }
 }
 
 /// 明天历（周琮）：日月皆用公式，不用立成表（《宋史》卷七十四、七十五）
@@ -2475,6 +2590,25 @@ impl DingshuoLi for Shoushi {
         let ding = &jing + deg / v * q(820);
         (jing, ding)
     }
+    /// 公式（招差），无表格：月离记入转日序，日躔记入恒气
+    fn biaoduan(&self, y: i32, m: i64) -> Option<Biaoduan> {
+        let zj = q((y - 1281) as i64 * SS_SUI);
+        let dz = &zj + q(SS_QI_YING);
+        let run = md(&(&zj + q(self.run_ying)), &ss_shuo());
+        let ru0 = md(&(&zj + q(self.zhuan_ying) - &run), &q(SS_ZHUAN));
+        let r = md(&(&ru0 + q(m) * ss_shuo()), &q(SS_ZHUAN)) / q(SS_F);
+        let t = (&dz - &run + q(m) * ss_shuo() - &dz) / q(SS_F);
+        Some(ss_biaoduan(&r, &t))
+    }
+}
+
+/// 授时、大统：入转 r（日）、距冬至 t（日）→ 表段（入转日序、入恒气）
+fn ss_biaoduan(r: &Q, t: &Q) -> Biaoduan {
+    let i = fl(r);
+    let qd = qr(SS_SUI, 24 * SS_F);
+    let t = md(t, &qr(SS_SUI, SS_F));
+    let k = fl(&(&t / &qd));
+    Biaoduan { yue: Some((i as u32 + 1, (r - q(i)).to_f64().unwrap(), None)), ri: (k.rem_euclid(24) as usize, (&t - q(k) * &qd).to_f64().unwrap(), qd.to_f64().unwrap()) }
 }
 
 /// 大统历：照《大统暦日通轨》步气朔术文查立成定朔（`data/calendar/datong_tonggui_licheng_used.csv`，由
@@ -2584,6 +2718,15 @@ impl DingshuoLi for Tonggui {
         let ding = &jing + jjc;
         (jing, ding)
     }
+    /// 立成：月离记入转日序（立成按限，一日约 12.2 限），日躔记入恒气
+    fn biaoduan(&self, y: i32, m: i64) -> Option<Biaoduan> {
+        let zj = q((y - 1281) as i64 * SS_SUI);
+        let shuo = ss_shuo();
+        let run = md(&(&zj + q(202050)), &shuo);
+        let zz = md(&(&zj + q(130205) - &run + q(m) * &shuo), &q(SS_ZHUAN)) / q(SS_F);
+        let t = (q(m) * &shuo - &run) / q(SS_F);
+        Some(ss_biaoduan(&zz, &t))
+    }
 }
 
 /// 明郑大统（1662—1683）：照《通轨》立成推步，定朔在夜子初（23 时）以后者置次日。
@@ -2610,6 +2753,9 @@ impl DingshuoLi for TongguiZichu {
     }
     fn jinshuo_limit(&self, _y: i32, _t: &Q) -> Option<Q> {
         Some(qr(23 * SS_F, 24))
+    }
+    fn biaoduan(&self, y: i32, m: i64) -> Option<Biaoduan> {
+        self.0.biaoduan(y, m)
     }
 }
 
@@ -3036,6 +3182,8 @@ pub struct DingshuoMonth {
     pub day: i64,
     /// 经朔入交入食限（「朔望有交」；大衍一系此等月定朔用精法）；None 为本历未复原步交会
     pub youjiao: Option<bool>,
+    /// 经朔所入日躔、月离表段（[DingshuoLi::biaoduan]）
+    pub biaoduan: Option<Biaoduan>,
 }
 
 /// 按历名列其推步年段（前后各二岁）各月之经朔、定朔、进朔限与排月所得朔日。
@@ -3075,6 +3223,7 @@ pub fn dingshuo_months(name: &str) -> Option<Vec<DingshuoMonth>> {
                 jin,
                 day: 0,
                 youjiao: None,
+                biaoduan: li.biaoduan(yy, m),
             });
         }
     }
@@ -3269,6 +3418,9 @@ mod tests {
         assert_eq!(gz("麟德历", 684, 1), "甲申");
         assert_eq!(gz("麟德历", 711, 1), "丁未");
         assert_eq!(gz("麟德历", 712, 1), "辛未");
+        // 麟德常月超限不进（当时文字，2026-11-27 例外表）：717 年四月张说祭城隍文、苏颋悼王石塔铭，719 年四月王仁皎神道碑
+        assert_eq!(gz("麟德历", 717, 4), "庚午");
+        assert_eq!(gz("麟德历", 719, 4), "己未");
         // 大衍晨初限（750 正月不进）、至德戌初限（763 六月、764 二月进）
         assert_eq!(gz("大衍历", 750, 1), "庚寅");
         assert_eq!(gz("五纪历", 763, 6), "癸酉");
@@ -3437,6 +3589,36 @@ mod tests {
         let v = dingshuo_months("宣明历").unwrap();
         let m = v.iter().find(|m| crate::calendar::gan_zhi::GAN_ZHI_60[(m.ding_jdn + 49).rem_euclid(60) as usize] == "丁丑" && m.dongzhi_year == 891 && m.frac > 0.8).unwrap();
         assert!(m.jin && (m.frac * 24.0 - 20.21).abs() < 0.01 && m.day == m.ding_jdn + 1);
+    }
+
+    /// 表段（[Biaoduan]）：月离日序与入余、分段日之初数、日躔入气皆在范围内；宣明 874 年十二月钉住（经朔入转第七日初段，
+    /// 见 `doc/calendar/dingshuo-zhangbiao-diffs.md`「逐月复核」）
+    #[test]
+    fn biaoduan_in_range() {
+        for name in ["戊寅元历", "麟德历", "大衍历", "五纪历", "正元历", "宣明历", "崇天历", "纪元历", "开禧历", "授时历", "大统历"] {
+            let v = dingshuo_months(name).unwrap();
+            for m in &v {
+                let b = m.biaoduan.as_ref().unwrap_or_else(|| panic!("{name} 无表段"));
+                let (n, yu, chu) = b.yue.unwrap();
+                assert!((1..=28).contains(&n), "{name} 日序 {n}");
+                // 末日（入转不足整日）与宣明半周末日之余可过一日之比，不过 1.0 为常
+                assert!(yu >= 0.0 && yu < 1.0 + 1e-9, "{name} {n} 入余 {yu}");
+                if let Some(c) = chu {
+                    assert!(c > 0.0 && c < 1.0, "{name} 初数 {c}");
+                    if !name.starts_with("麟德") {
+                        assert!([7, 14, 21, 28].contains(&n), "{name} 分段日 {n}");
+                    }
+                }
+                let (k, d, len) = b.ri;
+                assert!(k < 24 && d >= -1e-9 && d <= len + 1e-9 && (13.5..17.0).contains(&len), "{name} 气 {k} {d}/{len}");
+            }
+        }
+        let v = dingshuo_months("宣明历").unwrap();
+        let m = v.iter().find(|m| m.dongzhi_year == 875 && (m.frac * 24.0 - 18.03).abs() < 0.01).unwrap();
+        let (n, yu, chu) = m.biaoduan.as_ref().unwrap().yue.unwrap();
+        assert_eq!(n, 7);
+        assert!((yu - 0.590).abs() < 0.001 && (chu.unwrap() - 7465.0 / 8400.0).abs() < 1e-9);
+        assert_eq!(m.biaoduan.as_ref().unwrap().ri.0, 1, "小寒");
     }
 
     /// 各历在其年段内逐年排月：每年 12 或 13 月，月长 29、30 日，前后年首尾相接
