@@ -6,6 +6,11 @@
 （敦煌月序一栏有字时用之，否则同行中原月序；926 年「上年閏十二月」行为敦煌 926 年正月；「表列次年正月」行记于次年）。
 同一月见于两件者（次年正月）须朔、大小不矛盾，合为一行、文书并记。
 
+另并入《俄藏敦煌文獻》补录 data/calendar/dunhuang_ezang.csv 有朔之月（比较表本身是邓书逐格转录，不改）：
+只收定年独立于朔者（定年方式 = 缀合等）；「据朔推定」之件（如 Дх.01411）选年用到了它自己的朔，
+年份不独立，若并入会把循环定年的一月送进换算，故不收，仍只留在补录表与 dunhuang_ezang_check.csv；
+只书闰月无朔者（Дх.01410）无朔可并。月大小推得之朔记「推算」，历首月大小表记「原件」大小。
+
 前 8 列与 data/calendar/推步政权朔日表.csv 同式，供 rust/core/src/calendar/dunhuang.rs 读入。
 
 用法（仓库根）：uv run --project scripts python scripts/calendar_data/build_dunhuang_shuori.py
@@ -30,6 +35,54 @@ def rows():
 def label(lab):
     m = re.fullmatch(r"(上年)?(閏)?(.+)月", lab)
     return bool(m[1]), N[m[3]], bool(m[2])
+
+
+def ezang_rows():
+    with open(ROOT / "data/calendar/dunhuang_ezang.csv", encoding="utf-8") as f:
+        return list(csv.DictReader(line for line in f if not line.startswith("#")))
+
+
+# 补录件历首月大小表所记各月大小（原件），键 (年, 月)；朔由同件推得
+EZANG_SIZE = {(945, 8): 29, (945, 9): 30, (945, 10): 30, (945, 11): 30, (945, 12): 29}
+EZANG_ID = {"具注曆日": ("Дх.01454+02418V", "後晉天福十年乙巳歲")}
+
+
+def merge_ezang(out):
+    for r in ezang_rows():
+        v = r["朔干支"].strip()
+        if v not in g.GANZHI or r["定年方式"] in ("据朔推定", "据闰推定"):
+            continue
+        y, m, lp = int(r["公元"]), int(r["月"]), r["闰"] == "1"
+        doc_id, title = next(val for k, val in EZANG_ID.items() if r["件"].startswith(k))
+        z = {(ly, lm, lpp): s for ly, lm, lpp, s in g._months()}[(y, m, lp)]
+        cands = [z + k for k in range(-3, 4) if g.ganzhi_of_jdn(z + k) == v]
+        assert len(cands) == 1, (r, cands)
+        date = g.from_jdn(cands[0])
+        size = EZANG_SIZE.get((y, m), "")
+        page = "俄敦" + r["俄敦册页"]
+        basis = "原件" if r["依据"] == "原件" else "推算"
+        key = (y, m, lp)
+        if key in out:
+            old = out[key]
+            assert (old["gregorian_year"], old["gregorian_month"], old["gregorian_day"]) == date, (old, r)
+            if old["月日数"] == "" and size != "":
+                old["月日数"], old["大小依据"] = size, "原件"
+            assert size in ("", old["月日数"]), (old, r)
+            if basis == "原件":
+                old["朔依据"] = "原件"
+            if doc_id not in old["文书"].split("；"):
+                old["文书"] += "；" + doc_id
+                old["文书纪年"] += "；" + title
+                old["文书岁"] = f'{old["文书岁"]}；{y}'
+                old["书页"] += "；" + page
+            continue
+        out[key] = {
+            "regime": "敦煌", "calendar": "吐蕃时期敦煌历" if y < 848 else "归义军时期敦煌历",
+            "gregorian_year": date[0], "gregorian_month": date[1], "gregorian_day": date[2],
+            "lunar_year": y, "lunar_month": m, "is_leap": int(lp),
+            "朔干支": v, "朔依据": basis, "月日数": size, "大小依据": "原件" if size != "" else "",
+            "文书": doc_id, "文书纪年": title, "文书岁": y, "书页": page,
+        }
 
 
 def main():
@@ -83,11 +136,13 @@ def main():
                 old["书页"] += "；" + rec["书页"]
             continue
         out[key] = rec
+    merge_ezang(out)
     recs = sorted(out.values(), key=lambda r: g.jdn(r["gregorian_year"], r["gregorian_month"], r["gregorian_day"]))
     path = ROOT / "data/calendar/敦煌朔日表.csv"
     with open(path, "w", encoding="utf-8", newline="") as f:
         f.write("# 敦煌政权朔日表：邓文宽《敦煌天文历法文献辑校》（1996）附录一比较表敦煌曆一栏有朔之月（吐蕃 808—834、归义军 858—993），"
-                "由 scripts/calendar_data/build_dunhuang_shuori.py 自 data/calendar/敦煌历日_比较表.csv 生成。\n")
+                "由 scripts/calendar_data/build_dunhuang_shuori.py 自 data/calendar/敦煌历日_比较表.csv 生成；"
+                "另并入《俄藏敦煌文獻》补录 dunhuang_ezang.csv 定年独立于朔之月（书页记「俄敦册/页」，余为邓书书页；据朔推定之件不收）。\n")
         f.write("# 依据：原件 = 出土具注历日可读（第 1 级证据，实物历日）；推算 = 原书括号格，据残历本身条件推得（同件内推演，仍属该历）。"
                 "日期为民用历（儒略历）；月日数空 = 原书「?」或未列；"
                 "文书纪年 = 原书定名（多照原件历首，如贞明八年、天复五年为敦煌延用旧号），文书岁 = 该件历日本岁（「表列次年正月」行记前一岁）；"
