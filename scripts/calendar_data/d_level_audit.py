@@ -1,5 +1,9 @@
 """抽查「推步与张表互异而归 ③（无据待核）」之判是否得当（只读分析，不改任何检验产物）。
 
+2026-11-27 第二轮：首轮（c04239d）所列系统性问题已在检验程序中修正（甲 D、E 级判①②须异源两条；乙 南明私家追记、《建康实录》吴部分
+按 E；分政权接走马楼、辽石刻、明郑实物、北朝诸史与《金史》天文志；中原一线接明清实录书朔、定朔考证不及之月收纪日、「閏月」、
+《汉书》秦汉初书朔晦）。本脚本按新产物重判，「原检验已用」之源见 CONNECTED；首轮「应改」20 月逐一复核见 PREV_FIX。
+
 范围：中原一线互异之月（data/calendar/zhongyuan_reckoning_months.csv「互异」者）与分政权互异之月
 （data/calendar/regime_benji_months.csv「互异」者）。
 
@@ -84,7 +88,8 @@ LATER_BOOKS = {
 
 
 def book_level(book, shuo):
-    if book.startswith(E_BOOKS):
+    # 乙：南明私家追记、《建康实录》吴部分按 E（检验程序已同）
+    if book.startswith(E_BOOKS) or book in LATER_BOOKS:
         return "E"
     return "C" if shuo else "D"
 
@@ -321,12 +326,14 @@ def zy_audit(d):
     a_s = zs[0] if zs else None
     b_s = zhang_next(a_s) if a_s else None
     items = []
-    # 原检验之证据
+    # 原检验之证据：只取定朔考证之判与实物（A）；书朔、纪日、閏月、秦汉初、实录之条下面逐条另收（标「原检验已用」），免得重计
     for part in [p for p in d["证据"].split("；") if p]:
-        if part.endswith("合推步") or part.endswith("合张表"):
+        if (part.endswith("合推步") or part.endswith("合张表")) and (part.startswith("定朔考证") or part[-4] == "A"):
             g = part[-4]
             items.append(ev("r" if part.endswith("合推步") else "t", g, "原检验", "", part, True))
     ding = DING.get((d["年"], d["月"], d["推步朔"]))
+    # 定朔考证按朔日相近配月、张表月名同者，其判即本月之判（纪日以考证所收为准）；否则检验程序按月名另收纪日、閏月
+    ding_proper = bool(ding and not ding["张表月名"])
     notes = []
     if ding:
         if ding["纪日证据"]:
@@ -340,7 +347,7 @@ def zy_audit(d):
             continue
         sr, st = jd == a_r, jd == a_s
         if sr != st:
-            used = d["证据"] != "" or ding is not None
+            used = True  # 619 年前与定朔考证不及之月由中原一线检验直接收，余由定朔考证收
             items.append(ev("r" if sr else "t", book_level(r["书"], True), "本纪明书朔", r["书"],
                             f"{r['书']}「{r['本纪朔']}朔」{r['原文'][:40]}", used, "朔", r["本纪朔"]))
     # 2 本纪纪日（原检验于互异之月不收纪日；619 年后之月由定朔考证收入，标 used）
@@ -352,7 +359,7 @@ def zy_audit(d):
         okt = judge(a_s, b_s, r["ganzhi"], pos) if a_s else judge(a_t, b_t, r["ganzhi"], pos)
         if okr is None or okt is None or okr == okt:
             continue
-        used = bool(ding and ding["纪日证据"] and r["text"][:6] in ding["纪日证据"])
+        used = bool(ding and ding["纪日证据"] and r["text"][:6] in ding["纪日证据"]) or not ding_proper
         items.append(ev("r" if okr else "t", book_level(b, False), "本纪纪日", b, f"{b}：{r['text'][:50]}", used,
                         pos or "日", r["ganzhi"]))
     # 2b 前月纪日：前月两家同朔而月终不同（本月月首之异），前月末日之条可判本月月首
@@ -385,7 +392,7 @@ def zy_audit(d):
                 continue
             sr, st = a in rl, a in zl
             if sr != st:
-                items.append(ev("r" if sr else "t", book_level(b, False), "本纪閏月", b, f"{b}：閏月接{after}月 {text[:40]}", False,
+                items.append(ev("r" if sr else "t", book_level(b, False), "本纪閏月", b, f"{b}：閏月接{after}月 {text[:40]}", not ding_proper,
                                 "闰位"))
     # 4 秦汉初：《汉书》书朔晦与纪日、出土历谱
     if y <= -104:
@@ -395,7 +402,7 @@ def zy_audit(d):
             if r["推步合"] != r["复原合"]:
                 g = "C" if r["朔晦"] else "D"
                 items.append(ev("r" if r["推步合"] == "1" else "t", g, "汉书本纪（秦汉初）", "hanshu",
-                                f"《汉书·{r['卷']}》{r['月']}月{r['干支']}{r['朔晦']}：{r['原文'][:40]}", False, r["朔晦"], r["干支"]))
+                                f"《汉书·{r['卷']}》{r['月']}月{r['干支']}{r['朔晦']}：{r['原文'][:40]}", True, r["朔晦"], r["干支"]))
         for r in QINHAN_SW.get((d["年"], d["月"]), []):
             s = r["朔干支"]
             if s in (d["推步朔"], d["张表朔"]) and r["依据"] != "补":
@@ -427,14 +434,18 @@ def zy_audit(d):
         s = r["朔干支"]
         if s in (d["推步朔"], d["张表朔"]):
             items.append(ev("r" if s == d["推步朔"] else "t", "A", "出土具注历", "chutu", r["件"][:40], True))
+    jk0 = MSL_JK.get((d["年"], d["月"]))
     for r in MSL.get((y, m, leap), []):
         s = r["朔"]
-        if s in (d["推步朔"], d["张表朔"]):
-            items.append(ev("r" if s == d["推步朔"] else "t", "C", "明实录书朔", "mingshilu", f"{r['卷']}：{r['原句'][:30]}", False, "朔", s))
+        if s in (d["推步朔"], d["张表朔"]) and d["推步朔"] != d["张表朔"]:
+            if jk0 and "张表误" not in jk0["结论"]:
+                notes.append(f"{r['卷']}「{s}朔」：明实录校勘表判「{jk0['结论'][:20]}」，照校勘表不计")
+                continue
+            items.append(ev("r" if s == d["推步朔"] else "t", "C", "明实录书朔", "mingshilu", f"{r['卷']}：{r['原句'][:30]}", True, "朔", s))
     for r in QSL.get((y, m, leap), []):
         s = r["实录朔"]
-        if s in (d["推步朔"], d["张表朔"]):
-            items.append(ev("r" if s == d["推步朔"] else "t", "C", "清实录书朔", "qingshilu", r["原文"][:40], False, "朔", s))
+        if s in (d["推步朔"], d["张表朔"]) and d["推步朔"] != d["张表朔"]:
+            items.append(ev("r" if s == d["推步朔"] else "t", "C", "清实录书朔", "qingshilu", r["原文"][:40], True, "朔", s))
     for f, r in KAO.get((d["年"], d["月"]), []):
         notes.append(f"{f.replace('.csv', '')}（{r.get('证据出处', r.get('出处', ''))[:30]}）：{r['结论'][:90]}")
     jk = MSL_JK.get((d["年"], d["月"]))
@@ -501,12 +512,15 @@ MZ = defaultdict(list)
 for r in rows(D / "mingzheng_shiwu_months.csv"):
     if r["年"].isdigit():
         MZ[(int(r["年"]), label(int(r["月"]), r["闰"] == "1"))].append(r)
-DISC = defaultdict(list)
-for r in rows(D / "discriminating_records.csv"):
-    if not r["书"].endswith("_benji"):
-        k = RKEY.get(r["政权"])
-        if k:
-            DISC[(k, r["年"], r["月"])].append(r)
+# 天文志之条：分政权检验现已读入（regime_benji_eval 逐条写 regime_zhi_check.csv，推步含史载修正）
+ZHI_EV = defaultdict(list)
+for r in rows(D / "regime_zhi_check.csv"):
+    k = RKEY.get(r["政权"])
+    if k and r["推步合"] != r["张表合"] and r["推步月首"] != "—":
+        mm = r["月"]
+        if mm.startswith("闰（推步"):
+            mm = "闰" + mm[len("闰（推步"):].split("，")[0].lstrip("闰")
+        ZHI_EV[(k, r["年"], r["推步月首"], mm)].append(r)
 
 REG_STRATUM = {"吴": "三国吴", "蜀": "三国蜀", "北魏/西魏/北周/隋": "北魏西魏北周隋", "东魏/北齐": "东魏北齐", "辽": "辽", "金": "金",
                "南明/南明·绍武/鲁监国/明郑": "南明明郑"}
@@ -550,7 +564,7 @@ def reg_audit(d):
             s = r["朔干支"]
             if s in (tui, zg) and tui != zg:
                 items.append(ev("r" if s == tui else "t", "B", "走马楼吴简", "zoumalou",
-                                f"{r['册']} {r['简号'] or r['书页']}：{r['原文'][:36]}", False))
+                                f"{r['册']} {r['简号'] or r['书页']}：{r['原文'][:36]}", True))
         for r in CHUTU_JR.get(("吴", y, m, leap), []):
             s = r["shuo_ganzhi"] or (GZ[(GI[r["day_ganzhi"]] - int(r["day"]) + 1) % 60] if r["day"].isdigit() else "")
             if s in (tui, zg) and tui != zg:
@@ -560,18 +574,16 @@ def reg_audit(d):
     if k == "辽":
         for r in LIAO_SK.get((y, d["月"]), []):
             s = r["石刻朔"].split("(")[0]
-            if s in (tui, zg) and tui != zg and "(推)" not in r["石刻朔"]:
-                items.append(ev("r" if s == tui else "t", "B", "辽代石刻", "liao_shike", f"{r['书']} {r['书页']}：{r['原文'][:36]}", False))
+            if s in (tui, zg) and tui != zg:
+                items.append(ev("r" if s == tui else "t", "B", "辽代石刻", "liao_shike", f"{r['书']} {r['书页']}：{r['原文'][:36]}", True))
     if k.startswith("南明"):
         for r in MZ.get((y, d["月"]), []):
             s = r["朔干支"]
             if s in (tui, zg) and tui != zg:
-                items.append(ev("r" if s == tui else "t", "A", "明郑大统历实物", "mingzheng", r["出处"][:40], False))
-    for r in DISC.get((k, d["年"], str(m)), []):
-        okr, okt = r["本项目推步"].startswith("在月"), r["张表"].startswith("在月")
-        if okr != okt:
-            items.append(ev("r" if okr else "t", "D", f"{r['书']}{r['类']}", r["书"] + "_zhi", f"{r['书']}志：{r['原文'][:40]}", False,
-                            "", r["日干支"]))
+                items.append(ev("r" if s == tui else "t", "A", "明郑大统历实物", "mingzheng", r["出处"][:40], True))
+    for r in ZHI_EV.get((k, d["年"], d["推步月首"], d["月"]), []):
+        items.append(ev("r" if r["推步合"] == "1" else "t", book_level(r["书"], r["位置"] == "朔"), "天文志", r["书"],
+                        f"{r['书']}：{r['月']}月{r['干支']}{r['位置']} {r['原文'][:40]}", True, r["位置"] or "日", r["干支"]))
     shift = (GI[tui] - GI[zg] + 30) % 60 - 30 if zg in GI else None
     rl = sorted(x for x in REG_MONTHS_LEAP.get((k, y), []))
     zl = [e[1] for e in ZHANG.get(y, []) if e[2]]
@@ -633,7 +645,7 @@ def reclassify(a):
     if len(lins) >= 2:
         return ("①" if side == "r" else "②"), min(i["grade"] for i in soft)
     if len(events) >= 2:
-        return ("①?" if side == "r" else "②?"), min(i["grade"] for i in soft)  # 同一史源、不同日之条：原规则许，严格计不许
+        return "③（只一源）", "—"  # 甲：同一史源（同书同月）不同日之事只算一源，不足两条
     return "③（一见）", "—"
 
 
@@ -642,22 +654,19 @@ def conclude(a):
     orig = a["orig"]
     a["recl"], a["recl_grade"] = rc, g
     unused_hard = [i for i in a["items"] if not i["used"] and i["grade"] in "ABC" and not i.get("later")]
-    later = [i for i in a["items"] if i.get("later")]
     if orig.startswith("③"):
         if rc in ("①", "②") and any(i.get("unverified") for i in a["items"]):
             return "无法判断", f"倾向{'推步' if rc == '①' else '张表'}：所据为转录未核之条，须核图版"
         if rc in ("①", "②"):
             src = "；".join(sorted({i["src"] for i in a["items"] if i["side"] == ("r" if rc == "①" else "t")}))
             return f"应改{rc}", f"{g} 级（{src}）{'原检验未接入' if unused_hard or any(not i['used'] for i in a['items']) else '原检验已有'}"
-        if rc in ("①?", "②?"):
-            n = len({(i["event"] or i["text"][:12]) for i in a["items"] if not i.get("dup")})
-            return f"应改{rc[0]}", f"D 级同一史源同月不同事 {n} 条（现行规则计为独立；同书系月之误可连带，强度弱于异源两条）"
-        if later:
-            return "等级标错", "；".join(sorted({i["later"] for i in later})) + " 按当朝史书计"
         if rc.startswith("③（证据冲突）"):
             return "判定得当", "证据两向"
         if rc == "③（一见）":
             return "判定得当", "纪日一见，等级不足"
+        if rc == "③（只一源）":
+            n = len({(i["event"] or i["text"][:12]) for i in a["items"] if not i.get("dup")})
+            return "判定得当", f"同一史源同月 {n} 事，按甲只算一源，不足异源两条"
         return "判定得当", "无判别之据"
     return "（非③）", ""
 
@@ -665,48 +674,46 @@ def conclude(a):
 # ---------------------------------------------------------------- 人工复核（逐条看过原文与考证表之月；键：范围、历/政权、年、月）
 MANUAL = {
     ("中原一线", "麟德历", 697, "11"): (
-        "应改②",
+        "判定得当",
         "《新唐书·则天纪》圣历元年正月甲子改元、丙寅、丁亥三条（武周建子，正月＝表 697 年十一月）只容于张表十一月甲子朔之月，"
         "推步十一月癸巳朔之月不容（丁亥距癸巳 54 日）；同书「閏月甲寅」接神功元年十月，与张表闰十同、与推步闰十二不同。"
-        "四条同出《新唐书》，按现行规则（同书不同事各计一条）已达 D 级两条；严格按异源计仍只一源。此月原检验另因闰位与进朔两重之异"
-        "（定朔考证把推步十一月配张表闰十月，「无证」），纪日未收"),
+        "四条同出《新唐书》（与《旧唐书》同源），按甲只算一源，不足异源两条，③得当（首轮按旧规则判应改②）。"
+        "中原一线检验现已按月名收此月纪日与「閏月」"),
     ("中原一线", "大统历", 1495, "7"): (
-        "应改②",
-        "《孝宗实录》卷一百二「弘治八年七月辛巳朔」（C，当朝实录）合张表；原检验 619 年后只取定朔考证，未接 mingshilu_shuo。"
-        "项目明实录校勘表按「实录有按讹朔整月排日之例」判存疑从推步，所举旁证（推步、现代合朔、朝鲜《燕山君日记》壬午）皆低于"
-        "当朝史书或为异国；无 A、B 级反证，按规则当归②，或在例外表中明列「实录讹」之据"),
-    ("中原一线", "时宪历", 1708, "2"): (
-        "应改②",
-        "《清圣祖实录》卷二百三十二（第 6 册书页 319）「二月戊寅朔祭」合张表，推步（用时、平时）皆己卯；无实物时宪书可对。"
-        "原检验未接 qingshilu_shuo_xinfa"),
+        "判定得当",
+        "《孝宗实录》卷一百二「弘治八年七月辛巳朔」（C）合张表；项目明实录校勘表判「存疑，从推步」（实录有按讹朔整月排日之例，"
+        "1622 年六月实物乙丑而实录整月按丙寅），照校勘表结论不计（2026-11-27 定），③得当（首轮判应改②）"),
     ("中原一线", "戊寅元历", 642, "4"): (
         "判定得当",
         "吐鲁番唐西州墓表三方：怀保妻左氏、张隆悦妻文姿二方「四月乙酉朔」合推步，张谦祐妻殿氏一方「四月丙戌朔」合张表；"
-        "B 级两向，冲突归③。推步定朔距子夜 0.31 时，西州或有一日之差。原检验未接 tulufan_jiri（唐 34 条），接入后仍③"),
-    ("分政权", "辽", 994, "4"): (
-        "应改①",
-        "统和十二年《姜承义墓志》「四月癸未朔十二日甲午」（《辽代石刻文编》补编书页 748—749，宣化出土），合宣明代推癸未、不合张表壬午；"
-        "calendar-compendium 已据此定辽行宣明，但分政权逐月表未接 liao_shike_shuo，仍记③"),
-    ("分政权", "南明/南明·绍武/鲁监国/明郑", 1671, "1"): (
-        "应改①",
-        "明郑《大明中興永曆二十五年大統曆》实物（Bodleian Sinica 58 与 Christ Church Wake Arch.Sup.D7 同版）正月小、初一日甲寅，"
-        "合推步、不合张表（清时宪癸丑）；A 级。分政权检验只读史书纪日，未接 mingzheng_shiwu_months"),
+        "B 级两向，冲突归③。推步定朔距子夜 0.31 时，西州或有一日之差。中原一线检验未接 tulufan_jiri（唐 34 条），接入后仍③"),
     ("分政权", "南明/南明·绍武/鲁监国/明郑", 1650, "12"): (
-        "等级标错",
-        "唯一之条出《小腆纪年》（清徐鼒撰，成书去南明二百年），原检验按当朝史书纪日（D）计；应为 E。此月仍③，结论不变"),
+        "判定得当",
+        "唯一之条出《小腆纪年》（清徐鼒撰，成书去南明二百年），检验程序现按 E 计（乙），只一见，③得当（首轮判等级标错）"),
     ("分政权", "吴", 236, "3"): (
         "无法判断",
         "所据「嘉禾五年三月癸卯朔」为出土纪日表转录（临湘侯相文书落款，注「转录未核简文图版」），倾向推步；须核走马楼简图版方可作 B 级"),
     ("分政权", "北魏/西魏/北周/隋", 494, "4"): (
-        "应改①",
+        "判定得当",
         "《魏书·天象志》太和十八年「四月庚申，月在斗蝕」「四月甲寅，熒惑入軒轅」二事，推步四月乙巳朔之月内（第 16、10 日），"
-        "张表四月乙亥朔之月外（张表闰四月乙巳）；同书异事两条（D），即证闰在二月（推步）而非四月（张表）。原检验不读志，"
-        "discriminating_records 之推步列须与现行分政权推步核同（此二条已按月首日序手核）"),
+        "张表四月乙亥朔之月外（张表闰四月乙巳）；分政权检验现已读天象志，但二事同出《魏书》，按甲只算一源，③得当（首轮按旧规则判应改①）"),
     ("分政权", "北魏/西魏/北周/隋", 513, "3"): (
-        "应改①",
+        "判定得当",
         "《魏书·世宗纪》延昌二年「三月丙寅，高昌國遣使朝獻」与《天象志》同年「三月乙丑，填星守房」「三月辛酉，熒惑又犯太微」三事，"
-        "皆在推步三月乙卯朔之月内、张表三月乙酉朔之月外（张表闰三月乙卯）；同年闰二月原检验已判①（推步闰二），本月同据"),
+        "皆在推步三月乙卯朔之月内、张表三月乙酉朔之月外；本纪与天象志同书同源，按甲只算一源，③得当（首轮判应改①）"),
 }
+
+# 首轮（c04239d）全扫「应改」之 20 月：按新产物复核是否已改过来
+PREV_FIX = [
+    ("中原一线", "麟德历", 697, "11", "应改②"), ("中原一线", "大统历", 1495, "7", "应改②"), ("中原一线", "时宪历", 1708, "2", "应改②"),
+    ("分政权", "北魏/西魏/北周/隋", 494, "4", "应改①"), ("分政权", "北魏/西魏/北周/隋", 513, "3", "应改①"),
+    ("分政权", "南明/南明·绍武/鲁监国/明郑", 1650, "12", "等级标错"), ("分政权", "南明/南明·绍武/鲁监国/明郑", 1671, "1", "应改①"),
+    ("分政权", "吴", 227, "10", "应改①"), ("分政权", "吴", 231, "7", "应改②"), ("分政权", "吴", 232, "4", "应改①"),
+    ("分政权", "吴", 232, "6", "应改①"), ("分政权", "吴", 232, "8", "应改①"), ("分政权", "吴", 232, "12", "应改①"),
+    ("分政权", "吴", 233, "3", "应改②"), ("分政权", "吴", 233, "5", "应改①"), ("分政权", "吴", 233, "10", "应改①"),
+    ("分政权", "吴", 234, "2", "应改①"), ("分政权", "吴", 234, "7", "应改①"), ("分政权", "吴", 234, "11", "应改①"),
+    ("分政权", "吴", 236, "3", "无法判断"), ("分政权", "辽", 994, "4", "应改①"),
+]
 
 
 def main():
@@ -781,7 +788,22 @@ def main():
                     a["orig_grade"], a["recl"], a["recl_grade"], a["concl"], a["basis"].replace(",", "，"),
                     "；".join(a["notes"]).replace(",", "，").replace("\n", " ")[:400], sel, int(bool(a.get("manual")))])
     (D / "d_level_audit.csv").write_text(out.getvalue(), encoding="utf-8")
-    write_doc(head, zy, rg, zy3, rg3, zs, rs, zq, rq, risky, audit)
+    # 首轮应改之月复核：现分类取新产物逐月表
+    cur = {("中原一线", d["历"], int(d["年"]), d["月"]): (d["分类"], d["证据等级"], d["证据"]) for d in ZY_DIFF}
+    cur.update({("分政权", d["推步之键"], int(d["年"]), d["月"]): (d["分类"], d["证据等级"], d["注"]) for d in REG_MONTHS if d["异同"] == "互异"})
+    by = {(a["scope"], a["key"], a["year"], a["month"]): a for a in zy + rg}
+    prev = []
+    for sc, k, y, m, was in PREV_FIX:
+        # 中原一线逐月表以历名为键，此处按年月找
+        kk = next((x for x in cur if x[0] == sc and x[2] == y and x[3] == m and (sc == "中原一线" or x[1] == k)), None)
+        c, g, e = cur.get(kk, ("—", "—", ""))
+        a = by.get(kk)
+        if c[0] in "①②":
+            why = f"已改：{g} 级——{e[:120]}"
+        else:
+            why = f"仍③：{a['basis'] if a else ''}"
+        prev.append((sc, k, y, m, was, c, why))
+    write_doc(head, zy, rg, zy3, rg3, zs, rs, zq, rq, risky, audit, prev)
 
 
 CONCLS = ["判定得当", "应改①", "应改②", "应改为相同类", "等级标错", "无法判断"]
@@ -791,33 +813,35 @@ def pct(n, d):
     return f"{n}（{100 * n / d:.1f}%）" if d else "0"
 
 
-def write_doc(head, zy, rg, zy3, rg3, zs, rs, zq, rq, risky, audit):
+def write_doc(head, zy, rg, zy3, rg3, zs, rs, zq, rq, risky, audit, prev):
     L = []
     A = L.append
     A("# 互异而归 ③ 之判抽查（自动生成）")
     A("")
-    A("> 由 `scripts/calendar_data/d_level_audit.py` 生成，勿手改；逐月见 `data/calendar/d_level_audit.csv`。只读分析：不改检验程序与产物，"
-      "结论作为修代码的候选。")
+    A("> 由 `scripts/calendar_data/d_level_audit.py` 生成，勿手改；逐月见 `data/calendar/d_level_audit.csv`。只读分析：不改检验程序与产物。"
+      "首轮（c04239d）所列系统性问题已于 2026-11-27 在检验程序中修正（见「系统性问题之处理」），本文为按新产物重判之第二轮，"
+      "首轮「应改」之月逐月复核见「首轮应改之月复核」。")
     A("")
     A("## 方法")
     A("")
-    A(f"- **范围**：中原一线推步与张表互异之月 {len(zy)}（`zhongyuan_reckoning_months.csv`，原判 ① {len(zy) - len(zy3)}、③ {len(zy3)}）；"
+    A(f"- **范围**：中原一线推步与张表互异之月 {len(zy)}（`zhongyuan_reckoning_months.csv`，原判 ①② {len(zy) - len(zy3)}、③ {len(zy3)}）；"
       f"分政权互异之月 {len(rg)}（`regime_benji_months.csv`，原判 ①② {len(rg) - len(rg3)}、③ {len(rg3)}）。所据文件 git HEAD `{head}`。")
     A("- **等级**（与 `scripts/calendar_data/shiwu_fenlei.py`、`rust/core/examples/zhongyuan_reckoning_eval.rs`、`regime_benji_eval.rs` 一致）："
       "A 实物历日，B 当时文字（碑志、墓志、简牍、文书），C 当朝或近时所修史书明书朔，D 当朝史书纪日（同月独立两条才判），"
-      "E 后人追修史书（《后汉书》《晋书》，《南史》《北史》《新五代史》前史无同条者）。今人表不是证据。"
-      "注意：任务说明把 D 写作「后人史书」、E 写作「今人表」，代码中 D 是当朝史书纪日、E 是后人追修，本文按代码。")
-    A("- **重新汇集证据**：每个互异之月先取原检验所用之条，再查原检验没有接入的表：中原一线——本纪纪日（619 年以前原检验不收；619 年以后只收"
-      "定朔考证 `dingshuo_zhangbiao_diffs.csv` 里有的月）、本纪前月末日之条、本纪「閏月」、《汉书》秦汉初书朔晦（`qinhan_benji_check.csv`）、"
-      "秦汉初出土历谱（`qinhan_shiwu_months.csv`）、楼兰简纸、吐鲁番唐西州文书（`tulufan_jiri.csv`）、大统历与时宪书实物、明实录书朔"
-      "（`mingshilu_shuo.csv`）、清实录书朔（`qingshilu_shuo_xinfa.csv`）；分政权——走马楼吴简（`zoumalou_jiri.csv`，核对过的）、"
-      "出土纪日（`出土纪日.csv`）、辽代石刻（`liao_shike_shuo.csv`）、明郑大统历实物（`mingzheng_shiwu_months.csv`）、北朝诸史天文志之条"
-      "（`discriminating_records.csv` 中非本纪之条）、前月末日之条。唐宋诸考证表（`tang_shuo_kaozheng.csv`、`song_shuo_kaozheng.csv`、"
+      "E 后人追修史书（《后汉书》《晋书》，《南史》《北史》《新五代史》前史无同条者；南明诸书即清人私家追记与《建康实录》吴部分亦为 E）。"
+      "今人表不是证据。")
+    A("- **重新汇集证据**：每个互异之月逐条重收（「*」为检验程序未用者）：中原一线——定朔考证之判与实物（取原检验）、本纪明书朔、本纪纪日"
+      "（定朔考证按月名配之月以考证所收为准，余者检验程序按月名收）、本纪前月末日之条（*）、本纪「閏月」、《汉书》秦汉初书朔晦"
+      "（`qinhan_benji_check.csv`）、秦汉初出土历谱（`qinhan_shiwu_months.csv`，*）、楼兰简纸（*）、吐鲁番唐西州文书（`tulufan_jiri.csv`，*）、"
+      "大统历与时宪书实物（*）、明实录书朔（`mingshilu_shuo.csv`，校勘表判讹或存疑者照其结论不计）、清实录书朔（`qingshilu_shuo_xinfa.csv`）；"
+      "分政权——史书本纪纪日、走马楼吴简（`zoumalou_jiri.csv`，核对过的）、出土纪日（`出土纪日.csv`，*）、辽代石刻（`liao_shike_shuo.csv`）、"
+      "明郑大统历实物（`mingzheng_shiwu_months.csv`）、北朝诸史与《金史》天文志之条（`regime_zhi_check.csv`）、前月末日之条（*）。"
+      "唐宋诸考证表（`tang_shuo_kaozheng.csv`、`song_shuo_kaozheng.csv`、"
       "`tangsong_cunyi_kaozheng.csv`、`wudai_shuo_kaozheng.csv`、`yuan_shuo_kaozheng.csv`）、例外表、各政权考证表、明实录校勘表与朝鲜实录"
       "（异国，只作旁证）的结论只记入按语。")
-    A("- **重判**：A、B、C 一条即可判（两向即冲突归③）；D、E 须独立两条。同一史源（旧、新唐书；旧、新五代史；《北史》与魏、北齐、周、隋书；"
-      "《南史》与南朝四书；《晋书》与《三国志》；同书本纪与志）合为一源，同源同日之条只算一条。同一史源内不同日之事，现行规则（两检验程序的"
-      "`jiri_count`、`n_ind`）各算一条——本文从之，但在依据里注明「同一史源」。成书远在其后的私家追记（《小腆纪年》等）按 E 计。")
+    A("- **重判**：A、B、C 一条即可判（两向即冲突归③）；D、E 须异源两条（甲）。同一史源（旧、新唐书；旧、新五代史；《北史》与魏、北齐、周、隋书；"
+      "《南史》与南朝四书；《晋书》与《三国志》；《建康实录》吴部分与《三国志·吴书》；同书本纪与志）合为一源，同一史源同月诸事只算一源。"
+      "成书远在其后的私家追记（《小腆纪年》等）按 E 计（乙）。")
     A(f"- **抽样**：随机种子 `{SEED}`（Python `random.Random`），中原一线按朝代分层、分政权按推步之键分层，最大余数法按层大小分配 {N_SAMPLE} 月，"
       "每层至少 1 月，层内按（历/政权、年、月）排序后 `sample`。另把「同月有 ≥2 条证据却仍归 ③」之月、全体扫描中重判与原判不同之月全部列入。")
     A("")
@@ -857,10 +881,9 @@ def write_doc(head, zy, rg, zy3, rg3, zs, rs, zq, rq, risky, audit):
     A("")
     nz = sum(a["concl"] in ("应改①", "应改②", "应改为相同类") for a in zy3)
     nr = sum(a["concl"] in ("应改①", "应改②", "应改为相同类") for a in rg3)
-    A(f"**判断**：抽样中绝大多数 ③ 月本无任何能判别两家之条（两家只差一日，判别之日只有月首一天），③ 判得当。误判集中在少数月份，"
-      f"随机抽样难以抽中，全扫才看得清：中原一线 ③ {len(zy3)} 月中应改 {nz} 月（{100 * nz / len(zy3):.1f}%），分政权 ③ {len(rg3)} 月中应改 {nr} 月"
-      f"（{100 * nr / len(rg3):.1f}%）；误判几乎都不是「把 D 级一条当两条」之类门槛问题，而是**检验程序没有接入已有的高等级材料**（见下「系统性问题」）。"
-      "反方向的风险——③ 中有把同一史源算成两条而该判未判的——没有发现；原判①② 中则有门槛偏松之处（同一史源不同日之事各算一条、私家追记按当朝计），见下。")
+    A(f"**判断**：抽样中绝大多数 ③ 月本无任何能判别两家之条（两家只差一日，判别之日只有月首一天），③ 判得当。按新产物全扫："
+      f"中原一线 ③ {len(zy3)} 月中应改 {nz} 月，分政权 ③ {len(rg3)} 月中应改 {nr} 月。首轮应改之月多因检验程序未接入已有的高等级材料，"
+      "现已接入（见「首轮应改之月复核」「系统性问题之处理」）。")
     A("")
     A("### 应改之月（全扫）")
     A("")
@@ -882,44 +905,41 @@ def write_doc(head, zy, rg, zy3, rg3, zs, rs, zq, rq, risky, audit):
     A("")
     A("多数是《北史》与魏、北齐、周书同记一事（同一史源，只算一条），合规则；489 年以后隋书与北史亦然。")
     A("")
-    A("## 系统性问题与修正候选（不修）")
+    A("## 首轮应改之月复核")
     A("")
-    cnt_src = Counter()
-    for a in zy3 + rg3:
-        if a["concl"] in ("应改①", "应改②"):
-            for s0 in {i["src"] for i in a["items"] if not i["used"]}:
-                cnt_src[s0] += 1
-    A("1. **分政权检验未接入实物与当时文字**（`regime_benji_eval.rs` 只读 `本纪纪日/`）：走马楼吴简（B）证吴月 "
-      f"{cnt_src.get('走马楼吴简', 0)} 月、辽代石刻（B）{cnt_src.get('辽代石刻', 0)} 月、明郑大统历实物（A）{cnt_src.get('明郑大统历实物', 0)} 月，"
-      "原检验都记③。`zoumalou_shuo_check.py`、`liao_calendar_check`、明郑实物各自另有检验，结论（如走马楼之①）没有回到逐月表。"
-      "候选：`regime_benji_eval.rs` 的互异分类读入这些表（A/B 一条可判），与中原一线读 `chutu_rili_shuo.csv` 同法。")
-    A(f"2. **中原一线 619 年后之月只取定朔考证，明、清实录书朔未接入**：{cnt_src.get('明实录书朔', 0) + cnt_src.get('清实录书朔', 0)} 月"
-      "（1495 年七月、1708 年二月）当归②。1370 年二月之所以为①，是因为定朔考证表另行收了《明太祖实录》。候选：`dingshuo_zhangbiao_diffs.rs` 或"
-      " `zhongyuan_reckoning_eval.rs` 读 `mingshilu_shuo.csv`、`qingshilu_shuo_xinfa.csv` 作 C 级明书朔（明实录校勘表已判讹者剔除）。")
-    A("3. **闰位之异的月不进定朔考证，纪日与「閏月」都没有用上**：619 年以后闰位之异的月（697 年闰十二、719 年八月、852 年八月）不在 "
-      "`dingshuo_zhangbiao_diffs.csv` 里；619 年以前的互异之月（颛顼 16、景初 4）原检验只收本纪明书朔，纪日、`_閏月.csv` 都不读，"
-      "《汉书》秦汉初书朔晦（`qinhan_benji_check.csv`）也只计入逐历汇总、不进逐月分类。本次补查后实有判别之条的只 697 年十一月"
-      "（《新唐书》四条，应改②）及 314 年正月、697 年十二月与闰十二月、719 年八月各一条（仍③）。另，定朔考证把 697 年推步十一月配张表闰十月、"
-      "推步十二月配张表十一月（按次序配），而本纪以月名书事，按月名配才能用上纪日——两种配法的证据都应收。")
+    A("首轮（c04239d）全扫判「应改」「等级标错」「无法判断」之月，按新产物逐一复核：")
+    A("")
+    A("| 范围 | 历/政权 | 年 | 月 | 首轮结论 | 现分类 | 说明 |")
+    A("|---|---|---|---|---|---|---|")
+    for sc, k, y, m, was, c, why in prev:
+        A(f"| {sc} | {k} | {y} | {m} | {was} | {c} | {why.replace('|', '｜')} |")
+    A("")
+    A(f"已改 {sum(c[0] in '①②' for *_, c, _ in prev)} 月，仍③ {sum(c[0] == '③' for *_, c, _ in prev)} 月；仍③者皆因甲（同书同月诸事只算一源）、"
+      "照明实录校勘表「存疑」不计，或乙（南明私家追记按 E），或所据为转录未核之条，均非漏接材料。")
+    A("")
+    A("## 系统性问题之处理（2026-11-27）")
+    A("")
     o12 = [a for a in rg if not a["orig"].startswith("③")]
     d1 = [a for a in o12 if a["orig"].startswith("①") and a["orig_grade"] == "D"]
-    d1_one = [a for a in d1 if len({i["lin"] for i in a["items"] if i["used"]}) == 1]
-    nm2 = [a for a in o12 if a["orig"].startswith("②") and a["key"].startswith("南明")]
-    nm2_back = [a for a in nm2 if reclassify(a)[0].startswith("③")]
-    A(f"4. **原判①② 的门槛**（不在本次 ③ 抽查之内，顺记；以下数字由本脚本对原判①②之月重算）：分政权 ① 中 D 级 {len(d1)} 月，"
-      f"其中 {len(d1_one)} 月只有一个史源（《北史》与魏、北齐、周、隋书合为一源，或只有《辽史》），靠同源内不同日之事各算一条达到「两条」。"
-      "这与规则文字「同月独立两条」相容，但同书同月诸条共用一个系月，月名错一处即全错；若改为「异源两条」，这些月都回到③。"
-      f"分政权 ② 中南明 {len(nm2)} 月（{'、'.join(f'{a['year']}-{a['month']}' for a in nm2)}）所据只有《小腆纪年》《海东逸史》《明季南略》"
-      f"等清人私家追记，原检验按当朝史书（C/D）计；按 E 计（E 须两条，同书不同事各计）则 {len(nm2_back)} 月"
-      f"（{'、'.join(f'{a['year']}-{a['month']}' for a in nm2_back) or '无'}）回到③，余者靠同书数条维持。"
-      "《建康实录》（唐许嵩）记吴事亦按 D 计，本次 ③ 月中未见其为唯一判别之条。候选：`book_level` 增列 `nanming_*`、`jiankang_shilu_wu` 为 E；"
-      "是否收紧为「异源两条」须另议并写入 shiwu_fenlei 说明。")
-    A("5. **E 级一条之门槛两检验不一**：中原一线互异分类只要诸证一向即判（E 级明书朔一条亦可），分政权要求 C 级书朔或两条；"
-      "`shiwu_fenlei.NEED` 记 E 为 1。现时中原一线①中无单凭 E 级者，属潜在不一致。候选：统一为 E 须两条（或与 D 同）。")
-    A("6. **「异之类」标错**：719 年八月、852 年八月推步与张表朔差 29 日，实为闰位之异（推步八月即张表闰七月），逐月表记作「朔日之异」，"
-      "因为「张表对应月」先按同名月找。不影响①②③，只影响按差异性质的统计。")
-    A("7. **天文志之条**：北朝诸史天文志的凌犯、日食纪日（`discriminating_records.csv` 已整理）不进分政权检验；494 年四月、513 年三月因此"
-      "少了两三条同向之据（应改①）。")
+    d1_one = [a for a in d1 if len({i["lin"] for i in a["items"] if i["used"] and i["grade"] in "DE"}) == 1
+              and not any(i["grade"] in "ABC" for i in a["items"])]
+    A("首轮所列七项，处理如下（各项改判月数见 `doc/calendar/regime-benji-checks.md`、`benji-checks.md` 与本次报告）：")
+    A("")
+    A("1. **分政权接入实物与当时文字**：`regime_benji_eval.rs` 读走马楼吴简（逐月所据之简取 `zoumalou_shuo_check.py` 写的 "
+      "`zoumalou_months.csv`，与 zoumalou-checks 同一分类）、辽代石刻（`liao_shike_shuo.csv`，含由日序倒推之朔）、明郑大统历实物"
+      "（`mingzheng_shiwu_months.csv`）；A、B 一条即判，A 级压过其余诸证。")
+    A("2. **中原一线接入明清实录书朔**：`dingshuo_zhangbiao_diffs.rs`（619 年后朔日之异）与 `zhongyuan_reckoning_eval.rs`（其余互异之月）"
+      "读 `mingshilu_shuo.csv`、`qingshilu_shuo_xinfa.csv` 作 C 级；明实录校勘表判馆本讹、诸本同讹、录文抽取误或存疑者照其结论不计"
+      "（1495 年七月因此仍③）；校勘表判「张表误」而录文书朔表未收之 1378 年八月以校勘表所录馆本朔补入。")
+    A("3. **定朔考证不及之月收纪日、「閏月」、《汉书》秦汉初书朔晦**：619 年前诸月与 619 年后定朔考证按次序配月（张表月名不同）之月，"
+      "中原一线检验按月名收本纪纪日与「閏月」；秦汉初《汉书》书朔、晦为 C，余为 D。")
+    A(f"4. **门槛**：甲——D、E 级判①②须异源两条（同书同月诸事只算一源），中原一线、定朔考证、分政权三处一致；"
+      f"乙——`nanming_*`、`jiankang_shilu_wu` 为 E。现分政权①中 D 级 {len(d1)} 月，只一史源者 {len(d1_one)} 月"
+      "（应为 0：有则是 A、B、C 级他证并存）。")
+    A("5. **E 级一条**：中原一线与定朔考证亦改为 E 级明书朔须两条（与分政权同）。")
+    A("6. **「异之类」**：两家同名之月而朔差约一月者（719、852 年八月）改标「月名之异（闰位）」。")
+    A("7. **天文志之条**：北朝诸史（《魏书》《隋书》）与《金史》天文志之凌犯、日月食纪日接入分政权检验（书名 `<书>_zhi`，与同书本纪同源；"
+      "逐条见 `regime_zhi_check.csv`）。494 年四月、513 年三月之条同出《魏书》，按甲只算一源，仍③。")
     A("")
     A("## 逐月全表")
     A("")
@@ -938,8 +958,8 @@ def write_doc(head, zy, rg, zy3, rg3, zs, rs, zq, rq, risky, audit):
     A("- 证据只来自仓库已整理的表；没有回到点校本、拓片或简牍图版逐条重读（人工复核的月份只核了仓库中的录文与考证表）。"
       "因此「判定得当」的意思是：仓库现有材料中没有能判别两家的条目，不是说史料中一定没有。")
     A("- 汉简历日（`hanjian_*`）此次未读（另一检验正在用），秦汉初只用了《汉书》本纪与 `qinhan_shiwu_months.csv`。")
-    A("- 吐鲁番唐西州文书只取「计入」=1 之条；走马楼只取核对过的；辽代石刻剔除「(推)」（倒推朔）之条；出土纪日表中「转录未核」者判「无法判断」。")
-    A("- `discriminating_records.csv` 的「本项目推步」列是该表生成时之推步，与现行分政权推步可能有出入；494、513 年两月已按月首日序手核。")
+    A("- 吐鲁番唐西州文书只取「计入」=1 之条；走马楼只取核对过的；辽代石刻含「(推)」（由日序与日干支倒推之朔）之条，与检验程序同；"
+      "出土纪日表中「转录未核」者判「无法判断」。")
     A("- 中原一线推步各月的 JDN 由逐月表干支以张表同名月为锚还原（差不过 ±30 日），闰位之异处以前月 +30 日为锚。")
     A("- 前月末日之条只对「前月两家同朔」的情形归入本月；连续多月互异时由各月自身之条判。")
     A("")

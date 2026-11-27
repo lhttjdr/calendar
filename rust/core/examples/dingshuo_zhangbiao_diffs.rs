@@ -118,8 +118,18 @@ fn lineage(book: &str) -> &str {
     }
 }
 
-/// 支持某一家之纪日的独立条数：同一史源内各书取条数最多者（他书多为互见），各史源相加；同书同文（前 20 字）不重计
+/// 检验开关（只供分解各项改动之效，缺省全开）：环境变量 `ABLATE` 列出要关掉的项——`jia`（纪日判①②须异源两条）、
+/// `shilu`（明、清实录书朔，C 级）、`e2`（E 级明书朔只一见不判）
+fn on(f: &str) -> bool {
+    !std::env::var("ABLATE").unwrap_or_default().split(',').any(|x| x.trim() == f)
+}
+
+/// 支持某一家之纪日的独立条数：同一部书（含同源诸书，见 [`lineage`]）同月诸事只算一个史源，各史源相加——同书系月之误会连带
+/// 同月诸条，不能以同书不同日之事凑足两条。开关 `jia` 关时为旧规则：同一史源内各书取条数最多者，各史源相加；同书同文（前 20 字）不重计
 fn jiri_events(d: &Diff, sup_r: bool) -> usize {
+    if on("jia") {
+        return d.jiri.iter().filter(|j| j.1 == sup_r).map(|j| lineage(j.0.split('（').next().unwrap_or(&j.0)).to_string()).collect::<BTreeSet<_>>().len();
+    }
     let mut seen: BTreeSet<(String, String)> = BTreeSet::new();
     let mut per: BTreeMap<(String, String), usize> = BTreeMap::new();
     for j in d.jiri.iter().filter(|j| j.1 == sup_r) {
@@ -322,6 +332,44 @@ fn main() {
         let er = errata.contains(&(r[cb].clone(), r[cy].clone(), r[cm].clone()));
         for d in diffs.iter_mut().filter(|d| d.year == ty && d.month == tm && d.leap == tl) {
             d.shuo.push((r[cb].replace("_benji", ""), rec, er));
+        }
+    }
+
+    // 明、清实录月首书朔（C 级，当朝实录）：明实录（data/calendar/mingshilu_shuo.csv）、清实录（qingshilu_shuo_xinfa.csv）；
+    // 明实录校勘表（mingshilu_jiaokan.csv）已判馆本讹、诸本同讹、录文抽取误或存疑者照其结论不计（列入书朔栏并注「校勘表」）
+    if on("shilu") {
+        let jiaokan: HashMap<(i32, u8, bool), String> = parse_csv(&read("data/calendar/mingshilu_jiaokan.csv"))
+            .into_iter()
+            .filter(|r| r.len() > 10 && !r[0].starts_with('#') && r[0] != "年")
+            .filter_map(|r| Some(((r[0].parse().ok()?, r[1].parse().ok()?, r[2] == "1"), r[10].clone())))
+            .collect();
+        let mut lu: Vec<(i32, u8, bool, String, &str)> = Vec::new();
+        for r in parse_csv(&read("data/calendar/mingshilu_shuo.csv")).into_iter().filter(|r| r.len() > 5 && !r[0].starts_with('#') && r[0] != "年") {
+            if let (Ok(y), Ok(m)) = (r[0].parse::<i32>(), r[1].parse::<u8>()) {
+                lu.push((y, m, r[2] == "1", r[3].clone(), "明实录"));
+            }
+        }
+        for r in parse_csv(&read("data/calendar/qingshilu_shuo_xinfa.csv")).into_iter().filter(|r| r.len() > 8 && !r[0].starts_with('#') && r[0] != "年") {
+            if let (Ok(y), Ok(m)) = (r[0].parse::<i32>(), r[2].parse::<u8>()) {
+                lu.push((y, m, r[3] == "1", r[4].clone(), "清实录"));
+            }
+        }
+        // 校勘表判「张表误」而录文书朔表未收之月（1378 年八月「八月庚子朔」，太祖实录卷一百十九，录文抽取漏）：以校勘表所录馆本朔补
+        for r in parse_csv(&read("data/calendar/mingshilu_jiaokan.csv")).into_iter().filter(|r| r.len() > 10 && !r[0].starts_with('#') && r[0] != "年") {
+            if let (Ok(y), Ok(m)) = (r[0].parse::<i32>(), r[1].parse::<u8>()) {
+                if r[10].contains("张表误") && !lu.iter().any(|x| x.0 == y && x.1 == m && x.2 == (r[2] == "1") && x.4 == "明实录") {
+                    lu.push((y, m, r[2] == "1", r[3].clone(), "明实录"));
+                }
+            }
+        }
+        for (y, m, l, sh, book) in lu {
+            let Some(gi) = GAN_ZHI_60.iter().position(|g| *g == sh) else { continue };
+            for d in diffs.iter_mut().filter(|d| d.year == y && d.month == m && d.leap == l) {
+                // 所书干支取最近推步朔之日（两家只差一二日）
+                let rec = d.r + ((gi as i64 - (d.r + 49)).rem_euclid(60) + 30) % 60 - 30;
+                let jk = jiaokan.get(&(y, m, l)).filter(|j| book == "明实录" && !j.contains("张表误") && (rec == d.r || rec == d.t));
+                d.shuo.push((format!("{book}{}", jk.map_or(String::new(), |j| format!("（校勘表：{}）", j.chars().take(24).collect::<String>()))), rec, jk.is_some()));
+            }
         }
     }
 
@@ -528,6 +576,24 @@ fn main() {
         let st: Vec<_> = d.shuo.iter().filter(|s| !s.2 && s.1 == d.t).collect();
         let jr = d.jiri.iter().filter(|j| j.1).count();
         let jt = d.jiri.iter().filter(|j| !j.1).count();
+        // 明书朔之所出：全为明清实录者称「实录」，否则「本纪」（「本纪、实录」并出者亦以「本纪」起，等级照书）
+        let src = |v: &[&(String, i64, bool)]| -> &'static str {
+            if v.iter().all(|s| s.0.starts_with("明实录") || s.0.starts_with("清实录")) {
+                "实录"
+            } else if v.iter().any(|s| s.0.starts_with("明实录") || s.0.starts_with("清实录")) {
+                "本纪、实录"
+            } else {
+                "本纪"
+            }
+        };
+        // E 级（《新五代史》前史无同条者）明书朔只一见：与分政权、中原一线逐月分类同，须两条（开关 e2）
+        let e_only = |v: &[&(String, i64, bool)]| -> &'static str {
+            if on("e2") && v.iter().all(|s| book_level(&s.0, true) == 'E') && v.iter().map(|s| lineage(&s.0)).collect::<BTreeSet<_>>().len() < 2 {
+                "；E 级明书朔一见"
+            } else {
+                ""
+            }
+        };
         // 进退关系
         let cause = match d.ding {
             Some((base, h, lim, jin, _)) => {
@@ -556,13 +622,13 @@ fn main() {
             "实物两歧".to_string()
         } else if !sr.is_empty() && st.is_empty() && jt > 0 {
             // 单条明书朔与纪日冲突：不判（归③）
-            "本纪证推步而纪日证张表，冲突不判".to_string()
+            format!("{}证推步而纪日证张表，冲突不判", src(&sr))
         } else if !st.is_empty() && sr.is_empty() && jr > 0 {
-            "本纪证张表而纪日证推步，冲突不判".to_string()
+            format!("{}证张表而纪日证推步，冲突不判", src(&st))
         } else if !sr.is_empty() && st.is_empty() {
-            "本纪证推步（张表疑误）".to_string()
+            format!("{}证推步（张表疑误）{}", src(&sr), e_only(&sr))
         } else if !st.is_empty() && sr.is_empty() {
-            "本纪证张表（推步临限或不合）".to_string()
+            format!("{}证张表（推步临限或不合）{}", src(&st), e_only(&st))
         } else if !sr.is_empty() && !st.is_empty() {
             "本纪两歧".to_string()
         } else if jr > 0 && jt == 0 {
@@ -611,7 +677,7 @@ fn main() {
         if v.starts_with("他书明书朔") {
             return "C".into();
         }
-        let lv = if v.starts_with("本纪") {
+        let lv = if v.starts_with("本纪") || v.starts_with("实录") {
             let want = if sup_r { d.r } else { d.t };
             d.shuo.iter().filter(|s| !s.2 && s.1 == want).map(|s| book_level(&s.0, true)).min()
         } else {
@@ -666,7 +732,7 @@ fn main() {
     };
     let mut csv = String::from("历,年,月,张表月名,推步朔,张表朔,张表−推步,定朔所在日,定小余（时）,进朔限（时）,距限（时）,经朔（时，距定朔所在日夜半）,有交,进退关系,本纪明书朔,纪日证据,已有考证,判定,分类,证据等级,按语,距子夜（时）,月离所入,日躔所入,距月离段界（时）,复核\n");
     let fmt_shuo = |d: &Diff| -> String {
-        d.shuo.iter().map(|s| format!("{} {}{}", s.0, gz(s.1), if s.2 { "（已考讹）" } else { "" })).collect::<Vec<_>>().join("；")
+        d.shuo.iter().map(|s| format!("{} {}{}", s.0, gz(s.1), if s.2 && s.0.contains("校勘表") { "（照校勘表不计）" } else if s.2 { "（已考讹）" } else { "" })).collect::<Vec<_>>().join("；")
     };
     let fmt_jiri = |d: &Diff| -> String {
         d.jiri.iter().map(|j| format!("{}：{}合{}", j.0, j.2, if j.1 { "推步" } else { "张表" })).collect::<Vec<_>>().join("；")
@@ -847,7 +913,7 @@ fn main() {
         md += &format!("| {nm} | {} | {} |\n", c.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(" | "), c.iter().sum::<usize>());
     }
     md += &format!("| 无证 | — | — | — | — | — | {} |\n\n", same_tot[2]);
-    md += "分类：①有当时文字（本纪明书朔、纪日、写本、册文、题记等）证张表误、推步合；②有文字证推步误、张表合；③无据待核（无本纪纪日可判，或两歧；单条明书朔与纪日相冲突者亦不判，归③；纪日须同月两条以上独立之条一致才判，只一见者归③并注「纪日一见，倾向推步／张表」——同一史源之书（旧、新唐书，旧、新五代史等）互见同事只算一条）。三类之和即朔日不同之月。\n\n";
+    md += "分类：①有当时文字（本纪明书朔、纪日、写本、册文、题记等）证张表误、推步合；②有文字证推步误、张表合；③无据待核（无本纪纪日可判，或两歧；单条明书朔与纪日相冲突者亦不判，归③；纪日须异源两条一致才判——同一部书（含同源诸书：旧、新唐书，旧、新五代史等）同月诸事只算一源，2026-11-27 起——只一源者归③并注「纪日一见，倾向推步／张表」；E 级明书朔（《新五代史》前史无同条者）只一见亦归③；明清实录书朔为 C 级，明实录书朔经校勘表判讹或存疑者照其结论不计，书朔栏注「校勘表」）。三类之和即朔日不同之月。\n\n";
     // 三类 × 证据等级
     let lvls = ["A", "B", "C", "D", "E"];
     md += "证据等级：A 实物历日（具注历、历谱；抄本讹误另核）；B 当时文字（碑志、题记、简牍文书、册文、诏令原文）；C 当朝或近时所修史书明书「某月某干支朔」；D 当朝史书纪日干支（能分辨两家者）；E 后人追修史书（《后汉书》《晋书》；《南史》《北史》《新五代史》前史无同条者）。《新唐书》本纪多据实录，与《旧唐书》同级，两书同条只算一证；《南史》《北史》《新五代史》与前史同条者按前史计、不重计。复原性质材料（《通鉴目录》、今人诸表）不作证据。\n\n| 分类 | A | B | C | D | E | 计 |\n|---|---|---|---|---|---|---|\n";

@@ -7,7 +7,7 @@
 OCR（RapidOCR，竖排）候选由 scripts 外部步骤生成（JSON：页 → [(x, y, 文字, 置信)]），本脚本只做匹配与比对；每条候选须对原书页图人工核对后
 写入 data/calendar/zoumalou_jiri.csv（列：册,书页,简号,年号,年,月,闰,日,干支,朔干支,原文,核对），检验只用核对过的行。
 吴历：data/calendar/推步政权朔日表.csv「吴」（乾象历推步）；魏历：张培瑜历表（魏行黄初/景初，与中原一线推步同）。
-输出 doc/calendar/zoumalou-checks.md。
+输出 doc/calendar/zoumalou-checks.md 与 data/calendar/zoumalou_months.csv（逐月所据之简与分类，regime_benji_eval 读入并入分政权逐月表）。
 用法（仓库根）：python3 scripts/calendar_data/zoumalou_shuo_check.py candidates <ocr.json>...  （列出候选）
             python3 scripts/calendar_data/zoumalou_shuo_check.py check                       （检验已核对之行）
 """
@@ -88,6 +88,18 @@ def check():
     g_ = lambda M, k: GZ[(M[0][k] + 49) % 60] if k in M[0] else ""
     cls = {k: fl.classify(g_(wu, k), g_(wei, k), v, "B", "简文") for k, v in obs.items()}
     cl = lambda k: (cls[k][0] + (f"（{cls[k][1]}）" if cls[k][1] else "")) if cls[k][0] else ""
+    # 逐月所据之简与分类写回 data/calendar/zoumalou_months.csv：rust/core/examples/regime_benji_eval.rs 读入，并入分政权逐月表
+    # （吴月之 B 级证据；同一批简、同一分类规则，分政权表不另判简文）
+    slips = {}
+    for r in rows:
+        slips.setdefault((int(r["年"]), int(r["月"]), r["闰"] == "1"), []).append(f"{r['册']} {r['简号'] or r['书页']}")
+    with open(ROOT / "data/calendar/zoumalou_months.csv", "w", encoding="utf-8", newline="") as f:
+        f.write("# 走马楼吴简逐月（scripts/calendar_data/zoumalou_shuo_check.py check 生成，勿手改）：核对过之简按年月归并；吴推步朔＝推步政权朔日表「吴」，"
+                "张表朔＝实历朔日表同名之月；简文朔、简以「；」分隔，一一对应；分类同 doc/calendar/zoumalou-checks.md。\n")
+        w = csv.writer(f, lineterminator="\n")
+        w.writerow(["年", "月", "闰", "吴推步朔", "张表朔", "简文朔", "简", "分类", "注"])
+        for k in sorted(obs):
+            w.writerow([k[0], k[1], int(k[2]), g_(wu, k), g_(wei, k), "；".join(obs[k]), "；".join(slips[k]), cls[k][0] or "", cls[k][1]])
     for r in rows:
         y, m, leap = int(r["年"]), int(r["月"]), r["闰"] == "1"
         res = []

@@ -7,9 +7,10 @@
 //!
 //! 三分类（推步与张表互异之月）：①有硬据证张表误、推步合；②有硬据证推步误、张表合；③无据待核（无证、证据冲突）。
 //! 证据等级：A 实物历日（`artifacts` 整年实物、`data/calendar/chutu_rili_shuo.csv` 出土具注历）；B 当时文字；C 当朝或近时所修
-//! 史书明书朔；D 当朝史书纪日（须同月两条以上独立之条一致，一见者归③）；E 后人追修史书（《后汉书》《晋书》，《南史》《北史》
-//! 《新五代史》前史无同条者）。619—1911 年朔日之异只取 `data/calendar/dingshuo_zhangbiao_diffs.csv`
-//! （`examples/dingshuo_zhangbiao_diffs.rs`，含明书朔、纪日、写本与人工按语）之分类（另加实物），故须先跑该程序。
+//! 史书明书朔（含明、清实录书朔，《汉书》秦汉初书朔晦）；D 当朝史书纪日与「閏月」；E 后人追修史书（《后汉书》《晋书》，《南史》《北史》
+//! 《新五代史》前史无同条者）。D、E 须异源两条（同一部书——含同源诸书——同月诸事只算一源），一见、一源者归③。619—1911 年朔日之异
+//! （定朔考证按朔日相近配月而张表月名相同者）只取 `data/calendar/dingshuo_zhangbiao_diffs.csv`（`examples/dingshuo_zhangbiao_diffs.rs`，
+//! 含明书朔、实录、纪日、写本与人工按语）之分类（另加实物），故须先跑该程序；其余互异之月本程序按月名收本纪明书朔、纪日、「閏月」、实录书朔。
 //! 复原性质材料（《通鉴目录》、今人诸表）不作证据。有 A 级者从 A；余者诸证一致即从之，相冲突则归③。
 //! 用法（仓库根）：cargo run --release --manifest-path rust/Cargo.toml -p lunar-core --no-default-features --features real-f64 --example zhongyuan_reckoning_eval
 use lunar_core::calendar::gan_zhi::GAN_ZHI_60;
@@ -31,6 +32,61 @@ fn lineage(book: &str) -> &str {
         "jinshu" | "sanguozhi" => "魏晋",
         x => x,
     }
+}
+
+/// 检验开关（只供分解各项改动之效，缺省全开）：环境变量 `ABLATE` 列出要关掉的项，逗号分隔——`jia`（D、E 级判①②须异源两条）、
+/// `e2`（E 级明书朔亦须两条，与分政权同）、`jiri`（定朔考证不及之互异月收本纪纪日、「閏月」与《汉书》秦汉初书朔晦纪日）、
+/// `shilu`（明、清实录书朔，C 级；619 年后朔日之异由定朔考证收入）
+fn on(f: &str) -> bool {
+    !std::env::var("ABLATE").unwrap_or_default().split(',').any(|x| x.trim() == f)
+}
+
+/// 互异之月的一条证据
+#[derive(Clone)]
+struct ZEv {
+    /// 支持推步（否则支持张表）
+    sup_r: bool,
+    lv: char,
+    what: String,
+    /// 书（史源按 [`lineage`] 归并；实物、考证结论为空）
+    book: String,
+    /// 一条即可判：A、B、C 级，或定朔考证已判之①②
+    hard: bool,
+}
+
+/// 一月诸证之分类：有 A 级者只看 A 级；余者诸证须同向（两向为冲突）；一条即可判者（A、B、C、定朔考证已判）一条即判；
+/// D、E 级须异源两条（`jia` 关时同源内取条数最多之书计条数）。→ (0 ①／1 ②／2 ③, 等级或注)
+fn classify_z(ev: &[ZEv]) -> (usize, String) {
+    let top: Vec<&ZEv> = if ev.iter().any(|e| e.lv == 'A') { ev.iter().filter(|e| e.lv == 'A').collect() } else { ev.iter().collect() };
+    if top.is_empty() {
+        return (2, "—".into());
+    }
+    let side_r = top.iter().all(|e| e.sup_r);
+    if !side_r && !top.iter().all(|e| !e.sup_r) {
+        return (2, "—（证据冲突）".into());
+    }
+    let k = if side_r { 0 } else { 1 };
+    let best = top.iter().map(|e| e.lv).min().unwrap().to_string();
+    if top.iter().any(|e| e.hard) {
+        return (k, best);
+    }
+    let lins: BTreeSet<&str> = top.iter().map(|e| lineage(&e.book)).collect();
+    let mut per: BTreeMap<(&str, &str), BTreeSet<&str>> = BTreeMap::new();
+    for e in &top {
+        per.entry((lineage(&e.book), e.book.as_str())).or_default().insert(e.what.as_str());
+    }
+    let mut by: BTreeMap<&str, usize> = BTreeMap::new();
+    for ((l, _), v) in &per {
+        let x = by.entry(l).or_default();
+        *x = (*x).max(v.len());
+    }
+    let n_old: usize = by.values().sum();
+    let n = if on("jia") { lins.len() } else { n_old };
+    if n >= 2 {
+        return (k, best);
+    }
+    let why = if n_old > 1 { format!("史书只一源 {n_old} 条") } else { "纪日一见".to_string() };
+    (2, format!("—（{why}，倾向{}）", if side_r { "推步" } else { "张表" }))
 }
 
 /// 两家相同之月的证据
@@ -189,7 +245,7 @@ fn main() {
     #[allow(clippy::type_complexity)]
     let mut sames: Vec<(i32, &'static str, i32, (i64, u8, bool))> = Vec::new();
     let mut same_ev: HashMap<(i32, u8, bool), SameEv> = HashMap::new();
-    let mut diffs: Vec<(i32, &'static str, i32, (i64, u8, bool), Option<(i64, u8, bool)>, Vec<(bool, char, String)>)> = Vec::new();
+    let mut diffs: Vec<(i32, &'static str, i32, (i64, u8, bool), Option<(i64, u8, bool)>, Vec<ZEv>)> = Vec::new();
     // 今人历表：张表；张表以前（秦汉初）为李忠林复原历
     let table = |y: i32| -> Vec<(i64, u8, bool)> {
         zhang.year_months(y).map(|t| t.to_vec()).or_else(|| qinhan_restore::year_months(y)).unwrap()
@@ -303,7 +359,14 @@ fn main() {
                 let sup_r = d.3 .1 == m && d.3 .2 == leap && d.3 .0 == rec;
                 let sup_t = d.4.is_some_and(|t| t.1 == m && t.2 == leap && t.0 == rec);
                 if sup_r != sup_t {
-                    d.5.push((sup_r, book_level(&r[cb], true), format!("{}「{}{}月{}朔」", r[cb].replace("_benji", ""), if leap { "闰" } else { "" }, m, gz(rec))));
+                    let lv = book_level(&r[cb], true);
+                    d.5.push(ZEv {
+                        sup_r,
+                        lv,
+                        what: format!("{}「{}{}月{}朔」", r[cb].replace("_benji", ""), if leap { "闰" } else { "" }, m, gz(rec)),
+                        book: r[cb].clone(),
+                        hard: lv == 'C' || !on("e2"),
+                    });
                 }
             }
         }
@@ -360,6 +423,19 @@ fn main() {
             let oka = zhongyuan_artifact_year(y).is_some().then(|| judge(span(&art_y, y, m, leap)).1);
             let ka = oka.map_or("", |o| if o { "1" } else { "0" });
             per += &format!("{},{},{},{}{},{},{},{},{},{},{},{},{}\n", r[cv], r[cn], y, if leap { "闰" } else { "" }, m, r[cg], r[cs], gr, okr as u8, gt, okt as u8, ka, r[cx]);
+            // 互异之月逐月分类：书朔、晦者 C（明书朔晦），余为纪日 D；与同月实物相违者不计（实物 > 史书）
+            if on("jiri") && okr != okt && oka != Some(false) && gr != "—" {
+                for d in diffs.iter_mut().filter(|d| d.2 == y && d.3 .1 == m && d.3 .2 == leap && gz(d.3 .0) == gr) {
+                    let lv = if r[cs].is_empty() { 'D' } else { 'C' };
+                    d.5.push(ZEv {
+                        sup_r: okr,
+                        lv,
+                        what: format!("《汉书·{}》{}{}月{}{}", r[cv], if leap { "闰" } else { "" }, m, r[cg], r[cs]),
+                        book: "hanshu".into(),
+                        hard: lv == 'C',
+                    });
+                }
+            }
             if r[cs].is_empty() {
                 continue;
             }
@@ -383,6 +459,138 @@ fn main() {
         }
         std::fs::write(root.join("data/calendar/qinhan_benji_check.csv"), per).unwrap();
     }
+    // 互异之月另收（定朔考证已按月判者后面清去，只留其判）：本纪纪日（不书朔之条）、本纪「閏月」、明清实录书朔。纪日按月名与两家
+    // 同名之月比——干支落在推步该月之内而不在张表同名之月之内，或反之；「閏月」（不书月数，接在所记某月之后）只用于两家闰位不同之岁的
+    // 闰位、月名之异之月；实录书朔为 C 级（明实录校勘表已判讹或存疑之条照其结论不计）。
+    let mut znotes: HashMap<(i32, i64, u8, bool), Vec<String>> = HashMap::new();
+    let zy_books = [
+        "hanshu", "houhanshu", "sanguozhi", "jinshu", "songshu", "nanqishu", "liangshu", "chenshu", "suishu", "beishi", "jiutangshu", "xintangshu",
+        "jiuwudaishi", "xinwudaishi", "songshi", "yuanshi", "mingshi", "qingshigao",
+    ];
+    let tab_months = |y: i32| -> Vec<(i64, u8, bool)> { zhang.year_months(y).map(|t| t.to_vec()).or_else(|| qinhan_restore::year_months(y)).unwrap_or_default() };
+    let next_after = |ms: &dyn Fn(i32) -> Vec<(i64, u8, bool)>, y: i32, a: i64| -> Option<i64> { ms(y).into_iter().chain(ms(y + 1)).map(|e| e.0).filter(|&j| j > a).min() };
+    let reck_months = |y: i32| reck.get(&y).cloned().unwrap_or_default();
+    let leap_type = |d: &(i32, &'static str, i32, (i64, u8, bool), Option<(i64, u8, bool)>, Vec<ZEv>)| {
+        d.3 .2 || d.4.is_none_or(|t| t.1 != d.3 .1 || t.2 != d.3 .2 || (t.0 - d.3 .0).abs() >= 15)
+    };
+    if on("jiri") {
+        for b in zy_books {
+            let Ok(t) = std::fs::read_to_string(root.join(format!("data/calendar/本纪纪日/{b}_benji.csv"))) else { continue };
+            for r in parse_csv(&t).iter().skip(1) {
+                if r.len() < 15 || r[0].starts_with('#') || r[12] == "朔" {
+                    continue;
+                }
+                let (Ok(y), Ok(m)) = (r[3].parse::<i32>(), r[4].parse::<u8>()) else { continue };
+                if !zhongyuan_regime(&r[0], y) || (b == "hanshu" && y <= -104) {
+                    continue;
+                }
+                let regime = match r[0].as_str() {
+                    "西汉" | "东汉" => "汉",
+                    x => x,
+                };
+                let leap = r[6] == "1";
+                let name = if r[5].is_empty() { standard_month_name(m).to_string() } else { r[5].replace('臘', "腊") };
+                let Some(tb) = reforms
+                    .table_of(regime, &MonthLabel { year: y, name, is_leap: leap })
+                    .or_else(|| reforms.table_of(regime, &MonthLabel { year: y, name: standard_month_name(m).to_string(), is_leap: leap }))
+                else {
+                    continue;
+                };
+                let Some(g) = GAN_ZHI_60.iter().position(|x| *x == r[7]) else { continue };
+                let pos = r[12].as_str();
+                let nth = pos.strip_prefix('日').and_then(|n| n.parse::<i64>().ok());
+                let judge = |a: i64, e: i64| {
+                    let dd = a + (g as i64 - (a + 49)).rem_euclid(60);
+                    dd < e && match (pos, nth) {
+                        ("晦", _) => dd == e - 1,
+                        (_, Some(n)) => dd == a + n - 1,
+                        _ => true,
+                    }
+                };
+                let text: String = r[14..].join("，").chars().take(20).collect();
+                for d in diffs.iter_mut().filter(|d| d.2 == tb.lunar_year && d.3 .1 == tb.month && d.3 .2 == tb.is_leap) {
+                    let a = d.3 .0;
+                    let Some(br) = next_after(&reck_months, d.2, a) else { continue };
+                    let zs = tab_months(d.2).into_iter().find(|e| e.1 == tb.month && e.2 == tb.is_leap);
+                    let okr = judge(a, br);
+                    let okt = zs.is_some_and(|z| next_after(&tab_months, d.2, z.0).is_some_and(|zb| judge(z.0, zb)));
+                    if okr != okt {
+                        d.5.push(ZEv { sup_r: okr, lv: book_level(b, false), what: format!("{b}：{}{text}", r[7]), book: b.to_string(), hard: false });
+                    }
+                }
+            }
+            // 本纪「閏月」：接在所记某月之后（月序经月序改制换为建寅表月）
+            let Ok(t) = std::fs::read_to_string(root.join(format!("data/calendar/本纪纪日/{b}_benji_閏月.csv"))) else { continue };
+            let rows = parse_csv(&t);
+            let Some(h) = rows.first().cloned() else { continue };
+            let c = |n: &str| h.iter().position(|x| x == n).unwrap();
+            let (crg, cyr, caf, ctx) = (c("regime"), c("year"), c("leap_after"), c("text"));
+            for r in rows.iter().skip(1).filter(|r| r.len() == h.len()) {
+                let (Ok(y), Ok(after)) = (r[cyr].parse::<i32>(), r[caf].parse::<u8>()) else { continue };
+                if !zhongyuan_regime(&r[crg], y) || (b == "hanshu" && y <= -104) {
+                    continue;
+                }
+                let regime = match r[crg].as_str() {
+                    "西汉" | "东汉" => "汉",
+                    x => x,
+                };
+                let lab = MonthLabel { year: y, name: standard_month_name(after).to_string(), is_leap: false };
+                let (ty, ta) = reforms.table_of(regime, &lab).map_or((y, after), |t| (t.lunar_year, t.month));
+                let rl: Vec<u8> = reck_months(ty).iter().filter(|e| e.2).map(|e| e.1).collect();
+                let zl: Vec<u8> = tab_months(ty).iter().filter(|e| e.2).map(|e| e.1).collect();
+                let (sr, st) = (rl.contains(&ta), zl.contains(&ta));
+                if rl == zl || sr == st {
+                    continue;
+                }
+                let text: String = r[ctx].chars().take(20).collect();
+                for d in diffs.iter_mut().filter(|d| d.2 == ty) {
+                    if leap_type(d) {
+                        d.5.push(ZEv { sup_r: sr, lv: book_level(b, false), what: format!("{b}：閏月接{ta}月 {text}"), book: b.to_string(), hard: false });
+                    }
+                }
+            }
+        }
+    }
+    if on("shilu") {
+        let jiaokan: HashMap<(i32, u8, bool), String> = parse_csv(&read("data/calendar/mingshilu_jiaokan.csv"))
+            .into_iter()
+            .filter(|r| r.len() > 10 && !r[0].starts_with('#') && r[0] != "年")
+            .filter_map(|r| Some(((r[0].parse().ok()?, r[1].parse().ok()?, r[2] == "1"), r[10].clone())))
+            .collect();
+        let mut lu: Vec<(i32, u8, bool, String, String, &str)> = Vec::new();
+        for r in parse_csv(&read("data/calendar/mingshilu_shuo.csv")).into_iter().filter(|r| r.len() > 5 && !r[0].starts_with('#') && r[0] != "年") {
+            if let (Ok(y), Ok(m)) = (r[0].parse::<i32>(), r[1].parse::<u8>()) {
+                lu.push((y, m, r[2] == "1", r[3].clone(), format!("{}「{}」", r[4], r[5].chars().take(20).collect::<String>()), "mingshilu"));
+            }
+        }
+        for r in parse_csv(&read("data/calendar/qingshilu_shuo_xinfa.csv")).into_iter().filter(|r| r.len() > 8 && !r[0].starts_with('#') && r[0] != "年") {
+            if let (Ok(y), Ok(m)) = (r[0].parse::<i32>(), r[2].parse::<u8>()) {
+                lu.push((y, m, r[3] == "1", r[4].clone(), format!("《清实录》第 {} 册卷 {} 书页 {}「{}」", r[5], r[6], r[7], r[8].chars().take(20).collect::<String>()), "qingshilu"));
+            }
+        }
+        // 校勘表判「张表误」而录文书朔表未收之月（1378 年八月，录文抽取漏）：以校勘表所录馆本朔补
+        for r in parse_csv(&read("data/calendar/mingshilu_jiaokan.csv")).into_iter().filter(|r| r.len() > 10 && !r[0].starts_with('#') && r[0] != "年") {
+            if let (Ok(y), Ok(m)) = (r[0].parse::<i32>(), r[1].parse::<u8>()) {
+                if r[10].contains("张表误") && !lu.iter().any(|x| x.0 == y && x.1 == m && x.2 == (r[2] == "1") && x.5 == "mingshilu") {
+                    lu.push((y, m, r[2] == "1", r[3].clone(), format!("{}（据明实录校勘表，校勘记册{}书页{}）", r[6], r[7], r[8]), "mingshilu"));
+                }
+            }
+        }
+        for (y, m, l, sh, what, book) in lu {
+            for d in diffs.iter_mut().filter(|d| d.2 == y && d.3 .1 == m && d.3 .2 == l) {
+                let zs = tab_months(y).into_iter().find(|e| e.1 == m && e.2 == l);
+                let (sr, st) = (sh == gz(d.3 .0), zs.is_some_and(|z| gz(z.0) == sh));
+                if sr == st {
+                    continue;
+                }
+                if let Some(j) = jiaokan.get(&(y, m, l)).filter(|j| book == "mingshilu" && !j.contains("张表误")) {
+                    znotes.entry((d.2, d.3 .0, d.3 .1, d.3 .2)).or_default().push(format!("{what}合{}，明实录校勘表：{j}——照校勘表不计", if sr { "推步" } else { "张表" }));
+                    continue;
+                }
+                d.5.push(ZEv { sup_r: sr, lv: 'C', what: what.clone(), book: book.to_string(), hard: true });
+            }
+        }
+    }
     // 实物：整年实物（artifacts）与出土具注历（chutu_rili_shuo.csv）
     let chutu: Vec<Vec<String>> = parse_csv(&read("data/calendar/chutu_rili_shuo.csv")).into_iter().filter(|r| r.len() > 4 && !r[0].starts_with('#') && r[0] != "件").collect();
     // 619—1911 定朔诸历朔日之异：取 dingshuo_zhangbiao_diffs.csv 之分类、等级
@@ -394,20 +602,22 @@ fn main() {
         // 定朔考证已逐月判者：本纪明书朔已含其中（并与纪日合判），不再另计
         let ding_rows: Vec<&Vec<String>> = ding.iter().filter(|c| c[1] == y.to_string() && c[2] == lab(rm) && c[4] == gz(rm.0)).collect();
         let mut note = String::new();
-        if !ding_rows.is_empty() {
+        // 定朔考证按朔日相近配月：张表月名同者（「张表月名」空）其判即本月之判，本程序所收书朔、纪日、实录清去；张表月名不同者
+        // （闰位、月名之异）考证不收纪日，本程序另按月名收之，考证所判①②亦并入
+        if ding_rows.iter().any(|c| c[3].is_empty()) {
             d.5.clear();
-            for c in &ding_rows {
-                if c[18].starts_with('①') || c[18].starts_with('②') {
-                    d.5.push((c[18].starts_with('①'), c[19].chars().next().unwrap_or('E'), format!("定朔考证：{}", c[17])));
-                } else if c[17] != "无证" && !c[17].starts_with("无证；") {
-                    note = format!("定朔考证：{}", c[17]);
-                }
+        }
+        for c in &ding_rows {
+            if c[18].starts_with('①') || c[18].starts_with('②') {
+                d.5.push(ZEv { sup_r: c[18].starts_with('①'), lv: c[19].chars().next().unwrap_or('E'), what: format!("定朔考证：{}", c[17]), book: String::new(), hard: true });
+            } else if c[17] != "无证" && !c[17].starts_with("无证；") {
+                note = format!("定朔考证：{}", c[17]);
             }
         }
         if let Some(a) = zhongyuan_artifact_year(y) {
             let (hr, ht) = (a.months.contains(&rm), tm.is_some_and(|t| a.months.contains(&t)));
             if hr != ht {
-                d.5.push((hr, 'A', format!("实物历日（{y} 年）")));
+                d.5.push(ZEv { sup_r: hr, lv: 'A', what: format!("实物历日（{y} 年）"), book: String::new(), hard: true });
             }
         }
         for c in chutu.iter().filter(|c| c[1] == y.to_string()) {
@@ -415,30 +625,23 @@ fn main() {
             let sup_r = rm.1 == m && rm.2 == l && gz(rm.0) == c[4];
             let sup_t = tm.is_some_and(|t| t.1 == m && t.2 == l && gz(t.0) == c[4]);
             if sup_r != sup_t {
-                d.5.push((sup_r, 'A', c[0].split('（').next().unwrap_or(&c[0]).to_string()));
+                d.5.push(ZEv { sup_r, lv: 'A', what: c[0].split('（').next().unwrap_or(&c[0]).to_string(), book: String::new(), hard: true });
             }
         }
         let ev = &d.5;
-        let top: Vec<_> = if ev.iter().any(|e| e.1 == 'A') { ev.iter().filter(|e| e.1 == 'A').collect() } else { ev.iter().collect() };
-        let (k, lv) = if top.is_empty() {
-            (2, "—".to_string())
-        } else if top.iter().all(|e| e.0) {
-            (0, top.iter().map(|e| e.1).min().unwrap().to_string())
-        } else if top.iter().all(|e| !e.0) {
-            (1, top.iter().map(|e| e.1).min().unwrap().to_string())
-        } else {
-            (2, "—（证据冲突）".to_string())
-        };
+        let (k, lv) = classify_z(ev);
         stats.get_mut(&(d.0, d.1)).unwrap().cls[k] += 1;
+        // 两家同名之月而朔差约一月（如 719、852 年八月差 29 日）：推步该月即张表前后一月，是闰位之异
         let kind = match tm {
-            Some(t) if t.1 == rm.1 && t.2 == rm.2 => "朔日之异",
+            Some(t) if t.1 == rm.1 && t.2 == rm.2 && (t.0 - rm.0).abs() < 15 => "朔日之异",
             Some(_) => "月名之异（闰位）",
             None => "张表无对应月",
         };
-        let mut evs: Vec<String> = ev.iter().map(|e| format!("{}{}合{}", e.2, e.1, if e.0 { "推步" } else { "张表" })).collect();
+        let mut evs: Vec<String> = ev.iter().map(|e| format!("{}{}合{}", e.what, e.lv, if e.sup_r { "推步" } else { "张表" })).collect();
         if !note.is_empty() {
             evs.push(note.clone());
         }
+        evs.extend(znotes.get(&(y, rm.0, rm.1, rm.2)).cloned().unwrap_or_default());
         dcsv += &format!(
             "{},{y},{},{},{},{},{kind},{},{lv},{}\n",
             d.1,
