@@ -71,6 +71,8 @@
 | [loulan-checks.md](calendar/loulan-checks.md) | 楼兰、尼雅简纸文书纪日（生成文件）：底本侯灿、杨代欣《楼兰汉文简纸文书集成》，对校《中国简牍集成·二编》新疆卷；魏晋简 14 条（264—310）与罗布淖尔土垠西汉简 5 条，有朔之月 16 皆推步与张表相同（有证 10、同误 3、无证 3），互异 0 |
 | [ryukyu-sources.md](calendar/ryukyu-sources.md) | 《琉球王国汉文文献集成》36 册总目与历法、择日、纪日材料所在 |
 | [ryukyu-rili-checks.md](calendar/ryukyu-rili-checks.md) | 琉球《大清乾隆二十七年選日通書》（生成文件）：13 月朔闰全合后编与张表（有证 13），25 气日合后编、交时差 ±1 分内，按京师推算 |
+| [ryukyu-tuibu-checks.md](calendar/ryukyu-tuibu-checks.md) | 琉球推步手册（第 23 册《推朔望法》《求節氣》《四行立成》、第 24 册三种立成）常数与立成逐格比对：属《历象考成》上编一系平朔求实朔法、立成与部分根数沿用汤若望新法；「入學庚申年」= 乾隆五年 1740 |
+| [ryukyu-jiri-checks.md](calendar/ryukyu-jiri-checks.md) | 琉球当时文字纪日逐条：《琉球國碑文記》118 条（可检 4 项皆有证）、蔡大鼎《北上雜記》卷一二 46 条（可检 2 项有证，节气 5 条合后编京师用时）；互异 0 |
 | [gaochang-630-checks.md](calendar/gaochang-630-checks.md) | 高昌延寿七年（630）残历各月朔与张表、玄始历外推（生成文件）：有据 11 月，合玄始 10、张表 9 |
 | [tulufan-jiri-checks.md](calendar/tulufan-jiri-checks.md) | 吐鲁番出土文书与墓表纪日检验（生成文件）：麴氏高昌朔日 7 条合玄始外推 5、张表 3，闰月 4 条合玄始 0、正光外推 3；630 年十二月差一日非进朔，620 年前后高昌历元或改；北凉无可检之条 |
 | [chutu-rili-checks.md](calendar/chutu-rili-checks.md) | 吐鲁番、黑城出土唐宋历日残件（720、1182、1211）月朔与张表、中原一线（生成文件）；多为定年所用，独立者一月 |
