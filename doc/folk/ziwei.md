@@ -9,7 +9,7 @@
 | 写本诸星 | `xie_ben_stars(生年干支)`；`ZiweiExtraOptions::xie_ben_xing` 为真时排入命盘（缺省不排） |
 | 庙旺 | `miao_wang(星, 支) -> Option<MiaoWang>`、`Chart::brightness(星)`：全书录文卷二七等表；`miao_wang_in(星, 支, MiaoWangBiao)` 可择明南陽堂刊本卷三表（`data/folk/ziwei_miao_wang_nanyangtang.csv`） |
 | 测试 | `ziwei::tests`（见「检验」；刻本命例 `nanyangtang_ming_li`、庙旺互校 `miao_wang_vs_ming_gong`） |
-| 输入 | 生年干支（农历正月初一换年）、农历月（含闰）、日、时辰（地支）、性别；农历日期由调用方按中原一线历日换算（`lifa::resolve_year`） |
+| 输入 | 生年干支（农历正月初一换年）、农历月（含闰）、日、时辰（地支）、性别；农历日期由调用方按主序列历日换算（`lifa::resolve_year`） |
 
 ## 一、原典与版本
 

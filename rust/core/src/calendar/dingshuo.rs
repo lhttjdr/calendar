@@ -346,7 +346,7 @@ fn liwai_table() -> &'static [(String, i64, Liwai)] {
 }
 
 /// 史载例外表各条：(历名, 年, 调整后朔日 JDN, 是否置闰, 类别「他书」/「本纪」)。供定朔诸历以外的推步（宋初诸历、清初新法）
-/// 在推步结果上应用（[super::push_calendar::reckon_lifa_year]），及中原一线检验另计「从本纪修正」。
+/// 在推步结果上应用（[super::push_calendar::reckon_lifa_year]），及主序列检验另计「从本纪修正」。
 pub fn shizai_liwai() -> &'static [(String, i32, i64, bool, String)] {
     use std::sync::OnceLock;
     static T: OnceLock<Vec<(String, i32, i64, bool, String)>> = OnceLock::new();
@@ -2765,7 +2765,7 @@ fn shoushi() -> Shoushi {
 
 // ---------------------------------------------------------------- 按历名取
 
-/// 中原一线定朔诸历：(历名（同 `zhongyuan_calendar_periods.csv`）, 推步适用的农历年段)。
+/// 主序列定朔诸历：(历名（同 `main_series_calendar_periods.csv`）, 推步适用的农历年段)。
 const REGISTRY: &[(&str, &[(i32, i32)])] = &[
     ("戊寅元历", &[(627, 645)]),
     ("戊寅元历（平朔）", &[(646, 665)]),
@@ -2794,7 +2794,7 @@ const REGISTRY: &[(&str, &[(i32, i32)])] = &[
     ("大统历", &[(1368, 1644), (1666, 1668)]),
 ];
 
-/// 中原一线以外分政权所用之定朔历（不入 [REGISTRY]，只经 [reckon_year_any] 取）：(历名, 排月年段)。
+/// 主序列以外分政权所用之定朔历（不入 [REGISTRY]，只经 [reckon_year_any] 取）：(历名, 排月年段)。
 const REGIME_REGISTRY: &[(&str, &[(i32, i32)])] = &[
     // 辽 947—1087：大同元年得后晋调元历（马重绩「以《宣明》氣朔」），统和十二年（994）贾俊大明历，术皆不传，以宣明代推。
     // 《辽史·历象志下》「朔考」序：宋元丰元年诏司天监考辽历，「遼己未歲（1079）氣朔與《宣明曆》合」。1088 年起本纪闰位合宋历、
@@ -2821,7 +2821,7 @@ const REGIME_REGISTRY: &[(&str, &[(i32, i32)])] = &[
     ("观天历（代推奉元）", &[(1075, 1093)]),
     // 《古今图书集成·历法典》第七十六卷：奉元「視《明天曆》數減二刻」而成，明天亦作候选。
     ("明天历（代推奉元）", &[(1075, 1093)]),
-    // 李锐《补修宋奉元术》补出步气朔常数（经朔、恒气），定朔改正与进朔借观天（[FengyuanBuxiu]）：七闰全合宋历，中原一线取此
+    // 李锐《补修宋奉元术》补出步气朔常数（经朔、恒气），定朔改正与进朔借观天（[FengyuanBuxiu]）：七闰全合宋历，主序列取此
     ("奉元历（李锐补修气朔，借观天日月改正）", &[(1075, 1093)]),
     // 占天历（1103—1105）：术不传；前观天、后纪元并作候选。
     ("观天历（代推占天）", &[(1103, 1105)]),
@@ -3116,7 +3116,7 @@ pub fn reckon_year_with(name: &str, lunar_year: i32, opts: &PaiyueOptions) -> Op
     }
 }
 
-/// 按历名推某农历年各月，不限中原一线行用年段：供分政权历日（如南明、明郑续用大统历，1645—1683）。
+/// 按历名推某农历年各月，不限主序列行用年段：供分政权历日（如南明、明郑续用大统历，1645—1683）。
 pub fn reckon_year_any(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, bool)>> {
     Some(year_months(li_by_name(name)?, lunar_year))
 }

@@ -1,9 +1,9 @@
-//! 中原一线定朔诸历（619—1911）按术推步与张培瑜历表朔日不同之月逐月考证。
+//! 主序列定朔诸历（619—1911）按术推步与张培瑜历表朔日不同之月逐月考证。
 //!
 //! 对推步与张表朔日相差一日之月，逐月列：定朔所在日与定小余、本历进朔限、距限、经朔，张表与推步的进退关系，以及证据——
 //! 本纪明书朔日（`data/calendar/benji_shuo_check.csv`，已考讹误者另注）、本纪纪日（`data/calendar/本纪纪日/*.csv`：某日干支只在
 //! 一家的该月或前月之内者）、已有考证与史载例外表；再按规则给出判定，人工按语取 `data/calendar/dingshuo_zhangbiao_notes.csv`。
-//! 闰位不同之岁另表。推步取法同 `examples/zhongyuan_reckoning_eval.rs`（直接按术推步，不经仲裁；实物年也照推）。
+//! 闰位不同之岁另表。推步取法同 `examples/main_series_reckoning_eval.rs`（直接按术推步，不经仲裁；实物年也照推）。
 //!
 //! 输出 `data/calendar/dingshuo_zhangbiao_diffs.csv`，并改写 `doc/calendar/dingshuo-zhangbiao-diffs.md` 中
 //! `<!-- 生成开始 -->`、`<!-- 生成结束 -->` 之间的部分（其余为手写）。
@@ -12,7 +12,7 @@ use lunar_core::calendar::dingshuo::{dingshuo_months, Biaoduan, DingshuoMonth};
 use lunar_core::calendar::song_early;
 use lunar_core::calendar::gan_zhi::GAN_ZHI_60;
 use lunar_core::calendar::historical::ShuoriTable;
-use lunar_core::calendar::lifa::{zhongyuan_year_months, RiliSource, ZhongyuanCalendarPeriods, ZhongyuanPreference};
+use lunar_core::calendar::lifa::{main_series_year_months, RiliSource, MainSeriesCalendarPeriods, MainSeriesPreference};
 use lunar_core::calendar::month_labels::{standard_month_name, MonthLabel, MonthLabelReforms};
 use lunar_core::calendar::push_calendar;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -48,7 +48,7 @@ fn gz(j: i64) -> &'static str {
     GAN_ZHI_60[(j + 49).rem_euclid(60) as usize]
 }
 
-/// 中原一线历名 → 定朔细目所用之历名（[dingshuo_months]）；None 为不在 dingshuo 模块之历
+/// 主序列历名 → 定朔细目所用之历名（[dingshuo_months]）；None 为不在 dingshuo 模块之历
 fn ding_name(name: &str) -> Option<&str> {
     Some(match name {
         "戊寅元历（武德术不传，以贞观所较戊寅元历代推）" => "戊寅元历（代推武德）",
@@ -194,7 +194,7 @@ fn main() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let read = |p: &str| std::fs::read_to_string(root.join(p)).unwrap();
     let zhang = ShuoriTable::from_csv(&read("vendor/calendar/chinese_calendar/实历朔日表.csv")).unwrap();
-    let periods = ZhongyuanCalendarPeriods::embedded();
+    let periods = MainSeriesCalendarPeriods::embedded();
     let reforms = MonthLabelReforms::from_csv(&read("data/calendar/month_label_reforms.csv")).unwrap();
     let (y_from, y_to) = (619, 1911);
 
@@ -203,7 +203,7 @@ fn main() {
     let mut names: BTreeMap<i32, &'static str> = BTreeMap::new();
     for y in y_from..=y_to {
         let name: &'static str = periods.name_for_lunar_year(y);
-        let r = match zhongyuan_year_months(None, y, ZhongyuanPreference::Reckoning) {
+        let r = match main_series_year_months(None, y, MainSeriesPreference::Reckoning) {
             Some((r, RiliSource::Reckoned(_))) => r,
             Some((_, RiliSource::Artifact(_))) => match push_calendar::reckon_lifa_year(name, y) {
                 Some(r) => r,
@@ -586,7 +586,7 @@ fn main() {
                 "本纪"
             }
         };
-        // E 级（《新五代史》前史无同条者）明书朔只一见：与分政权、中原一线逐月分类同，须两条（开关 e2）
+        // E 级（《新五代史》前史无同条者）明书朔只一见：与分政权、主序列逐月分类同，须两条（开关 e2）
         let e_only = |v: &[&(String, i64, bool)]| -> &'static str {
             if on("e2") && v.iter().all(|s| book_level(&s.0, true) == 'E') && v.iter().map(|s| lineage(&s.0)).collect::<BTreeSet<_>>().len() < 2 {
                 "；E 级明书朔一见"
@@ -861,10 +861,10 @@ fn main() {
     let mut md = String::new();
     md += "### 逐历汇总\n\n（脚本生成：`rust/core/examples/dingshuo_zhangbiao_diffs.rs`；逐月 CSV 见 `data/calendar/dingshuo_zhangbiao_diffs.csv`。）\n\n";
     md += "| 历 | 年段 | 月数 | 朔日不同之月 | 张表晚一日 | 张表早一日 | 闰位不同之岁 | 其中统一进朔所致 | ①文字证张表误 | ②文字证推步误 | ③中两歧、冲突或纪日一见 | ③无据待核（含两歧、冲突、一见） | 相同之月：有证 | 同误 | 无证 |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n";
-    // 两家相同之月：取 zhongyuan_reckoning_months.csv（examples/zhongyuan_reckoning_eval.rs，须在本程序之后跑，再跑本程序一次以更新此栏）
+    // 两家相同之月：取 main_series_reckoning_months.csv（examples/main_series_reckoning_eval.rs，须在本程序之后跑，再跑本程序一次以更新此栏）
     let mut same: HashMap<String, [usize; 3]> = HashMap::new();
     let mut same_lv: BTreeMap<(usize, String), usize> = BTreeMap::new();
-    if let Ok(t) = std::fs::read_to_string(root.join("data/calendar/zhongyuan_reckoning_months.csv")) {
+    if let Ok(t) = std::fs::read_to_string(root.join("data/calendar/main_series_reckoning_months.csv")) {
         for r in parse_csv(&t).into_iter().skip(1).filter(|r| r.len() >= 8 && r[5] == "相同") {
             let Ok(y) = r[1].parse::<i32>() else { continue };
             if !(y_from..=y_to).contains(&y) || !stat.contains_key(r[0].as_str()) {
@@ -906,7 +906,7 @@ fn main() {
         "| **合计** | | | **{}** | {} | {} | **{}** | {} | **{}** | **{}** | {} | {} | **{}** | **{}** | **{}** |\n\n",
         total[0], total[1], total[2], total[3], total[4], total[5], total[6], total[7], total[8], same_tot[0], same_tot[1], same_tot[2]
     );
-    md += "相同之月（推步与张表朔日、月名皆同）：**有证**——实物、明书朔合两家，或两条以上独立纪日（落在朔日、晦日或书日序者）合两家；**同误**——史载与两家皆不合（注是否已判史书误）；**无证**——只是两家相同，不算证实（纪日只一见者亦归此，注倾向）。逐月见 `data/calendar/zhongyuan_reckoning_months.csv`「分类」列。\n\n";
+    md += "相同之月（推步与张表朔日、月名皆同）：**有证**——实物、明书朔合两家，或两条以上独立纪日（落在朔日、晦日或书日序者）合两家；**同误**——史载与两家皆不合（注是否已判史书误）；**无证**——只是两家相同，不算证实（纪日只一见者亦归此，注倾向）。逐月见 `data/calendar/main_series_reckoning_months.csv`「分类」列。\n\n";
     md += "| 相同之月 | A | B | C | D | E | 计 |\n|---|---|---|---|---|---|---|\n";
     for (k, nm) in [(0usize, "有证"), (1, "同误")] {
         let c: Vec<usize> = ["A", "B", "C", "D", "E"].iter().map(|l| same_lv.get(&(k, l.to_string())).copied().unwrap_or(0)).collect();

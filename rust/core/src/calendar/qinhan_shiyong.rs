@@ -27,7 +27,7 @@
 //! **史载例外**：汉高祖九年七月按术丙申朔，荆州胡家草场汉简《岁纪》「九年，七月，以丙申朔，朔日食，更以丁酉」，
 //! 张家山《历谱》亦书「七月丁酉」——朔日见食而改。
 //!
-//! 第 4 层 [super::lifa] 中原一线「颛顼历（秦汉初）」「太初历（太初元年，五月改历）」两段按术推步即取本模块
+//! 第 4 层 [super::lifa] 主序列「颛顼历（秦汉初）」「太初历（太初元年，五月改历）」两段按术推步即取本模块
 //! （[super::push_calendar::reckon_lifa_year]）；纯颛顼历推步仍在 [super::zhuanxu]，供对照与战国秦国。
 
 use super::zhuanxu::{jianhai_months_to_xiazheng, shiyue_index, EPOCH_JDN, LUNAR, U};

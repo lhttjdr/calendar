@@ -305,7 +305,7 @@ in_month（日干支在该历所记之月）、jdn、julian、position（原文�
 `scripts/calendar_data/build_dunhuang_shuori.py` 自 `敦煌历日_比较表.csv` 生成：敦煌曆一栏有朔之格 254 月（原件 144、原书括号推算 110）；
 另并入《俄藏敦煌文獻》补录 `dunhuang_ezang.csv` 定年独立于朔之月 4 月并补 1 月大小（Дх.01454＋02418V，945 年八至十二月；据朔推定之件不收），共 258 月，
 808—994 年；450、451 年北魏历日不入（属北魏推步政权）。出土历日是实物，属资料可靠性第 1 级；括号格是原书据该件残历条件推得。
-无据之月怎样补（退回中原历 / 只认有据）在第 4 层 `lifa::DunhuangFallback`，规则、纪年与逐条检验见 `doc/calendar/dunhuang-calendar.md`。
+无据之月怎样补（退回主序列历日 / 只认有据）在第 4 层 `lifa::DunhuangFallback`，规则、纪年与逐条检验见 `doc/calendar/dunhuang-calendar.md`。
 `#` 起首为注释行。前 8 列与 `推步政权朔日表.csv` 同式：
 
 | 列名 | 含义 |
@@ -356,9 +356,9 @@ in_month（日干支在该历所记之月）、jdn、julian、position（原文�
 | `joseon_vs_qing_check.csv` | `scripts/calendar_data/joseon_qing_check.py` | 《朝鲜王朝实录》1654—1720 年直书朔日与清新法复原、张表逐月比较，附北京、汉阳平合朔时刻与日差（检验朝鲜不加里差） |
 | `liaoshi_runkao.csv` | 看图转录（2026-11-21） | 《辽史·历象志中·閏考》表逐格：年、纪年、闰月、来源（儼、大任、宋、高麗、唐、晉、梁）、注（表内小注、「異」）、校勘（点校本校勘记与本项目核对） |
 | `liao_shike_shuo.csv` | OCR 抽取 + 图像核读（2026-11-18） | 辽代刻石朔日（向南《辽代石刻文编》《辽代石刻文续编》录文）：书、书页（印刷页码）、年、纪年、月、石刻朔（「(推)」为由某日干支倒推）、辽推步朔（宣明，947—1087）、张表朔、合推步、合张表、核读（不合两表者看原页图像所下结论）、原文（OCR，未核读者或有误字） |
-| `benji_shuo_errata.csv` | 手录（2026-11-21） | 本纪明书朔日已考为讹误者（书、年、月、本纪朔、改正、依据）；中原一线逐历检验跳过，另计「已考讹不计」。存疑未定者不入 |
+| `benji_shuo_errata.csv` | 手录（2026-11-21） | 本纪明书朔日已考为讹误者（书、年、月、本纪朔、改正、依据）；主序列逐历检验跳过，另计「已考讹不计」。存疑未定者不入 |
 | `tongjian_mulu_807_821.csv` | 转录（2026-11-21） | 司马光《资治通鉴目录》（朔闰据刘羲叟《长历》）807—821 年朔闰栏，维基共享资源 SSID-12318604 卷22-24 PDF 看图转录，按「未列之月 = 上月 + 30 日」展开，逐月对照张表、正元推步（代推观象）与新旧唐书本纪明书朔；`scripts/calendar_data/tongjian_mulu_guanxiang.py` 生成 |
-| `tongjian_mulu_shuo.csv` | 看图转录（2026-11-25，维基共享资源 SSID-12318597—12318606 扫描本，裁图 `scripts/calendar_data/tongjian_mulu_crop.py`） | 《资治通鉴目录》卷二至三十朔闰栏逐岁一行（汉初前 206—前 104 殷历、颛顼历两行，国列记「殷曆」「顓頊曆」，夏正月序；前 104—959 中原一线连续；「读法」列分独立/参照，参照岁对照张表核读、不作独立证据；南北朝按目录所标国分行，「国」列）：年、岁次、卷、文件、PDF页、朔闰原文、校读（干支接不上者按前后月推定）、附注；807—821 沿用上表。`scripts/calendar_data/tongjian_mulu_check.py` 展开逐月并对张表、中原一线推步与本纪，生成 `doc/calendar/tongjian-mulu-checks.md`。刘羲叟《长历》为宋人推排，只作对照 |
+| `tongjian_mulu_shuo.csv` | 看图转录（2026-11-25，维基共享资源 SSID-12318597—12318606 扫描本，裁图 `scripts/calendar_data/tongjian_mulu_crop.py`） | 《资治通鉴目录》卷二至三十朔闰栏逐岁一行（汉初前 206—前 104 殷历、颛顼历两行，国列记「殷曆」「顓頊曆」，夏正月序；前 104—959 主序列连续；「读法」列分独立/参照，参照岁对照张表核读、不作独立证据；南北朝按目录所标国分行，「国」列）：年、岁次、卷、文件、PDF页、朔闰原文、校读（干支接不上者按前后月推定）、附注；807—821 沿用上表。`scripts/calendar_data/tongjian_mulu_check.py` 展开逐月并对张表、主序列推步与本纪，生成 `doc/calendar/tongjian-mulu-checks.md`。刘羲叟《长历》为宋人推排，只作对照 |
 | `lirui_buxiu_constants.csv` | 转录（2026-11-21） | 清李锐《补修宋奉元术》《补修宋占天术》步气朔常数（积年、日法、岁周、朔实等）与原文，附自洽检验说明；《元史》卷五十三所列积年有讹 |
 | `hanshu_qinhan_benji.csv` | 转录（2026-11-22） | 《汉书》本纪卷一至卷六（高帝至太初元年四月）「某月某干支」纪日 81 条（书朔、晦 18），维基文库底本；纪年年（建亥）换为夏正年月（十至十二月属上一夏正年，后九月记闰九月）；`scripts/calendar_data/qinhan_eval/hanshu_benji_records.py` 生成 |
 | `xixia_song_shuorun.csv` | 转录（2026-11-22） | 彭向前《俄藏西夏历日文献整理研究》（2018）「西夏历与宋历朔闰对照表（1120—1207）」书页 469—514，1088 月：宋历与西夏历月序、大小、朔日、二历异同、文献；宋朔JDN 取张表，夏朔JDN 由干支差推得；「核」列注看图补录与书误。`scripts/calendar_data/xixia_songli_table.py`（OCR 后按坐标还原） |
@@ -369,12 +369,12 @@ in_month（日干支在该历所记之月）、jdn、julian、position（原文�
 | `baoshan_check.csv` | 检验（2026-11-22） | 包山纪日对汉传六历、颛顼历，按楚正月当夏正某月、系年平移各假设的合数；同上脚本 |
 | `xincai_records.csv` | 转录（2026-11-22） | 新蔡葛陵楚简明书「岁名 + 月名 + 干支之日」纪日 31 条，据《新蔡葛陵楚墓》（大象出版社 2003）附录一释文书页 186—231 逐条转录：岁、月序、月、干支、简号、书页、注（岁名残补等）；`scripts/calendar_data/xincai_check.py` 检验 |
 | `guliuli_months_350_300.csv` | 推步（2026-11-22） | 前 341—前 300 年汉传六历（年终闰、无中气闰）与颛顼历逐月朔，月序换为夏正编号；`rust/core/examples/guliuli_months_export.rs` 导出 |
-| `qinhan_benji_check.csv` | 检验（2026-11-22） | 上表逐条对中原一线推步（秦汉初实用历推步 `calendar::qinhan_shiyong`，同日起；此前为颛顼历推步 `calendar::zhuanxu`）与李忠林复原历（`calendar::qinhan_restore`）：该月朔、合否（书朔须恰为朔日，书晦须为末日，余者在月内）；「实物合」：该年有出土历谱整年时对实物之合否（0 者不计入推步、复原之比较）；`rust/core/examples/zhongyuan_reckoning_eval.rs` 生成 |
+| `qinhan_benji_check.csv` | 检验（2026-11-22） | 上表逐条对主序列推步（秦汉初实用历推步 `calendar::qinhan_shiyong`，同日起；此前为颛顼历推步 `calendar::zhuanxu`）与李忠林复原历（`calendar::qinhan_restore`）：该月朔、合否（书朔须恰为朔日，书晦须为末日，余者在月内）；「实物合」：该年有出土历谱整年时对实物之合否（0 者不计入推步、复原之比较）；`rust/core/examples/main_series_reckoning_eval.rs` 生成 |
 | `qinhan_shiwu_months.csv` | 看图转录（2026-11-22） | 秦汉初出土历日逐月朔：来源（岳麓秦简《质日》、周家台秦简《历谱》、张家山汉简《历谱》、里耶秦简纪年文书、转引张培瑜表 3-19/3-20）、纪年、年（建亥年，天文纪年）、月、闰（後九月）、朔干支、大小、依据（书/推/补）、简号、书页、注（原文与歧异）；文件头注明各书版本与 PDF 页对应。成谱之年拼夏正整年作实物历日（`calendar::artifacts`），全部条目定 `calendar::qinhan_shiyong` 合朔改正并逐月检验（`rust/core/examples/qinhan_shiwu_check.rs` → `doc/calendar/qinhan-shiwu-checks.md`）；岳麓、周家台两种 2026-11-25 已对原书图版逐格复核（岳麓书页 177—185，周家台书页 93—104），年终月大小与次年十月朔不衔接者两处见注列 |
 | `lost_proxy_eval.csv`、`lost_proxy_detail.csv` | `rust/core/examples/lost_proxy_eval.rs` | 术不传之段（观象 807—821、奉元 1075—1093、占天 1103—1105、淳祐 1252、会天 1253—1270、本天 1277—1279）诸代推候选与张表：本纪明书朔、本纪閏月、本纪纪日在月、实物逐项汇总与不同之条 |
 | `dunhuang_tuban_check.csv` | 人工读图（《法藏敦煌西域文献》图版） | 敦煌历日比较表伯希和诸件图版核对（2026-11-23）：文书、公元、法藏册、书页、图版所见、未见月、结论、备注；`scripts/calendar_data/dunhuang_tuban_check.py` 逐格生成 `doc/calendar/dunhuang-tuban-checks.md` |
 | `dunhuang_tuban_check_stein.csv` | 人工读图（IDP 大英图书馆藏卷 IIIF 图像，data.idp.bl.uk） | 敦煌历日比较表斯坦因诸件图版核对（2026-11-25）：文书、公元、IDP 编号、IDP 记录号、图幅、图版所见、仅大小月、未见月、结论、备注；与伯希和表同由 `scripts/calendar_data/dunhuang_tuban_check.py` 逐格生成 `doc/calendar/dunhuang-tuban-checks.md` |
-| `s0612_runyue.csv` | 人工录入（邓文宽 1996 下编第三三件书页 523—527 录文；原卷列据《英藏敦煌文献》第 2 卷书页 73 图版，2026-11-26） | 斯0612 历序「六十相屬宫宿法」919—978 年逐年閏月（2026-11-23）：岁、干支、年号、公历年、閏月（录文，空 = 未书閏）、书页、原卷（图版所见閏月，「无」= 不书閏，空 = 未逐岁看图）、原卷注；`cargo run --example s0612_runyue_check` 原卷优先、空则取录文，与张表、中原一线比较，录文异读另列 |
+| `s0612_runyue.csv` | 人工录入（邓文宽 1996 下编第三三件书页 523—527 录文；原卷列据《英藏敦煌文献》第 2 卷书页 73 图版，2026-11-26） | 斯0612 历序「六十相屬宫宿法」919—978 年逐年閏月（2026-11-23）：岁、干支、年号、公历年、閏月（录文，空 = 未书閏）、书页、原卷（图版所见閏月，「无」= 不书閏，空 = 未逐岁看图）、原卷注；`cargo run --example s0612_runyue_check` 原卷优先、空则取录文，与张表、主序列比较，录文异读另列 |
 | `zoumalou_jiri.csv` | 人工核对（候选由 `scripts/calendar_data/zoumalou_shuo_check.py candidates` 从 OCR 抽出） | 长沙走马楼吴简纪日（2026-11-22）：册、书页、简号、年号、年（公历）、月、闰、日、干支、朔干支、原文、核对、备注；`check` 读核对=1 之行与吴推步、魏历比较，生成 `doc/calendar/zoumalou-checks.md` |
 | `zoumalou_months.csv` | `scripts/calendar_data/zoumalou_shuo_check.py check` | 走马楼吴简逐月（2026-11-27）：年、月、闰、吴推步朔、张表朔、简文朔（；分隔）、简（；分隔，与简文朔一一对应）、分类、注；`rust/core/examples/regime_benji_eval.rs` 读入作吴月 B 级证据，并入 `regime_benji_months.csv`（推步、张表朔须与该程序所推相同） |
 | `regime_zhi_check.csv` | `rust/core/examples/regime_benji_eval.rs` | 分政权推步之天文志逐条检验（2026-11-27）：《魏书》《隋书》《金史》天文志凌犯与日月食纪日（`data/phenomena/<书>_star_records.csv`、`_solar_eclipses.csv`、`_lunar_eclipses.csv`），列同 `regime_benji_check.csv`，书名记 `<书>_zhi` |
@@ -384,5 +384,5 @@ in_month（日干支在该历所记之月）、jdn、julian、position（原文�
 | `yinwan_lipu.csv` | 人工录自《尹湾汉墓简牍》释文（书页 133—134、144—145） | 尹湾六号汉墓元延元年全年历谱、元延三年五月历谱、元延二年日记六单月（2026-11-24、11-25）：件、年、月、闰、大小、朔干支、书页；`scripts/calendar_data/hanjian_shuo_check.py lipu` 比较 |
 | `hanjian_jiri.csv` | `scripts/calendar_data/hanjian_shuo_check.py candidates` 从 OCR 抽出，不合者对图人工核对 | 居延汉简、居延新简、敦煌汉简等（甘肃省卷）公文书「某年某月某干支朔」（2026-11-25，451 条，含肩水金关释文 49 条、悬泉汉简 92 条（书列「悬泉汉简」，册列「敦煌悬泉汉简释粹」「悬泉汉简研究」；横排 OCR 相邻两行拼接以接跨行日期；同简异本异读者另一本之行核对记「重出」，列出不计）；`candidates-text` 子命令从纯文本录文抽取）：书、册、PDF页、集成编号（未填）、年号、年、闰、月、朔干支、原文（OCR 文本）、核对（OCR合 / 图）、图读、备注；`check` 子命令比较 |
 | `liaojin_regime_kaozheng.csv` | `scripts/calendar_data/liaojin_regime_kaozheng.py`（人工考证写在脚本中；输入 `regime_benji_check.csv`、`推步政权朔日表.csv`、`liao_shuo_kaozheng.csv`） | 辽金分政权推步之史书检验逐条考证：书、政权、年、月（本纪纪日月列）、干支、位置、推步之历、推步月首、合推步、张表月首、合张表、类、处置（改月 / 不计 由 `rust/core/examples/regime_benji_eval.rs` 读入；已入例外表；存）、改作、判、原文；另记《金史》抽取改字 |
-| `zhongyuan_reckoning_eval.csv` | `rust/core/examples/zhongyuan_reckoning_eval.rs` | 中原一线逐历：月数、与张表同日之月、闰位不同之岁、本纪明书朔日条数、合推步、合张表、只合其一 |
-| `zhongyuan_reckoning_benji.csv` | 同上 | 推步与张表不同、或本纪只合其一之条 |
+| `main_series_reckoning_eval.csv` | `rust/core/examples/main_series_reckoning_eval.rs` | 主序列逐历：月数、与张表同日之月、闰位不同之岁、本纪明书朔日条数、合推步、合张表、只合其一 |
+| `main_series_reckoning_benji.csv` | 同上 | 推步与张表不同、或本纪只合其一之条 |

@@ -1,11 +1,11 @@
 //! 吐鲁番、黑城出土唐宋历日残件所示月朔（data/calendar/chutu_rili_shuo.csv，录自邓文宽《敦煌吐鲁番天文历法研究》2002）
-//! 与张表、中原一线（缺省逐历取法、一律推步）逐月比较，输出 doc/calendar/chutu-rili-checks.md。
+//! 与张表、主序列（缺省逐历取法、一律推步）逐月比较，输出 doc/calendar/chutu-rili-checks.md。
 //! 这些残件的年代是邓氏以今人表（张表节气日、陈垣朔闰表）选定的，凡定年用到的月朔与今人表相合是选年的结果（表中标「定年」），
 //! 不作独立证据；有意义的是定年条件以外之月，及推步与张表不同之月。
 //! 用法（仓库根）：cargo run --release -p lunar-core --no-default-features --features real-f64 --example chutu_rili_check
 use lunar_core::calendar::gan_zhi::GAN_ZHI_60;
 use lunar_core::calendar::historical::ShuoriTable;
-use lunar_core::calendar::lifa::{zhongyuan_year_months, ZhongyuanPreference};
+use lunar_core::calendar::lifa::{main_series_year_months, MainSeriesPreference};
 #[path = "support/shiwu_fenlei.rs"]
 mod fenlei;
 
@@ -20,13 +20,13 @@ fn main() {
     let zhang = ShuoriTable::from_csv(&read("vendor/calendar/chinese_calendar/实历朔日表.csv")).unwrap();
     let src = read("data/calendar/chutu_rili_shuo.csv");
     let mut md = vec![
-        "# 出土唐宋历日残件月朔与张表、中原一线（自动生成）".to_string(),
+        "# 出土唐宋历日残件月朔与张表、主序列（自动生成）".to_string(),
         String::new(),
         "> 由 `cargo run --example chutu_rili_check` 生成，勿手改。录文 `data/calendar/chutu_rili_shuo.csv`，说明见 [historical-calendar.md](historical-calendar.md)「出土唐宋历日残件」。".into(),
         String::new(),
         "「定年」= 该件年代由此月朔或节气与今人表相合而选定，相合不作独立证据；「推得」= 残件无该月干支，由注历规则推出。".into(),
         String::new(),
-        "| 件 | 年 | 月 | 残件朔 | 依据 | 张表 | 中原一线（缺省） | 来源 | 一律推步 | 定年 | 分类 | 原文 | 书页 |".into(),
+        "| 件 | 年 | 月 | 残件朔 | 依据 | 张表 | 主序列（缺省） | 来源 | 一律推步 | 定年 | 分类 | 原文 | 书页 |".into(),
         "|---|---|---|---|---|---|---|---|---|---|---|---|---|".into(),
     ];
     let mut cats: Vec<(&str, char)> = vec![];
@@ -36,10 +36,10 @@ fn main() {
         let (y, m, leap): (i32, u8, bool) = (f[1].parse().unwrap(), f[2].parse().unwrap(), f[3] == "1");
         let find = |ms: &[(i64, u8, bool)]| ms.iter().find(|e| e.1 == m && e.2 == leap).map(|e| gz(e.0)).unwrap_or("（无）");
         let z = zhang.year_months(y).map(|ms| find(ms)).unwrap_or("（无）");
-        let (c, src_label) = zhongyuan_year_months(Some(&zhang), y, ZhongyuanPreference::Evidence)
+        let (c, src_label) = main_series_year_months(Some(&zhang), y, MainSeriesPreference::Evidence)
             .map(|(ms, s)| (find(&ms), s.label()))
             .unwrap_or(("（无）", "".into()));
-        let r = zhongyuan_year_months(Some(&zhang), y, ZhongyuanPreference::Reckoning).map(|(ms, _)| find(&ms)).unwrap_or("（无）");
+        let r = main_series_year_months(Some(&zhang), y, MainSeriesPreference::Reckoning).map(|(ms, _)| find(&ms)).unwrap_or("（无）");
         let book = f[4];
         let dingnian = f[7].contains("定年") && (f[7].contains(&format!("{}月", NUM[m as usize])) || f[7].contains(&format!("{}、", NUM[m as usize])));
         let mk = |x: &str| if x == book { format!("{x} ✓") } else { format!("{x} ✗") };
@@ -64,7 +64,7 @@ fn main() {
         ));
     }
     md.push(String::new());
-    md.push(format!("原印且非定年所用之月 {n_ind} 个：合张表 {ok_z}，合中原一线（缺省）{ok_c}，合一律推步 {ok_r}。"));
+    md.push(format!("原印且非定年所用之月 {n_ind} 个：合张表 {ok_z}，合主序列（缺省）{ok_c}，合一律推步 {ok_r}。"));
     md.push(String::new());
     md.push(format!(
         "分类对象是一律推步（按术推步，不经仲裁）与张表；残件是实物历日（A 级），原印且非定年所用之月才作证据，「推得」「定年」之月记无证。{}",

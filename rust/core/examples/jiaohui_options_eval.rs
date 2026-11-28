@@ -1,5 +1,5 @@
 //! 唐宋诸历排月选项（`dingshuo::PaiyueOptions`：交会规则、五代定闰中气）各选项之检验：逐历与张表逐月同日数、本纪明书朔日合数（取本纪之法同
-//! `zhongyuan_reckoning_eval`：除辽金北朝本纪、「其他」类），供定缺省。输出 data/calendar/jiaohui_options_eval.csv。
+//! `main_series_reckoning_eval`：除辽金北朝本纪、「其他」类），供定缺省。输出 data/calendar/jiaohui_options_eval.csv。
 //! 用法（仓库根）：cargo run --release --manifest-path rust/Cargo.toml -p lunar-core --no-default-features --features real-f64 --example jiaohui_options_eval
 use lunar_core::calendar::dingshuo::{reckon_year_with, registry, JiaoBujin, PaiyueOptions, WudaiDingqi, ZhengyueJiao, DayanJinshuo};
 use lunar_core::calendar::historical::ShuoriTable;

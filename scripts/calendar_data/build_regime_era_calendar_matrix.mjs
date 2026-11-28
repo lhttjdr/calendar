@@ -141,7 +141,7 @@ function mainTableCalendar(y) {
   return "张表（据历还原）";
 }
 
-function formatZhongyuanRegimeCell(row) {
+function formatMainSeriesRegimeCell(row) {
   const [, hasGaiyuan, , emperor, eraName, eraYear, prevName, prevYear] = row;
   const cal = mainTableCalendar(parseInt(row[0], 10));
   const emp = emperor || "未知";
@@ -212,10 +212,10 @@ function cellForRegime(col, lunarYear, eraRow) {
     const r = eraRow[2];
     if (r === ERA_NAMES_NANBEICHAO) {
       return southDynastyColumnForYear(lunarYear) === col
-        ? formatZhongyuanRegimeCell(eraRow)
+        ? formatMainSeriesRegimeCell(eraRow)
         : "";
     }
-    return r === col ? formatZhongyuanRegimeCell(eraRow) : "";
+    return r === col ? formatMainSeriesRegimeCell(eraRow) : "";
   }
   if (SIXTEEN_KINGDOM_SET.has(col)) {
     const meta = SIXTEEN_KINGDOMS_META.find((m) => m.col === col);

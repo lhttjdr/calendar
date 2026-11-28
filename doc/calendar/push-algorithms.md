@@ -453,7 +453,7 @@ ziOffset 将「子月起」的月序映射到各历正月：-1=正月亥（闰�
 
 **朔策**：$\mathrm{lunar} = 29 + 499/940$（同四分）。**历元分三段**（出土历简复原）：y≥-162 用 Calendar C（jdEpoch=1646163.5001，accMonEpoch=321）；-201<y<-162 用 B（1633701.5001，174）；y≤-201 用 A（1589523.5001，1670）。**19 年章**：闰周 leapCycle、accMonCycle；$\mathrm{accMons} = 235\,\lfloor (y-\mathrm{yEpochLeap})/19 \rfloor + \mathrm{accMonCycle}[\mathrm{yInCycle}] + \mathrm{accMonEpoch}$，闰 = leapCycle[yInCycle]。正月朔 $\mathrm{m0} = \mathrm{accMons}\,\mathrm{lunar} + \mathrm{jdEpoch}$。月序：十月、十一月、十二月、正月…九月、后九月（闰）。y=-201 时前三月用 B 的 m0，第 4 月起改用 $1633701.5001 + 470\,\mathrm{lunar}$。
 
-本项目 Rust 实现：`calendar::qinhan_restore`（整数运算，作中原一线张表以前的今人历表，2026-11-22）。
+本项目 Rust 实现：`calendar::qinhan_restore`（整数运算，作主序列张表以前的今人历表，2026-11-22）。
 
 ### 5.4 颛顼历推步（本项目，`calendar::zhuanxu`）
 

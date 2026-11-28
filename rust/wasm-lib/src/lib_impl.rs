@@ -308,13 +308,13 @@ static ERA_NAMES: Lazy<EraNames> = Lazy::new(|| {
     EraNames::from_csv(include_str!("../../../data/calendar/汇总/era_names_merged.csv")).unwrap_or_default()
 });
 
-/// 中原一线该农历年行用之历的名称（如「麟德历」），日历显示用，代替笼统的「农历」。
+/// 主序列该农历年行用之历的名称（如「麟德历」），日历显示用，代替笼统的「农历」。
 #[wasm_bindgen(js_name = get_calendar_name)]
 pub fn get_calendar_name(lunar_year: i32) -> String {
-    lunar_core::calendar::lifa::ZhongyuanCalendarPeriods::embedded().name_for_lunar_year(lunar_year).to_string()
+    lunar_core::calendar::lifa::MainSeriesCalendarPeriods::embedded().name_for_lunar_year(lunar_year).to_string()
 }
 
-/// 今人历表（张培瑜，`实历朔日表.csv`）由宿主 fetch 后交给 wasm；未载入时中原一线只用实物历日与按术推步。
+/// 今人历表（张培瑜，`实历朔日表.csv`）由宿主 fetch 后交给 wasm；未载入时主序列只用实物历日与按术推步。
 static ZHANG_TABLE: Lazy<Mutex<Option<lunar_core::calendar::historical::ShuoriTable>>> = Lazy::new(|| Mutex::new(None));
 
 /// 载入今人历表（张培瑜）。成功返回 true。
@@ -329,25 +329,25 @@ pub fn init_zhang_table(csv: &str) -> bool {
     }
 }
 
-/// 中原一线某农历年的历日（第 4 层 `lifa::zhongyuan_year_months` 的来源次序：实物历日 → 按术推步 → 今人历表）。
+/// 主序列某农历年的历日（第 4 层 `lifa::main_series_year_months` 的来源次序：实物历日 → 按术推步 → 今人历表）。
 /// 返回 JSON `{"lunar_year","new_moon_jds","zhong_qi_jds","source","kind"}`（kind：artifact / reckoned / table）；
 /// 该岁应现算（太初以前、2200 年以后，或推步优先时 2017 年起的现行农历）返回空串，由宿主用现算的岁数据。
 /// `mode`：0 逐历（缺省：本纪检验不低于张表之历取推步，余取张表）、1 一律推步优先、2 张培瑜历表优先。
-#[wasm_bindgen(js_name = resolve_zhongyuan_year)]
-pub fn resolve_zhongyuan_year(lunar_year: i32, mode: u8) -> String {
+#[wasm_bindgen(js_name = resolve_main_series_year)]
+pub fn resolve_main_series_year(lunar_year: i32, mode: u8) -> String {
     use lunar_core::calendar::historical::year_data_from_months;
-    use lunar_core::calendar::lifa::{zhongyuan_year_months, RiliSource, ZhongyuanPreference};
+    use lunar_core::calendar::lifa::{main_series_year_months, RiliSource, MainSeriesPreference};
     let pref = match mode {
-        1 => ZhongyuanPreference::Reckoning,
-        2 => ZhongyuanPreference::ModernTable,
-        _ => ZhongyuanPreference::Evidence,
+        1 => MainSeriesPreference::Reckoning,
+        2 => MainSeriesPreference::ModernTable,
+        _ => MainSeriesPreference::Evidence,
     };
     let guard = ZHANG_TABLE.lock().unwrap();
     let table = guard.as_ref();
-    let Some((curr, source)) = zhongyuan_year_months(table, lunar_year, pref) else {
+    let Some((curr, source)) = main_series_year_months(table, lunar_year, pref) else {
         return String::new();
     };
-    let prev = zhongyuan_year_months(table, lunar_year - 1, pref).map(|p| p.0).unwrap_or_default();
+    let prev = main_series_year_months(table, lunar_year - 1, pref).map(|p| p.0).unwrap_or_default();
     let yd = year_data_from_months(lunar_year, &prev, &curr);
     let kind = match source {
         RiliSource::Artifact(_) => "artifact",
@@ -481,7 +481,7 @@ pub fn get_era_name_parts_for_day(
 }
 
 
-/// 公历 (y,m,d) 下各推步政权（蜀、吴等）的农历月日，返回 JSON 数组 [{ region, calendar_name, lunar_year, month, is_leap, day }]。中原一线另见 [resolve_zhongyuan_year]。
+/// 公历 (y,m,d) 下各推步政权（蜀、吴等）的农历月日，返回 JSON 数组 [{ region, calendar_name, lunar_year, month, is_leap, day }]。主序列另见 [resolve_main_series_year]。
 #[wasm_bindgen(js_name = get_regimes_lunar_for_day)]
 pub fn get_regimes_lunar_for_day(g_year: i32, g_month: i32, g_day: i32) -> String {
     let mut entries = lunar_core::calendar::push_calendar::gregorian_to_all_regimes_lunar(

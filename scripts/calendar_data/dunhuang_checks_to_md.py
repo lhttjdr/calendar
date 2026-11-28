@@ -72,7 +72,7 @@ def main():
     orig = sum(r["朔依据"] == "原件" for r in chk)
     parts = [MARK, "", "## 逐条检验：比较表每一格的换算重现", "",
              f"比较表敦煌曆一栏有朔之格 {n}（原件 {orig}、原书推算 {n - orig}；含次年正月重出于两件者 3 格）。按敦煌岁月查月首"
-             f"（`lifa::resolve_dunhuang_month`，退回中原历）：**朔干支合 {ok}/{n}**；原书月大小可验者 {nsz}，自月首逐日换算到次月初一"
+             f"（`lifa::resolve_dunhuang_month`，退回主序列历日）：**朔干支合 {ok}/{n}**；原书月大小可验者 {nsz}，自月首逐日换算到次月初一"
              f"（`lifa::resolve_dunhuang_day`）所得月长**合 {oksz}/{nsz}**；只认有据之月（`EvidenceOnly`）月首亦合 {strict}/{n}。"
              "测试 `calendar::lifa::tests::dunhuang_comparison_table_reproduced` 对两种取舍逐格断言。", "",
              table(["文书", "原书定名", "中原月序", "敦煌岁", "敦煌月", "原书朔", "依据", "原书大小", "换算月首（儒略历）", "换算朔",

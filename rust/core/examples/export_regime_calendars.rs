@@ -1,5 +1,5 @@
 //! 导出推步政权（蜀、吴、后秦、北凉、北魏—西魏—北周—隋、东魏—北齐、高昌、金、辽、南明、民间通书）的朔闰表到 data/calendar/推步政权朔日表.csv，
-//! 供史书检验脚本（scripts/calendar_data/gaiyuan_date.py 的 `regime_month_span`）换算中原一线以外各政权的日期。
+//! 供史书检验脚本（scripts/calendar_data/gaiyuan_date.py 的 `regime_month_span`）换算主序列以外各政权的日期。
 //! 日期为民用历（1582 年前儒略历），与实历朔日表一致。
 //!
 //! 主表是纯按历术推步（`regime_year_months_raw`），供与史书、张表逐条判别时作「推步」一家；另写

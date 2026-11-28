@@ -6,7 +6,7 @@
 
 展开：以本表上岁展开之末月朔为起点（目录自身连续；本表无上岁时取参照表——张表，他国行为分政权推步——上岁末月朔），逐月取 29 或 30 日中干支相合者；列出之干支 29、30 日都不合而 59 日合者，
 判为目录脱「閏」（中间补一闰月），其余记「不可展开」。展开后逐月与张培瑜表（vendor 实历朔日表，经 gaiyuan_date 读取）、
-本项目中原一线按术推步（calendar::lifa::zhongyuan_year_months，ZhongyuanPreference::Reckoning，临时 crate 调用）比较。
+本项目主序列按术推步（calendar::lifa::main_series_year_months，MainSeriesPreference::Reckoning，临时 crate 调用）比较。
 
 输出 doc/calendar/tongjian-mulu-checks.md（逐岁汇总、不合之月逐条）。
 用法（仓库根）：python3 scripts/calendar_data/tongjian_mulu_check.py [--no-reckon | --reckon-csv 预导出推步表]
@@ -32,15 +32,15 @@ MN = ["", "正", "二", "三", "四", "五", "六", "七", "八", "九", "十", 
 NUM = {n: i for i, n in enumerate(MN) if n}
 COMMONS = "https://commons.wikimedia.org/wiki/File:"
 
-# 临时 crate：导出中原一线逐月推步（不经仲裁：实物年也照推；观象 807—821 术不传，无推步）
+# 临时 crate：导出主序列逐月推步（不经仲裁：实物年也照推；观象 807—821 术不传，无推步）
 RECKON_MAIN = r'''
-use lunar_core::calendar::lifa::{zhongyuan_year_months, RiliSource, ZhongyuanCalendarPeriods, ZhongyuanPreference};
+use lunar_core::calendar::lifa::{main_series_year_months, RiliSource, MainSeriesCalendarPeriods, MainSeriesPreference};
 use lunar_core::calendar::push_calendar;
 fn main() {
-    let periods = ZhongyuanCalendarPeriods::embedded();
+    let periods = MainSeriesCalendarPeriods::embedded();
     for y in -220..=960 {
         let name = periods.name_for_lunar_year(y);
-        let r = match zhongyuan_year_months(None, y, ZhongyuanPreference::Reckoning) {
+        let r = match main_series_year_months(None, y, MainSeriesPreference::Reckoning) {
             Some((r, RiliSource::Reckoned(_))) => r,
             Some((_, RiliSource::Artifact(_))) => match push_calendar::reckon_lifa_year(name, y) { Some(r) => r, None => continue },
             _ => continue,
@@ -473,18 +473,18 @@ def write_doc(year_rows, diff_rows, tot, by, qh=None):
     o.append("> 由 `scripts/calendar_data/tongjian_mulu_check.py` 生成，勿手改。转录数据见 `data/calendar/tongjian_mulu_shuo.csv`。\n")
     o.append("司马光《资治通鉴目录》三十卷逐年上栏记朔闰，据北宋刘羲叟《长历》（原书佚）。体例：每岁只列前月为小月之月的朔，"
              "未列者 = 上月朔 + 30 日；闰月不列干支者岁末记「閏N」。本表据维基共享资源扫描本（SSID-12318597—12318606，"
-             "十册 PDF）看图转录，逐月展开后与张培瑜表、本项目中原一线按术推步比较。\n")
+             "十册 PDF）看图转录，逐月展开后与张培瑜表、本项目主序列按术推步比较。\n")
     o.append("**可靠性**：目录朔闰是刘羲叟按各代历术（及其所见史料）推排的结果，本身是宋人复原，不是当时颁行历日；"
              "可靠性低于本纪明书朔日、出土历日，只作一家对照（见 `doc/calendar/calendar-compendium.md`「资料可靠性排序」）。"
-             "观象历 807—821 段已据目录取为中原一线历日（`calendar::liu_changli`），本检验与 `data/calendar/tongjian_mulu_807_821.csv` 互校。\n")
+             "观象历 807—821 段已据目录取为主序列历日（`calendar::liu_changli`），本检验与 `data/calendar/tongjian_mulu_807_821.csv` 互校。\n")
     o.append(f"## 汇总\n\n已录 {len(ys)} 岁（{min(ys)}—{max(ys)}，中有缺岁见下），展开 {tot['n']} 月；"
              f"与张表可比 {tot['zn']} 月，合 {tot['z']}；与推步可比 {tot['pn']} 月，合 {tot['p']}。"
              f"缺岁：{'、'.join(str(y) for y in range(min(ys), max(ys) + 1) if y not in ys) or '无'}。\n")
-    o.append(f"以上合张表、合推步之数只计中原一线（含陳）；南北朝目录所标他国（三国吳、蜀，北魏、東魏、西魏、周、齊、隋 581—589；三国魏与宋、南齊、梁、陳为中原一线）对分政权推步"
+    o.append(f"以上合张表、合推步之数只计主序列（含陳）；南北朝目录所标他国（三国吳、蜀，北魏、東魏、西魏、周、齊、隋 581—589；三国魏与宋、南齊、梁、陳为主序列）对分政权推步"
              f"（`data/calendar/推步政权朔日表.csv` 主表）：{tot['rmonths']} 月，可比 {tot['rn']}，合 {tot['rp']}。\n")
     g = lambda k: tot.get(k, 0)
     o.append(f"**读法分栏**（CSV「读法」列）：「独立」= 只据书影读出（含东汉 100—219 年经未看张表者盲读复核相同之岁，及以盲读为准之岁）；「参照」= 扫描不清、读时对照张表或推步核定（附注「与張表同」「按干支读」「待核」等）。"
-             f"参照之岁与张表、推步的比较是循环的，不能计作独立相合。中原一线：独立 {g('独立_yrs')} 岁，可比张表 {g('独立_zn')} 月合 {g('独立_z')}、"
+             f"参照之岁与张表、推步的比较是循环的，不能计作独立相合。主序列：独立 {g('独立_yrs')} 岁，可比张表 {g('独立_zn')} 月合 {g('独立_z')}、"
              f"可比推步 {g('独立_pn')} 月合 {g('独立_p')}；参照 {g('参照_yrs')} 岁，可比张表 {g('参照_zn')} 月合 {g('参照_z')}、可比推步 {g('参照_pn')} 月合 {g('参照_p')}。"
              f"两读未定 {g('两读_yrs')} 岁（盲读与现行读法不同，不计独立）：可比张表 {g('两读_zn')} 月合 {g('两读_z')}、可比推步 {g('两读_pn')} 月合 {g('两读_p')}。"
              f"他国行：独立 {g('独立_ryrs')} 岁，合推步 {g('独立_rp')}/{g('独立_rn')}；参照 {g('参照_ryrs')} 岁，合推步 {g('参照_rp')}/{g('参照_rn')}。\n")
@@ -515,10 +515,10 @@ def write_doc(year_rows, diff_rows, tot, by, qh=None):
              "评估目录与张表、推步的异同只应看「独立」栏。东汉 100—219 年已由未看张表者盲读：115 岁原文相同（读法「独立（盲读复核）」），"
              "140、164 两岁以盲读原文加校读为准（终读同现行），127、209、212 三岁两读未定（读法「独立（两读未定）」，附注记两读），检验单列「两读」、不计独立。")
     o.append("- 卷一（战国）为诸侯年表，无朔闰，不录。卷二、三漢元年（前 206）至太初元年（前 104）殷曆、顓頊曆两行另节检验（见「漢初殷曆、顓頊曆兩行」）；"
-             "太初元年改用太初曆以后单行，与中原一线同法检验。目录岁名与干支纪年在此段一致（无超辰之差）。\n")
-    # 推步与张表互异之月：分类取 zhongyuan_reckoning_diffs.csv（rust/core/examples/zhongyuan_reckoning_eval.rs），目录只作比对
+             "太初元年改用太初曆以后单行，与主序列同法检验。目录岁名与干支纪年在此段一致（无超辰之差）。\n")
+    # 推步与张表互异之月：分类取 main_series_reckoning_diffs.csv（rust/core/examples/main_series_reckoning_eval.rs），目录只作比对
     zd = {}
-    zp = ROOT / "data/calendar/zhongyuan_reckoning_diffs.csv"
+    zp = ROOT / "data/calendar/main_series_reckoning_diffs.csv"
     if zp.exists():
         with open(zp, encoding="utf-8") as f:
             for r in csv.DictReader(f):
@@ -528,19 +528,19 @@ def write_doc(year_rows, diff_rows, tot, by, qh=None):
         cnt = {}
         body = []
         for y, name, j, zj, pj in hy:
-            c, lv, ev = zd.get((y, gzs(pj)), ("③无据待核", "—", "（推步、张表之异不在 zhongyuan_reckoning_diffs.csv）"))
+            c, lv, ev = zd.get((y, gzs(pj)), ("③无据待核", "—", "（推步、张表之异不在 main_series_reckoning_diffs.csv）"))
             m = "合推步" if j == pj else "合张表" if j == zj else "皆不合"
             cnt[(c[0], m)] = cnt.get((c[0], m), 0) + 1
             body.append(f"| {y} | {name} | {gzs(j)} | {gzs(pj)} | {gzs(zj)} | {m} | {c} | {lv} | {ev or '—'} |")
         n = lambda c: sum(v for k, v in cnt.items() if k[0] == c)
         o.append("## 推步与张表相同、互异之月\n")
-        o.append(f"目录所录各月中，中原一线按术推步与张表朔日不同者 {len(hy)} 月（目录合推步 {sum(v for k, v in cnt.items() if k[1] == '合推步')}、"
+        o.append(f"目录所录各月中，主序列按术推步与张表朔日不同者 {len(hy)} 月（目录合推步 {sum(v for k, v in cnt.items() if k[1] == '合推步')}、"
                  f"合张表 {sum(v for k, v in cnt.items() if k[1] == '合张表')}、皆不合 {sum(v for k, v in cnt.items() if k[1] == '皆不合')}）。"
-                 "目录为复原性质（刘羲叟推排），只作比对，不作证据；这些月的分类取中原一线逐月三分类（`data/calendar/zhongyuan_reckoning_diffs.csv`，"
+                 "目录为复原性质（刘羲叟推排），只作比对，不作证据；这些月的分类取主序列逐月三分类（`data/calendar/main_series_reckoning_diffs.csv`，"
                  "据实物、写本题记、本纪明书朔与纪日定）：**①硬据证张表误** " + str(n("①")) + "、**②硬据证推步误** " + str(n("②"))
                  + "、**③无据待核** " + str(n("③")) + "。目录合推步或合张表都不改变分类。\n")
-        # 两家相同之月：分类取 zhongyuan_reckoning_months.csv（有证／同误／无证），目录合否只作比对
-        mp = ROOT / "data/calendar/zhongyuan_reckoning_months.csv"
+        # 两家相同之月：分类取 main_series_reckoning_months.csv（有证／同误／无证），目录合否只作比对
+        mp = ROOT / "data/calendar/main_series_reckoning_months.csv"
         if mp.exists():
             zy_years = {y for y, r, n, zc, zn, *_ in year_rows if zn}
             solo = {(y, gzs(pj)) for y, r, name, j, zj, pj, pname, bs in diff_rows if zj is not None and zj == pj}
@@ -552,15 +552,15 @@ def write_doc(year_rows, diff_rows, tot, by, qh=None):
                     k = (r["分类"], "目录不合" if (int(r["年"]), r["推步朔"]) in solo else "目录合")
                     sc[k] = sc.get(k, 0) + 1
             n = lambda c: sum(v for k, v in sc.items() if k[0] == c)
-            o.append(f"推步与张表相同之月（目录所录中原一线各岁）{sum(sc.values())} 月：**有证** {n('有证')}（目录不合者 {sc.get(('有证', '目录不合'), 0)}）、"
+            o.append(f"推步与张表相同之月（目录所录主序列各岁）{sum(sc.values())} 月：**有证** {n('有证')}（目录不合者 {sc.get(('有证', '目录不合'), 0)}）、"
                      f"**同误** {n('同误')}（目录不合者 {sc.get(('同误', '目录不合'), 0)}）、**无证** {n('无证')}（目录不合者 {sc.get(('无证', '目录不合'), 0)}）。"
-                     "分类与等级见 `data/calendar/zhongyuan_reckoning_months.csv`；目录与两家皆不合（目录独异）只是复原之异，不作同误之证。\n")
+                     "分类与等级见 `data/calendar/main_series_reckoning_months.csv`；目录与两家皆不合（目录独异）只是复原之异，不作同误之证。\n")
         o.append("| 年 | 月 | 目录朔 | 推步朔 | 张表朔 | 目录 | 分类 | 等级 | 证据 |")
         o.append("|---|---|---|---|---|---|---|---|---|")
         o += body
         o.append("")
     o.append("## 分历\n")
-    o.append("按本项目中原一线行用之历分段（推步不经仲裁，实物年亦照推；观象术不传无推步）；他国行以「国（政权）：历名」标出，只对分政权推步、不对张表。「只合推步」「只合张表」「皆不合」以月计。\n")
+    o.append("按本项目主序列行用之历分段（推步不经仲裁，实物年亦照推；观象术不传无推步）；他国行以「国（政权）：历名」标出，只对分政权推步、不对张表。「只合推步」「只合张表」「皆不合」以月计。\n")
     o.append("| 历 | 年段 | 月数 | 合张表 | 合推步 | 独立：合张表 | 独立：合推步 | 参照及两读月数 | 只合推步 | 只合张表 | 皆不合 |")
     o.append("|---|---|---|---|---|---|---|---|---|---|---|")
     for nm, b in sorted(by.items(), key=lambda t: t[1]["y0"]):

@@ -6,7 +6,7 @@
 //! - 行用：A 至汉高祖五年十二月，B 至文帝前元十六年后九月，C 至太初元年四月；
 //! - 张表前 106 年正月至太初元年四月与此逐月全同（测试 `lifa::tests::qinhan_restore_matches_zhang_table`）。
 //!
-//! 张表起于前 106 年，前 221—前 107 年中原一线的今人历表即取本复原（[super::lifa::zhongyuan_year_months]）。
+//! 张表起于前 106 年，前 221—前 107 年主序列的今人历表即取本复原（[super::lifa::main_series_year_months]）。
 //! 2026-11-22 起秦汉初缺省取出土历谱实物（[super::artifacts]）与实用历推步（[super::qinhan_shiyong]），本复原只在
 //! 「今人历表优先」选项下取用、并作对照：其参数据历简拟合，但各月不注所据，与实物逐月比较见 doc/calendar/qinhan-shiwu-checks.md。
 

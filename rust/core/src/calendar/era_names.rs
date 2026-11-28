@@ -1,6 +1,6 @@
 //! 历法域第 3 层（派生层）：政权·帝王·年号（纪年历）。
 //!
-//! 依附于第 4 层（仲裁/路由层）路由到的历法（见 [crate::calendar::lifa]），按政权划分；中原一线的主线年号与 [crate::calendar::lifa::ZhongyuanCalendarPeriods] 所定行用之历同线。
+//! 依附于第 4 层（仲裁/路由层）路由到的历法（见 [crate::calendar::lifa]），按政权划分；主序列的主线年号与 [crate::calendar::lifa::MainSeriesCalendarPeriods] 所定行用之历同线。
 //! 基于跨来源汇总的年号表（`data/calendar/汇总/era_names_merged.csv`）按农历年查询年号与改元标记；**同一年
 //! 可能有多个并存政权**（如三国期间魏/蜀/吴），因此按年份索引的是一组 [EraEntry] 而非单条记录。
 //! CSV 前 12 列（另有 gaiyuan_earlier_eras、emperor_name 两列在末尾）：lunar_year, regime, emperor, era_name, era_year, is_primary, has_gaiyuan,

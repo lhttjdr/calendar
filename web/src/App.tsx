@@ -46,8 +46,8 @@ import {
   type GanzhiResult,
   type GanzhiOptionsTuple,
   type RealBackendVariant,
-  setZhongyuanMode,
-  type ZhongyuanMode,
+  setMainSeriesMode,
+  type MainSeriesMode,
 } from './useLunarWasm'
 import { utcFromLocalInZone, civilMonthDays, convertDisplayDateTime, displayCivilToJd, formatDateInTimeZone, civilToProleptic, clampCivilDay, displayCalendarName, isCalendarMode, isFullyGregorianMonth, jdToDisplayDate, localDate, ROMAN_SCHEMES, setCalendarMode, type CalendarMode } from './civilTime'
 import { EPHEMERIS_SOURCE_LABELS, EPHEMERIS_FORMAT_LABELS, type EphemerisDataSource } from './ephemerisSourceRegistry'
@@ -73,15 +73,25 @@ const CALENDAR_MODE_OPTIONS = [
   },
 ]
 
-/** 中原一线历日取法：0 逐历（缺省）、1 一律推步优先、2 张培瑜历表优先。见 doc/calendar/rili-sources.md */
-const ZHONGYUAN_MODE_STORAGE_KEY = 'zhongyuan-rili-mode'
-function getStoredZhongyuanMode(): ZhongyuanMode {
-  let v: ZhongyuanMode = 0
+/** 主序列历日取法：0 逐历（缺省）、1 一律推步优先、2 张培瑜历表优先。见 doc/calendar/rili-sources.md */
+const MAIN_SERIES_MODE_STORAGE_KEY = 'main-series-rili-mode'
+/** 改名前（「中原一线」）所存之键，读到即迁到新键 */
+const LEGACY_MODE_STORAGE_KEY = 'zhongyuan-rili-mode'
+function getStoredMainSeriesMode(): MainSeriesMode {
+  let v: MainSeriesMode = 0
   try {
-    const s = Number(localStorage.getItem(ZHONGYUAN_MODE_STORAGE_KEY))
+    let raw = localStorage.getItem(MAIN_SERIES_MODE_STORAGE_KEY)
+    if (raw === null) {
+      raw = localStorage.getItem(LEGACY_MODE_STORAGE_KEY)
+      if (raw !== null) {
+        localStorage.setItem(MAIN_SERIES_MODE_STORAGE_KEY, raw)
+        localStorage.removeItem(LEGACY_MODE_STORAGE_KEY)
+      }
+    }
+    const s = Number(raw)
     if (s === 1 || s === 2) v = s
   } catch {}
-  setZhongyuanMode(v)
+  setMainSeriesMode(v)
   return v
 }
 
@@ -369,7 +379,7 @@ function App() {
   const [paipanTab, setPaipanTab] = useState<string>(URL0.view === 'paipan' && URL0.tab ? URL0.tab : 'qimen')
   /** Real 后端：twofloat=高精度，f64=体积/速度；切换后重新加载 WASM */
   const [realBackendVariant, setRealBackendVariant] = useState<RealBackendVariant>(getStoredRealBackend)
-  const [zhongyuanPref, setZhongyuanPref] = useState<ZhongyuanMode>(getStoredZhongyuanMode)
+  const [mainSeriesPref, setMainSeriesPref] = useState<MainSeriesMode>(getStoredMainSeriesMode)
   const [ephemerisSource, setEphemerisSource] = useState<EphemerisDataSource | null>(null)
   /** 章动表/地球改正加载状态（由 WASM get_repo_aux_* 提供，仅文本/混合路径有值；全二进制为 77 项+未加载） */
   const [repoAux, setRepoAux] = useState<{ nutationFull: boolean; earthPatch: boolean; elpCorrection: string } | null>(null)
@@ -514,7 +524,7 @@ function App() {
         }
       })
     return () => { cancelled = true }
-  }, [year, month, realBackendVariant, calendarMode, zhongyuanPref])
+  }, [year, month, realBackendVariant, calendarMode, mainSeriesPref])
 
   // 当左侧显示日期与日历视图不同月时，单独拉取显示日期所在月的岁数据，否则农历年月日会因无对应气朔而显示为 —
   useEffect(() => {
@@ -533,7 +543,7 @@ function App() {
       if (!cancelled) setDisplayDateYearDataList(list)
     })
     return () => { cancelled = true }
-  }, [wasm, year, month, isLiveMode, nowForLunar, selectedDate.year, selectedDate.month, selectedDate.day, calendarMode, timeZone, zhongyuanPref])
+  }, [wasm, year, month, isLiveMode, nowForLunar, selectedDate.year, selectedDate.month, selectedDate.day, calendarMode, timeZone, mainSeriesPref])
 
   // 切换时区时，将当前选中的日期时间从旧时区换算到新时区（同一时刻）
   useEffect(() => {
@@ -1079,7 +1089,7 @@ function App() {
 
                   type Era = { regime: string; emperor: string; era_name: string; era_year: string; era: string; is_primary?: boolean }
 
-                  // 各历日一块，样式一律，不分主次（项目不设「主表」，中原一线与各政权并列）。
+                  // 各历日一块，样式一律，不分主次（项目不设「主表」，主序列与各政权并列）。
                   // 每块三层：标题（政权 · 年号）、月日与时刻、说明小字（历名、帝号、历日来源）。
                   type Entry = { key: string; title: React.ReactNode; date: React.ReactNode; meta: React.ReactNode[] }
                   const entries: Entry[] = []
@@ -1090,7 +1100,7 @@ function App() {
                     meta: [westernName, `第${dayOfYear}天，第${weekOfYear}周`],
                   })
 
-                  // 中原一线
+                  // 主序列
                   if (selectedLunarSlot != null) {
                     const monthDay = `${selectedLunarSlot.isLeapMonth ? '闰' : ''}${LUNAR_MONTH_NAMES[selectedLunarSlot.lunarMonth - 1]}月${lunarDayStr(selectedLunarSlot.dayOfMonth)}日`
                     let title = yearName(selectedLunarSlot.lunarYear)
@@ -1134,13 +1144,13 @@ function App() {
                     // 来源括注的历名与本块历名相同则省去，如「按术推步（元嘉历）」只写「按术推步」
                     const source = selectedYearData?.riliSource?.replace(`（${calName}）`, '') ?? ''
                     entries.push({
-                      key: 'zhongyuan',
+                      key: 'main-series',
                       title,
                       date: <>{monthDay}<LineTime format={timeOf} {...timeProps} /></>,
                       meta: [calName, emperor, source, hint],
                     })
                   } else {
-                    entries.push({ key: 'zhongyuan', title: '农历', date: selectedLunar ?? '—', meta: [] })
+                    entries.push({ key: 'main-series', title: '农历', date: selectedLunar ?? '—', meta: [] })
                   }
 
                   // 同年各政权年号与分政权推步
@@ -1162,7 +1172,7 @@ function App() {
                         if (own != null) usedRegions.add(own.region)
                         const eraStr = [p.era_name, p.era_year].filter(Boolean).join('') || p.era || '—'
                         // 中华民国（1949 年后）一块：历名《国民历》，日期按国历（格里高利历），依据见 doc/calendar/calendar-compendium.md「日历上的历名」；
-                        // 其余政权没有推步数据时不套用中原月日，如实写历日未详
+                        // 其余政权没有推步数据时不套用主序列月日，如实写历日未详
                         const minguo = p.regime === '中华民国'
                         entries.push({
                           key: `concurrent-${p.regime}-${p.era_name ?? ''}${p.era_year ?? ''}`,
@@ -1453,13 +1463,13 @@ function App() {
                   />
                 </div>
                 <div>
-                  <Text type="secondary" style={{ fontSize: 12 }}>中原历日取法</Text>
+                  <Text type="secondary" style={{ fontSize: 12 }}>主序列历日取法</Text>
                   <Select
-                    value={zhongyuanPref}
-                    onChange={(v: ZhongyuanMode) => {
-                      setZhongyuanMode(v)
-                      setZhongyuanPref(v)
-                      try { localStorage.setItem(ZHONGYUAN_MODE_STORAGE_KEY, String(v)) } catch {}
+                    value={mainSeriesPref}
+                    onChange={(v: MainSeriesMode) => {
+                      setMainSeriesMode(v)
+                      setMainSeriesPref(v)
+                      try { localStorage.setItem(MAIN_SERIES_MODE_STORAGE_KEY, String(v)) } catch {}
                     }}
                     options={[
                       { label: '逐历（默认）', value: 0 },

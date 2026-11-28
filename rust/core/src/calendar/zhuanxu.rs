@@ -57,7 +57,7 @@ pub fn jianhai_year_months(y: i32) -> Vec<(i64, u8, bool)> {
 }
 
 /// 夏正年 y 各月 (朔日 JDN, 月, 闰否)：建亥年 y 的正月至九月（后九月记作闰九月）与建亥年 y+1 的十月至十二月，
-/// 与张表编月一致（中原一线历日一律建寅编月）。
+/// 与张表编月一致（主序列历日一律建寅编月）。
 pub fn year_months(lunar_year: i32) -> Vec<(i64, u8, bool)> {
     jianhai_months_to_xiazheng(lunar_year, jianhai_year_months)
 }

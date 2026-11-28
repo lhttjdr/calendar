@@ -7,7 +7,7 @@
 OCR（RapidOCR，竖排）候选由 scripts 外部步骤生成（JSON：页 → [(x, y, 文字, 置信)]），本脚本只做匹配与比对；每条候选须对原书页图人工核对后
 写入 data/calendar/zoumalou_jiri.csv（列：册,书页,简号,年号,年,月,闰,日,干支,朔干支,原文,核对），检验只用核对过的行
 （核对=1 本项目对原书页图核过；核对=2 本项目无原书，据学者论文所引正式释文并附简号——引者据图版改释之处随之，备注注明出处）。
-吴历：data/calendar/推步政权朔日表.csv「吴」（乾象历推步）；魏历：张培瑜历表（魏行黄初/景初，与中原一线推步同）。
+吴历：data/calendar/推步政权朔日表.csv「吴」（乾象历推步）；魏历：张培瑜历表（魏行黄初/景初，与主序列推步同）。
 输出 doc/calendar/zoumalou-checks.md 与 data/calendar/zoumalou_months.csv（逐月所据之简与分类，regime_benji_eval 读入并入分政权逐月表）。
 用法（仓库根）：python3 scripts/calendar_data/zoumalou_shuo_check.py candidates <ocr.json>...  （列出候选）
             python3 scripts/calendar_data/zoumalou_shuo_check.py check                       （检验已核对之行）

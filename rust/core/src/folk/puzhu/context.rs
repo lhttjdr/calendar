@@ -3,7 +3,7 @@
 //! 口径：
 //! - 日以东八区民用日计（[`tt_to_day_number_utc8`]）；月建以交节为界，交节当日属新月（同月表、建除）。
 //! - 年（上朔、年神）以立春为界。
-//! - 农历日期按中原一线行用之历（[`lifa::resolve_year_data`]）：实物历日、按术推步、今人历表、现算依次取。
+//! - 农历日期按主序列行用之历（[`lifa::resolve_year_data`]）：实物历日、按术推步、今人历表、现算依次取。
 //! - 伏：初伏、中伏、末伏三日（[`zajie::san_fu`]）；社：二分前後近戊（《協紀》卷十二引歷例，[`zajie::she_jin_wu`]）。
 //! - 土王用事：四立前十八日起至四立前一日（[`zajie::tu_wang`]）。
 //! - 氣往亡：「皆自交節日數之」，交节当日为第一日（见 [`QiWangWangCount`]）。
@@ -66,7 +66,7 @@ fn jie_order(k: usize) -> Option<usize> {
 /// 铺注所用节气（交节之日与时刻）的来源。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TermSource {
-    /// 缺省：后编行用期（1742—1913，`zhongyuan_calendar_periods.csv`「时宪历（历象考成后编）」与民国初沿用）取《历象考成后编》
+    /// 缺省：后编行用期（1742—1913，`main_series_calendar_periods.csv`「时宪历（历象考成后编）」与民国初沿用）取《历象考成后编》
     /// 日躔推得之京师用时（[crate::calendar::shixian::jieqi]），即时宪书定日、印交节时刻所据；其余年份取现代历表（东八区）。
     /// 依据：时宪书书印交节时刻 9 例中 7 例为后编用时截至刻（doc/folk/shensha.md「交节时刻界限」），现代历表与书印之差
     /// 随节气在 −0.5 至 +0.4 时之间，不能以常数补正。

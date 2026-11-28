@@ -1,10 +1,10 @@
-# 近现代中原一线历日（1914—2016）
+# 近现代主序列历日（1914—2016）
 
-中原一线 1914—2016 年原取张培瑜历表（今人历表，第 5 级）。2026-11-22 起改为**按当时编算规则现算**（第 4 级「按术推步」，历名照
-`data/calendar/汇总/zhongyuan_calendar_periods.csv`：`中华民国历书（新法）` 1914—1927、`国民历` 1928—1948、`夏历（现代天文编算）` 1949—2016），
+主序列 1914—2016 年原取张培瑜历表（今人历表，第 5 级）。2026-11-22 起改为**按当时编算规则现算**（第 4 级「按术推步」，历名照
+`data/calendar/汇总/main_series_calendar_periods.csv`：`中华民国历书（新法）` 1914—1927、`国民历` 1928—1948、`夏历（现代天文编算）` 1949—2016），
 张表降为对照。1274 月与张表逐月全同，取法改变不改任何一日；改的是来源：每一月都说得出规则与定日基准的出处，张表则不载推步过程与逐月依据。
 
-- 代码：`rust/core/src/calendar/jindai.rs`（编入月表，经 `push_calendar::reckon_lifa_year` 供 `lifa::zhongyuan_year_months`）。
+- 代码：`rust/core/src/calendar/jindai.rs`（编入月表，经 `push_calendar::reckon_lifa_year` 供 `lifa::main_series_year_months`）。
 - 月表：`data/calendar/jindai_months.csv`，由 `rust/core/examples/jindai_months.rs` 生成（与网页同一组历表：VSOP87B + DE431 拟合改正、ELPMPP02 缺省常数集、IAU2000 章动；ΔT 用项目 TimeScale）。
 - 逐月检验：[jindai-checks.md](jindai-checks.md)（自动生成：分段统计、与张表或另一定日基准不同之月、合朔距子夜 30 分钟以内之月、中气距子夜 10 分钟以内者、全部 1274 月）。
 - 测试：`jindai::tests::covers_1914_2016_contiguously`、`minguo_3_new_method`、`same_as_zhang_table`。
