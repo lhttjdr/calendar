@@ -1284,6 +1284,8 @@ struct Linde {
     jiaohui: LindeJiaohui,
     /// 常月进朔（定小余过日法四分之三者进）之起始冬至岁；None 为常月不进（志文无进朔）
     changyue_jin: Option<i32>,
+    /// 常月停进朔之民用日（JDN）区间 [起, 止)：开元五至七年当时文字皆不进（[PaiyueOptions::linde_tingjin]）
+    tingjin: Option<(i64, i64)>,
     /// 本术（定小余近夜半者覆算）十四日、二十八日「分為二日」（[Linde::chisu_fen]）；false 则此二日仍用速要
     fen_erri: bool,
 }
@@ -1646,8 +1648,13 @@ impl DingshuoLi for Linde {
     // 敦煌伯 2347《十戒經》盟文「五月丁巳朔」，710 年四月义净译经题记「四月壬午朔」、六月中宗哀册「六月辛巳朔」、十一月同册
     // 「十一月二日乙〔己〕酉」并本纪十月丁未，713 年四月本纪，726 年四月岐王哀册「四月己酉朔」），仅 726 年十一月本纪一条不进；
     // 705 年三月岱岳观题记「三月庚辰朔」、五月册文「五月己卯朔」、706 年三月本纪纪日皆不进。排月取四分之三（18 时）进朔
-    // （[PaiyueOptions::linde_changyue]）。
-    fn jinshuo_limit(&self, y: i32, _t: &Q) -> Option<Q> {
+    // （[PaiyueOptions::linde_changyue]）。开元五至七年（717—719）当时文字七月皆不进（墓志、碑、册、祭文，见
+    // [PaiyueOptions::linde_tingjin]），其前 716 年闰十二月、其后 721 年正月墓志皆进，此段停常月进朔。
+    fn jinshuo_limit(&self, y: i32, t: &Q) -> Option<Q> {
+        let jdn = fl(&(t / q(LD_F))) + self.off;
+        if self.tingjin.is_some_and(|(a, b)| (a..b).contains(&jdn)) {
+            return None;
+        }
         self.changyue_jin.filter(|&from| y >= from).map(|_| qr(3 * LD_F, 4))
     }
     /// 月离为入变（速要所用之日，十四日初数 1042、二十八日 743 分）；日躔为入定气
@@ -1680,7 +1687,7 @@ fn ld_jiao() -> JiaoConst {
 
 fn linde() -> Linde {
     let dz_day = (LD_QI * LD_JI_664).div_euclid(LD_F);
-    Linde { off: align_offset(dz_day, gregorian::civil_to_jdn(663, 12, 20)), jiaohui: LindeJiaohui::Xinzhi, changyue_jin: None, fen_erri: true }
+    Linde { off: align_offset(dz_day, gregorian::civil_to_jdn(663, 12, 20)), jiaohui: LindeJiaohui::Xinzhi, changyue_jin: None, tingjin: None, fen_erri: true }
 }
 
 // ---------------------------------------------------------------- 戊寅（崔善为所较）
@@ -2861,6 +2868,10 @@ pub struct PaiyueOptions {
     /// （见 [Linde::jinshuo_limit]）；Some(710) 为 709 年盟文未入前之做法；
     /// None 为常月不进（2026-11-26 前做法）
     pub linde_changyue: Option<i32>,
+    /// 麟德常月停进朔之区间（民用历日 [起, 止)）：缺省 Some(((717, 2, 1), (720, 2, 1)))，即开元五年正月至七年十二月——
+    /// 717 年四月、十二月，718 年五月、十二月，719 年四月当时文字（祭文、塔铭、哀册、神道碑、墓志）皆不进，前后 716 年闰十二月、
+    /// 721 年正月墓志皆进；719 年五月至 720 年无文，止于开元七年末为本项目所定。None 为不停（2026-11-28 前做法，三月入例外表）
+    pub linde_tingjin: Option<((i32, i32, i32), (i32, i32, i32))>,
     /// 麟德本术（定小余近夜半者覆算）十四日、二十八日「分為二日，隨餘初末，如法求之」（《旧唐书·历志二》，读法同大衍一系精法，
     /// 见 [Linde::chisu_fen]）；false 则此二日仍用速要（2026-11-26 前做法）
     pub linde_fen_erri: bool,
@@ -2921,6 +2932,7 @@ impl Default for PaiyueOptions {
             dayan_jingfa: true,
             linde_jiaohui: LindeJiaohui::Xinzhi,
             linde_changyue: Some(709),
+            linde_tingjin: Some(((717, 2, 1), (720, 2, 1))),
             linde_fen_erri: true,
             dayan_jinshuo: DayanJinshuo::Xuchu,
         }
@@ -2953,7 +2965,7 @@ fn build_paiyue(name: &str, o: &PaiyueOptions) -> Option<Paiyue> {
         "崇玄历" => Paiyue::new(jf(chongxuan()), &["崇玄历"], none),
         "戊寅元历（代推武德）" => Paiyue::new(wuyin(false), &["戊寅元历（代推武德）"], none),
         "纪元历（代推南渡初）" => Paiyue::new(song("纪元", 7290, 2662626, q(215278), qr(2008730990, 10000), 28613466, 1106, 15, false, None, (1105, 12, 16)), &["纪元历（代推南渡初）"], song_r),
-        "麟德历" => Paiyue::new(Linde { jiaohui: o.linde_jiaohui, changyue_jin: o.linde_changyue, fen_erri: o.linde_fen_erri, ..linde() }, &["麟德历"], Rules { runs: None, pin_san: true, zhengyue: Some((684, 19)), jiao_bujin: None, zhengyue_jiao: &[] }),
+        "麟德历" => Paiyue::new(Linde { jiaohui: o.linde_jiaohui, changyue_jin: o.linde_changyue, tingjin: o.linde_tingjin.map(|((y0, m0, d0), (y1, m1, d1))| (gregorian::civil_to_jdn(y0, m0, d0), gregorian::civil_to_jdn(y1, m1, d1))), fen_erri: o.linde_fen_erri, ..linde() }, &["麟德历"], Rules { runs: None, pin_san: true, zhengyue: Some((684, 19)), jiao_bujin: None, zhengyue_jiao: &[] }),
         "大衍历" => Paiyue::new(
             jf(Dayan {
                 jinshuo: match o.dayan_jinshuo {
@@ -3440,9 +3452,15 @@ mod tests {
         assert_eq!(gz("麟德历", 684, 1), "甲申");
         assert_eq!(gz("麟德历", 711, 1), "丁未");
         assert_eq!(gz("麟德历", 712, 1), "辛未");
-        // 麟德常月超限不进（当时文字，2026-11-27 例外表）：717 年四月张说祭城隍文、苏颋悼王石塔铭，719 年四月王仁皎神道碑
+        // 麟德开元五至七年停常月进朔（当时文字）：717 年四月张说祭城隍文、苏颋悼王石塔铭，十二月李素等四志，718 年五月哀皇后哀册、
+        // 十二月李氏墓志，719 年四月王仁皎神道碑；前后 716 年闰十二月、721 年正月墓志进
         assert_eq!(gz("麟德历", 717, 4), "庚午");
+        assert_eq!(gz("麟德历", 717, 12), "丙寅");
+        assert_eq!(gz("麟德历", 718, 5), "甲午");
+        assert_eq!(gz("麟德历", 718, 12), "庚申");
         assert_eq!(gz("麟德历", 719, 4), "己未");
+        assert_eq!(gz("麟德历", 721, 1), "己酉");
+        assert_eq!(gz("麟德历", 721, 12), "甲戌");
         // 大衍 750 正月超戌初不进（史载例外表，本纪）、至德戌初限（763 六月、764 二月进）
         assert_eq!(gz("大衍历", 750, 1), "庚寅");
         assert_eq!(gz("五纪历", 763, 6), "癸酉");
