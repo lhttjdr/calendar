@@ -662,13 +662,14 @@ fn sui_months(li: &dyn DingshuoLi, y: i32) -> Vec<(i64, u8, bool)> {
     let i0 = (0..days.len() - 1).find(|&i| contains(i, dz0)).expect("含冬至之月");
     let i1 = (0..days.len() - 1).find(|&i| contains(i, dz1)).expect("含下一冬至之月");
     assert!(i1 - i0 == 12 || i1 - i0 == 13, "冬至岁 {y}：两冬至间 {} 月", i1 - i0);
-    let forced = (i0 + 1..i1).find(|&i| li.forced_leaps().contains(&days[i]));
+    // 史载置闰可在含冬至之月本身：诏以该月为闰（如圣历元年「可以今月為閏月，來月為正月」），则该月作上年闰十月，次月起为十一月
+    let forced = (i0..i1).find(|&i| li.forced_leaps().contains(&days[i]));
     let leap = if i1 - i0 == 13 { forced.or_else(|| (i0 + 1..i1).find(|&i| !zq.iter().any(|&z| contains(i, z)))) } else { None };
     let mut out: Vec<(i64, u8, bool)> = Vec::with_capacity(13);
     let mut label = 11u8;
     for i in i0..i1 {
         if Some(i) == leap {
-            out.push((days[i], out.last().map_or(11, |e| e.1), true));
+            out.push((days[i], out.last().map_or(10, |e| e.1), true));
             continue;
         }
         out.push((days[i], label, false));
@@ -682,7 +683,7 @@ pub fn year_months(li: &dyn DingshuoLi, lunar_year: i32) -> Vec<(i64, u8, bool)>
     let head = sui_months(li, lunar_year);
     let k = head.iter().position(|e| e.1 == 1 && !e.2).expect("正月");
     let mut out = head[k..].to_vec();
-    out.extend(sui_months(li, lunar_year + 1).into_iter().take_while(|e| e.1 >= 11));
+    out.extend(sui_months(li, lunar_year + 1).into_iter().take_while(|e| e.1 >= 11 || (e.1 == 10 && e.2)));
     out
 }
 

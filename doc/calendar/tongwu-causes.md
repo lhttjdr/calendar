@@ -1,6 +1,6 @@
 # 推步与张表「同误」之月的成因
 
-由 `scripts/calendar_data/tongwu_causes.py` 生成，**勿手改**；逐条数据 `data/calendar/tongwu_causes.csv`。上游为 `rust/core/examples/main_series_reckoning_eval.rs` 的逐月表 `data/calendar/main_series_reckoning_months.csv`（推步与张表逐月相同、互异之分类，见 [rili-sources.md](rili-sources.md)「逐历检验」与 [benji-checks.md](benji-checks.md)）。所据逐月表 sha256 `80e25252233c0034906bf1b17e8faadd604d0ebcdc1be5e5c47a2e3a35f91caf`（git fe629cf 所入 LFS 对象；其后推步若改、eval 重跑，同误之月会变，须以新表重跑本脚本）。
+由 `scripts/calendar_data/tongwu_causes.py` 生成，**勿手改**；逐条数据 `data/calendar/tongwu_causes.csv`。上游为 `rust/core/examples/main_series_reckoning_eval.rs` 的逐月表 `data/calendar/main_series_reckoning_months.csv`（推步与张表逐月相同、互异之分类，见 [rili-sources.md](rili-sources.md)「逐历检验」与 [benji-checks.md](benji-checks.md)）。所据逐月表 sha256 `935685ffe3ca4839896ea6da26d2102f67d71549da33c47387c5400e66fcf373`（git fe629cf 所入 LFS 对象；其后推步若改、eval 重跑，同误之月会变，须以新表重跑本脚本）。
 
 ## 一、问题与方法
 
