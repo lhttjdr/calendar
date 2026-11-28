@@ -413,6 +413,22 @@ def proxied(name):
     return any(k in name for k in ("术不传", "代推", "借", "补修", "宣明气朔"))
 
 
+_BOOK_SHUO: dict[str, list] = {}
+
+
+def book_neighbors(book: str, jdn: int, span: int = 65):
+    """同书明书朔中，距 jdn 不过 span 日、本身合张表之条：[(JDN, 纪年月, 干支)]，按距离近者先。"""
+    if not _BOOK_SHUO:
+        for r in read_dicts(ROOT / "data/calendar/benji_shuo_check.csv"):
+            try:
+                j = int(r["本纪朔 JDN"])
+            except ValueError:
+                continue
+            _BOOK_SHUO.setdefault(r["书"], []).append((j, f"{r['纪年']}{r['月']}月", r["本纪朔"], r["张表"] == "合"))
+    out = [(j, lb, g) for j, lb, g, ok in _BOOK_SHUO.get(book, []) if ok and j != jdn and abs(j - jdn) <= span]
+    return sorted(out, key=lambda x: abs(x[0] - jdn))
+
+
 def analyze_shuo(e, key, regime_lon):
     """明书朔一条：差日与成因候选 [(成因大类, 细目, 依据, 强度)]。强度：据（有依据）/疑（形式上可能）。"""
     y, m, l = key
@@ -458,6 +474,15 @@ def analyze_shuo(e, key, regime_lon):
                 cands.append(("史文讹误", f"衍「閏」字或闰位异：所书为{nm}之朔", f"所书干支即推步、张表{nm}之朔", "疑"))
             else:
                 cands.append(("史文讹误", f"月名讹：所书为{nm}之朔", f"所书干支即推步、张表{nm}之朔", "疑"))
+    # 同书相邻朔距：同一部书所书前后一二月之朔，与此条相距不是可能的月长（一月 29—30 日、两月 58—60 日），而那一条合张表，
+    # 则此条与本书自相矛盾，判史文讹误（据）。不论推步，只用月长之限，故不依赖本项目推步之对错。
+    for nb_j, nb_lab, nb_g in book_neighbors(e["book"], e["jdn"]):
+        gap = abs(nb_j - e["jdn"])
+        k = round(gap / 29.5306) or 1
+        if k <= 2 and not (29 * k <= gap <= 30 * k):
+            cands.append(("史文讹误", f"同书相邻朔距不可能：距{nb_lab}「{nb_g}朔」{gap} 日",
+                          f"{bname(e['book'])}{nb_lab}{nb_g}朔合张表；相距 {gap} 日不是 {k} 个月可能之长（{29 * k}—{30 * k} 日）", "据"))
+            break
     # 年误：前后年同月
     for dy in (-1, 1):
         j = ZHANG.get((y + dy, m, l))
@@ -1010,10 +1035,10 @@ def write_md(rows, months, mism):
     L.append("| 纪日抽取误 | 纪日表（`本纪纪日/*_benji.csv`，`zhi_star_records.py` 机器抽取）所系之月与原文不合：在维基文库缓存原文（`scripts/sky_culture/_cache/`）中找到该条，"
              "去掉校勘记与注文后，其前正文最近的月首不是纪日表所系之月（多因文中日期如「十月二十五日」被当作月首，或录文月首干支讹而未被认作月首）；"
              "或纪日表年号年数超出年号表（如「端拱三年」「義寧七年」）；或原文其前年首与纪日表年数不同而改年后该日正在同名月内 | 前二者「据」，末者「疑」 |")
-    L.append("| 史文讹误 | 点校本校勘记（维基文库录文 `<ref>`，该条前 600 字至后 300 字内提到所书干支者）；已考讹误（`benji_shuo_errata.csv`）；「其他」类判语（`benji_qita_kaozheng_notes.csv`：一字误、朔衍、月名误）；"
+    L.append("| 史文讹误 | 点校本校勘记（维基文库录文 `<ref>`，该条前 600 字至后 300 字内提到所书干支者）；已考讹误（`benji_shuo_errata.csv`）；「其他」类判语（`benji_qita_kaozheng_notes.csv`：一字误、朔衍、月名误）；同书相邻朔距不可能（同一部书所书前后一二月之朔合张表，与此条相距不是可能的月长——一月 29—30 日、两月 58—60 日——则此条与本书自相矛盾；只用月长之限，不依赖推步对错）；"
              "所书即邻月之朔（月名讹、脱「閏」字）；干支只差一字（天干或地支；形近者注明）；所书为月内某日（「朔」字衍）；"
              "纪日落在邻月三日以上——按纪日表行序定在下月（月内诸条之后）还是上月（之前），同月成串者注「疑脱下月月名」或「疑月名错位」；"
-             "行序夹在月内诸条之间者判日干支讹 | 前三者为「据」，余为「疑」；「疑（弱）」= 所书为两家朔后一二日而判「朔」字衍，另有进朔等解 |")
+             "行序夹在月内诸条之间者判日干支讹 | 前四者（校勘记、已考讹误、判语、同书相邻朔距）为「据」，余为「疑」；「疑（弱）」= 所书为两家朔后一二日而判「朔」字衍，另有进朔等解 |")
     L.append("| 记日习惯 | 平朔时代日食书于合朔之日（食日书朔）；定朔时代所书为推步朔次日而合朔在日晚（进朔）；所书早一二日（以晦为朔/先天）；"
              "纪日距月界一二日（朔日或月大小不同） | 食日书朔合实际合朔者「据」，余「疑」 |")
     L.append("| 行用之历不同 | 北朝政权之条（《北史》）以中原之历衡之；改历之年（行用首末年）；术不传、代推之段 | 北朝之条「据」，余「疑」 |")
