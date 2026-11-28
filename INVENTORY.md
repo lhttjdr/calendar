@@ -154,6 +154,7 @@
 | `ephemeris/compress_ephemeris_brotli.mjs` | 历表压缩 |
 | `calendar_data/qinhan_eval/zhi_star_records.py` | 正史天文志通用解析（汉书至清史稿 16 部；`BOOKS` 按书配置节、年号政权、帝号纪年、历表（含太初前复原历）、默认主语、日月食节）；`houhanshu_star_records.py` 为其共用工具库；年号繁体用 OpenCC（scripts 工程依赖 `opencc-python-reimplemented`） |
 | `calendar_data/rili_credibility.py` | 主序列历日可信度：读逐月检验表、同误成因、汉简与汉初实物检验，按检验等级分档估推步不合率（Wilson 区间），生成 `doc/calendar/rili-credibility.md` 与逐十年 `data/calendar/rili_credibility_decades.csv`；同误成因或检验表更新后重跑 |
+| `data/calendar/dangshi_wenzi_shuo.csv` | 当时文字（墓志、碑、册文、题记，B 级）月朔逐件表：墓志库检索与既有考证转录；主序列检验与同误成因读入，一件即为证、压过史书（2026-11-28） |
 | `calendar_data/qinhan_eval/qingshigao_eclipses.py` | 《清史稿》日食（时辰、食分、所次宿） |
 | `calendar_data/build_era_names_merged.py` | 合并年号表 `data/calendar/汇总/era_names_merged.csv`（主线 + 方诗铭并存政权） |
 | `calendar_data/check_dated_inscriptions.py` | 出土纪日对各历表核对 |

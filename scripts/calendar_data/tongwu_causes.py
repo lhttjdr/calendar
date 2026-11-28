@@ -187,6 +187,29 @@ def collect_shuo():
                                  other=r["他书同记"], k3=k3, era=r["纪年"]))
 
 
+def collect_wenzi():
+    """当时文字（墓志、碑等，B 级）所书月朔：data/calendar/dangshi_wenzi_shuo.csv，年月已是建寅表月。"""
+    for r in read_dicts(ROOT / "data/calendar/dangshi_wenzi_shuo.csv"):
+        try:
+            key = (int(r["年"]), int(r["月"]), r["闰"] == "1")
+        except ValueError:
+            continue
+        if key not in SAME:
+            continue
+        shuo_ev[key].append(dict(kind="当时文字", book="当时文字", regime="唐" if key[0] < 907 else "五代", ok=(r["朔"] == gz(ZHANG[key])), obs=r["朔"],
+                                 jdn=None, grade="B", judged=False, text=r["原文"], label=r["件"].split("（")[0], lei="", eclipse="", other="",
+                                 k3=("当时文字", r["年"], r["月"]), era=r["年号"]))
+
+
+def analyze_wenzi(e, key, sup):
+    """当时文字一件不合两家：同月另有当时文字合两家者，判两件互歧（疑）；否则无从判断。"""
+    a, _, _ = reck_span(*key)
+    e["diff"] = wrap(gzi(e["obs"]) - gzi(gz(a)))
+    if any(s["kind"] == "当时文字" for s in sup):
+        return [("史文讹误", "同月当时文字互歧：另有一件合两家", "见 dangshi_wenzi_shuo.csv 同月诸件", "疑")]
+    return [("无从判断", "当时文字不合两家", "", "疑")]
+
+
 ZY_BOOKS = ["hanshu", "houhanshu", "sanguozhi", "jinshu", "songshu", "nanqishu", "liangshu", "chenshu", "suishu", "beishi", "jiutangshu", "xintangshu",
             "jiuwudaishi", "xinwudaishi", "songshi", "yuanshi", "mingshi", "qingshigao"]
 
@@ -850,6 +873,7 @@ PRIMARY_ORDER = ["纪日抽取误", "史文讹误", "行用之历不同", "纪�
 def main():
     collect_shuo()
     collect_jiri()
+    collect_wenzi()
     # 核对：重判与生成器一致
     mism = []
     for r in MONTHS:
@@ -878,7 +902,7 @@ def main():
         month_c = Counter()
         month_basis = []
         for e in con:
-            cands = analyze_shuo(e, key, lon) if e["kind"] == "明书朔" else analyze_jiri(e, key, lon)
+            cands = analyze_wenzi(e, key, sup) if e["kind"] == "当时文字" else (analyze_shuo(e, key, lon) if e["kind"] == "明书朔" else analyze_jiri(e, key, lon))
             cy = change_year(name, y)
             if cy:
                 cands.append(("行用之历不同", f"改历之年：{cy}", "行用年段之界，当时实用之历或与推步所据不同", "疑"))
@@ -932,7 +956,7 @@ def main():
             pc = e["primary"]
             others = [c for c in e["cands"][1:]]
             rows_out.append(dict(
-                历=name, 年=y, 月=lab(m, l), 推步朔=gz(a), 张表朔=r["张表朔"], 证据类=e["kind"], 证据朔=(e["obs"] if e["kind"] == "明书朔" else ""),
+                历=name, 年=y, 月=lab(m, l), 推步朔=gz(a), 张表朔=r["张表朔"], 证据类=e["kind"], 证据朔=(e["obs"] if e["kind"] in ("明书朔", "当时文字") else ""),
                 纪日干支=(e["obs"] if e["kind"] == "纪日" else ""), 位置=(e.get("pos") or ("朔" if e["kind"] == "明书朔" else "")),
                 差日=e.get("diff", ""), 所需=(e.get("need") or f"朔{e['obs']}（{e['diff']:+d}）"), 证据原文=e["text"].replace("\n", " ")[:160],
                 出处=f"{bname(e['book'])}·{e['label']}", 政权=e["regime"], 等级=e["grade"], 实际合朔=e.get("conj_txt", ""),
@@ -1019,7 +1043,7 @@ def write_md(rows, months, mism):
              f"生成器判有证而本表重判无证者 {sum(1 for x in mism if x[1] == '有证' and x[2] == '无证')} 月（生成器另取实物、他书等证据，本表只取本纪），不涉同误。「同误」只是说证据不合两家，"
              "不等于两家皆误：证据本身可能讹，记日习惯可能与历日之朔不同，也可能当时行用之历与推步所据不同。本页逐条查成因。")
     L.append("")
-    L.append("**证据重取**（同 eval 规则）：明书朔取 `benji_shuo_check.csv`（跳过辽、金、魏、北齐、周书本纪与吴、蜀，元 1280 年前；月名经 "
+    L.append("**证据重取**（同 eval 规则）：当时文字（墓志、碑等，B 级）取 `dangshi_wenzi_shuo.csv`，一件即为证，同月另有一件合两家者判两件互歧；明书朔取 `benji_shuo_check.csv`（跳过辽、金、魏、北齐、周书本纪与吴、蜀，元 1280 年前；月名经 "
              "`month_label_reforms.csv` 换为建寅表月）；纪日取 `本纪纪日/*_benji.csv` 中原诸史之条，只取能分辨朔日者——干支不在两家该月内，"
              "或书日序（「某日」）、书晦而与两家不合。一行一条不合之证据（同月可多条）。")
     L.append("")
