@@ -11,8 +11,10 @@
 //! - 「使不過三大二小」（[Rules::runs]）：崇天历文「隨其所近而進退之，不過三大二小」（《宋史》卷七十一），明天以后宋诸历同；
 //!   唐大衍术注「使不過三大三小」（钱宝琮校作「三大二小」，本项目取原文，见 [TANG_RUNS]），五纪、正元、宣明承之。
 //!   逐月推：进朔会成连大超限则不进，不进会成连小超限则进，只改当月。
-//! - 麟德正月进朔（[Rules::zhengyue]）：684 年「詔二年元日用甲申，故進以癸未晦」，此后正月定朔过戌初（19 时）者进；
-//!   常月 709 年起四分之三进朔（[PaiyueOptions::linde_changyue]），此前不进。
+//! - 麟德正月进朔（[Rules::zhengyue]）：684 年「詔二年元日用甲申，故進以癸未晦」（例外表），此后元日定朔过 20 时者进
+//!   （[PaiyueOptions::linde_zhengyue_xian]；688 年正月五志 19.25 时不进），武周行周正之岁元日为建子之月（[Rules::zhouzheng]）；
+//!   常月 709 年起四分之三进朔（[PaiyueOptions::linde_changyue]），717—719 年停（[PaiyueOptions::linde_tingjin]），此前不进。
+//! - 大衍进朔（[DayanJinshuo]）：729—757 年 20 时、730—734 年停常月进朔（[PaiyueOptions::dayan_tingjin]），758 年起至德历戌初 19 时。
 //! - 交会（[PaiyueOptions]，2026-11-18 起）：照各历「步交會」求定朔入交定（[Jiaohui]，常数见 [JiaoConst] 诸处与 `song_jiao`），
 //!   宣明、崇天另照志文日蚀术判有蚀与食甚（[Rishi]）。宣明「或有交，應見虧初，則否」、宋诸历「有食應見者，其朔不進」（[JiaoBujin]）：
 //!   过进朔限而有食、亏初不晚于日入者不进；大衍术注「正月朔有交、加時正見者……令虧在晦、二」只在史载有据之年
@@ -394,6 +396,8 @@ struct Rules {
     pin_san: bool,
     /// 正月进朔：(起农历年, 限时)。正月（含雨水中气之月）定小余过限者进一日
     zhengyue: Option<(i32, i64)>,
+    /// 行周正之冬至岁 [起, 止]：其间元日为含冬至之月（武周建子），正月进朔施于此月而不施于建寅正月
+    zhouzheng: Option<(i32, i32)>,
     /// 有交不进（[JiaoBujin]）
     jiao_bujin: Option<JiaoBujin>,
     /// 「其正月朔有交、加時正見者，消息前後一兩月，以定大小，令虧在晦、二」（大衍术注）：(起农历年, 止农历年, 移日：
@@ -485,8 +489,9 @@ impl Paiyue {
         let f = q(li.f());
         if let (true, Some((from, h))) = (full, self.rules.zhengyue) {
             for y in y0.max(from)..=y1 {
-                // 正月：含雨水（冬至后第二中气）之月
-                let yushui = fl(&((li.dongzhi(y) + li.sui() * qr(2, 12)) / &f)) + li.off();
+                // 正月：含雨水（冬至后第二中气）之月；行周正之岁为含冬至之月
+                let zhou = self.rules.zhouzheng.is_some_and(|(a, b)| (a..=b).contains(&y));
+                let yushui = fl(&((li.dongzhi(y) + li.sui() * qr(if zhou { 0 } else { 2 }, 12)) / &f)) + li.off();
                 if let Some(i) = days.iter().rposition(|&d| d <= yushui) {
                     if days[i] == raw[i].base && raw[i].frac >= qr(h, 24) {
                         days[i] += 1;
@@ -804,6 +809,8 @@ struct Dayan {
     xuanming_shi: bool,
     /// 朔望有交之月用日躔、月离二次差精法（[Dayan::sun_def_jing]、[MoonTable::eval_jing]）；否则一律简法
     jingfa: bool,
+    /// 常月停进朔之民用日（JDN）区间 [起, 止)：大衍开元十八至廿二年（[PaiyueOptions::dayan_tingjin]）
+    tingjin: Option<(i64, i64)>,
 }
 
 impl Dayan {
@@ -1113,6 +1120,10 @@ impl DingshuoLi for Dayan {
         // 定朔所属农历年：过大寒（冬至后第一中气）者属冬至岁 y，否则属 y − 1（十一、十二月）
         let ly = if t - q(self.tong(y)) >= q(self.ce) / q(12) { y } else { y - 1 };
         let js = self.jinshuo.iter().rev().find(|(from, _)| *from <= ly).unwrap_or(&self.jinshuo[0]);
+        let jdn = fl(&(t / &f)) + self.off;
+        if self.tingjin.is_some_and(|(a, b)| (a..b).contains(&jdn)) {
+            return None;
+        }
         Some(match js.1 {
             Jinshuo::Hours(h) => &f * qr(h, 24),
             Jinshuo::Lou => {
@@ -1154,7 +1165,7 @@ fn sym(half: &[i64]) -> Vec<i64> {
 
 #[allow(clippy::too_many_arguments)]
 fn make_dayan(f: i64, ce: i64, she: i64, zhuan: Q, ji: i64, y_ji: i32, xianhou: Vec<i64>, sun: Vec<i64>, moon: Vec<MoonTable>, jinshuo: Vec<(i32, Jinshuo)>, approx: (i32, i32, i32)) -> Dayan {
-    let mut d = Dayan { f, ce, she, zhuan, ji, y_ji, xianhou, sun, moon, jinshuo, off: 0, jiao: None, chongxuan_lou: false, xuanming_shi: false, jingfa: false };
+    let mut d = Dayan { f, ce, she, zhuan, ji, y_ji, xianhou, sun, moon, jinshuo, off: 0, jiao: None, chongxuan_lou: false, xuanming_shi: false, jingfa: false, tingjin: None };
     let dz = d.tong(y_ji).div_euclid(f);
     d.off = align_offset(dz, gregorian::civil_to_jdn(approx.0, approx.1, approx.2));
     d
@@ -1189,7 +1200,7 @@ fn dayan() -> Dayan {
         vec![MoonTable { f: 3040, rates: &DAYAN_MOON, split: split4([(6, 2701, 48, 339, -6), (13, 2363, -231, 677, -66), (20, 2024, -36, 1016, 18), (27, 1686, 165, 1354, 0)]) }],
         // 大衍历志无进朔明文；《新唐书·历志五》述五纪历「依大衍戌初進初朔」。此为晨初限之构造（[DayanJinshuo::Chenchu]）：
         // 729—757 随季节晨初限（同五纪「晨初餘數減十刻」，大衍步轨漏），758 起至德历戌初 19 时；排月时按
-        // [PaiyueOptions::dayan_jinshuo] 改写，缺省全程戌初（[DayanJinshuo::Xuchu]，2026-11-28 据 737、738、742 年当时册文改回）。
+        // [PaiyueOptions::dayan_jinshuo] 改写，缺省 729—757 年 20 时、758 起 19 时（[DayanJinshuo::Xuzheng]，2026-11-28 据墓志）。
         vec![(0, Jinshuo::Lou), (758, Jinshuo::Hours(19))],
         (723, 12, 21),
     );
@@ -1693,7 +1704,7 @@ fn linde() -> Linde {
 // ---------------------------------------------------------------- 戊寅（崔善为所较）
 
 struct Wuyin {
-    /// 平朔（646—664 年行）：定朔即平朔
+    /// 平朔（645—664 年行；645 年据墓志，见 main_series_calendar_periods.csv）：定朔即平朔
     ping: bool,
     off: i64,
 }
@@ -2774,8 +2785,8 @@ fn shoushi() -> Shoushi {
 
 /// 主序列定朔诸历：(历名（同 `main_series_calendar_periods.csv`）, 推步适用的农历年段)。
 const REGISTRY: &[(&str, &[(i32, i32)])] = &[
-    ("戊寅元历", &[(627, 645)]),
-    ("戊寅元历（平朔）", &[(646, 665)]),
+    ("戊寅元历", &[(627, 644)]),
+    ("戊寅元历（平朔）", &[(645, 665)]),
     ("麟德历", &[(666, 728)]),
     ("大衍历", &[(729, 762)]),
     ("五纪历", &[(763, 783)]),
@@ -2845,8 +2856,8 @@ const REGIME_REGISTRY: &[(&str, &[(i32, i32)])] = &[
 /// 唐大衍一系「使不過三大三小」（大衍术注原文；钱宝琮校作「三大二小」）。取原文：二小之读使宣明（含五代宣明气朔）强进
 /// 约二十余月，大衍本纪 61 不变、五纪 48→46、宣明 302→300、五代 332→329，张表同日亦减；三小、只限三大两读结果全同
 /// （此期无连四小）。
-const TANG_RUNS: Rules = Rules { runs: Some((3, 3)), pin_san: false, zhengyue: None, jiao_bujin: None, zhengyue_jiao: &[] };
-const SAN_DA_ER_XIAO: Rules = Rules { runs: Some((3, 2)), pin_san: false, zhengyue: None, jiao_bujin: None, zhengyue_jiao: &[] };
+const TANG_RUNS: Rules = Rules { runs: Some((3, 3)), pin_san: false, zhengyue: None, zhouzheng: None, jiao_bujin: None, zhengyue_jiao: &[] };
+const SAN_DA_ER_XIAO: Rules = Rules { runs: Some((3, 2)), pin_san: false, zhengyue: None, zhouzheng: None, jiao_bujin: None, zhengyue_jiao: &[] };
 
 /// 排月选项：交会诸规则（「有交不进」「正月朔有交」）与五代定闰所用中气（[WudaiDingqi]）。缺省 [PaiyueOptions::default]
 /// 依本纪检验而定，见 `doc/calendar/calendar-compendium.md`「交会与进朔」「唐宋诸历本纪不合之考证」。
@@ -2875,13 +2886,25 @@ pub struct PaiyueOptions {
     /// 麟德本术（定小余近夜半者覆算）十四日、二十八日「分為二日，隨餘初末，如法求之」（《旧唐书·历志二》，读法同大衍一系精法，
     /// 见 [Linde::chisu_fen]）；false 则此二日仍用速要（2026-11-26 前做法）
     pub linde_fen_erri: bool,
-    /// 大衍历本历时期（729—757）进朔限（[DayanJinshuo]）；758 年起至德历皆戌初 19 时
+    /// 大衍历进朔限（[DayanJinshuo]）
     pub dayan_jinshuo: DayanJinshuo,
+    /// 大衍常月停进朔之区间（民用历日 [起, 止)）：缺省 Some(((730, 1, 10), (735, 1, 20)))，即开元十八年正月至廿二年十二月——
+    /// 730 年五月、十一月，731 年七月、十月，734 年三月墓志（定朔 20.27—23.05 时）与 734 年正月本纪（23.86 时）皆不进，无一进；
+    /// 其前 729 年九月碑、其后 736 年七月起墓志册文皆进（2026-11-28 墓志库）。None 为不停
+    pub dayan_tingjin: Option<((i32, i32, i32), (i32, i32, i32))>,
+    /// 麟德正月进朔之限（时）：缺省 20（戌正），688 年正月五志 19.25 时不进；19 为 2026-11-28 前做法（戌初）。684 年元日诏改入例外表
+    pub linde_zhengyue_xian: i64,
+    /// 麟德武周行周正（690—700 冬至岁）之年，元日为建子之月，正月进朔施于此月（689 年十一月即载初元年正月墓志 22.21 时进）；false 则一律建寅正月
+    pub linde_zhouzheng: bool,
 }
 
 /// 大衍历（729—757）进朔限。大衍历志无进朔明文，唯《新唐书·历志五》述五纪历「依大衍戌初進初朔」。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DayanJinshuo {
+    /// 20 时（缺省，2026-11-28 墓志库续查）：736—757 年当时文字定朔 19.16、19.18（734 年十月、739 年四月墓志）、19.98 时（750 年正月本纪）
+    /// 不进，20.20（739 年十一月二志）、20.69—22.09 时诸月（墓志、册文、碑）皆进，界在 19.98—20.20 之间，取 20 时（戌正）。
+    /// 由当时文字归纳，志无明文。758 年起至德历戌初 19 时（764 年二月本纪 19.68 时进，五纪「依大衍戌初進初朔」所述即此）
+    Xuzheng,
     /// 戌初 19 时（据《新唐书》卷二十九「依大衍戌初進初朔」）：当时册文 737 年八月、738 年七月与闰八月、742 年五月（定朔 20.75—21.12 时，
     /// 皆在晨初限下）进朔皆合；与之相违者 729 年七月（宋人碑目转录一件，23.89 时不进）、750 年正月（本纪，19.98 时不进）列史载例外表
     Xuchu,
@@ -2933,8 +2956,11 @@ impl Default for PaiyueOptions {
             linde_jiaohui: LindeJiaohui::Xinzhi,
             linde_changyue: Some(709),
             linde_tingjin: Some(((717, 2, 1), (720, 2, 1))),
+            dayan_tingjin: Some(((730, 1, 10), (735, 1, 20))),
+            linde_zhengyue_xian: 20,
+            linde_zhouzheng: true,
             linde_fen_erri: true,
-            dayan_jinshuo: DayanJinshuo::Xuchu,
+            dayan_jinshuo: DayanJinshuo::Xuzheng,
         }
     }
 }
@@ -2965,13 +2991,15 @@ fn build_paiyue(name: &str, o: &PaiyueOptions) -> Option<Paiyue> {
         "崇玄历" => Paiyue::new(jf(chongxuan()), &["崇玄历"], none),
         "戊寅元历（代推武德）" => Paiyue::new(wuyin(false), &["戊寅元历（代推武德）"], none),
         "纪元历（代推南渡初）" => Paiyue::new(song("纪元", 7290, 2662626, q(215278), qr(2008730990, 10000), 28613466, 1106, 15, false, None, (1105, 12, 16)), &["纪元历（代推南渡初）"], song_r),
-        "麟德历" => Paiyue::new(Linde { jiaohui: o.linde_jiaohui, changyue_jin: o.linde_changyue, tingjin: o.linde_tingjin.map(|((y0, m0, d0), (y1, m1, d1))| (gregorian::civil_to_jdn(y0, m0, d0), gregorian::civil_to_jdn(y1, m1, d1))), fen_erri: o.linde_fen_erri, ..linde() }, &["麟德历"], Rules { runs: None, pin_san: true, zhengyue: Some((684, 19)), jiao_bujin: None, zhengyue_jiao: &[] }),
+        "麟德历" => Paiyue::new(Linde { jiaohui: o.linde_jiaohui, changyue_jin: o.linde_changyue, tingjin: o.linde_tingjin.map(|((y0, m0, d0), (y1, m1, d1))| (gregorian::civil_to_jdn(y0, m0, d0), gregorian::civil_to_jdn(y1, m1, d1))), fen_erri: o.linde_fen_erri, ..linde() }, &["麟德历"], Rules { runs: None, pin_san: true, zhengyue: Some((684, o.linde_zhengyue_xian)), zhouzheng: o.linde_zhouzheng.then_some((690, 700)), jiao_bujin: None, zhengyue_jiao: &[] }),
         "大衍历" => Paiyue::new(
             jf(Dayan {
                 jinshuo: match o.dayan_jinshuo {
+                    DayanJinshuo::Xuzheng => vec![(0, Jinshuo::Hours(20)), (758, Jinshuo::Hours(19))],
                     DayanJinshuo::Xuchu => vec![(0, Jinshuo::Hours(19))],
                     DayanJinshuo::Chenchu => vec![(0, Jinshuo::Lou), (758, Jinshuo::Hours(19))],
                 },
+                tingjin: o.dayan_tingjin.map(|((y0, m0, d0), (y1, m1, d1))| (gregorian::civil_to_jdn(y0, m0, d0), gregorian::civil_to_jdn(y1, m1, d1))),
                 ..dayan()
             }),
             &["大衍历"],
