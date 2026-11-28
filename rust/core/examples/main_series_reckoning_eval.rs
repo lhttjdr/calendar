@@ -6,7 +6,7 @@
 //! 或本纪只合其一之条）、data/calendar/main_series_reckoning_diffs.csv（推步与张表互异之月逐月三分类）。
 //!
 //! 三分类（推步与张表互异之月）：①有硬据证张表误、推步合；②有硬据证推步误、张表合；③无据待核（无证、证据冲突）。
-//! 证据等级：A 实物历日（`artifacts` 整年实物、`data/calendar/chutu_rili_shuo.csv` 出土具注历）；B 当时文字；C 当朝或近时所修
+//! 证据等级：A 实物历日（`artifacts` 整年实物、`data/calendar/chutu_rili_shuo.csv` 出土具注历）；B 当时文字（`data/calendar/dangshi_wenzi_shuo.csv` 墓志、碑、册文等）；C 当朝或近时所修
 //! 史书明书朔（含明、清实录书朔，《汉书》秦汉初书朔晦）；D 当朝史书纪日与「閏月」；E 后人追修史书（《后汉书》《晋书》，《南史》《北史》
 //! 《新五代史》前史无同条者）。D、E 须异源两条（同一部书——含同源诸书——同月诸事只算一源），一见、一源者归③。619—1911 年朔日之异
 //! （定朔考证按朔日相近配月而张表月名相同者）只取 `data/calendar/dingshuo_zhangbiao_diffs.csv`（`examples/dingshuo_zhangbiao_diffs.rs`，
@@ -593,6 +593,8 @@ fn main() {
     }
     // 实物：整年实物（artifacts）与出土具注历（chutu_rili_shuo.csv）
     let chutu: Vec<Vec<String>> = parse_csv(&read("data/calendar/chutu_rili_shuo.csv")).into_iter().filter(|r| r.len() > 4 && !r[0].starts_with('#') && r[0] != "件").collect();
+    // 当时文字（墓志、碑、册文等，B 级）：列与出土历日同（件、年、月、闰、朔）
+    let wenzi: Vec<Vec<String>> = parse_csv(&read("data/calendar/dangshi_wenzi_shuo.csv")).into_iter().filter(|r| r.len() > 4 && !r[0].starts_with('#') && r[0] != "件").collect();
     // 619—1911 定朔诸历朔日之异：取 dingshuo_zhangbiao_diffs.csv 之分类、等级
     let ding: Vec<Vec<String>> = parse_csv(&read("data/calendar/dingshuo_zhangbiao_diffs.csv")).into_iter().skip(1).filter(|r| r.len() > 20).collect();
     let lab = |m: (i64, u8, bool)| format!("{}{}", if m.2 { "闰" } else { "" }, m.1);
@@ -620,12 +622,14 @@ fn main() {
                 d.5.push(ZEv { sup_r: hr, lv: 'A', what: format!("实物历日（{y} 年）"), book: String::new(), hard: true });
             }
         }
-        for c in chutu.iter().filter(|c| c[1] == y.to_string()) {
-            let (Ok(m), l) = (c[2].parse::<u8>(), c[3] == "1") else { continue };
-            let sup_r = rm.1 == m && rm.2 == l && gz(rm.0) == c[4];
-            let sup_t = tm.is_some_and(|t| t.1 == m && t.2 == l && gz(t.0) == c[4]);
-            if sup_r != sup_t {
-                d.5.push(ZEv { sup_r, lv: 'A', what: c[0].split('（').next().unwrap_or(&c[0]).to_string(), book: String::new(), hard: true });
+        for (rows, lv) in [(&chutu, 'A'), (&wenzi, 'B')] {
+            for c in rows.iter().filter(|c| c[1] == y.to_string()) {
+                let (Ok(m), l) = (c[2].parse::<u8>(), c[3] == "1") else { continue };
+                let sup_r = rm.1 == m && rm.2 == l && gz(rm.0) == c[4];
+                let sup_t = tm.is_some_and(|t| t.1 == m && t.2 == l && gz(t.0) == c[4]);
+                if sup_r != sup_t {
+                    d.5.push(ZEv { sup_r, lv, what: c[0].split('（').next().unwrap_or(&c[0]).to_string(), book: String::new(), hard: true });
+                }
             }
         }
         let ev = &d.5;
@@ -734,6 +738,10 @@ fn main() {
         for c in chutu.iter().filter(|c| c[1] == y.to_string() && c[2] == m.1.to_string() && (c[3] == "1") == m.2) {
             same_ev.entry((y, m.1, m.2)).or_default().art.push((c[4] == gz(m.0), c[0].split('（').next().unwrap_or(&c[0]).to_string()));
         }
+        // 当时文字一件即为证：合两家为有证（B），不合为同误（未判）
+        for c in wenzi.iter().filter(|c| c[1] == y.to_string() && c[2] == m.1.to_string() && (c[3] == "1") == m.2) {
+            same_ev.entry((y, m.1, m.2)).or_default().shuo.push((c[4] == gz(m.0), 'B', false, format!("{}「{}朔」", c[0].split('（').next().unwrap_or(&c[0]), c[4])));
+        }
     }
     // 分类：有证（实物、明书朔一条即可；纪日须两条以上独立之条）、同误（史载与两家皆不合；注判史书误与否）、无证
     let mut mcsv = String::from("历,年,月,推步朔,张表朔,异同,分类,证据等级,注\n");
@@ -768,8 +776,10 @@ fn main() {
             }
         }
         let best = |v: &[char]| v.iter().min().copied().map_or("—".to_string(), |c| c.to_string());
-        let sup_a = sup.iter().any(|s| s.0 == 'A');
-        let con_a = con.iter().any(|c| c.0 == 'A');
+        // 有实物或当时文字者只看其中最高一级（A 压 B，B 压史书）：该级合两家而无不合者为有证，史书之不合注「已判史书误」
+        let top = sup.iter().map(|s| s.0).chain(con.iter().map(|c| c.0)).min().filter(|&g| g <= 'B');
+        let sup_a = top.is_some_and(|g| sup.iter().any(|s| s.0 == g));
+        let con_a = top.is_some_and(|g| con.iter().any(|c| c.0 == g));
         let unjudged: Vec<_> = con.iter().filter(|c| !c.1).collect();
         let (k, lv) = if (sup_a && !con_a) || (!sup.is_empty() && unjudged.is_empty()) {
             if !con.is_empty() {
