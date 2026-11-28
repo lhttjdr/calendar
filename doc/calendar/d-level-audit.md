@@ -4,7 +4,7 @@
 
 ## 方法
 
-- **范围**：主序列推步与张表互异之月 174（`main_series_reckoning_months.csv`，原判 ①② 38、③ 136）；分政权互异之月 667（`regime_benji_months.csv`，原判 ①② 34、③ 633）。所据文件 git HEAD `274d6f7d523923ae9c79a5ce13e9bc946183f1e0（工作区另有未提交改动：dingshuo_exceptions.csv、dingshuo_zhangbiao_diffs.csv、main_series_reckoning_diffs.csv、main_series_reckoning_months.csv）`。
+- **范围**：主序列推步与张表互异之月 174（`main_series_reckoning_months.csv`，原判 ①② 38、③ 136）；分政权互异之月 667（`regime_benji_months.csv`，原判 ①② 34、③ 633）。所据文件 git HEAD `a4f253e6b093fd55d2659a9261296a3f24d8e2f3（工作区另有未提交改动：main_series_reckoning_months.csv）`。
 - **等级**（与 `scripts/calendar_data/shiwu_fenlei.py`、`rust/core/examples/main_series_reckoning_eval.rs`、`regime_benji_eval.rs` 一致）：A 实物历日，B 当时文字（碑志、墓志、简牍、文书），C 当朝或近时所修史书明书朔，D 当朝史书纪日（同月独立两条才判），E 后人追修史书（《后汉书》《晋书》，《南史》《北史》《新五代史》前史无同条者；南明诸书即清人私家追记与《建康实录》吴部分亦为 E）。今人表不是证据。
 - **重新汇集证据**：每个互异之月逐条重收（「*」为检验程序未用者）：主序列——定朔考证之判与实物（取原检验）、本纪明书朔、本纪纪日（定朔考证按月名配之月以考证所收为准，余者检验程序按月名收）、本纪前月末日之条（*）、本纪「閏月」、《汉书》秦汉初书朔晦（`qinhan_benji_check.csv`）、秦汉初出土历谱（`qinhan_shiwu_months.csv`，*）、楼兰简纸（*）、吐鲁番唐西州文书（`tulufan_jiri.csv`，*）、大统历与时宪书实物（*）、明实录书朔（`mingshilu_shuo.csv`，校勘表判讹或存疑者照其结论不计）、清实录书朔（`qingshilu_shuo_xinfa.csv`）；分政权——史书本纪纪日、走马楼吴简（`zoumalou_jiri.csv`，核对过的）、出土纪日（`出土纪日.csv`，*）、辽代石刻（`liao_shike_shuo.csv`）、明郑大统历实物（`mingzheng_shiwu_months.csv`）、北朝诸史与《金史》天文志之条（`regime_zhi_check.csv`）、前月末日之条（*）。唐宋诸考证表（`tang_shuo_kaozheng.csv`、`song_shuo_kaozheng.csv`、`tangsong_cunyi_kaozheng.csv`、`wudai_shuo_kaozheng.csv`、`yuan_shuo_kaozheng.csv`）、例外表、各政权考证表、明实录校勘表与朝鲜实录（异国，只作旁证）的结论只记入按语。
 - **重判**：A、B、C 一条即可判（两向即冲突归③）；D、E 须异源两条（甲）。同一史源（旧、新唐书；旧、新五代史；《北史》与魏、北齐、周、隋书；《南史》与南朝四书；《晋书》与《三国志》；《建康实录》吴部分与《三国志·吴书》；同书本纪与志）合为一源，同一史源同月诸事只算一源。成书远在其后的私家追记（《小腆纪年》等）按 E 计（乙）。
