@@ -1,6 +1,6 @@
-"""中原一线推步与张表相同、而所据证据与两家皆不合之月（「同误」）逐条查成因。
+"""主序列推步与张表相同、而所据证据与两家皆不合之月（「同误」）逐条查成因。
 
-输入（只读）：data/calendar/zhongyuan_reckoning_months.csv（由 rust/core/examples/zhongyuan_reckoning_eval.rs 生成）中分类为「同误」之月；
+输入（只读）：data/calendar/main_series_reckoning_months.csv（由 rust/core/examples/main_series_reckoning_eval.rs 生成）中分类为「同误」之月；
 证据按同一程序之规则重取——本纪明书朔（data/calendar/benji_shuo_check.csv）与本纪纪日（data/calendar/本纪纪日/*_benji.csv，只取能分辨
 朔日之条：不在两家该月内、书日序或晦而日序不合者）；已有考证：benji_shuo_errata.csv（已考讹误）、benji_qita_kaozheng_notes.csv
 （「其他」类逐条判语）、tang_shuo_kaozheng.csv 等（只作按语引用）。实际合朔用 skyfield + DE406（vendor/jpl/de406/de406.bsp）、
@@ -11,7 +11,7 @@
 本脚本只读共享产物，不改推步、不重跑生成器。
 
 用法（仓库根）：uv run --project scripts --with skyfield python scripts/calendar_data/tongwu_causes.py [逐月表路径]
-逐月表缺省为 data/calendar/zhongyuan_reckoning_months.csv；他程序正在改写时可传快照路径。所据之表的 sha256 写入两份产物。
+逐月表缺省为 data/calendar/main_series_reckoning_months.csv；他程序正在改写时可传快照路径。所据之表的 sha256 写入两份产物。
 另读维基文库原文缓存 scripts/sky_culture/_cache/（qinhan_eval/houhanshu_star_records.py 所取）以判纪日抽取误与取校勘记。
 """
 from __future__ import annotations
@@ -69,7 +69,7 @@ def lab(m: int, leap: bool) -> str:
 # 逐月表可由命令行另指（另一程序重跑 eval 改写共享产物时，用快照）：python tongwu_causes.py [逐月表路径]
 import hashlib  # noqa: E402
 
-MONTHS_PATH = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "data/calendar/zhongyuan_reckoning_months.csv"
+MONTHS_PATH = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "data/calendar/main_series_reckoning_months.csv"
 MONTHS_SHA = hashlib.sha256(MONTHS_PATH.read_bytes()).hexdigest()
 MONTHS = read_dicts(MONTHS_PATH)
 ZHANG = {(y, m, l): j for y, m, l, j in gd._months()}
@@ -103,7 +103,7 @@ def reck_span(y, m, l):
     return a, nxt, prv
 
 
-# ---------------------------------------------------------------- 证据：同 zhongyuan_reckoning_eval.rs
+# ---------------------------------------------------------------- 证据：同 main_series_reckoning_eval.rs
 
 def lineage(book: str) -> str:
     b = book.replace("_benji", "")
@@ -447,7 +447,7 @@ def analyze_shuo(e, key, regime_lon):
             cands.append(("无从判断", "「其他」类判未明", f"benji_qita_kaozheng_notes.csv：{q['按语'][:120]}", "疑"))
     # 北朝政权之条
     if e["regime"] in ("北魏", "东魏", "西魏", "北齐", "北周") or (e["regime"] == "隋" and y < 590):
-        cands.append(("行用之历不同", f"{e['regime']}行本政权之历，非中原（南朝）之历", f"{bname(e['book'])}所记为{e['regime']}事；检验以中原一线之历衡之", "据"))
+        cands.append(("行用之历不同", f"{e['regime']}行本政权之历，非中原（南朝）之历", f"{bname(e['book'])}所记为{e['regime']}事；检验以主序列之历衡之", "据"))
     nb = neighbor_months(key)
     # 邻月
     for side, (nm, nj, nl) in nb.items():
@@ -836,7 +836,7 @@ def main():
         c = reproduce_class(key)
         if c != r["分类"]:
             mism.append((key, r["分类"], c))
-    print(f"重判与 zhongyuan_reckoning_months.csv 不一致 {len(mism)} 月", Counter((a, b) for _, a, b in mism), [x for x in mism if "同误" in x][:20])
+    print(f"重判与 main_series_reckoning_months.csv 不一致 {len(mism)} 月", Counter((a, b) for _, a, b in mism), [x for x in mism if "同误" in x][:20])
     mulu = mulu_table()
     rows_out, months_out = [], []
     for r in TONGWU:
@@ -945,9 +945,9 @@ COLS = ["历", "年", "月", "推步朔", "张表朔", "证据类", "证据朔",
 
 def write_csv(rows):
     with open(OUT_CSV, "w", encoding="utf-8", newline="") as f:
-        f.write("# 中原一线推步与张表相同而证据与两家皆不合（同误）之月逐条成因（scripts/calendar_data/tongwu_causes.py 生成，勿手改）。\n")
+        f.write("# 主序列推步与张表相同而证据与两家皆不合（同误）之月逐条成因（scripts/calendar_data/tongwu_causes.py 生成，勿手改）。\n")
         f.write(f"# 所据逐月表 sha256 {MONTHS_SHA}（{len(TONGWU)} 月同误）。\n")
-        f.write("# 一行一条不合两家之证据。月取自 data/calendar/zhongyuan_reckoning_months.csv 分类「同误」者；证据按 zhongyuan_reckoning_eval.rs 规则重取："
+        f.write("# 一行一条不合两家之证据。月取自 data/calendar/main_series_reckoning_months.csv 分类「同误」者；证据按 main_series_reckoning_eval.rs 规则重取："
                 "明书朔（benji_shuo_check.csv）、纪日（本纪纪日/*_benji.csv，不在两家该月内，或日序、晦不合）。\n")
         f.write("# 差日：明书朔 = 所书朔 − 两家朔；书日序者 = 所推朔 − 两家朔；书晦者 = 所推下月朔 − 两家下月朔；不书日序者 = 月界须移动之日数"
                 "（正 = 在下月第 N 日，月末须后移；负 = 在朔前 N 日，朔须前移）。\n")
@@ -981,13 +981,13 @@ def write_md(rows, months, mism):
     L.append("# 推步与张表「同误」之月的成因")
     L.append("")
     L.append("由 `scripts/calendar_data/tongwu_causes.py` 生成，**勿手改**；逐条数据 `data/calendar/tongwu_causes.csv`。上游为 "
-             "`rust/core/examples/zhongyuan_reckoning_eval.rs` 的逐月表 `data/calendar/zhongyuan_reckoning_months.csv`"
+             "`rust/core/examples/main_series_reckoning_eval.rs` 的逐月表 `data/calendar/main_series_reckoning_months.csv`"
              "（推步与张表逐月相同、互异之分类，见 [rili-sources.md](rili-sources.md)「逐历检验」与 [benji-checks.md](benji-checks.md)）。"
              f"所据逐月表 sha256 `{MONTHS_SHA}`（git fe629cf 所入 LFS 对象；其后推步若改、eval 重跑，同误之月会变，须以新表重跑本脚本）。")
     L.append("")
     L.append("## 一、问题与方法")
     L.append("")
-    L.append(f"中原一线逐历检验中，推步与张表朔日相同之月，若所据证据（本纪明书朔、本纪纪日）与两家都不合，分类记作「同误」，共 **{len(months)}** 月"
+    L.append(f"主序列逐历检验中，推步与张表朔日相同之月，若所据证据（本纪明书朔、本纪纪日）与两家都不合，分类记作「同误」，共 **{len(months)}** 月"
              f"（明书朔 C/E 级、纪日 D/E 级）。本表按生成器规则重取证据、逐月重判（不取实物），生成器判同误之月全部重判为同误；"
              f"另有 {sum(1 for x in mism if x[2] == '同误')} 月（{'、'.join(f'{k[0]}-{lab(k[1], k[2])}' for k, a, b in mism if b == '同误')}）"
              "本纪不合两家而有实物合两家，生成器判有证，不在本页；"
@@ -1075,7 +1075,7 @@ def write_md(rows, months, mism):
              "年号年数越界与录文月首干支讹（规则见 [benji-checks.md](benji-checks.md)「纪日抽取」），修正前此类 202 条；余者见逐条表。")
     L.append(f"- 原文本身系于此月而落在邻月、同月成串者 {nrun} 条：多为史文（或维基文库录文）脱下月月名、月名错位，"
              "清《清史稿》本纪尤多（如乾隆十三年三月丁巳以下诸条，录文脱「夏四月」）。")
-    L.append(f"- 《北史》《隋书》所记北魏、东魏、西魏、北齐、北周、隋（开皇九年以前）之条（明书朔、纪日）已不入中原一线检验（eval 只取中原一线政权之条，"
+    L.append(f"- 《北史》《隋书》所记北魏、东魏、西魏、北齐、北周、隋（开皇九年以前）之条（明书朔、纪日）已不入主序列检验（eval 只取主序列政权之条，"
              f"同纪日；北朝之条由 `regime_benji_eval` 以分政权推步检验），本表中此类 {nbei} 条。")
     L.append(f"- 点校本校勘记已指出干支有误者 {njk} 条（晋书、宋书为多，如《晋书·武帝纪》太康元年五月「丙寅」校勘记：「五月丁亥朔，無丙寅……皆在六月內」）。")
     L.append("")

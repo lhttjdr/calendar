@@ -16,7 +16,7 @@
 //!   [month_labels]——历史月序改制（新莽、魏景初建丑，武周、唐肃宗末建子）：建寅月序 ↔ 当时政权实际月名，
 //!   只做命名，朔日仍取第 2 层；数据 `data/calendar/month_label_reforms.csv`。
 //! - **第 4 层·仲裁/路由层**：[lifa]（[LifaRegistry] 解析 `data/calendar/汇总/lifa_summary.csv`，按时代/政权
-//!   路由该用哪部历法；中原一线历日按来源次序取舍 [lifa::resolve_year]：实物历日 → 按术推步 → 今人历表 → 现算，
+//!   路由该用哪部历法；主序列历日按来源次序取舍 [lifa::resolve_year]：实物历日 → 按术推步 → 今人历表 → 现算，
 //!   结果标明来源 [lifa::RiliSource]；敦煌有据之月与中原历的逐月取舍 [lifa::resolve_dunhuang_day]）；[convert]（调用前者换算）。
 //!
 //! **制造日历的逻辑由本包负责**：定气与定朔由 astronomy 提供，本包据此计算岁数据（14 朔 + 12 中气）、

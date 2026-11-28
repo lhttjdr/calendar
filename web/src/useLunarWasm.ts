@@ -52,7 +52,7 @@ export type YearData = {
   /** 岁内朔、上弦、望、下弦 JD(TT)，与 phaseKinds（0 朔 1 上弦 2 望 3 下弦）一一对应；铺注「朔弦望」用 */
   phaseJds?: Float64Array
   phaseKinds?: Uint8Array
-  /** 中原一线历日（朔日、置闰）的来源说明，如「按术推步（景初历）」「今人历表（张培瑜历表）」「现代定气定朔」；
+  /** 主序列历日（朔日、置闰）的来源说明，如「按术推步（景初历）」「今人历表（张培瑜历表）」「现代定气定朔」；
    *  合朔、弦望、节气时刻（phaseJds 与节气缓存）始终是天文计算值 */
   riliSource?: string
   riliKind?: 'artifact' | 'reckoned' | 'table' | 'computed'
@@ -273,18 +273,18 @@ const ELP_BIN_KEYS = [
 ] as const
 
 /**
- * 中原一线历日的取法（Rust 第 4 层 lifa::ZhongyuanPreference）：0 逐历（缺省：本纪检验推步不低于张表之历取推步，余取张表）、
+ * 主序列历日的取法（Rust 第 4 层 lifa::MainSeriesPreference）：0 逐历（缺省：本纪检验推步不低于张表之历取推步，余取张表）、
  * 1 一律推步优先、2 张培瑜历表优先。实物历日总是优先。见 doc/calendar/rili-sources.md。
  */
-export type ZhongyuanMode = 0 | 1 | 2
-let zhongyuanMode: ZhongyuanMode = 0
+export type MainSeriesMode = 0 | 1 | 2
+let mainSeriesMode: MainSeriesMode = 0
 const resolvedCache = new Map<string, YearData>()
-export function getZhongyuanMode(): ZhongyuanMode {
-  return zhongyuanMode
+export function getMainSeriesMode(): MainSeriesMode {
+  return mainSeriesMode
 }
-export function setZhongyuanMode(v: ZhongyuanMode): void {
-  if (v === zhongyuanMode) return
-  zhongyuanMode = v
+export function setMainSeriesMode(v: MainSeriesMode): void {
+  if (v === mainSeriesMode) return
+  mainSeriesMode = v
   resolvedCache.clear()
 }
 
@@ -303,16 +303,16 @@ function ensureZhangTable(bk: LunarBackend): Promise<boolean> {
   return p
 }
 
-/** 现算岁数据（天文）→ 中原一线历日：朔日与置闰换成 Rust 仲裁层所选来源（实物历日、按术推步、今人历表），无则保留现算。 */
-async function overlayZhongyuan(astro: YearData, variant: RealBackendVariant): Promise<YearData> {
-  const key = `${variant}:${zhongyuanMode}:${astro.lunarYear}`
+/** 现算岁数据（天文）→ 主序列历日：朔日与置闰换成 Rust 仲裁层所选来源（实物历日、按术推步、今人历表），无则保留现算。 */
+async function overlayMainSeries(astro: YearData, variant: RealBackendVariant): Promise<YearData> {
+  const key = `${variant}:${mainSeriesMode}:${astro.lunarYear}`
   const hit = resolvedCache.get(key)
   if (hit) return hit
   const bk = await loadWasm(variant)
-  if (typeof bk.resolve_zhongyuan_year !== 'function') return astro
+  if (typeof bk.resolve_main_series_year !== 'function') return astro
   // 非张表优先时，2017 年起的现行农历直接现算，不必下载历表
-  if (zhongyuanMode === 2 || astro.lunarYear < 2017) await ensureZhangTable(bk)
-  const s = bk.resolve_zhongyuan_year(astro.lunarYear, zhongyuanMode)
+  if (mainSeriesMode === 2 || astro.lunarYear < 2017) await ensureZhangTable(bk)
+  const s = bk.resolve_main_series_year(astro.lunarYear, mainSeriesMode)
   let yd: YearData
   if (s) {
     const j = JSON.parse(s) as { new_moon_jds: number[]; zhong_qi_jds: number[]; source: string; kind: YearData['riliKind'] }
@@ -332,10 +332,10 @@ export async function getYearData(
   const known = backend ? backendVariant.get(backend) : 'f64'
   const variant: RealBackendVariant = known ?? 'f64'
   const astro = await getAstroYearData(lunarYear, backend, onSourceUsed)
-  return overlayZhongyuan(astro, variant)
+  return overlayMainSeries(astro, variant)
 }
 
-/** 现算（天文）岁数据，带缓存；中原一线历日见 getYearData。 */
+/** 现算（天文）岁数据，带缓存；主序列历日见 getYearData。 */
 async function getAstroYearData(
   lunarYear: number,
   backend?: LunarBackend,

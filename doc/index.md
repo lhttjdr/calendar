@@ -45,19 +45,19 @@
 | [lunar-calendar.md](calendar/lunar-calendar.md) | 农历编算、流程与分层 |
 | [calendar-layers.md](calendar/calendar-layers.md) | 历法域内部四层结构（独立基础层/聚合实算层/派生层/仲裁路由层），`rust/core/src/calendar/` 模块划分依据 |
 | [rili-genealogy.md](calendar/rili-genealogy.md) | 历表与历日资料的源流：实物历日汇编、古人复原（杜预、刘羲叟、汪曰桢等）、今人历表（陈垣、方诗铭、张培瑜、洪金富等）与其底本关系，今人历术复原，实物出处核查，待办 |
-| [rili-sources.md](calendar/rili-sources.md) | 历日的来源与取舍（中原一线）：实物历日、按术推步、今人历表（张培瑜，撤「张表」概念）、现算的次序与选项，张表来历，推步与张表逐月差异，同类著作 |
-| [jindai-calendar.md](calendar/jindai-calendar.md) | 近现代中原一线历日（1914—2016）：按当时编算规则现算（定气定朔，北京地方平时 / 东经 120°），依据（三年历书凡例、陈展云、天文研究所《天文年历》1930 南京平时、1931 起东经 120°、商务本 1940 东经 105°）、1924 年起官历不载旧历、1923 年官历 12 朔逐月核对、存疑之月 |
+| [rili-sources.md](calendar/rili-sources.md) | 历日的来源与取舍（主序列）：实物历日、按术推步、今人历表（张培瑜，撤「张表」概念）、现算的次序与选项，张表来历，推步与张表逐月差异，同类著作 |
+| [jindai-calendar.md](calendar/jindai-calendar.md) | 近现代主序列历日（1914—2016）：按当时编算规则现算（定气定朔，北京地方平时 / 东经 120°），依据（三年历书凡例、陈展云、天文研究所《天文年历》1930 南京平时、1931 起东经 120°、商务本 1940 东经 105°）、1924 年起官历不载旧历、1923 年官历 12 朔逐月核对、存疑之月 |
 | [jindai-checks.md](calendar/jindai-checks.md) | 近现代历日逐月检验（生成文件）：1274 月与张表、与另一定日基准之比较，合朔/中气近子夜者 |
 | [historical-calendar.md](calendar/historical-calendar.md) | 实历模块：历史朔日表、优先实历的公历↔农历换算 |
 | [benji-checks.md](calendar/benji-checks.md) | 以本纪核验历日逐条结果（脚本生成）：明书朔日、实际合朔、閏月位置 |
 | [benji-qita-kaozheng.md](calendar/benji-qita-kaozheng.md) | 本纪明书朔日「其他」类（差 3 日以上）逐条排查（生成文件）：一字误、「朔」字衍、年月误、食日书朔、未明，附已改正的纪日定年之误 |
 | [dunhuang-tuban-checks.md](calendar/dunhuang-tuban-checks.md) | 敦煌历日图版核对（生成文件）：比较表伯希和诸件逐格对《法藏敦煌西域文献》图版，原件格 78/86、推算格 27/65 得证，不合 0 |
-| [dunhuang-calendar.md](calendar/dunhuang-calendar.md) | 敦煌历日换算（吐蕃、归义军）：出土历日有据之月作「敦煌」政权历表，无据之月退回中原历的规则、纪年，比较表逐格重现检验 |
+| [dunhuang-calendar.md](calendar/dunhuang-calendar.md) | 敦煌历日换算（吐蕃、归义军）：出土历日有据之月作「敦煌」政权历表，无据之月退回主序列历日的规则、纪年，比较表逐格重现检验 |
 | [ancient-calendar-restore.md](calendar/ancient-calendar-restore.md) | 古历复原：分数推步、平朔平气、历谱生成；三千五百年仅作验证 |
 | [guliuli-shuo.md](calendar/guliuli-shuo.md) | 古六历书朔逐历分析：七套参数的平朔相差、各时段平朔与天文真朔之差，逐条对春秋经传书朔、《汉书》日食朔晦、实历朔日表与秦汉初复原历 |
-| [tongjian-mulu-checks.md](calendar/tongjian-mulu-checks.md) | 《资治通鉴目录》（刘羲叟《长历》）朔闰逐条检验（生成文件）：汉初殷历颛顼历两行（前 206—前 104，另节）与前 104—959 年 1303 岁；独立读出 1016 岁中原一线合张表 12359/12540、合推步 12090/12350，参照核读 43 岁、两读未定 3 岁另栏不计；吴蜀北朝诸国行对分政权推步；目录独异处本纪多不从（宋人复原，只作对照） |
+| [tongjian-mulu-checks.md](calendar/tongjian-mulu-checks.md) | 《资治通鉴目录》（刘羲叟《长历》）朔闰逐条检验（生成文件）：汉初殷历颛顼历两行（前 206—前 104，另节）与前 104—959 年 1303 岁；独立读出 1016 岁主序列合张表 12359/12540、合推步 12090/12350，参照核读 43 岁、两读未定 3 岁另栏不计；吴蜀北朝诸国行对分政权推步；目录独异处本纪多不从（宋人复原，只作对照） |
 | [dingshuo-zhangbiao-diffs.md](calendar/dingshuo-zhangbiao-diffs.md) | 定朔诸历推步与张表朔日不同之月逐条考证（214 月、闰异 7 岁；797 年二月依史入例外表）：定小余、进朔限与距限，张表统一四分之三进朔 111 月，本纪/纪日/节日证据，703 年九月庚寅、891 年旧纪三条之精算 |
-| [tongwu-causes.md](calendar/tongwu-causes.md) | 中原一线「同误」356 月（推步与张表相同而本纪证据两家皆不合）逐条成因：纪日抽取误 202 条/62 月（待修抽取程序）、史文讹误、北朝之事对南朝历等；可改推步之候选 0 |
+| [tongwu-causes.md](calendar/tongwu-causes.md) | 主序列「同误」356 月（推步与张表相同而本纪证据两家皆不合）逐条成因：纪日抽取误 202 条/62 月（待修抽取程序）、史文讹误、北朝之事对南朝历等；可改推步之候选 0 |
 | [d-level-audit.md](calendar/d-level-audit.md) | 「互异而归 ③」抽查：中原 192、分政权 601 全扫并分层各抽 60；③ 基本得当（应改 1.6%／2.8%），判错多因检验未接实物与明清实录；系统性问题与修正候选 |
 | [calendar-compendium.md](calendar/calendar-compendium.md) | 历代历法总录：总表与已复原定朔历（戊寅、麟德、大衍、五纪、正元、宣明、崇玄、金大明）的常数、表、算法、检验；辽（调元、贾俊大明以宣明代推，947—1087） |
 | [calendar-source-texts.md](calendar/calendar-source-texts.md) | 历法原文摘录（脚本生成）：唐诸历、重修大明历、庚午元历表、《辽史》大明历 |
@@ -68,7 +68,7 @@
 | [qin-phase-checks.md](calendar/qin-phase-checks.md) | 秦王政至二世纪日对秦历合朔相位 δ 的逐条约束（生成文件）：官文书 276 条（里耶索引稿、《奏谳书》、《为狱等状四种》、睡虎地《语书》，及《序意》）一个 δ ∈ [638, 649] 分全合，各地互不矛盾；不容者只在私记与购藏（睡虎地《编年记》、岳麓《质日》、周家台《历谱》） |
 | [xincai-checks.md](calendar/xincai-checks.md) | 新蔡葛陵楚简纪日检验（生成文件）：31 条岁名·月·干支，组内自洽、前 450—前 350 年逐年相位窗口 |
 | [chu-sky-checks.md](calendar/chu-sky-checks.md) | 楚简纪日与实际月相对照（生成文件）：包山 87 条、新蔡前 398 年 19 条在颛顼平朔与看天（合朔日 + 0/1/2 日）下逐条合否 |
-| [s0612-runyue-checks.md](calendar/s0612-runyue-checks.md) | 斯0612 历序閏月（生成文件）：978 年应天历官本历序「六十相屬宫宿法」所列 919—978 年逐年閏月，与张表、中原一线比较（59/60 合，936 年漏书） |
+| [s0612-runyue-checks.md](calendar/s0612-runyue-checks.md) | 斯0612 历序閏月（生成文件）：978 年应天历官本历序「六十相屬宫宿法」所列 919—978 年逐年閏月，与张表、主序列比较（59/60 合，936 年漏书） |
 | [zoumalou-checks.md](calendar/zoumalou-checks.md) | 走马楼吴简纪日（生成文件）：竹简壹至叁、《简牍集成》中带日序干支或书朔之简逐条（已对原书图版核对），与吴乾象推步、魏历比较，及吴、魏朔不同之月按月归并 |
 | [loulan-checks.md](calendar/loulan-checks.md) | 楼兰、尼雅简纸文书纪日（生成文件）：底本侯灿、杨代欣《楼兰汉文简纸文书集成》，对校《中国简牍集成·二编》新疆卷；魏晋简 14 条（264—310）与罗布淖尔土垠西汉简 5 条，有朔之月 16 皆推步与张表相同（有证 10、同误 3、无证 3），互异 0 |
 | [ryukyu-sources.md](calendar/ryukyu-sources.md) | 《琉球王国汉文文献集成》36 册总目与历法、择日、纪日材料所在 |
@@ -78,7 +78,7 @@
 | [ryukyu-shipu-qiuyang-checks.md](calendar/ryukyu-shipu-qiuyang-checks.md) | 《中山世譜》《球陽》（后修史书，C/D）纪日 91 条、天象 39 条逐条：互异只康熙八年閏十二月（大统原颁，归 ③）；附卷或转记日本历待核；日食 3 条首里皆可见 |
 | [gaochang-630-checks.md](calendar/gaochang-630-checks.md) | 高昌延寿七年（630）残历各月朔与张表、玄始历外推（生成文件）：有据 11 月，合玄始 10、张表 9 |
 | [tulufan-jiri-checks.md](calendar/tulufan-jiri-checks.md) | 吐鲁番出土文书与墓表纪日检验（生成文件）：麴氏高昌朔日 7 条合玄始外推 5、张表 3，闰月 4 条合玄始 0、正光外推 3；630 年十二月差一日非进朔，620 年前后高昌历元或改；北凉无可检之条 |
-| [chutu-rili-checks.md](calendar/chutu-rili-checks.md) | 吐鲁番、黑城出土唐宋历日残件（720、1182、1211）月朔与张表、中原一线（生成文件）；多为定年所用，独立者一月 |
+| [chutu-rili-checks.md](calendar/chutu-rili-checks.md) | 吐鲁番、黑城出土唐宋历日残件（720、1182、1211）月朔与张表、主序列（生成文件）；多为定年所用，独立者一月 |
 | [yinwan-lipu-checks.md](calendar/yinwan-lipu-checks.md) | 尹湾汉墓元延元年、三年历谱与元延二年日记六单月，与张表、三统推步（生成文件）：20 月全合 |
 | [hanjian-checks.md](calendar/hanjian-checks.md) | 居延汉简、居延新简、敦煌汉简、肩水金关、悬泉汉简公文书朔日 451 条与张表、两汉推步（生成文件）：合 424，不合 27 条（简牍集成 19 条已对图，肩水金关释文 3 条，悬泉 5 条对书影）；同简异本重出 1 条不计 |
 | [zhongguo-gudai-lifa-checks.md](calendar/zhongguo-gudai-lifa-checks.md) | 《中国古代历法》逐条核对推步读法 23 条：戊寅差法、观天公式、统天距算相合；崇玄定朔（志言同大衍）、明天「二至/二百」等相异；宣明清明限疑书误；乾符四年历日著录 |

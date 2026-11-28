@@ -197,13 +197,13 @@ export interface LunarBackend {
   pingqi_li_name_wasm?(year: number): string
   /** 当地太阳时（小时）；mode 1=平太阳时 2=真太阳时 */
   local_solar_hours_wasm?(jd_ut: number, longitude_deg: number, mode: number, vsop87_ear: string): number
-  /** 中原一线该农历年行用之历的名称（麟德历、时宪历……）。 */
+  /** 主序列该农历年行用之历的名称（麟德历、时宪历……）。 */
   get_calendar_name?(lunar_year: number): string
   /** 载入今人历表（张培瑜）CSV 文本 */
   init_zhang_table?(csv: string): boolean
-  /** 中原一线某岁历日 JSON（实物历日 → 按术推步 → 今人历表）；应现算时返回空串 */
+  /** 主序列某岁历日 JSON（实物历日 → 按术推步 → 今人历表）；应现算时返回空串 */
   /** mode：0 逐历（缺省）、1 一律推步优先、2 张培瑜历表优先 */
-  resolve_zhongyuan_year?(lunar_year: number, mode: number): string
+  resolve_main_series_year?(lunar_year: number, mode: number): string
   /** 该农历年通行的计时写法；时制不明的年代返回空串。 */
   format_time_for_lunar_year?(lunar_year: number, hour: number, minute: number, second: number): string
   /** 按农历年查主表年号（中原正朔），simp=true 简体。 */

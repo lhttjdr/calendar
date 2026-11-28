@@ -1,4 +1,4 @@
-"""由 data/calendar/zhongyuan_qufa.csv（rust/core/examples/zhongyuan_qufa.rs 生成）写《历代历法总录》的「中原一线逐段取法」表。
+"""由 data/calendar/main_series_qufa.csv（rust/core/examples/main_series_qufa.rs 生成）写《历代历法总录》的「主序列逐段取法」表。
 
 知识库 doc/calendar/calendar-compendium.md 与读者站 site/calendar/compendium.md 各有一对标记
 `<!-- qufa:begin -->` / `<!-- qufa:end -->`，两标记之间整块重写；标记外不动。两处写同一张表，只是读者站不写代码名。
@@ -25,7 +25,7 @@ def span(a: int, b: int) -> str:
 
 
 def load():
-    with open(ROOT / "data/calendar/zhongyuan_qufa.csv", encoding="utf-8") as f:
+    with open(ROOT / "data/calendar/main_series_qufa.csv", encoding="utf-8") as f:
         return list(csv.DictReader(line for line in f if not line.startswith("#")))
 
 

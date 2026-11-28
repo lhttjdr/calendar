@@ -1,5 +1,5 @@
 //! 敦煌历日换算逐条检验：比较表（data/calendar/敦煌历日_比较表.csv，邓文宽 1996 附录一）敦煌曆一栏每一格，
-//! 经第 4 层 `lifa::resolve_dunhuang_month` / `resolve_dunhuang_day`（退回中原历）换算，看能否重现原书朔干支与月大小；
+//! 经第 4 层 `lifa::resolve_dunhuang_month` / `resolve_dunhuang_day`（退回主序列历日）换算，看能否重现原书朔干支与月大小；
 //! 并列各岁敦煌纪年（第 3 层 `era_names::dunhuang_year_name`）。
 //! 输出 data/calendar/dunhuang_shuori_check.csv、data/calendar/dunhuang_years.csv，
 //! 由 scripts/calendar_data/dunhuang_checks_to_md.py 汇入 doc/calendar/dunhuang-calendar.md。
@@ -23,7 +23,7 @@ fn main() {
         const N: [&str; 12] = ["正", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二"];
         format!("{}{}月", if leap { "閏" } else { "" }, N[m as usize - 1])
     };
-    let fb = DunhuangFallback::Zhongyuan;
+    let fb = DunhuangFallback::MainSeries;
     let mut out = String::from("文书,原书定名,中原月序,敦煌岁,敦煌月,原书朔,朔依据,原书大小,换算月首,换算朔,朔合,换算月长,大小合,只认有据亦合,书页\n");
     let (mut n, mut ok_shuo, mut ok_size, mut n_size, mut ok_strict) = (0, 0, 0, 0, 0);
     for r in &rows {
@@ -73,9 +73,9 @@ fn main() {
     }
     std::fs::write(root.join("data/calendar/dunhuang_shuori_check.csv"), out).unwrap();
     println!("比较表敦煌曆有朔之格 {n}：朔合 {ok_shuo}，大小可验 {n_size} 合 {ok_size}，只认有据之月亦合 {ok_strict}");
-    // 退回中原历之月中，月首因接有据之月而挪动者
+    // 退回主序列历日之月中，月首因接有据之月而挪动者
     let all = dunhuang_months(&dh, Some(&main), civil_to_jdn(786, 3, 1), civil_to_jdn(1036, 12, 1), fb);
-    let fallback: Vec<_> = all.iter().filter(|s| s.basis == lunar_core::calendar::lifa::DunhuangMonthBasis::Zhongyuan).collect();
+    let fallback: Vec<_> = all.iter().filter(|s| s.basis == lunar_core::calendar::lifa::DunhuangMonthBasis::MainSeries).collect();
     let moved: Vec<String> = fallback
         .iter()
         .filter_map(|s| {
@@ -84,7 +84,7 @@ fn main() {
             (diff != 0).then(|| format!("{}{}({:+})", s.lunar_year, label(s.month, s.is_leap), diff))
         })
         .collect();
-    println!("786—1036 年敦煌历 {} 月，其中退回中原历 {} 月；月首因接有据之月而挪动 {} 月：{}", all.len(), fallback.len(), moved.len(), moved.join(" "));
+    println!("786—1036 年敦煌历 {} 月，其中退回主序列历日 {} 月；月首因接有据之月而挪动 {} 月：{}", all.len(), fallback.len(), moved.len(), moved.join(" "));
 
     // 各岁：纪年、有据之月、闰月（敦煌 vs 张表）
     let mut years = String::from("岁,干支,时期,通行纪年,出土历日定名,原件之月,推算之月,敦煌闰月,张表闰月\n");

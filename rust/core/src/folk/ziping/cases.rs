@@ -1,6 +1,6 @@
 //! 古籍命例逐条检验（结果表见 doc/folk/ziping.md「命例检验」）。
 //!
-//! 历日取中原一线（`calendar::lifa`：实物历日、按术推步、张培瑜表），农历日换成儒略日数后按东八区钟点排盘
+//! 历日取主序列（`calendar::lifa`：实物历日、按术推步、张培瑜表），农历日换成儒略日数后按东八区钟点排盘
 //! （古人用当地太阳时，开封、杭州、北京等地与东八区相差不过半小时，所举时辰之中点不致跨时辰）。
 
 use super::pan::{pai_pan, BirthInput};
@@ -9,7 +9,7 @@ use crate::astronomy::ephemeris::{load_earth_vsop87_from_repo, Vsop87};
 use crate::astronomy::time::{TimePoint, TimeScale};
 use crate::calendar::gregorian::{civil_from_jdn, civil_to_jdn};
 use crate::calendar::historical::ShuoriTable;
-use crate::calendar::lifa::{zhongyuan_months_in_jdn_range, ZhongyuanPreference};
+use crate::calendar::lifa::{main_series_months_in_jdn_range, MainSeriesPreference};
 use crate::math::real::{real, Real, RealOps};
 
 fn zhang() -> Option<ShuoriTable> {
@@ -17,19 +17,19 @@ fn zhang() -> Option<ShuoriTable> {
     ShuoriTable::from_csv(&text).ok()
 }
 
-/// 中原一线农历（年, 月, 闰, 日）→ 儒略日数
+/// 主序列农历（年, 月, 闰, 日）→ 儒略日数
 fn lunar_jdn(t: Option<&ShuoriTable>, ly: i32, m: u8, leap: bool, d: i64) -> Option<i64> {
     let from = civil_to_jdn(ly, 1, 1) - 70;
     let to = civil_to_jdn(ly + 1, 3, 1);
-    zhongyuan_months_in_jdn_range(t, from, to, ZhongyuanPreference::default())
+    main_series_months_in_jdn_range(t, from, to, MainSeriesPreference::default())
         .into_iter()
         .find(|x| x.1 == ly && x.2 == m && x.3 == leap)
         .map(|x| x.0 + d - 1)
 }
 
-/// 儒略日数 → 中原一线农历（年, 月, 闰, 日）
+/// 儒略日数 → 主序列农历（年, 月, 闰, 日）
 fn jdn_lunar(t: Option<&ShuoriTable>, jdn: i64) -> Option<(i32, u8, bool, i64)> {
-    zhongyuan_months_in_jdn_range(t, jdn - 70, jdn, ZhongyuanPreference::default())
+    main_series_months_in_jdn_range(t, jdn - 70, jdn, MainSeriesPreference::default())
         .into_iter()
         .filter(|x| x.0 <= jdn)
         .last()
@@ -193,13 +193,13 @@ fn jiao_yun_li_yue_example() {
         let Some(j0) = lunar_jdn(t.as_ref(), ly, 1, false, 1) else { continue };
         let j12 = j0 + 360;
         // 十二个朔望月后之初一与小月数
-        let months: Vec<i64> = zhongyuan_months_in_jdn_range(t.as_ref(), j0, j0 + 400, ZhongyuanPreference::default())
+        let months: Vec<i64> = main_series_months_in_jdn_range(t.as_ref(), j0, j0 + 400, MainSeriesPreference::default())
             .into_iter()
             .map(|x| x.0)
             .filter(|&m| m >= j0)
             .collect();
         let small = months.windows(2).take(12).filter(|w| w[1] - w[0] == 29).count();
-        let leap = zhongyuan_months_in_jdn_range(t.as_ref(), j0, months[12] - 1, ZhongyuanPreference::default())
+        let leap = main_series_months_in_jdn_range(t.as_ref(), j0, months[12] - 1, MainSeriesPreference::default())
             .into_iter()
             .filter(|x| x.0 >= j0 && x.3)
             .map(|x| x.2)

@@ -1,5 +1,5 @@
 """《汉书》本纪卷一至卷六（高帝至武帝太初元年四月）「某月某干支」纪日抽取，供秦汉初历日检验
-（`rust/core/examples/zhongyuan_reckoning_eval.rs` 读入，逐条比颛顼历推步与李忠林复原历）。
+（`rust/core/examples/main_series_reckoning_eval.rs` 读入，逐条比颛顼历推步与李忠林复原历）。
 
 年月解析同 check_hanshu.py：纪年年（建亥，十月为岁首）换为夏正年——十月至十二月属上一夏正年；后九月记作闰九月。
 只抽记录，不判合否。

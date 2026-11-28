@@ -33,7 +33,7 @@ uv run --project scripts --only-group chapront-fit python scripts/figures/make_c
 - `kb_to_site.py` 做机械清理：去掉文件路径与模块路径、指向知识库其它文档的链接、开发日期戳（2025—2026 年）、表格中的「代码」列；函数名、体系代号等名字保留为等宽字体。专业内容（公式、参数、表格、检验数字、文献）不动。
 - `build_site_pages.py` 转换三个附录，天象逐条校验按节、按朝代拆页并生成侧栏条目。
 
-手写正文中也有一块是生成的：《历代历法总录》（知识库 `doc/calendar/calendar-compendium.md` 与读者站 `site/calendar/compendium.md`）第三节末「中原一线逐段取法」表，夹在 `<!-- qufa:begin -->`、`<!-- qufa:end -->` 两标记之间，由 `rust/core/examples/zhongyuan_qufa.rs`（第 4 层缺省取法逐年实际来源 → `data/calendar/zhongyuan_qufa.csv`，须先跑 `zhongyuan_reckoning_eval`）与 `scripts/calendar_data/qufa_to_md.py` 整块重写，勿手改。改了行用历段、推步或取法之后重跑这两步。
+手写正文中也有一块是生成的：《历代历法总录》（知识库 `doc/calendar/calendar-compendium.md` 与读者站 `site/calendar/compendium.md`）第三节末「主序列逐段取法」表，夹在 `<!-- qufa:begin -->`、`<!-- qufa:end -->` 两标记之间，由 `rust/core/examples/main_series_qufa.rs`（第 4 层缺省取法逐年实际来源 → `data/calendar/main_series_qufa.csv`，须先跑 `main_series_reckoning_eval`）与 `scripts/calendar_data/qufa_to_md.py` 整块重写，勿手改。改了行用历段、推步或取法之后重跑这两步。
 
 知识库更新后重跑即可同步附录。正文各章除上述一块外都是手写的，不由脚本生成，改知识库时须同步改写：数学篇全部（转动、级数求值、求根与极值、最小二乘拟合、数值精度）；天文篇的天球坐标、时间与时标、参考架、岁差、章动、历表、模型配套、视位置、合朔与月相、二十四节气；历法篇的历日与纪日、农历编排、古历复原、年号纪年、行用历日、各朝推步、秦与汉初历法、历代历法总录；天文篇天象各章（日月食、行星、恒星与二十八宿、当地星空、史书天象检验）；民俗篇全部（干支历四柱、民俗规划）。
 

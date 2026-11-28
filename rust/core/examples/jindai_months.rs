@@ -1,4 +1,4 @@
-//! 中原一线 1914—2016 年按当时编算规则现算的逐月历日，供第 4 层仲裁取作「按术推步」，不再取今人历表。
+//! 主序列 1914—2016 年按当时编算规则现算的逐月历日，供第 4 层仲裁取作「按术推步」，不再取今人历表。
 //!
 //! 规则（依据见 doc/calendar/jindai-calendar.md）：定气（太阳视黄经每 15°）、定朔、两冬至间 13 月则以第一个无中气之月为闰；
 //! 定日基准：1914—1927 年北京地方平时（东经 116°25′，UT+7h45m40s；《三年历书·凡例》「以太阳平时为标准」，陈展云），
@@ -149,13 +149,13 @@ fn main() {
     let base_of = |ly: i32| if ly <= 1927 { ("北京地方平时", BEIJING) } else { ("东经120°", E120) };
 
     let mut csv = String::from(
-        "# 中原一线 1914—2016 年按当时编算规则现算之逐月朔日（rust/core/examples/jindai_months.rs 生成，勿手改；rust/core/src/calendar/jindai.rs 编入）。\n\
+        "# 主序列 1914—2016 年按当时编算规则现算之逐月朔日（rust/core/examples/jindai_months.rs 生成，勿手改；rust/core/src/calendar/jindai.rs 编入）。\n\
 # 规则：定气定朔、无中气置闰；定日基准 1914—1927 北京地方平时（UT+7h45m40s），1928 起东经 120° 标准时（1928 年两基准逐月相同）。依据与检验见 doc/calendar/jindai-calendar.md、jindai-checks.md。\n\
 # 合朔时刻为定日基准之地方时；距子夜 = 合朔距最近子夜（分，正为子夜后）；另一基准朔日 = 改用另一定日基准所得（同则空）；张表只作对照。\n\
 农历年,月,闰,大小,朔日,朔日JDN,朔干支,定日基准,合朔时刻,距子夜(分),另一基准朔日,张表朔日,合张表\n",
     );
     let mut md = vec![
-        "# 近现代中原一线历日逐月检验（自动生成）".to_string(),
+        "# 近现代主序列历日逐月检验（自动生成）".to_string(),
         String::new(),
         "> 由 `rust/core/examples/jindai_months.rs` 生成，勿手改。规则与依据见 [jindai-calendar.md](jindai-calendar.md)。".to_string(),
         String::new(),

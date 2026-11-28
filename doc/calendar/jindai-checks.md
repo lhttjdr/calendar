@@ -1,4 +1,4 @@
-# 近现代中原一线历日逐月检验（自动生成）
+# 近现代主序列历日逐月检验（自动生成）
 
 > 由 `rust/core/examples/jindai_months.rs` 生成，勿手改。规则与依据见 [jindai-calendar.md](jindai-calendar.md)。
 

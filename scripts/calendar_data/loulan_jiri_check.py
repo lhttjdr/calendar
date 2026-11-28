@@ -1,11 +1,11 @@
-"""楼兰、尼雅出土汉文简纸文书（魏晋前凉，兼收罗布淖尔土垠西汉简）中的历日：检验中原一线推步与张表。
+"""楼兰、尼雅出土汉文简纸文书（魏晋前凉，兼收罗布淖尔土垠西汉简）中的历日：检验主序列推步与张表。
 
 录文：data/calendar/loulan_jiri.csv。主底本侯灿、杨代欣《楼兰汉文简纸文书集成》（天地出版社 1999）；对校《中国简牍集成·二编》
 第 20 册新疆维吾尔自治区卷（尼雅简只据此本）。两本整本 RapidOCR 识读后用 candidates 子命令抽候选，逐条对页图核对后入表。
 
 每条：A「某月某干支朔」；B「某月某日 + 干支」（朔 = 干支 − (日 − 1)，表中朔干支留空由脚本求）；C「某月 + 干支」（只检是否在月内）。
 定年为「推」（据历日推定年或据他简补出）者列出而不作证据。
-比较：data/calendar/zhongyuan_reckoning_months.csv 的推步朔与张表朔（魏晋为景初历段，土垠西汉为太初/三统历段）。
+比较：data/calendar/main_series_reckoning_months.csv 的推步朔与张表朔（魏晋为景初历段，土垠西汉为太初/三统历段）。
 前凉奉晋正朔、沿用建兴年号，史无自造历法之明文，所用当即晋景初历，亦与景初推步、张表比较。
 分类按 shiwu_fenlei（每月一个分类）；文书等级 B，历注习书 A。输出 doc/calendar/loulan-checks.md。
 用法（仓库根）：uv run --project scripts python -I scripts/calendar_data/loulan_jiri_check.py candidates <ocr.json>...
@@ -47,9 +47,9 @@ def candidates(paths):
 
 
 def reckoning():
-    """{(年, 月, 闰): (推步朔, 张表朔, 历)}：中原一线推步（土垠西汉简为太初/三统历段，魏晋为景初历段）。"""
+    """{(年, 月, 闰): (推步朔, 张表朔, 历)}：主序列推步（土垠西汉简为太初/三统历段，魏晋为景初历段）。"""
     out = {}
-    for r in csv.DictReader(open(ROOT / "data/calendar/zhongyuan_reckoning_months.csv", encoding="utf-8")):
+    for r in csv.DictReader(open(ROOT / "data/calendar/main_series_reckoning_months.csv", encoding="utf-8")):
         leap = r["月"].startswith("闰")
         out[(int(r["年"]), int(r["月"].lstrip("闰")), leap)] = (r["推步朔"], r["张表朔"], r["历"])
     return out
@@ -89,7 +89,7 @@ def check():
           "（C，只检是否在月内）候选，逐条对页图核对；同简异本取发掘整理者释文，异文记备注，只算一条。",
           "- 定年：纪年书于简者为证；年号首字残、整理者据文例补者亦作证；年或年月由历日推定（马伯乐、黄文弼据长历）、"
           "或据他简补出者，列出而不作证据（避免以历证历）。",
-          "- 比较：中原一线推步（`data/calendar/zhongyuan_reckoning_months.csv`，即 lifa 中原一线缺省所取）与张培瑜表。"
+          "- 比较：主序列推步（`data/calendar/main_series_reckoning_months.csv`，即 lifa 主序列缺省所取）与张培瑜表。"
           "魏晋简为景初历段（237—444；两家此段只 278 年三月、314 年正月与三月、430 年二月四月不同，楼兰简所及 264—330 前后皆两家相同之月），"
           "土垠西汉简为太初（三统）历段（两家全同）。",
           "- 前凉：张氏奉晋正朔，愍帝亡（316）后仍用建兴年号（楼兰沙木886「建兴十八年」= 330，无日干支，不入表），"

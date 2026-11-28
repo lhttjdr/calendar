@@ -7,7 +7,7 @@
 //! 用法（仓库根）：cargo run --release --manifest-path rust/Cargo.toml -p lunar-core --no-default-features --features real-f64 --example qinhan_shiwu_check
 #[path = "support/shiwu_fenlei.rs"]
 mod fenlei;
-use lunar_core::calendar::artifacts::zhongyuan_artifact_year;
+use lunar_core::calendar::artifacts::main_series_artifact_year;
 use lunar_core::calendar::gan_zhi::GAN_ZHI_60;
 use lunar_core::calendar::qinhan_shiyong::{self as sy, SEGMENTS};
 use lunar_core::calendar::{qinhan_restore, zhuanxu};
@@ -236,7 +236,7 @@ fn main() {
         } else {
             ms
         };
-        let art = zhongyuan_artifact_year(y).is_some();
+        let art = main_series_artifact_year(y).is_some();
         let (mut pin, mut iv, mut win, mut list) = (0, 0, 0, Vec::new());
         for &(d, m, leap) in &ms {
             let n = if m >= 10 { y + 1 } else { y };

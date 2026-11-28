@@ -6,7 +6,7 @@
 //! 「闰月与宋历或同，或前后相差一月」，「这表明西夏历是承袭宋历而来的」（书页 469）；宋颁历于西夏见《宋史·夏国传》
 //! （赵德明时「頒儀天具注曆」；绍兴元年「詔以夏本敵國，毋復班曆日」）。
 //!
-//! 1088 个月中：西夏朔日与宋历同 940、早一日 12、晚一日 10，原缺或原误待考 126（这些月以宋历朔日代，[XixiaMonth::basis] 标明）；
+//! 1088 个月中：西夏朔日与宋历同 948、早一日 12、晚一日 10，原缺或原误待考 118（这些月以宋历朔日代，[XixiaMonth::basis] 标明）；
 //! 闰月位置不同者 5 年。月序为西夏历月序。
 //! 本模块是第 2 层（历日实物经今人整理），经第 4 层推步政权表 [super::push_calendar::regime_calendars] 供换算。
 
@@ -81,7 +81,7 @@ mod tests {
     fn table_shape() {
         let m = months();
         assert_eq!(m.len(), 1088, "1120—1207 共 1088 月");
-        assert_eq!(m.iter().filter(|x| x.basis == XixiaBasis::SongFallback).count(), 126);
+        assert_eq!(m.iter().filter(|x| x.basis == XixiaBasis::SongFallback).count(), 118);
         // 两端都是原件朔日者必 29 或 30 日；一端以宋历代者在接缝处可成 28 或 31 日
         let mut seams = 0;
         for w in m.windows(2) {

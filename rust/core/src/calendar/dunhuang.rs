@@ -5,7 +5,7 @@
 //! 比较表敦煌曆一栏有朔之月（由 `scripts/calendar_data/build_dunhuang_shuori.py` 生成），只提供**有据之月**：
 //! 朔日、月序、月日数与依据（原件 / 原书据残历推算）。出土历日是实物，属资料可靠性第 1 级。
 //!
-//! 无据之月怎样补（退回中原历，或只认有据之月）是第 4 层的选择，见 [crate::calendar::lifa::resolve_dunhuang_day]，
+//! 无据之月怎样补（退回主序列历日，或只认有据之月）是第 4 层的选择，见 [crate::calendar::lifa::resolve_dunhuang_day]，
 //! 不在本模块内。敦煌纪年（吐蕃时期地支纪年、归义军奉中原年号）在第 3 层 [crate::calendar::era_names::dunhuang_year_name]。
 //! 说明与逐条检验见 `doc/calendar/dunhuang-calendar.md`。
 

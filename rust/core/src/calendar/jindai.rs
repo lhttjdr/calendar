@@ -1,4 +1,4 @@
-//! 近现代（1914—2016）中原一线历日：按当时编算规则现算的逐月朔日（第 2 层，聚合/实算）。
+//! 近现代（1914—2016）主序列历日：按当时编算规则现算的逐月朔日（第 2 层，聚合/实算）。
 //!
 //! 民国三年（1914）起中央观象台历书「用东西各国通行之法数推算，且以太阳平时为标准」：定气、定朔、无中气置闰，
 //! 与今日规则相同，只是定日基准随年段不同——1914—1927 北京地方平时（东经 116°25′），1928 年起东经 120°
@@ -13,7 +13,7 @@ use super::historical::MonthStart;
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
-/// 中原一线行用历名（`data/calendar/汇总/zhongyuan_calendar_periods.csv`）中按本模块现算者。
+/// 主序列行用历名（`data/calendar/汇总/main_series_calendar_periods.csv`）中按本模块现算者。
 pub const JINDAI_LIFA: &[&str] = &["中华民国历书（新法）", "国民历", "夏历（现代天文编算）"];
 
 /// 本表覆盖的农历年。

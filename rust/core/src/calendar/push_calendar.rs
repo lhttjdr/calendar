@@ -212,7 +212,7 @@ pub fn daye_exact() -> ExactPingLi {
     ExactPingLi { yue: 33783, ri: 1144, sui_num: 15573963, sui_den: 42640, year0: 608, ji0: 1427644, qishou_yushui: false }
 }
 
-/// 按历名（`data/calendar/汇总/zhongyuan_calendar_periods.csv`）推某农历年各月 (朔日 JDN, 月, 闰否)。
+/// 按历名（`data/calendar/汇总/main_series_calendar_periods.csv`）推某农历年各月 (朔日 JDN, 月, 闰否)。
 /// 平朔诸历在此；定朔诸历见 [super::dingshuo]。只收已实现、参数经术文核验之历（见 doc/calendar/calendar-compendium.md「平朔诸历：以术文核验」与
 /// doc/calendar/rili-sources.md）；其余返回 None，由第 4 层退到下一级来源。
 pub fn reckon_lifa_year(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, bool)>> {
@@ -337,7 +337,7 @@ fn reckon_lifa_year_raw(name: &str, lunar_year: i32) -> Option<Vec<(i64, u8, boo
 /// 本国史书明书而推步临限之月，可列入史载例外表（历名记作「政权：历名」，2026-11-22 起），由此应用。
 pub fn regime_year_months(regime: &str, lunar_year: i32) -> Option<(&'static str, Vec<(i64, u8, bool)>)> {
     let (name, mut months) = regime_year_months_raw(regime, lunar_year)?;
-    // 分政权的史载修正：例外表历名记作「政权：历名」（如「东魏/北齐：兴和历」），与中原一线同名之历分开
+    // 分政权的史载修正：例外表历名记作「政权：历名」（如「东魏/北齐：兴和历」），与主序列同名之历分开
     apply_shizai_liwai(&format!("{regime}：{name}"), &mut months);
     Some((name, months))
 }
@@ -411,7 +411,7 @@ pub fn regime_calendars() -> Vec<(&'static str, i32, i32, RegimeYearFn)> {
     // 见 doc/calendar/calendar-compendium.md「辽」与 data/calendar/liao_shuo_kaozheng.csv。
     fn liao(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
         // 1088 年起辽历与宋历同（本纪闰位、刻石朔日皆合宋历；《辽史》闰考可判者亦同，见 doc/calendar/calendar-compendium.md「辽」），
-        // 按宋中原一线同期之历推步（同 lifa 行用表 1075—1127 段）
+        // 按宋主序列同期之历推步（同 lifa 行用表 1075—1127 段）
         let song: Option<&'static str> = match y {
             1088..=1093 => Some("奉元历（术不传，李锐补修气朔、借观天日月改正）"),
             1094..=1102 => Some("观天历"),
@@ -459,7 +459,7 @@ pub fn regime_calendars() -> Vec<(&'static str, i32, i32, RegimeYearFn)> {
         ("颛顼历（包山楚简检验，冬柰当夏正十月）", ms)
     }
     // 麴氏高昌（523—640）：正光常数 + 两段历元平移 δ（616 年以前 −0.144 日，617 年起 +0.026 日），δ 由吐鲁番砖志反推，
-    // 不是术文（[super::gaochang]，doc/calendar/tulufan-jiri-checks.md「高昌历推步」）；640 年八月唐平高昌，此后行唐历（中原一线）
+    // 不是术文（[super::gaochang]，doc/calendar/tulufan-jiri-checks.md「高昌历推步」）；640 年八月唐平高昌，此后行唐历（主序列）
     fn gaochang(y: i32) -> (&'static str, Vec<(i64, u8, bool)>) {
         super::gaochang::year_months(y).unwrap_or(("高昌历", Vec::new()))
     }
@@ -716,7 +716,7 @@ fn wei_qi_params_for_year(g_year: i32) -> Option<(&'static str, LiParams)> {
     Some((name, params))
 }
 
-/// 公历 (y,m,d)（前推格里高利历，前端约定）下所有推步政权（不含中原一线）的农历月日。
+/// 公历 (y,m,d)（前推格里高利历，前端约定）下所有推步政权（不含主序列）的农历月日。
 pub fn gregorian_to_all_regimes_lunar(g_year: i32, g_month: i32, g_day: i32) -> Vec<RegimeLunarEntry> {
     let jdn = gregorian::gregorian_to_jdn(g_year, g_month, g_day);
     let mut out = Vec::new();

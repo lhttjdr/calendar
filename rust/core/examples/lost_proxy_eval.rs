@@ -4,7 +4,7 @@
 //!
 //! 输出 data/calendar/lost_proxy_eval.csv（逐候选汇总）、data/calendar/lost_proxy_detail.csv（候选间或与张表不同、或本纪只合其一之条）。
 //! 用法（仓库根）：cargo run --release --manifest-path rust/Cargo.toml -p lunar-core --no-default-features --features real-f64 --example lost_proxy_eval
-use lunar_core::calendar::artifacts::zhongyuan_artifact_year;
+use lunar_core::calendar::artifacts::main_series_artifact_year;
 use lunar_core::calendar::dingshuo::reckon_year_any;
 use lunar_core::calendar::song_early;
 
@@ -229,7 +229,7 @@ fn main() {
             }
             let (mut an, mut ar, mut at) = (0, 0, 0);
             for y in seg.years.0..=seg.years.1 {
-                let Some(art) = zhongyuan_artifact_year(y) else { continue };
+                let Some(art) = main_series_artifact_year(y) else { continue };
                 for &(j, m, l) in &art.months {
                     let rj = find(&rk[&y], m, l);
                     let tj = find(&tab(y), m, l);

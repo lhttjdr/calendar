@@ -1,9 +1,9 @@
-//! 中原一线按术推步逐历检验：与张培瑜历表逐月比较（朔日、闰位），并以正史本纪明书朔日（`data/calendar/benji_shuo_check.csv`）
+//! 主序列按术推步逐历检验：与张培瑜历表逐月比较（朔日、闰位），并以正史本纪明书朔日（`data/calendar/benji_shuo_check.csv`）
 //! 逐条检验推步与张表；秦汉初（前 221—太初元年四月）张表以前的今人历表为李忠林复原历，本纪取《汉书》本纪书朔、晦
 //! （`data/calendar/hanshu_qinhan_benji.csv`，逐条结果写 data/calendar/qinhan_benji_check.csv）。结果定第 4 层逐历缺省（`lifa::reckoning_preferred_by_evidence`，见 doc/calendar/rili-sources.md）。
 //!
-//! 输出 data/calendar/zhongyuan_reckoning_eval.csv（逐历汇总）、data/calendar/zhongyuan_reckoning_benji.csv（推步与张表不同、
-//! 或本纪只合其一之条）、data/calendar/zhongyuan_reckoning_diffs.csv（推步与张表互异之月逐月三分类）。
+//! 输出 data/calendar/main_series_reckoning_eval.csv（逐历汇总）、data/calendar/main_series_reckoning_benji.csv（推步与张表不同、
+//! 或本纪只合其一之条）、data/calendar/main_series_reckoning_diffs.csv（推步与张表互异之月逐月三分类）。
 //!
 //! 三分类（推步与张表互异之月）：①有硬据证张表误、推步合；②有硬据证推步误、张表合；③无据待核（无证、证据冲突）。
 //! 证据等级：A 实物历日（`artifacts` 整年实物、`data/calendar/chutu_rili_shuo.csv` 出土具注历）；B 当时文字；C 当朝或近时所修
@@ -12,12 +12,12 @@
 //! （定朔考证按朔日相近配月而张表月名相同者）只取 `data/calendar/dingshuo_zhangbiao_diffs.csv`（`examples/dingshuo_zhangbiao_diffs.rs`，
 //! 含明书朔、实录、纪日、写本与人工按语）之分类（另加实物），故须先跑该程序；其余互异之月本程序按月名收本纪明书朔、纪日、「閏月」、实录书朔。
 //! 复原性质材料（《通鉴目录》、今人诸表）不作证据。有 A 级者从 A；余者诸证一致即从之，相冲突则归③。
-//! 用法（仓库根）：cargo run --release --manifest-path rust/Cargo.toml -p lunar-core --no-default-features --features real-f64 --example zhongyuan_reckoning_eval
+//! 用法（仓库根）：cargo run --release --manifest-path rust/Cargo.toml -p lunar-core --no-default-features --features real-f64 --example main_series_reckoning_eval
 use lunar_core::calendar::gan_zhi::GAN_ZHI_60;
 use lunar_core::calendar::historical::ShuoriTable;
-use lunar_core::calendar::lifa::{zhongyuan_year_months, RiliSource, ZhongyuanCalendarPeriods, ZhongyuanPreference};
+use lunar_core::calendar::lifa::{main_series_year_months, RiliSource, MainSeriesCalendarPeriods, MainSeriesPreference};
 use lunar_core::calendar::month_labels::{standard_month_name, MonthLabel, MonthLabelReforms};
-use lunar_core::calendar::artifacts::zhongyuan_artifact_year;
+use lunar_core::calendar::artifacts::main_series_artifact_year;
 use lunar_core::calendar::push_calendar;
 use lunar_core::calendar::qinhan_restore;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -136,9 +136,9 @@ fn jiri_count_con(rows: &BTreeMap<String, Vec<(usize, u8)>>) -> (usize, char) {
     (by.values().sum(), lv)
 }
 
-/// 中原一线之条：北魏、东魏、西魏、北齐、北周与隋平陈（589）以前，元 1280 年以前（金重修大明历）不是中原一线所行之历，
+/// 主序列之条：北魏、东魏、西魏、北齐、北周与隋平陈（589）以前，元 1280 年以前（金重修大明历）不是主序列所行之历，
 /// 其书（《北史》《隋书》等）之条不以中原诸历衡之（另由 regime_benji_eval 以分政权推步检验）；明 1644 年后、清 1645 年前同
-fn zhongyuan_regime(regime: &str, y: i32) -> bool {
+fn main_series_regime(regime: &str, y: i32) -> bool {
     match regime {
         "西汉" | "东汉" | "魏" | "晋" | "宋" | "齐" | "梁" | "陈" | "唐" | "武周" | "后梁" | "后唐" | "后晋" | "后汉" | "后周" => true,
         "隋" => y >= 590,
@@ -236,7 +236,7 @@ fn main() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let read = |p: &str| std::fs::read_to_string(root.join(p)).unwrap();
     let zhang = ShuoriTable::from_csv(&read("vendor/calendar/chinese_calendar/实历朔日表.csv")).unwrap();
-    let periods = ZhongyuanCalendarPeriods::embedded();
+    let periods = MainSeriesCalendarPeriods::embedded();
     let mut stats: BTreeMap<(i32, &'static str), Stat> = BTreeMap::new();
     let mut first_year: BTreeMap<&'static str, i32> = BTreeMap::new();
     // 逐年：推步与张表
@@ -253,7 +253,7 @@ fn main() {
     for y in -220..=1913 {
         // 直接按术推步（不经仲裁）：实物年也照推，推步与张表的比较不受实物接入影响
         let name: &'static str = periods.name_for_lunar_year(y);
-        let r = match zhongyuan_year_months(None, y, ZhongyuanPreference::Reckoning) {
+        let r = match main_series_year_months(None, y, MainSeriesPreference::Reckoning) {
             Some((r, RiliSource::Reckoned(_))) => r,
             Some((_, RiliSource::Artifact(_))) => match push_calendar::reckon_lifa_year(name, y) {
                 Some(r) => r,
@@ -318,9 +318,9 @@ fn main() {
             continue;
         }
         let (Ok(y), Ok(rec)) = (r[cy].parse::<i32>(), r[cr].parse::<i64>()) else { continue };
-        // 只检中原一线之条（北朝诸国、隋 590 年前、元 1280 年前等不检中原诸历，见 zhongyuan_regime）；宋代史书「宋」与刘宋同名，
-        // 960 年后的「宋」即赵宋，亦属中原一线
-        if !zhongyuan_regime(&r[cs], y) {
+        // 只检主序列之条（北朝诸国、隋 590 年前、元 1280 年前等不检中原诸历，见 main_series_regime）；宋代史书「宋」与刘宋同名，
+        // 960 年后的「宋」即赵宋，亦属主序列
+        if !main_series_regime(&r[cs], y) {
             continue;
         }
         let (leap, m) = match r[cm].strip_prefix('闰').or_else(|| r[cm].strip_prefix('閏')) {
@@ -408,7 +408,7 @@ fn main() {
         };
         // 推步（不经实物）；实物年另取出土历谱（artifacts），本纪与同月实物相违者不计入推步、复原之比较（实物 > 史书）
         let reck_y = |y: i32| push_calendar::reckon_lifa_year(periods.name_for_lunar_year(y), y).unwrap();
-        let art_y = |y: i32| zhongyuan_artifact_year(y).map_or_else(|| reck_y(y), |a| a.months.clone());
+        let art_y = |y: i32| main_series_artifact_year(y).map_or_else(|| reck_y(y), |a| a.months.clone());
         for r in recs.iter().filter(|r| r.len() == h.len() && r[0] != "卷" && !r[0].starts_with('#')) {
             let (y, m, leap): (i32, u8, bool) = (r[cy].parse().unwrap(), r[cm].parse().unwrap(), r[cl] == "1");
             let gi = GAN_ZHI_60.iter().position(|g| *g == r[cg]).unwrap() as i64;
@@ -420,7 +420,7 @@ fn main() {
             };
             let (gr, okr) = judge(span(&reck_y, y, m, leap));
             let (gt, okt) = judge(span(&table, y, m, leap));
-            let oka = zhongyuan_artifact_year(y).is_some().then(|| judge(span(&art_y, y, m, leap)).1);
+            let oka = main_series_artifact_year(y).is_some().then(|| judge(span(&art_y, y, m, leap)).1);
             let ka = oka.map_or("", |o| if o { "1" } else { "0" });
             per += &format!("{},{},{},{}{},{},{},{},{},{},{},{},{}\n", r[cv], r[cn], y, if leap { "闰" } else { "" }, m, r[cg], r[cs], gr, okr as u8, gt, okt as u8, ka, r[cx]);
             // 互异之月逐月分类：书朔、晦者 C（明书朔晦），余为纪日 D；与同月实物相违者不计（实物 > 史书）
@@ -481,7 +481,7 @@ fn main() {
                     continue;
                 }
                 let (Ok(y), Ok(m)) = (r[3].parse::<i32>(), r[4].parse::<u8>()) else { continue };
-                if !zhongyuan_regime(&r[0], y) || (b == "hanshu" && y <= -104) {
+                if !main_series_regime(&r[0], y) || (b == "hanshu" && y <= -104) {
                     continue;
                 }
                 let regime = match r[0].as_str() {
@@ -527,7 +527,7 @@ fn main() {
             let (crg, cyr, caf, ctx) = (c("regime"), c("year"), c("leap_after"), c("text"));
             for r in rows.iter().skip(1).filter(|r| r.len() == h.len()) {
                 let (Ok(y), Ok(after)) = (r[cyr].parse::<i32>(), r[caf].parse::<u8>()) else { continue };
-                if !zhongyuan_regime(&r[crg], y) || (b == "hanshu" && y <= -104) {
+                if !main_series_regime(&r[crg], y) || (b == "hanshu" && y <= -104) {
                     continue;
                 }
                 let regime = match r[crg].as_str() {
@@ -614,7 +614,7 @@ fn main() {
                 note = format!("定朔考证：{}", c[17]);
             }
         }
-        if let Some(a) = zhongyuan_artifact_year(y) {
+        if let Some(a) = main_series_artifact_year(y) {
             let (hr, ht) = (a.months.contains(&rm), tm.is_some_and(|t| a.months.contains(&t)));
             if hr != ht {
                 d.5.push(ZEv { sup_r: hr, lv: 'A', what: format!("实物历日（{y} 年）"), book: String::new(), hard: true });
@@ -653,9 +653,9 @@ fn main() {
             evs.join("；").replace(',', "，")
         );
     }
-    std::fs::write(root.join("data/calendar/zhongyuan_reckoning_diffs.csv"), &dcsv).unwrap();
+    std::fs::write(root.join("data/calendar/main_series_reckoning_diffs.csv"), &dcsv).unwrap();
 
-    // 两家相同之月：纪日。中原一线诸史本纪纪日（不书朔之条），只取能分辨朔日之条——日在朔日或晦日（两家下月朔同者），或书日序；
+    // 两家相同之月：纪日。主序列诸史本纪纪日（不书朔之条），只取能分辨朔日之条——日在朔日或晦日（两家下月朔同者），或书日序；
     // 落在两家该月之外者为同误之证。他国、元 1280 年前、隋 590 年前、明 1644 年后、清 1645 年前之条不计。
     let zy_books = [
         "hanshu", "houhanshu", "sanguozhi", "jinshu", "songshu", "nanqishu", "liangshu", "chenshu", "suishu", "beishi", "jiutangshu", "xintangshu",
@@ -678,7 +678,7 @@ fn main() {
             if pos == "朔" {
                 continue;
             }
-            if !zhongyuan_regime(&r[0], y) {
+            if !main_series_regime(&r[0], y) {
                 continue;
             }
             let regime = match r[0].as_str() {
@@ -726,7 +726,7 @@ fn main() {
     }
     // 实物
     for &(_, _, y, m) in &sames {
-        if let Some(a) = zhongyuan_artifact_year(y) {
+        if let Some(a) = main_series_artifact_year(y) {
             if let Some(am) = a.months.iter().find(|e| e.1 == m.1 && e.2 == m.2) {
                 same_ev.entry((y, m.1, m.2)).or_default().art.push((am.0 == m.0, format!("实物历日（{y} 年）")));
             }
@@ -802,7 +802,7 @@ fn main() {
         let c: Vec<&str> = line.splitn(10, ',').collect();
         mcsv += &format!("{},{},{},{},{},互异（{}）,{},{},{}\n", c[0], c[1], c[2], c[3], c[5], c[6], c[7], c[8], c.get(9).unwrap_or(&""));
     }
-    std::fs::write(root.join("data/calendar/zhongyuan_reckoning_months.csv"), mcsv).unwrap();
+    std::fs::write(root.join("data/calendar/main_series_reckoning_months.csv"), mcsv).unwrap();
     println!("相同之月 {}：有证 {:?}", sames.len(), same_lv);
     let mut out = String::from("历,起,止,月数,与张表同,闰位不同之岁,本纪条数,本纪合推步,本纪合张表,只合推步,只合张表,已考讹不计,从本纪修正,互异之月,①硬据证张表误,②硬据证推步误,③无据待核,相同有证,相同同误,相同无证\n");
     for ((_, name), s) in &stats {
@@ -810,6 +810,6 @@ fn main() {
         out += &format!("{name},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n", s.years.0, s.years.1, s.months, s.same, ld.join(" "), s.n, s.hit_r, s.hit_t, s.only_r, s.only_t, s.errata, s.benji_fix, s.months - s.same, s.cls[0], s.cls[1], s.cls[2], s.same_cls[0], s.same_cls[1], s.same_cls[2]);
         println!("{name:<20} {}—{} 月 {} 同 {} 闰异 {:?} | 本纪 {} 推步 {} 张表 {} （只推步 {} 只张表 {}）", s.years.0, s.years.1, s.months, s.same, s.leap_diff, s.n, s.hit_r, s.hit_t, s.only_r, s.only_t);
     }
-    std::fs::write(root.join("data/calendar/zhongyuan_reckoning_eval.csv"), out).unwrap();
-    std::fs::write(root.join("data/calendar/zhongyuan_reckoning_benji.csv"), detail).unwrap();
+    std::fs::write(root.join("data/calendar/main_series_reckoning_eval.csv"), out).unwrap();
+    std::fs::write(root.join("data/calendar/main_series_reckoning_benji.csv"), detail).unwrap();
 }
