@@ -5,7 +5,8 @@
   A 「某年某月某日 + 干支」：朔 = 干支 − (日 − 1)；
   B 「某月某干支朔」。
 OCR（RapidOCR，竖排）候选由 scripts 外部步骤生成（JSON：页 → [(x, y, 文字, 置信)]），本脚本只做匹配与比对；每条候选须对原书页图人工核对后
-写入 data/calendar/zoumalou_jiri.csv（列：册,书页,简号,年号,年,月,闰,日,干支,朔干支,原文,核对），检验只用核对过的行。
+写入 data/calendar/zoumalou_jiri.csv（列：册,书页,简号,年号,年,月,闰,日,干支,朔干支,原文,核对），检验只用核对过的行
+（核对=1 本项目对原书页图核过；核对=2 本项目无原书，据学者论文所引正式释文并附简号——引者据图版改释之处随之，备注注明出处）。
 吴历：data/calendar/推步政权朔日表.csv「吴」（乾象历推步）；魏历：张培瑜历表（魏行黄初/景初，与中原一线推步同）。
 输出 doc/calendar/zoumalou-checks.md 与 data/calendar/zoumalou_months.csv（逐月所据之简与分类，regime_benji_eval 读入并入分政权逐月表）。
 用法（仓库根）：python3 scripts/calendar_data/zoumalou_shuo_check.py candidates <ocr.json>...  （列出候选）
@@ -76,7 +77,7 @@ def check():
                 for r in csv.DictReader(open(ROOT / "data/calendar/推步政权朔日表.csv", encoding="utf-8")) if r["regime"] == "吴")
     wei = months((int(r["lunar_year"]), int(r["lunar_month"]), r["is_leap"] == "1", jd(int(r["gregorian_year"]), int(r["gregorian_month"]), int(r["gregorian_day"])))
                  for r in csv.DictReader(open(ROOT / "vendor/calendar/chinese_calendar/实历朔日表.csv", encoding="utf-8")) if 200 <= int(r["lunar_year"]) <= 290)
-    rows = [r for r in csv.DictReader(l for l in open(ROOT / "data/calendar/zoumalou_jiri.csv", encoding="utf-8") if not l.startswith("#")) if r["核对"] == "1"]
+    rows = [r for r in csv.DictReader(l for l in open(ROOT / "data/calendar/zoumalou_jiri.csv", encoding="utf-8") if not l.startswith("#")) if r["核对"] in ("1", "2")]
     md = ["# 走马楼吴简纪日与吴、魏历（自动生成）", "", "> 由 `scripts/calendar_data/zoumalou_shuo_check.py check` 生成，勿手改。底本与方法见 [historical-calendar.md](historical-calendar.md)「三国十六国」。", "",
           "简文所书朔日（书「某干支朔」，或由日序与干支推得）与吴乾象历推步、魏历（张表）之朔比较。", "",
           "| 册 | 书页 | 简号 | 简文日期 | 所示朔 | 吴推步朔 | 合吴 | 魏历朔 | 合魏 | 分类 | 原文 | 备注 |", "|---|---|---|---|---|---|---|---|---|---|---|---|"]
